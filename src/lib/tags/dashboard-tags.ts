@@ -1,4 +1,4 @@
-import { TagDefinition } from '../../app/tags/types';
+import { TagDefinition } from './types';
 
 export const dashboardTags: TagDefinition[] = [
   // KET1

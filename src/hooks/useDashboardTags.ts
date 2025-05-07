@@ -1,7 +1,7 @@
 'use client';
 
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { dashboardTags } from '@/lib/tags/dashboard-tags_';
+import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagValue } from '@/lib/tags/types';
 
 /**

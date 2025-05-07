@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { dashboardTags } from '@/lib/tags/dashboard-tags_';
+import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagDefinition } from '@/lib/tags/types';
 import { useDashboardTags } from './useDashboardTags';
 

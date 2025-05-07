@@ -1,5 +1,5 @@
 export * from './types';
-export * from './dashboard-tags_';
+export * from './dashboard-tags';
 
 // Utility functions to work with tags
 export const getTagById = (id: number) => {
