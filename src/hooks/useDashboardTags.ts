@@ -33,6 +33,14 @@ async function fetchTagValue(tagName: string): Promise<TagValue> {
     value = getRandomValue(3, 10); // Score values
   } else if (tag.unit === 'bool') {
     value = Math.random() > 0.5; // Boolean values
+  } else if (tag.unit === 't/h') {
+    value = getRandomValue(100, 500); // Flow rate
+  } else if (tag.unit === 'kW') {
+    value = getRandomValue(1000, 5000); // Power
+  } else if (tag.unit === 'm') {
+    value = getRandomValue(1, 10); // Level
+  } else if (tag.unit === 't') {
+    value = getRandomValue(1000, 10000); // Weight
   } else {
     value = getRandomValue(50, 100); // Default range
   }
@@ -79,6 +87,24 @@ export function useDashboardTags(tagNames: string[], options = {}) {
     acc[tagName] = query.data;
     return acc;
   }, {} as Record<string, TagValue | undefined>);
+  
+  // Process state relationships
+  // For each tag, check if it depends on any state tags and update its active status
+  dashboardTags.forEach(tag => {
+    const tagValue = data[tag.name];
+    
+    if (tagValue && tag.state && tag.state.length > 0) {
+      // This tag depends on state tags
+      // Check if all required state tags are active (true)
+      const isActive = tag.state.every(stateTagName => {
+        const stateTagValue = data[stateTagName];
+        return stateTagValue?.value === true; // State is active if boolean value is true
+      });
+      
+      // Update the active status based on dependent state tags
+      tagValue.active = isActive;
+    }
+  });
   
   // Function to refetch all queries
   const refetch = () => {

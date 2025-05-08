@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowDownRight, ArrowRight, ArrowUpRight } from "lucide-react"
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Power } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 
@@ -41,9 +41,14 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
       <div className="p-4">
         <div className="flex items-center justify-between pb-2">
           <h3 className="font-medium text-sm">{definition.desc}</h3>
+          {definition.state && definition.state.length > 0 && (
+            <div className="flex items-center">
+              <Power className={`h-4 w-4 mr-1 ${value?.active ? 'text-green-500' : 'text-red-500'}`} />
+            </div>
+          )}
         </div>
         
-        <div className="text-xs text-muted-foreground">{definition.name}</div>
+        {/* <div className="text-xs text-muted-foreground">{definition.name}</div> */}
         
         <div className="mt-2 flex items-baseline gap-1">
           <span className="text-2xl font-bold">

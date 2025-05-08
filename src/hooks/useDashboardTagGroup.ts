@@ -15,7 +15,13 @@ export function useDashboardTagGroup(groupName: string, options = {}) {
   // Get all tag definitions for this group
   const groupTags = useMemo(() => {
     if (!isValidGroup) return [];
-    return dashboardTags.filter(tag => tag.group === groupName);
+    
+    // Get all tags in this group
+    const allGroupTags = dashboardTags.filter(tag => tag.group === groupName);
+    
+    // Filter out boolean tags which are just for state control
+    // Only keep analog tags (those that aren't just boolean tags)
+    return allGroupTags.filter(tag => tag.unit !== 'bool');
   }, [groupName, isValidGroup]);
   
   // Get tag names for this group
