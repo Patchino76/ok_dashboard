@@ -4,6 +4,8 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 
+from sqlalchemy import True_
+
 # Import the DatabaseManager
 from database import DatabaseManager, create_db_manager
 
@@ -117,24 +119,9 @@ async def get_tag_states(
     """
     return db.get_tag_states(state_tag_ids)
 
-# Startup and shutdown events
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize resources on startup"""
-    # The database manager is already initialized due to the global instance
-    # Add any additional initialization if needed
-    print("API server started - database connection initialized")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on shutdown"""
-    # Close the database connections
-    if db_manager:
-        db_manager.close()
-    print("API server shutdown - database connections closed")
-
 # For testing/development
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+    print("Starting API server with reload disabled...")
+    # Disable reload to avoid file watch issues
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True_)
