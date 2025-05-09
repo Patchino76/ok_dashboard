@@ -86,7 +86,7 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
       className={`border-l-4 ${borderColor} shadow-sm hover:shadow-md transition-shadow cursor-pointer`}
       onClick={onClick}
     >
-      <div className="p-4">
+      <div className="p-3 sm:p-4">
         <div className="flex items-center justify-between pb-2">
           <h3 className="font-medium text-sm">{definition.desc}</h3>
           {definition.state && definition.state.length > 0 && (
