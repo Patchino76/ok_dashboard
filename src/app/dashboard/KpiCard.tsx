@@ -1,8 +1,10 @@
 'use client'
 
+import React from "react"
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Power } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
+import { getBorderColorFromGroup } from "@/lib/utils"
 
 type KpiCardProps = {
   definition: TagDefinition
@@ -16,63 +18,8 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
   const trend = Math.random() > 0.66 ? "up" : Math.random() > 0.33 ? "down" : "neutral"
   const trendValue = trend === "up" ? "+5%" : trend === "down" ? "-3%" : "0%"
   
-  // Assign colors based on group name patterns
-  let borderColor = "border-l-gray-500";
-  
-  // Process areas - KET groups
-  if (definition.group.includes('КЕТ')) {
-    if (definition.group.includes('1')) {
-      borderColor = "border-l-amber-600";
-    } else if (definition.group.includes('3')) {
-      borderColor = "border-l-amber-500";
-    } else {
-      borderColor = "border-l-amber-400";
-    }
-  }
-  // MGTL
-  else if (definition.group.includes('МГТ')) {
-    borderColor = "border-l-red-500";
-  }
-  // SST
-  else if (definition.group.includes('ССТ')) {
-    borderColor = "border-l-blue-600";
-  }
-  // Streams
-  else if (definition.group.includes('Поток')) {
-    if (definition.group.includes('1-4')) {
-      borderColor = "border-l-blue-500";
-    } else if (definition.group.includes('5-13')) {
-      borderColor = "border-l-blue-400";
-    } else if (definition.group.includes('15')) {
-      borderColor = "border-l-blue-300";
-    } else if (definition.group.includes('16')) {
-      borderColor = "border-l-blue-200";
-    }
-  }
-  // Bunkers
-  else if (definition.group.includes('Бунк')) {
-    borderColor = "border-l-green-500";
-  }
-  // Mills
-  else if (definition.group.includes('Мелн')) {
-    borderColor = "border-l-purple-600";
-  }
-  // Flotation
-  else if (definition.group.includes('Флот')) {
-    borderColor = "border-l-purple-500";
-  }
-  // Filter Press
-  else if (definition.group.includes('Прес')) {
-    borderColor = "border-l-purple-400";
-  }
-  // Auto Scale
-  else if (definition.group.includes('везна')) {
-    borderColor = "border-l-teal-500";
-  }
-  // Water Park
-  else if (definition.group.includes('ВХС')) {
-    borderColor = "border-l-cyan-500";
-  }
+  // Get border color class from group name using utility function
+  const borderColor = getBorderColorFromGroup(definition.group);
   
   // Map trend to icons
   const trendIcon = {

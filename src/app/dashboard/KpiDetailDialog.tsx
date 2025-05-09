@@ -15,6 +15,7 @@ type KpiDetailDialogProps = {
   value: TagValue | null | undefined
   open: boolean
   onOpenChange: (open: boolean) => void
+  color?: string // Color for the trend line, derived from the group
 }
 
 // Generate mock data for the chart
@@ -27,7 +28,7 @@ const generateMockData = (baseValue: number, count = 24) => {
   }))
 }
 
-export function KpiDetailDialog({ definition, value, open, onOpenChange }: KpiDetailDialogProps) {
+export function KpiDetailDialog({ definition, value, open, onOpenChange, color = "#0ea5e9" }: KpiDetailDialogProps) {
   if (!definition) return null
 
   // Convert value to number for charts if possible
@@ -102,7 +103,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange }: KpiDe
                       <Line
                         type="monotone"
                         dataKey="value"
-                        stroke="#3b82f6"
+                        stroke={color}
                         strokeWidth={2}
                       />
                     </LineChart>

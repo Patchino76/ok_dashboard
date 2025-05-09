@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getTagGroups } from "@/lib/tags"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { useDashboardTagGroup } from "@/hooks/useDashboardTagGroup"
+import { getColorFromGroup } from "@/lib/utils"
 
 export function KpiDashboard() {
   // State for the selected tag for the detail dialog
@@ -127,6 +128,7 @@ export function KpiDashboard() {
         onOpenChange={(open) => {
           if (!open) setSelectedTag(null)
         }}
+        color={selectedTag?.definition ? getColorFromGroup(selectedTag.definition.group) : undefined}
       />
     </div>
   )
