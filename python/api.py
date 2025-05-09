@@ -1,10 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Union
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 from datetime import datetime, timedelta
-
-from sqlalchemy import True_
 
 # Import the DatabaseManager
 from database import DatabaseManager, create_db_manager
@@ -32,10 +30,9 @@ class TagValue(BaseModel):
     unit: Optional[str] = None
     status: Optional[str] = None
 
-class TagValueBatch(BaseModel):
+class TagValueBatch(RootModel):
     """Model for batch tag values response"""
-    timestamp: str
-    data: Dict[str, Union[float, bool, None]]
+    root: Dict[str, Optional[TagValue]]
 
 class TagTrend(BaseModel):
     """Model for tag trend data"""
@@ -80,11 +77,10 @@ async def get_tag_values(tag_ids: List[int] = Query(...), db: DatabaseManager = 
     """
     result = db.get_tag_values(tag_ids)
     
-    if not result or not result.get("data"):
-        # Return empty results rather than an error since some tags might not exist
-        return {"timestamp": datetime.now().isoformat(), "data": {}}
+    # Convert tag_ids to strings to ensure JSON compatibility
+    string_keyed_result = {str(tag_id): value for tag_id, value in result.items()}
     
-    return result
+    return TagValueBatch(root=string_keyed_result)
 
 @app.get("/api/tag-trend/{tag_id}", response_model=TagTrend)
 async def get_tag_trend(
@@ -117,11 +113,16 @@ async def get_tag_states(
     This endpoint is specifically for fetching boolean state tags that
     control the active/inactive state of analog tags.
     """
-    return db.get_tag_states(state_tag_ids)
+    result = db.get_tag_states(state_tag_ids)
+    
+    # Convert numeric tag_ids to strings for JSON compatibility
+    string_keyed_result = {str(tag_id): state for tag_id, state in result.items()}
+    
+    return string_keyed_result
 
 # For testing/development
 if __name__ == "__main__":
     import uvicorn
-    print("Starting API server with reload disabled...")
-    # Disable reload to avoid file watch issues
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True_)
+    print("Starting API server with reload completely disabled...")
+    # Completely disable reload to avoid spurious file change detection
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)

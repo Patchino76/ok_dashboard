@@ -79,269 +79,165 @@ class DatabaseManager:
             return None
 
         try:
-            # First try to query the database
+            # Query the database for the tag value
             query = text("""
                 SELECT TOP 1 LoggerTagID, Value, IndexTime 
                 FROM LoggerValues
-                WHERE LoggerTagID = :tag_id
+                WHERE LoggerTagID IN (:tag_id)
                 ORDER BY IndexTime DESC
             """)
             
-            try:
-                with self.engine.connect() as conn:
-                    result = conn.execute(query, {"tag_id": tag_id}).fetchone()
-                    
-                    if result:
-                        # In LoggerValues table there's no Quality field, so we'll assume all values are good
-                        status = "good"
-                        
-                        # Convert timestamp to ISO format
-                        timestamp_iso = result.IndexTime.isoformat() if hasattr(result.IndexTime, 'isoformat') else str(result.IndexTime)
-                        
-                        return {
-                            "value": result.Value,
-                            "timestamp": timestamp_iso,
-                            "unit": tag_details.get("unit"),
-                            "status": status
-                        }
-            except Exception as e:
-                # Log the database error but continue to use mock data
-                logger.warning(f"Database query failed, using mock data: {e}")
-            
-            # If we got here, either no data was found in the DB or there was a DB error
-            # Generate mock data for testing
-            import random
-            from datetime import datetime
-            
-            # Generate a random value based on the tag type
-            value_ranges = {
-                1: (20.0, 80.0),      # Temperature_1 range
-                2: (1.0, 10.0),       # Pressure_1 range
-                3: (0.0, 100.0),      # Flow_1 range
-                11: (25.0, 85.0),     # Temperature_2 range
-                12: (0.5, 8.0),       # Pressure_2 range 
-                13: (5.0, 150.0),     # Flow_2 range
-                100: (1000, 3000),    # Motor speed range
-                101: (0.0, 100.0)     # Tank level range
-            }
-            
-            # Get appropriate value range for this tag
-            min_val, max_val = value_ranges.get(tag_id, (0.0, 100.0))
-            
-            # Generate a random value and round to 2 decimal places
-            mock_value = round(random.uniform(min_val, max_val), 2)
-            
-            # Current time for the timestamp
-            timestamp = datetime.now()
-            
-            return {
-                "value": mock_value,
-                "timestamp": timestamp.isoformat(),
-                "unit": tag_details.get("unit"),
-                "status": "good"  # Mock data is always good
-            }
+            with self.engine.connect() as conn:
+                result = conn.execute(query, {"tag_id": tag_id}).fetchone()
+                
+                if not result:
+                    logger.warning(f"No values found for tag ID {tag_id}")
+                    return None
+                
+                # Assume all values have good quality
+                status = "good"
+                
+                # Convert timestamp to ISO format
+                timestamp_iso = result.IndexTime.isoformat() if hasattr(result.IndexTime, 'isoformat') else str(result.IndexTime)
+                
+                return {
+                    "value": result.Value,
+                    "timestamp": timestamp_iso,
+                    "unit": tag_details.get("unit"),
+                    "status": status
+                }
+                
         except Exception as e:
             logger.error(f"Error fetching tag value for ID {tag_id}: {e}")
             return None
     
     def get_tag_values(self, tag_ids):
-        """Get the current values of multiple tags
+        """Get current values for multiple tags at once
         
         Args:
             tag_ids: List of tag IDs to fetch
             
         Returns:
-            dict: A dictionary mapping tag IDs to their values
+            dict: A dictionary mapping tag IDs to their value information
         """
         if not tag_ids:
-            return {"data": {}, "timestamp": datetime.now().isoformat()}
-        
-        # Initialize values dictionary
-        values = {}
+            return {}
+
+        result = {}
         
         try:
-            # First try to query the database
+            # Get values from the database with a single query
+            # Convert tag_ids to comma-separated string for SQL query
             tag_id_list = ",".join(str(tag_id) for tag_id in tag_ids)
             
-            # Updated query to use LoggerValues table
             query = text(f"""
-                WITH LatestValues AS (
-                    SELECT 
-                        LoggerTagID,
-                        Value,
-                        IndexTime,
-                        ROW_NUMBER() OVER(PARTITION BY LoggerTagID ORDER BY IndexTime DESC) as RowNum
+                WITH LatestTagValues AS (
+                    SELECT LoggerTagID, Value, IndexTime,
+                           ROW_NUMBER() OVER (PARTITION BY LoggerTagID ORDER BY IndexTime DESC) as row_num
                     FROM LoggerValues
                     WHERE LoggerTagID IN ({tag_id_list})
                 )
                 SELECT LoggerTagID, Value, IndexTime
-                FROM LatestValues
-                WHERE RowNum = 1
+                FROM LatestTagValues
+                WHERE row_num = 1
             """)
             
+            # Execute the query
             with self.engine.connect() as conn:
-                result = conn.execute(query).fetchall()
-                if result and len(result) > 0:
-                    # Structure the results
-                    latest_timestamp = None
-                    
-                    for row in result:
-                        values[str(row.LoggerTagID)] = row.Value
-                        
-                        # Keep track of the most recent timestamp
-                        if not latest_timestamp or row.IndexTime > latest_timestamp:
-                            latest_timestamp = row.IndexTime
-                    
-                    # Use the most recent timestamp for the batch
-                    timestamp = latest_timestamp.isoformat() if latest_timestamp else datetime.now().isoformat()
-                    
-                    return {
-                        "data": values,
-                        "timestamp": timestamp
-                    }
-        except Exception as e:
-            logger.warning(f"Database query failed, using mock data: {e}")
-        
-        # If we get here, either the database query failed or returned no results
-        # Generate mock data for testing
-        try:
-            import random
-            from datetime import datetime
-            
-            for tag_id in tag_ids:
-                # Check if this is a valid tag
-                tag_details = self.get_tag_details(tag_id)
-                if tag_details:
-                    # Similar value ranges as in get_tag_value
-                    value_ranges = {
-                        1: (20.0, 80.0),      # Temperature_1 range
-                        2: (1.0, 10.0),       # Pressure_1 range
-                        3: (0.0, 100.0),      # Flow_1 range
-                        11: (25.0, 85.0),     # Temperature_2 range
-                        12: (0.5, 8.0),       # Pressure_2 range 
-                        13: (5.0, 150.0),     # Flow_2 range
-                        100: (1000, 3000),    # Motor speed range
-                        101: (0.0, 100.0)     # Tank level range
+                query_results = conn.execute(query).fetchall()
+                
+                # Create lookup map for query results
+                db_values = {}
+                for row in query_results:
+                    db_values[row.LoggerTagID] = {
+                        "value": row.Value,
+                        "timestamp": row.IndexTime.isoformat() if hasattr(row.IndexTime, 'isoformat') else str(row.IndexTime)
                     }
                     
-                    # Get appropriate value range and generate random value
-                    min_val, max_val = value_ranges.get(tag_id, (0.0, 100.0))
-                    mock_value = round(random.uniform(min_val, max_val), 2)
+                # Process each tag ID
+                for tag_id in tag_ids:
+                    # Get tag details for this tag
+                    tag_details = self.get_tag_details(tag_id)
                     
-                    # Add to values dictionary
-                    values[str(tag_id)] = mock_value
+                    if tag_id in db_values:
+                        # We have a database value for this tag
+                        result[tag_id] = {
+                            "value": db_values[tag_id]["value"],
+                            "timestamp": db_values[tag_id]["timestamp"],
+                            "unit": tag_details.get("unit") if tag_details else "",
+                            "status": "good"  # Assume good quality from database
+                        }
+                    else:
+                        # No database value found for this tag
+                        logger.warning(f"No values found for tag ID {tag_id}")
+                        result[tag_id] = None
             
-            # Create mock timestamp
-            timestamp = datetime.now().isoformat()
-            
-            # Return the mock data with the current timestamp
-            return {
-                "data": values,
-                "timestamp": timestamp
-            }
-            
+            return result
+                
         except Exception as e:
-            logger.error(f"Error generating tag values: {e}")
-            # Return empty data on error
-            return {"data": {}, "timestamp": datetime.now().isoformat()}
+            logger.error(f"Error fetching batch tag values: {e}")
+            return {tag_id: None for tag_id in tag_ids}
     
     def get_tag_trend(self, tag_id, hours=8):
         """Get historical trend data for a tag
         
         Args:
             tag_id: The tag ID to fetch trend data for
-            hours: Number of hours of historical data to retrieve
+            hours: Number of hours of history to retrieve
             
         Returns:
-            dict: A dictionary with timestamps and values
+            dict: A dictionary with timestamps and values arrays
         """
+        # Get tag details first
+        tag_details = self.get_tag_details(tag_id)
+        if not tag_details:
+            logger.warning(f"Tag ID {tag_id} not found in database")
+            return {"timestamps": [], "values": [], "unit": None}
+
         try:
-            # First check if the tag exists
-            tag_details = self.get_tag_details(tag_id)
-            if not tag_details:
-                logger.warning(f"Tag ID {tag_id} not found in database")
-                return {"timestamps": [], "values": [], "unit": None}
-                
-            # SQL query to get historical data using LoggerValues table
+            # Query the database for trend data
+            from datetime import datetime, timedelta
+            
+            # Calculate the time range
+            end_time = datetime.now()
+            start_time = end_time - timedelta(hours=hours)
+            
+            # Format times for SQL query
             query = text("""
-                SELECT Value, IndexTime
+                SELECT LoggerTagID, Value, IndexTime 
                 FROM LoggerValues
-                WHERE 
-                    LoggerTagID = :tag_id AND
-                    IndexTime >= DATEADD(HOUR, -:hours, GETDATE())
+                WHERE LoggerTagID IN (:tag_id)
+                AND IndexTime BETWEEN :start_time AND :end_time
                 ORDER BY IndexTime ASC
             """)
             
-            with self.engine.connect() as conn:
-                result = conn.execute(query, {"tag_id": tag_id, "hours": hours}).fetchall()
-                
-                if result and len(result) > 0:
-                    # Structure the results
-                    timestamps = [row.IndexTime.isoformat() if hasattr(row.IndexTime, 'isoformat') else str(row.IndexTime) for row in result]
-                    values = [row.Value for row in result]
-                    
-                    return {
-                        "timestamps": timestamps,
-                        "values": values,
-                        "unit": tag_details.get("unit")
-                    }
-        except Exception as e:
-            # Log the error but continue to generate mock data
-            logger.warning(f"Database query failed, using mock data: {e}")
-        
-        # If we get here, either the database query failed or returned no results
-        # Generate mock trend data for testing
-        try:
-            import random
-            from datetime import datetime, timedelta
-            
-            # Get tag details for the unit information
-            tag_details = self.get_tag_details(tag_id)
-            if not tag_details:
-                return {"timestamps": [], "values": [], "unit": None}
-            
-            # Define value ranges based on tag ID
-            value_ranges = {
-                1: (20.0, 80.0),      # Temperature_1 range
-                2: (1.0, 10.0),       # Pressure_1 range
-                3: (0.0, 100.0),      # Flow_1 range
-                11: (25.0, 85.0),     # Temperature_2 range
-                12: (0.5, 8.0),       # Pressure_2 range 
-                13: (5.0, 150.0),     # Flow_2 range
-                100: (1000, 3000),    # Motor speed range
-                101: (0.0, 100.0)     # Tank level range
-            }
-            
-            # Get appropriate value range for this tag
-            min_val, max_val = value_ranges.get(tag_id, (0.0, 100.0))
-            
-            # Create timestamps at 10-minute intervals going back the requested hours
-            now = datetime.now()
-            timestamps = []
             values = []
+            timestamps = []
             
-            # Generate data points at 10-minute intervals
-            for i in range(hours * 6):  # 6 points per hour (10-minute intervals)
-                time_point = now - timedelta(minutes=i * 10)
-                timestamps.insert(0, time_point.isoformat())
+            with self.engine.connect() as conn:
+                result = conn.execute(query, {
+                    "tag_id": tag_id,
+                    "start_time": start_time,
+                    "end_time": end_time
+                }).fetchall()
                 
-                # Generate a slightly varying value to simulate a trend
-                # Use a sine wave pattern for more realistic looking data
-                base_value = (min_val + max_val) / 2
-                range_size = (max_val - min_val) / 2
-                variation = range_size * 0.8 * math.sin(i / 15)  # Sine wave with period of ~4 hours
-                noise = random.uniform(-range_size * 0.1, range_size * 0.1)  # Small random noise
+                if not result or len(result) == 0:
+                    logger.warning(f"No trend data found for tag ID {tag_id}")
+                    return {"timestamps": [], "values": [], "unit": tag_details.get("unit")}
+                    
+                for row in result:
+                    values.append(row.Value)
+                    # Convert timestamp to ISO format
+                    timestamp_iso = row.IndexTime.isoformat() if hasattr(row.IndexTime, 'isoformat') else str(row.IndexTime)
+                    timestamps.append(timestamp_iso)
                 
-                value = round(base_value + variation + noise, 2)
-                values.insert(0, value)
-            
-            return {
-                "timestamps": timestamps,
-                "values": values,
-                "unit": tag_details.get("unit")
-            }
+                return {
+                    "timestamps": timestamps,
+                    "values": values,
+                    "unit": tag_details.get("unit")
+                }
         except Exception as e:
-            logger.error(f"Error generating mock trend data: {e}")
+            logger.error(f"Error fetching trend data for tag ID {tag_id}: {e}")
             return {"timestamps": [], "values": [], "unit": None}
     
     def get_tag_states(self, state_tag_ids):
@@ -353,70 +249,102 @@ class DatabaseManager:
         Returns:
             dict: A dictionary mapping tag IDs to their boolean state
         """
-        # Get the current values for all state tags
+        # Get the current values for all state tags from the database
         tag_values = self.get_tag_values(state_tag_ids)
         
-        # Convert to boolean states
+        # Process the results to extract boolean states
         states = {}
-        for tag_id, value in tag_values.get("data", {}).items():
-            # Convert numeric values to boolean (typically 0 = False, non-zero = True)
-            states[tag_id] = bool(value) if value is not None else False
-            
+        for tag_id in state_tag_ids:
+            if tag_id in tag_values and tag_values[tag_id]:
+                # For a boolean state, we're looking for values like 0/1 or True/False
+                raw_value = tag_values[tag_id]["value"]
+                
+                # Convert various value types to a boolean
+                if isinstance(raw_value, (bool, int, float)):
+                    # True if value is non-zero
+                    states[tag_id] = bool(raw_value)
+                elif isinstance(raw_value, str):
+                    # String values like 'true', 'yes', 'on', '1' are treated as True
+                    states[tag_id] = raw_value.lower() in ['true', 'yes', 'on', '1']
+                else:
+                    # Default to False for unknown types
+                    states[tag_id] = False
+            else:
+                # No value available, assume False
+                states[tag_id] = False
+        
         return states
-    
+        
     def get_tag_details(self, tag_id):
-        """Get details for a tag
+        """Get detailed information about a tag
         
         Args:
-            tag_id: The tag ID to fetch details for
+            tag_id: The tag ID to get details for
             
         Returns:
-            dict: A dictionary with tag information
+            dict: A dictionary with tag details
         """
-        # Check if the tag is in the cache first for performance
-        if tag_id in self.tag_details_cache:
-            return self.tag_details_cache[tag_id]
-            
         try:
-            # Import the sql_tags from the tags_definition module
+            # First check if this is a dashboard tag
+            # Import dashboard tags from the frontend
+            try:
+                with open('..\src\lib\tags\dashboard-tags.ts', 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    
+                # Parse the dashboard tags using a simple approach
+                import re
+                tag_matches = re.findall(r'{id:\s*(\d+)[^}]*name:\s*"([^"]+)"[^}]*desc:\s*"([^"]+)"[^}]*unit:\s*"([^"]+)"', content)
+                
+                # Create lookup dictionary from the matches
+                dashboard_tags = {}
+                for match in tag_matches:
+                    tag_id_str, name, desc, unit = match
+                    dashboard_tags[int(tag_id_str)] = {
+                        "id": int(tag_id_str),
+                        "name": name,
+                        "description": desc,
+                        "unit": unit
+                    }
+                
+                # If tag found in the dashboard tags, return its details
+                if tag_id in dashboard_tags:
+                    return dashboard_tags[tag_id]
+            except Exception as e:
+                logger.warning(f"Error parsing dashboard tags: {e}")
+            
+            # Then try the sql_tags fallback list
             try:
                 from tags_definition import sql_tags
-            except ImportError:
-                # If import fails, use mock data as fallback
-                sql_tags = [
-                    {"id": 1, "name": "Temperature_1", "description": "Process temperature 1", "unit": "°C"},
-                    {"id": 2, "name": "Pressure_1", "description": "System pressure 1", "unit": "bar"},
-                    {"id": 3, "name": "Flow_1", "description": "Flow rate 1", "unit": "m³/h"},
-                    {"id": 11, "name": "Temperature_2", "description": "Process temperature 2", "unit": "°C"},
-                    {"id": 12, "name": "Pressure_2", "description": "System pressure 2", "unit": "bar"},
-                    {"id": 13, "name": "Flow_2", "description": "Flow rate 2", "unit": "m³/h"},
-                    {"id": 100, "name": "Motor_Speed", "description": "Motor rotation speed", "unit": "RPM"},
-                    {"id": 101, "name": "Tank_Level", "description": "Tank fill level", "unit": "%"}
-                ]
+                tag_details = next((tag for tag in sql_tags if tag["id"] == tag_id), None)
+                if tag_details:
+                    return {
+                        "id": tag_details["id"],
+                        "name": tag_details["name"],
+                        "description": tag_details["description"],
+                        "unit": tag_details["unit"]
+                    }
+            except Exception as e:
+                logger.warning(f"Error finding tag in fallback list: {e}")
             
-            # Find the tag by ID
-            tag_details = next((tag for tag in sql_tags if tag["id"] == tag_id), None)
-            
-            if not tag_details:
-                # Tag not found
-                return None
-                
-            # Extract the relevant details
-            result = {
-                "name": tag_details.get("name"),
-                "description": tag_details.get("description"),
-                "unit": tag_details.get("unit")
+            # If not found in any source, create a basic tag details object
+            # This ensures we don't return None for any tag ID
+            basic_tag = {
+                "id": tag_id,
+                "name": f"Tag_{tag_id}",
+                "description": f"Unknown tag {tag_id}",
+                "unit": ""
             }
-            
-            # Cache the result
-            self.tag_details_cache[tag_id] = result
-            return result
+            return basic_tag
             
         except Exception as e:
-            # Log the error
-            print(f"Error fetching tag details: {e}")
-            return None
-    
+            logger.error(f"Error getting tag details for ID {tag_id}: {e}")
+            # Create a basic tag even on exception
+            return {
+                "id": tag_id,
+                "name": f"Tag_{tag_id}",
+                "description": f"Unknown tag {tag_id}",
+                "unit": ""
+            }
     def close(self):
         """Close database connections"""
         # SQLAlchemy engines manage their own connection pool

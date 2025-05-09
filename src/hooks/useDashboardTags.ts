@@ -4,52 +4,39 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagValue } from '@/lib/tags/types';
 
+import { fetchTagById } from '@/lib/api/api-client';
+
 /**
- * Simulates fetching a tag value - in a real app this would call an API
+ * Fetches a tag value from the API by its name
  */
 async function fetchTagValue(tagName: string): Promise<TagValue> {
-  // For demo purposes, return random values
-  const getRandomValue = (min: number, max: number) => {
-    return Math.floor(Math.random() * (max - min + 1) + min);
-  };
-  
-  // Find tag to determine appropriate value range
+  // Find tag to get its ID
   const tag = dashboardTags.find(tag => tag.name === tagName);
   
   if (!tag) {
     throw new Error(`Tag with name ${tagName} not found`);
   }
   
-  // Generate appropriate dummy value based on unit
-  let value: number | boolean | null = null;
-  
-  if (tag.unit === '%') {
-    value = getRandomValue(60, 95); // Percent values
-  } else if (tag.unit === 'min') {
-    value = getRandomValue(2, 30); // Minutes
-  } else if (tag.unit === 'count') {
-    value = getRandomValue(5, 50); // Count values
-  } else if (tag.unit === 'score') {
-    value = getRandomValue(3, 10); // Score values
-  } else if (tag.unit === 'bool') {
-    value = Math.random() > 0.5; // Boolean values
-  } else if (tag.unit === 't/h') {
-    value = getRandomValue(100, 500); // Flow rate
-  } else if (tag.unit === 'kW') {
-    value = getRandomValue(1000, 5000); // Power
-  } else if (tag.unit === 'm') {
-    value = getRandomValue(1, 10); // Level
-  } else if (tag.unit === 't') {
-    value = getRandomValue(1000, 10000); // Weight
-  } else {
-    value = getRandomValue(50, 100); // Default range
+  try {
+    // Call the API with the tag ID
+    const response = await fetchTagById(tag.id);
+    
+    // Map API response to our TagValue interface
+    return {
+      value: response.value,
+      timestamp: response.timestamp,
+      active: true // Default to active, will be updated based on state tags later
+    };
+  } catch (error) {
+    console.error(`Error fetching tag ${tagName} (ID ${tag.id}):`, error);
+    
+    // Return null value on error
+    return {
+      value: null,
+      timestamp: new Date().toISOString(),
+      active: false
+    };
   }
-  
-  return {
-    value,
-    timestamp: new Date().toISOString(),
-    active: true
-  };
 }
 
 /**
