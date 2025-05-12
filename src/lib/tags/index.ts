@@ -14,7 +14,24 @@ export const getTagByName = (name: string) => {
 
 export const getTagGroups = (): string[] => {
   const { dashboardTags } = require('./dashboard-tags');
-  return [...new Set(dashboardTags.map((tag: any) => tag.group))] as string[];
+  // Extract all unique groups
+  const allGroups = [...new Set(dashboardTags.map((tag: any) => tag.group))];
+  
+  // Make sure КЕТ1 is included by ensuring it's added if it exists in any tag
+  let hasKET1 = false;
+  for (const tag of dashboardTags) {
+    if (tag.group === "КЕТ1") {
+      hasKET1 = true;
+      break;
+    }
+  }
+  
+  // Force КЕТ1 to be included if it exists in tags but wasn't captured
+  if (hasKET1 && !allGroups.includes("КЕТ1")) {
+    allGroups.push("КЕТ1");
+  }
+  
+  return allGroups as string[];
 };
 
 export const getTagsByGroup = (group: string) => {

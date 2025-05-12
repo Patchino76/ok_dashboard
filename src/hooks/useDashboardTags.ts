@@ -28,9 +28,13 @@ async function fetchTagValue(tagName: string): Promise<TagValue> {
     
     const data = await response.json();
     
-    // Map API response to our TagValue interface
+    // Handle numeric boolean values (0/1 → false/true)
+    const value = tag.unit === 'bool' && typeof data.value === 'number'
+      ? Boolean(data.value)
+      : data.value;
+    
     return {
-      value: data.value,
+      value,
       timestamp: data.timestamp,
       active: true // Default to active, will be updated based on state tags later
     };
@@ -50,20 +54,17 @@ async function fetchTagValue(tagName: string): Promise<TagValue> {
  * Hook to fetch multiple dashboard tag values by names
  */
 export function useDashboardTags(tagNames: string[], options = {}) {
-  const queryClient = useQueryClient();
+  // Include necessary state tags automatically
+  const tagsToFetch = new Set(tagNames);
   
-  // Filter out any invalid tag names
-  const validTagNames = tagNames.filter(name => {
-    const isValid = dashboardTags.some(tag => tag.name === name);
-    if (!isValid) {
-      console.warn(`Tag with name ${name} not found`);
-    }
-    return isValid;
-  });
+  // Add required state tags
+  dashboardTags
+    .filter(tag => tagNames.includes(tag.name) && tag.state?.length)
+    .forEach(tag => tag.state?.forEach(stateTag => tagsToFetch.add(stateTag)));
   
-  // Create queries for each tag
+  // Create queries for all tags (including state dependencies)
   const queries = useQueries({
-    queries: validTagNames.map(tagName => ({
+    queries: Array.from(tagsToFetch).map(tagName => ({
       queryKey: ['dashboardTag', tagName],
       queryFn: () => fetchTagValue(tagName),
       staleTime: 60 * 1000, // 1 minute
@@ -75,40 +76,25 @@ export function useDashboardTags(tagNames: string[], options = {}) {
   const loading = queries.some(query => query.isLoading);
   const error = queries.find(query => query.error)?.error;
   
-  // Map tag values by name
-  const data = validTagNames.reduce((acc, tagName, index) => {
-    const query = queries[index];
-    acc[tagName] = query.data;
+  // Build the data object with all tag values
+  const data = Array.from(tagsToFetch).reduce((acc, tagName, index) => {
+    acc[tagName] = queries[index].data;
     return acc;
   }, {} as Record<string, TagValue | undefined>);
   
-  // Process state relationships
-  // For each tag, check if it depends on any state tags and update its active status
+  // Process state relationships - simple and clean
   dashboardTags.forEach(tag => {
     const tagValue = data[tag.name];
-    
-    if (tagValue && tag.state && tag.state.length > 0) {
-      // This tag depends on state tags
-      // Check if all required state tags are active (true)
-      const isActive = tag.state.every(stateTagName => {
-        const stateTagValue = data[stateTagName];
-        return stateTagValue?.value === true; // State is active if boolean value is true
+    if (tagValue && tag.state?.length) {
+      // Tag is active if all its state tags are true
+      tagValue.active = tag.state.every(stateTag => {
+        return Boolean(data[stateTag]?.value);
       });
-      
-      // Update the active status based on dependent state tags
-      tagValue.active = isActive;
     }
   });
   
-  // Function to refetch all queries
-  const refetch = () => {
-    queries.forEach(query => query.refetch());
-  };
+  // Function to refetch all data
+  const refetch = () => queries.forEach(query => query.refetch());
   
-  return {
-    data,
-    loading,
-    error,
-    refetch
-  };
+  return { data, loading, error, refetch };
 }
