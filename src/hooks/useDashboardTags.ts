@@ -4,10 +4,11 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagValue } from '@/lib/tags/types';
 
-import { fetchTagById } from '@/lib/api/api-client';
+// API Base URL - could be moved to a .env file
+const API_BASE_URL = 'http://localhost:8000/api';
 
 /**
- * Fetches a tag value from the API by its name
+ * Fetches a tag value directly from the API by its name
  */
 async function fetchTagValue(tagName: string): Promise<TagValue> {
   // Find tag to get its ID
@@ -18,13 +19,19 @@ async function fetchTagValue(tagName: string): Promise<TagValue> {
   }
   
   try {
-    // Call the API with the tag ID
-    const response = await fetchTagById(tag.id);
+    // Call the API directly with the tag ID
+    const response = await fetch(`${API_BASE_URL}/tag-value/${tag.id}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tag ${tag.id}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
     
     // Map API response to our TagValue interface
     return {
-      value: response.value,
-      timestamp: response.timestamp,
+      value: data.value,
+      timestamp: data.timestamp,
       active: true // Default to active, will be updated based on state tags later
     };
   } catch (error) {
@@ -102,7 +109,6 @@ export function useDashboardTags(tagNames: string[], options = {}) {
     data,
     loading,
     error,
-    queries,
     refetch
   };
 }

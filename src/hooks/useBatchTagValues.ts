@@ -6,7 +6,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagValue } from '@/lib/tags/types';
-import { fetchTagsByIds } from '@/lib/api/api-client';
+
+// API Base URL - should match the one in useDashboardTags.ts
+const API_BASE_URL = 'http://localhost:8000/api';
 
 /**
  * Fetch multiple tag values in a single API call
@@ -30,19 +32,29 @@ async function fetchTagValues(tagNames: string[]): Promise<Record<string, TagVal
   }
   
   try {
-    // Fetch all tag values in a single request
-    const response = await fetchTagsByIds(tagIds);
+    // Convert tag IDs to query parameters
+    const queryParams = tagIds.map(id => `tag_ids=${id}`).join('&');
+    const response = await fetch(`${API_BASE_URL}/tag-values?${queryParams}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tags: ${response.statusText}`);
+    }
+    
+    const responseData = await response.json();
     
     // Map the response data back to tag names
     const result: Record<string, TagValue> = {};
     
-    if (response && response.data) {
-      Object.entries(response.data).forEach(([tagId, value]) => {
+    if (responseData && responseData.root) {
+      Object.entries(responseData.root).forEach(([tagId, value]) => {
         const tagName = tagMap[Number(tagId)];
-        if (tagName) {
+        if (tagName && value) {
+          // We need to cast value to the appropriate type
+          const tagValue = value as any; // Using any here for simplicity
+          
           result[tagName] = {
-            value: value as number | boolean | null,
-            timestamp: response.timestamp,
+            value: tagValue.value,
+            timestamp: tagValue.timestamp,
             active: true
           };
         }
