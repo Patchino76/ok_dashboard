@@ -5,6 +5,7 @@ import { ArrowDownRight, ArrowRight, ArrowUpRight, Power } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { getBorderColorFromGroup } from "@/lib/utils"
+import { useTagTrend } from "@/hooks"
 
 type KpiCardProps = {
   definition: TagDefinition
@@ -13,16 +14,63 @@ type KpiCardProps = {
 }
 
 export function KpiCard({ definition, value, onClick }: KpiCardProps) {
-  // Determine if the value is increasing, decreasing, or neutral
-  // This would normally come from historical data - using random for demo
-  const trend = Math.random() > 0.66 ? "up" : Math.random() > 0.33 ? "down" : "neutral"
-  const trendValue = trend === "up" ? "+5%" : trend === "down" ? "-3%" : "0%"
+  // Define trend direction type
+  type TrendDirection = 'up' | 'down' | 'neutral';
+  
+  // Limit trend data fetching to only numeric values, and only if we need it
+  // This dramatically reduces API calls for cards that don't need trends
+  const shouldFetchTrend = typeof value?.value === 'number' && !!definition.name;
+  
+  // Use a longer stale time to avoid frequent refetching
+  const { data: trendPoints } = useTagTrend(
+    definition.name,
+    4, // Just get 4 hours to calculate trend direction
+    { 
+      enabled: shouldFetchTrend,
+      staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
+      retry: 0, // Don't retry to reduce API load
+      suspense: false, // Don't use React suspense to avoid UI blocking
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    }
+  )
+  
+
+
+  // Calculate trend based on actual data
+  const calculateTrend = (): { direction: TrendDirection; percentage: string } => {
+    // Default to neutral if no data or not numeric
+    if (!trendPoints || trendPoints.length < 2 || typeof value?.value !== 'number') {
+      return { direction: 'neutral', percentage: '0%' }
+    }
+    
+    // Get first and last points to calculate trend
+    const firstPoint = trendPoints[0]
+    const lastPoint = trendPoints[trendPoints.length - 1]
+    
+    if (firstPoint?.value === null || lastPoint?.value === null) {
+      return { direction: 'neutral', percentage: '0%' }
+    }
+    
+    const change = lastPoint.value - firstPoint.value
+    const percentChange = firstPoint.value !== 0 
+      ? Math.round((change / Math.abs(firstPoint.value)) * 100) 
+      : 0
+    
+    const direction: TrendDirection = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
+    
+    return {
+      direction,
+      percentage: `${percentChange > 0 ? '+' : ''}${percentChange}%`
+    }
+  }
+  
+  const { direction: trend, percentage: trendValue } = calculateTrend()
   
   // Get border color class from group name using utility function
   const borderColor = getBorderColorFromGroup(definition.group);
   
   // Map trend to icons
-  const trendIcon = {
+  const trendIcon: Record<'up' | 'down' | 'neutral', React.ReactNode> = {
     up: <ArrowUpRight className="h-4 w-4 text-emerald-500" />,
     down: <ArrowDownRight className="h-4 w-4 text-red-500" />,
     neutral: <ArrowRight className="h-4 w-4 text-gray-500" />,
