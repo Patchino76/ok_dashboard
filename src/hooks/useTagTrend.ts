@@ -3,7 +3,22 @@
 import { useQuery } from '@tanstack/react-query';
 import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagTrendPoint } from '@/lib/tags/types';
-import { fetchTagTrend } from '@/lib/api/api-client';
+
+// API Base URL - same as used in other hooks
+const API_BASE_URL = 'http://localhost:8000/api';
+
+/**
+ * Fetch trend data for a tag by its ID
+ */
+async function fetchTagTrend(tagId: number, hours: number = 8) {
+  const response = await fetch(`${API_BASE_URL}/tag-trend/${tagId}?hours=${hours}`);
+  
+  if (!response.ok) {
+    throw new Error(`Failed to fetch trend for tag ${tagId}: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
 
 /**
  * Fetches trend data for a specific tag
@@ -17,7 +32,7 @@ async function fetchTrendData(tagName: string, hours: number = 8): Promise<TagTr
   }
   
   try {
-    // Call the API to get trend data
+    // Call the API to get trend data directly
     const response = await fetchTagTrend(tag.id, hours);
     
     // Map API response to our TagTrendPoint interface

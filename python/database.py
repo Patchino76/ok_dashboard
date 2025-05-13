@@ -188,11 +188,18 @@ class DatabaseManager:
         Returns:
             dict: A dictionary with timestamps and values arrays
         """
-        # Get tag details first
-        tag_details = self.get_tag_details(tag_id)
-        if not tag_details:
-            logger.warning(f"Tag ID {tag_id} not found in database")
-            return {"timestamps": [], "values": [], "unit": None}
+        # Check if tag exists - we don't need details, just need to confirm it's valid
+        try:
+            # Quick check if tag exists (simplified)
+            with self.engine.connect() as conn:
+                tag_exists = conn.execute(text("SELECT 1 FROM LoggerTags WHERE LoggerTagID = :tag_id"), {"tag_id": tag_id}).fetchone()
+                
+            if not tag_exists:
+                logger.warning(f"Tag ID {tag_id} not found in database")
+                return {"timestamps": [], "values": []}
+        except Exception as e:
+            logger.error(f"Error checking if tag exists: {e}")
+            # Continue anyway, we'll try to generate data
 
         # Get the current value to use as a base for synthetic data
         current_value = None
@@ -233,7 +240,7 @@ class DatabaseManager:
                 if not result or len(result) == 0:
                     logger.info(f"No trend data found for tag ID {tag_id} - generating synthetic data")
                     # Generate synthetic trend data so the frontend has something to display
-                    return self._generate_synthetic_trend_data(tag_id, hours, current_value, tag_details)
+                    return self._generate_synthetic_trend_data(tag_id, hours, current_value)
                     
                 for row in result:
                     values.append(row.Value)
@@ -243,12 +250,11 @@ class DatabaseManager:
                 
                 return {
                     "timestamps": timestamps,
-                    "values": values,
-                    "unit": tag_details.get("unit")
+                    "values": values
                 }
         except Exception as e:
             logger.error(f"Error fetching trend data for tag ID {tag_id}: {e}")
-            return {"timestamps": [], "values": [], "unit": None}
+            return {"timestamps": [], "values": []}
     
     def get_tag_states(self, state_tag_ids):
         """Get the boolean states for multiple tags
@@ -355,7 +361,8 @@ class DatabaseManager:
                 "description": f"Unknown tag {tag_id}",
                 "unit": ""
             }
-    def _generate_synthetic_trend_data(self, tag_id, hours, current_value, tag_details):
+    def _generate_synthetic_trend_data(self, tag_id, hours, current_value):
+        """Generate synthetic trend data for development/testing with correct timezone handling"""
         """Generate synthetic trend data for development/testing
         
         Args:
@@ -370,7 +377,7 @@ class DatabaseManager:
         from datetime import datetime, timedelta
         import random
         
-        # Use a consistent seed for this tag ID to get reproducible results
+        # Use a consistent seed for reproducible results
         random.seed(tag_id)
         
         # Determine a sensible base value
@@ -397,6 +404,7 @@ class DatabaseManager:
         for i in range(data_points):
             # Only generate hourly data points
             point_time = end_time - timedelta(hours=hours-i)
+            
             timestamps.append(point_time.isoformat())
             
             # Simplified value calculation
@@ -409,8 +417,7 @@ class DatabaseManager:
         # Cache this result would be a good performance improvement in a real app
         return {
             "timestamps": timestamps,
-            "values": values,
-            "unit": tag_details.get("unit")
+            "values": values
         }
         
     def close(self):

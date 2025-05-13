@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -33,9 +33,8 @@ const formatTrendData = (trendPoints: any[]) => {
     ? trendPoints.filter((_, i) => i % 2 === 0)
     : trendPoints;
   
-  // Optimize date formatting by avoiding excessive Date object creation
   return filteredPoints.map(point => {
-    // Simple time format without seconds for better performance
+    // Simple date formatting
     const date = new Date(point.timestamp);
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');

@@ -38,7 +38,6 @@ class TagTrend(BaseModel):
     """Model for tag trend data"""
     timestamps: List[str]
     values: List[Union[float, bool, None]]
-    unit: Optional[str] = None
 
 # ----------------------------- Dependencies -----------------------------
 
