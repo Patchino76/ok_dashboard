@@ -134,7 +134,7 @@ if __name__ == "__main__":
         print(f"Database manager created successfully: {type(test_db).__name__}")
         
         # Start the server
-        uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
+        uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
     except Exception as e:
         print(f"Error during API startup: {str(e)}")
         print("Full traceback:")

@@ -98,7 +98,11 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
             {value?.value !== null && value?.value !== undefined
               ? typeof value.value === 'boolean'
                 ? value.value ? 'Active' : 'Inactive'
-                : value.value
+                : typeof value.value === 'number'
+                  ? definition.precision !== undefined
+                    ? value.value.toFixed(definition.precision)
+                    : value.value
+                  : value.value
               : 'N/A'}
           </span>
           

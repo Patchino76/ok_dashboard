@@ -6,6 +6,7 @@ export interface TagDefinition {
   group: string;
   icon: string | null;
   state: string[] | null;
+  precision?: number;
 }
 
 export interface TagValue {
