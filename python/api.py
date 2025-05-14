@@ -122,6 +122,21 @@ async def get_tag_states(
 # For testing/development
 if __name__ == "__main__":
     import uvicorn
+    import traceback
+    import sys
+    
     print("Starting API server with reload completely disabled...")
-    # Completely disable reload to avoid spurious file change detection
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
+    
+    try:
+        # Test that the DB manager can be created with fallback
+        print("Testing database connection with fallback...")
+        test_db = create_db_manager()
+        print(f"Database manager created successfully: {type(test_db).__name__}")
+        
+        # Start the server
+        uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
+    except Exception as e:
+        print(f"Error during API startup: {str(e)}")
+        print("Full traceback:")
+        traceback.print_exc()
+        sys.exit(1)

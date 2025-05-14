@@ -3,6 +3,9 @@ import pandas as pd
 from datetime import datetime, timedelta
 import logging
 import math  # Added for sine wave calculations in trend data
+import random
+import os
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -41,24 +44,33 @@ class DatabaseManager:
                 logger.info(f"Successfully connected to database {self.config['database']} on {self.config['server']}")
         except Exception as e:
             logger.error(f"Error connecting to database: {e}")
+            logger.warning("Make sure the SQL Server is running and accessible from this machine.")
+            logger.info("If using a remote SQL Server, verify network connectivity and firewall settings.")
             raise
     
     def _create_db_engine(self):
         """Create and return a SQLAlchemy engine instance"""
         cfg = self.config
+        
+        # Add better connection parameters to improve reliability
         connection_string = (
             f"DRIVER={{ODBC Driver 17 for SQL Server}};"
             f"SERVER={cfg['server']};"
             f"DATABASE={cfg['database']};"
             f"UID={cfg['username']};"
-            f"PWD={cfg['password']}"
+            f"PWD={cfg['password']};"
+            f"Connection Timeout=30;"
+            f"Trusted_Connection=no;"
+            f"TrustServerCertificate=yes;"
         )
         
         # Create engine with connection pooling enabled
         return create_engine(
             "mssql+pyodbc:///?odbc_connect=" + connection_string,
-            pool_pre_ping=True,  # Verify connections before using them
-            pool_recycle=3600,   # Recycle connections after 1 hour
+            pool_pre_ping=True,     # Verify connections before using them
+            pool_recycle=3600,      # Recycle connections after 1 hour
+            pool_timeout=30,        # Connection timeout from pool
+            connect_args={"connect_timeout": 30},
             pool_size=10,        # Maximum number of connections to keep
             max_overflow=20      # Maximum number of connections to create beyond pool_size
         )
@@ -304,7 +316,10 @@ class DatabaseManager:
             # First check if this is a dashboard tag
             # Import dashboard tags from the frontend
             try:
-                with open('..\src\lib\tags\dashboard-tags.ts', 'r', encoding='utf-8') as f:
+                # Use os.path for cross-platform path handling
+                import os.path
+                dashboard_tags_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'src', 'lib', 'tags', 'dashboard-tags.ts')
+                with open(dashboard_tags_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                     
                 # Parse the dashboard tags using a simple approach
@@ -426,6 +441,117 @@ class DatabaseManager:
         # No explicit close needed, but could be used for cleanup
         pass
 
+# MockDatabaseManager provides fallback functionality when DB is unavailable
+class MockDatabaseManager:
+    def __init__(self):
+        logger.warning("Using MockDatabaseManager - database connection unavailable")
+        self.tag_details_cache = {}
+    
+    def get_tag_value(self, tag_id):
+        """Get a simulated current value for a tag"""
+        # Generate consistent random values based on tag_id
+        random.seed(tag_id)
+        value = random.uniform(20, 100)
+        return {
+            "tag_id": tag_id,
+            "value": value,
+            "timestamp": datetime.now().isoformat(),
+            "quality": "Good",
+            "mode": "Simulated"
+        }
+    
+    def get_tag_values(self, tag_ids):
+        """Get simulated values for multiple tags"""
+        return {tag_id: self.get_tag_value(tag_id) for tag_id in tag_ids}
+    
+    def get_tag_trend(self, tag_id, hours=8):
+        """Generate simulated trend data for a tag"""
+        current_value = random.uniform(20, 100)
+        return self._generate_synthetic_trend_data(tag_id, hours, current_value)
+    
+    def get_tag_states(self, state_tag_ids):
+        """Get simulated boolean states for multiple tags"""
+        return {tag_id: bool(random.getrandbits(1)) for tag_id in state_tag_ids}
+    
+    def get_tag_details(self, tag_id):
+        """Get simulated tag details"""
+        if tag_id in self.tag_details_cache:
+            return self.tag_details_cache[tag_id]
+        
+        # Create simulated tag details
+        details = {
+            "tag_id": tag_id,
+            "name": f"Simulated Tag {tag_id}",
+            "description": f"Mock tag {tag_id} (database unavailable)",
+            "units": "Units",
+            "min_value": 0,
+            "max_value": 100,
+            "format": "%.2f"
+        }
+        
+        self.tag_details_cache[tag_id] = details
+        return details
+    
+    def _generate_synthetic_trend_data(self, tag_id, hours, current_value):
+        """Generate synthetic trend data for development/testing"""
+        # Generate time points from (now - hours) to now
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=hours)
+        
+        # Create evenly spaced timestamps
+        num_points = min(hours * 60, 500)  # Cap at 500 points to avoid excessive data
+        timestamps = [start_time + timedelta(minutes=i*(hours*60/num_points)) for i in range(num_points)]
+        timestamps_iso = [ts.isoformat() for ts in timestamps]
+        
+        # Generate synthetic values based on sine wave + random noise + trend
+        random.seed(tag_id)  # Ensure consistent randomness for same tag
+        base = current_value * 0.7  # Base value
+        amplitude = current_value * 0.3  # Amplitude of sine wave
+        
+        # Generate values with sine wave pattern + slight random variations
+        values = []
+        for i in range(num_points):
+            progress = i / num_points  # 0 to 1 scale for position in timeline
+            # Sine wave + linear trend + random noise
+            value = base + amplitude * math.sin(progress * 6 * math.pi) + (progress * 5) + random.uniform(-2, 2)
+            values.append(round(value, 2))
+        
+        return {
+            "tag_id": tag_id,
+            "timestamps": timestamps_iso,
+            "values": values,
+            "mode": "Simulated"
+        }
+    
+    def close(self):
+        """Mock close method"""
+        pass
+
 # Create a global instance for convenience
 def create_db_manager(config=None):
-    return DatabaseManager(config)
+    # Set environment variable to log ODBC driver interactions if needed for debugging
+    # Uncomment these lines if detailed ODBC logs are required
+    # import os
+    # os.environ['ODBCLOG'] = '1'
+    
+    try:
+        logger.info("Attempting to connect to database...")
+        if config:
+            logger.info(f"Using custom configuration to connect to {config.get('server', 'unknown')}")
+        else:
+            logger.info("Using default configuration")
+            
+        # Try to create a real database connection
+        db_manager = DatabaseManager(config)
+        logger.info("Database connection successful")
+        return db_manager
+    except Exception as e:
+        # If database connection fails, use mock database manager
+        logger.warning(f"Failed to connect to database: {e}")
+        logger.info("Common issues:")
+        logger.info("  1. SQL Server might not be running")
+        logger.info("  2. Network connectivity to the server might be down")
+        logger.info("  3. Firewall might be blocking the connection")
+        logger.info("  4. Credentials might be incorrect")
+        logger.info("Using mock database provider as fallback")
+        return MockDatabaseManager()

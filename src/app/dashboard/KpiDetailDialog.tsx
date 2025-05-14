@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/dialog"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { useTagTrend } from "@/hooks"
 import { Loader2 } from "lucide-react"
@@ -21,8 +23,38 @@ type KpiDetailDialogProps = {
   color?: string // Color for the trend line, derived from the group
 }
 
+// Apply a moving average smoothing to data points
+const smoothData = (data: any[], windowSize: number = 3) => {
+  if (!data || data.length < windowSize) return data;
+  
+  const result = [];
+  
+  for (let i = 0; i < data.length; i++) {
+    let sum = 0;
+    let count = 0;
+    
+    // Calculate average of points in the window
+    for (let j = Math.max(0, i - Math.floor(windowSize/2)); 
+         j <= Math.min(data.length - 1, i + Math.floor(windowSize/2)); 
+         j++) {
+      if (data[j].value !== undefined && !isNaN(data[j].value)) {
+        sum += data[j].value;
+        count++;
+      }
+    }
+    
+    // Create a new point with the smoothed value
+    result.push({
+      ...data[i],
+      value: count > 0 ? sum / count : data[i].value
+    });
+  }
+  
+  return result;
+};
+
 // Format trend data for chart with optimized performance
-const formatTrendData = (trendPoints: any[]) => {
+const formatTrendData = (trendPoints: any[], applySmoothing: boolean = false) => {
   if (!trendPoints || !Array.isArray(trendPoints) || trendPoints.length === 0) {
     return [];
   }
@@ -33,7 +65,8 @@ const formatTrendData = (trendPoints: any[]) => {
     ? trendPoints.filter((_, i) => i % 2 === 0)
     : trendPoints;
   
-  return filteredPoints.map(point => {
+  // Map the points to the format needed for the chart
+  const formattedData = filteredPoints.map(point => {
     // Simple date formatting
     const date = new Date(point.timestamp);
     const hours = date.getHours().toString().padStart(2, '0');
@@ -45,10 +78,17 @@ const formatTrendData = (trendPoints: any[]) => {
       value: typeof point.value === 'number' ? Number(point.value.toFixed(1)) : 0
     };
   });
+  
+  // Apply smoothing if requested
+  return applySmoothing ? smoothData(formattedData, 15) : formattedData;
 }
 
 export function KpiDetailDialog({ definition, value, open, onOpenChange, color = "#0ea5e9" }: KpiDetailDialogProps) {
   if (!definition) return null
+
+  // Track active tab to avoid rendering unused content
+  const [activeTab, setActiveTab] = useState("trend");
+  const [smoothing, setSmoothing] = useState(false);
 
   // Only fetch data when the dialog is actually open
   const { data: trendPoints, loading: trendLoading, error: trendError } = useTagTrend(
@@ -63,10 +103,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
   )
   
   // Use memoization to prevent excessive recalculations
-  const trendData = useMemo(() => formatTrendData(trendPoints || []), [trendPoints]);
-  
-  // Track active tab to avoid rendering unused content
-  const [activeTab, setActiveTab] = useState("trend");
+  const trendData = useMemo(() => formatTrendData(trendPoints || [], smoothing), [trendPoints, smoothing]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,10 +147,26 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
           
           <div className="rounded-lg border p-4">
             <Tabs defaultValue="trend">
-              <TabsList className="mb-4">
-                <TabsTrigger value="trend" onClick={() => setActiveTab("trend")}>Trend (24h)</TabsTrigger>
-                <TabsTrigger value="details" onClick={() => setActiveTab("details")}>Details</TabsTrigger>
-              </TabsList>
+              <div className="flex justify-between items-center mb-4">
+                <TabsList>
+                  <TabsTrigger value="trend" onClick={() => setActiveTab("trend")}>Тренд (24ч)</TabsTrigger>
+                  <TabsTrigger value="details" onClick={() => setActiveTab("details")}>Детали</TabsTrigger>
+                </TabsList>
+                
+                {activeTab === "trend" && (
+                  <div className="flex items-center space-x-2">
+                    <Label htmlFor="smoothing" className="text-sm">гладко</Label>
+                    <Switch 
+                      id="smoothing" 
+                      checked={smoothing} 
+                      onCheckedChange={(checked: boolean) => {
+                        console.log('Smoothing changed to:', checked);
+                        setSmoothing(checked);
+                      }} 
+                    />
+                  </div>
+                )}
+              </div>
               
               <TabsContent value="trend">
                 <div className="h-[300px]">
@@ -142,15 +195,35 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                           <XAxis dataKey="time" tickCount={6} />
                           <YAxis width={40} />
                           <Tooltip contentStyle={{ backgroundColor: 'white', borderRadius: '4px' }} />
-                          <Line
-                            type="monotone"
-                            dataKey="value"
-                            stroke={color}
-                            strokeWidth={2}
-                            dot={false} // Remove dots for better performance
-                            activeDot={{ r: 4 }} // Show dots only on hover
-                            isAnimationActive={false} // Disable animations for better performance
-                          />
+                          {/* Show two different line styles based on smoothing toggle */}
+                          {!smoothing && (
+                            <Line 
+                              type="linear"
+                              dataKey="value" 
+                              stroke={color}
+                              strokeWidth={2}
+                              dot={false}
+                              activeDot={{ r: 4 }}
+                              isAnimationActive={false}
+                            />
+                          )}
+                          {smoothing && (
+                            <Line 
+                              type="monotoneX"
+                              dataKey="value" 
+                              stroke={color}
+                              strokeWidth={2}
+                              dot={false}
+                              activeDot={{ r: 5 }}
+                              isAnimationActive={false}
+                            />
+                          )}
+                          {/* Add a visual indicator that smoothing is active */}
+                          {smoothing && (
+                            <text x="50%" y="15" textAnchor="middle" fill="#888" fontSize="12">
+                              гладко
+                            </text>
+                          )}
                         </LineChart>
                       </ResponsiveContainer>
                     )
