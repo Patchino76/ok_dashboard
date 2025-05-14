@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { useTagTrend } from "@/hooks"
 import { Loader2 } from "lucide-react"
+import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
 
 type KpiDetailDialogProps = {
   definition: TagDefinition | null
@@ -93,7 +94,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
   // Only fetch data when the dialog is actually open
   const { data: trendPoints, loading: trendLoading, error: trendError } = useTagTrend(
     definition?.name || '',
-    24, // 24 hours of data
+    8, // 24 hours of data
     { 
       enabled: open && !!definition?.name, // Only fetch when dialog is open and we have a tag name
       retry: 1, // Only retry once
@@ -101,6 +102,26 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
       staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
     }
   )
+  
+  // Filter valid points for regression analysis
+  const validPoints = useMemo(() => filterValidPoints(trendPoints || []), [trendPoints]);
+  
+  // Calculate regression
+  const regression = useMemo(() => {
+    return validPoints.length >= 2 ? calculateRegression(validPoints) : null;
+  }, [validPoints]);
+  
+  // Generate regression line data
+  const regressionLineData = useMemo(() => {
+    if (!regression || validPoints.length < 2) return [];
+    return generateRegressionLine(regression, validPoints);
+  }, [regression, validPoints]);
+  
+  // Format regression line data for the chart
+  const formattedRegressionData = useMemo(() => {
+    if (regressionLineData.length < 2) return [];
+    return formatTrendData(regressionLineData, false);
+  }, [regressionLineData]);
   
   // Use memoization to prevent excessive recalculations
   const trendData = useMemo(() => formatTrendData(trendPoints || [], smoothing), [trendPoints, smoothing]);
@@ -195,6 +216,22 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                           <XAxis dataKey="time" tickCount={6} />
                           <YAxis width={40} />
                           <Tooltip contentStyle={{ backgroundColor: 'white', borderRadius: '4px' }} />
+                          {/* Show regression line if we have enough data */}
+                          {formattedRegressionData.length > 1 && (
+                            <Line 
+                              data={formattedRegressionData}
+                              type="linear"
+                              dataKey="value" 
+                              stroke={`${color}80`} /* Add 50% transparency */
+                              strokeWidth={1.5}
+                              strokeDasharray="5 5"
+                              dot={false}
+                              activeDot={false}
+                              isAnimationActive={false}
+                              name="Trend Line"
+                            />
+                          )}
+                          
                           {/* Show two different line styles based on smoothing toggle */}
                           {!smoothing && (
                             <Line 
@@ -205,6 +242,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                               dot={false}
                               activeDot={{ r: 4 }}
                               isAnimationActive={false}
+                              name="Actual Data"
                             />
                           )}
                           {smoothing && (
@@ -216,6 +254,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                               dot={false}
                               activeDot={{ r: 5 }}
                               isAnimationActive={false}
+                              name="Smoothed Data"
                             />
                           )}
                           {/* Add a visual indicator that smoothing is active */}

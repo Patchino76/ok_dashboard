@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/card"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { getBorderColorFromGroup } from "@/lib/utils"
 import { useTagTrend } from "@/hooks"
+import { Sparkline } from "./components/Sparkline"
+import { calculateTrend, calculateRegression, generateRegressionLine, TrendDirection, filterValidPoints } from "./utils/trendCalculation"
 
 type KpiCardProps = {
   definition: TagDefinition
@@ -14,9 +16,6 @@ type KpiCardProps = {
 }
 
 export function KpiCard({ definition, value, onClick }: KpiCardProps) {
-  // Define trend direction type
-  type TrendDirection = 'up' | 'down' | 'neutral';
-  
   // Limit trend data fetching to only numeric values, and only if we need it
   // This dramatically reduces API calls for cards that don't need trends
   const shouldFetchTrend = typeof value?.value === 'number' && !!definition.name;
@@ -24,7 +23,7 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
   // Use a longer stale time to avoid frequent refetching
   const { data: trendPoints } = useTagTrend(
     definition.name,
-    4, // Just get 4 hours to calculate trend direction
+    8, // Get 8 hours of data for trend calculation
     { 
       enabled: shouldFetchTrend,
       staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
@@ -34,37 +33,13 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
     }
   )
   
-
-
-  // Calculate trend based on actual data
-  const calculateTrend = (): { direction: TrendDirection; percentage: string } => {
-    // Default to neutral if no data or not numeric
-    if (!trendPoints || trendPoints.length < 2 || typeof value?.value !== 'number') {
-      return { direction: 'neutral', percentage: '0%' }
-    }
-    
-    // Get first and last points to calculate trend
-    const firstPoint = trendPoints[0]
-    const lastPoint = trendPoints[trendPoints.length - 1]
-    
-    if (firstPoint?.value === null || lastPoint?.value === null) {
-      return { direction: 'neutral', percentage: '0%' }
-    }
-    
-    const change = lastPoint.value - firstPoint.value
-    const percentChange = firstPoint.value !== 0 
-      ? Math.round((change / Math.abs(firstPoint.value)) * 100) 
-      : 0
-    
-    const direction: TrendDirection = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
-    
-    return {
-      direction,
-      percentage: `${percentChange > 0 ? '+' : ''}${percentChange}%`
-    }
-  }
+  // Use the extracted utility function to calculate trend
+  const { direction: trend, percentage: trendValue } = calculateTrend(trendPoints)
   
-  const { direction: trend, percentage: trendValue } = calculateTrend()
+  // Calculate regression line data for the sparkline
+  const validPoints = filterValidPoints(trendPoints);
+  const regression = validPoints.length >= 2 ? calculateRegression(validPoints) : null;
+  const regressionLineData = regression ? generateRegressionLine(regression, validPoints) : []
   
   // Get border color class from group name using utility function
   const borderColor = getBorderColorFromGroup(definition.group);
@@ -119,6 +94,17 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
             >
               {trendValue}
             </span>
+            {/* Only show sparkline for numeric values with trend data */}
+            {typeof value?.value === 'number' && trendPoints && trendPoints.length > 1 && (
+              <Sparkline 
+                data={trendPoints} 
+                color={trend === "up" ? "#10b981" : trend === "down" ? "#ef4444" : "#6b7280"} 
+                className="ml-2"
+                showRegressionLine={true}
+                regressionLineData={regressionLineData}
+                regressionLineColor={trend === "up" ? "rgba(16, 185, 129, 0.5)" : trend === "down" ? "rgba(239, 68, 68, 0.5)" : "rgba(107, 114, 128, 0.5)"}
+              />
+            )}
           </div>
         </div>
         
