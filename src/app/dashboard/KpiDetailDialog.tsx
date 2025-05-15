@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { useTagTrend } from "@/hooks"
 import { Loader2 } from "lucide-react"
-import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
+import { calculateRegression, filterValidPoints, generateRegressionLine, processDataPoints } from "./utils/trendCalculation"
 
 type KpiDetailDialogProps = {
   definition: TagDefinition | null
@@ -54,20 +54,19 @@ const smoothData = (data: any[], windowSize: number = 3) => {
   return result;
 };
 
-// Format trend data for chart with optimized performance
+// Format trend data for chart display
 const formatTrendData = (trendPoints: any[], applySmoothing: boolean = false) => {
   if (!trendPoints || !Array.isArray(trendPoints) || trendPoints.length === 0) {
     return [];
   }
   
-  // Only process every other data point for large datasets to improve performance
-  const shouldFilter = trendPoints.length > 12;
-  const filteredPoints = shouldFilter 
-    ? trendPoints.filter((_, i) => i % 2 === 0)
-    : trendPoints;
+  // Sort points by timestamp to ensure proper display
+  const sortedPoints = [...trendPoints].sort((a, b) => {
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
   
   // Map the points to the format needed for the chart
-  const formattedData = filteredPoints.map(point => {
+  const formattedData = sortedPoints.map(point => {
     // Simple date formatting
     const date = new Date(point.timestamp);
     const hours = date.getHours().toString().padStart(2, '0');
@@ -76,12 +75,12 @@ const formatTrendData = (trendPoints: any[], applySmoothing: boolean = false) =>
     
     return {
       time: formattedTime,
-      value: typeof point.value === 'number' ? Number(point.value.toFixed(1)) : 0
+      value: typeof point.value === 'number' ? point.value : null
     };
   });
   
   // Apply smoothing if requested
-  return applySmoothing ? smoothData(formattedData, 15) : formattedData;
+  return applySmoothing ? smoothData(formattedData, 3) : formattedData;
 }
 
 export function KpiDetailDialog({ definition, value, open, onOpenChange, color = "#0ea5e9" }: KpiDetailDialogProps) {
@@ -103,28 +102,63 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
     }
   )
   
-  // Filter valid points for regression analysis
-  const validPoints = useMemo(() => filterValidPoints(trendPoints || []), [trendPoints]);
+  // Filter out null values for display
+  const validPoints = useMemo(() => {
+    return (trendPoints || []).filter(point => point.value !== null);
+  }, [trendPoints]);
+  
+  // Transform data for chart and regression calculation
+  const chartData = useMemo(() => {
+    if (!validPoints || validPoints.length === 0) return [];
+    
+    // Convert to the format needed for regression calculation
+    return validPoints.map(point => ({
+      ...point,
+      x: new Date(point.timestamp).getTime(),
+      y: point.value as number
+    }));
+  }, [validPoints]);
   
   // Calculate regression
   const regression = useMemo(() => {
-    return validPoints.length >= 2 ? calculateRegression(validPoints) : null;
-  }, [validPoints]);
+    return chartData.length >= 2 ? calculateRegression(chartData) : null;
+  }, [chartData]);
   
   // Generate regression line data
   const regressionLineData = useMemo(() => {
-    if (!regression || validPoints.length < 2) return [];
-    return generateRegressionLine(regression, validPoints);
-  }, [regression, validPoints]);
+    if (!regression || chartData.length < 2) return [];
+    return generateRegressionLine(regression, chartData);
+  }, [regression, chartData]);
   
-  // Format regression line data for the chart
-  const formattedRegressionData = useMemo(() => {
-    if (regressionLineData.length < 2) return [];
-    return formatTrendData(regressionLineData, false);
-  }, [regressionLineData]);
+  // Calculate min and max values for proper chart scaling
+  const { minValue, maxValue } = useMemo(() => {
+    // Combine all data points (both actual data and regression line)
+    const allPoints = [...validPoints, ...regressionLineData];
+    
+    // Extract all numeric values
+    const values = allPoints
+      .map(point => point.value)
+      .filter((value): value is number => typeof value === 'number' && !isNaN(value));
+    
+    if (values.length === 0) return { minValue: 0, maxValue: 100 };
+    
+    // Calculate min and max
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    
+    // Add padding (20% of the range)
+    const range = max - min;
+    const padding = range * 0.2;
+    
+    return {
+      minValue: min - padding,
+      maxValue: max + padding
+    };
+  }, [validPoints, regressionLineData]);
   
-  // Use memoization to prevent excessive recalculations
-  const trendData = useMemo(() => formatTrendData(trendPoints || [], smoothing), [trendPoints, smoothing]);
+  // Format data for the chart
+  const trendData = useMemo(() => formatTrendData(validPoints, smoothing), [validPoints, smoothing]);
+  const formattedRegressionData = useMemo(() => formatTrendData(regressionLineData, false), [regressionLineData]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -212,49 +246,50 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                           data={trendData}
                           margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
                         >
-                          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.5} />
-                          <XAxis dataKey="time" tickCount={6} />
-                          <YAxis width={40} />
-                          <Tooltip contentStyle={{ backgroundColor: 'white', borderRadius: '4px' }} />
-                          {/* Show regression line if we have enough data */}
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                          <XAxis 
+                            dataKey="time" 
+                            tickCount={6} 
+                            tick={{ fontSize: 10 }}
+                          />
+                          <YAxis 
+                            width={40}
+                            domain={[minValue, maxValue]} // Use our calculated min/max values
+                            tick={{ fontSize: 10 }}
+                            tickFormatter={(value) => typeof value === 'number' ? value.toFixed(definition.precision || 0) : value.toString()}
+                            allowDataOverflow={false} // Allow data to extend beyond the domain if needed
+                          />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: 'white', borderRadius: '4px', fontSize: '12px', border: '1px solid #ccc' }}
+                            formatter={(value: any) => [Number(value).toFixed(definition.precision || 0), '']}
+                          />
+                          
+                          {/* Main data line */}
+                          <Line 
+                            type={smoothing ? "monotone" : "linear"}
+                            dataKey="value" 
+                            stroke={color || "#2563eb"} // Blue color as default
+                            strokeWidth={2}
+                            dot={{ r: 1 }}
+                            activeDot={{ r: 4 }}
+                            connectNulls={false} // Don't connect across null values
+                            isAnimationActive={false}
+                            name="Actual Data"
+                          />
+                          
+                          {/* Regression trend line */}
                           {formattedRegressionData.length > 1 && (
                             <Line 
                               data={formattedRegressionData}
                               type="linear"
                               dataKey="value" 
-                              stroke={`${color}80`} /* Add 50% transparency */
-                              strokeWidth={1.5}
-                              strokeDasharray="5 5"
+                              stroke="#ef4444" // Red color
+                              strokeDasharray="5 5" // Dashed line
+                              strokeWidth={2}
                               dot={false}
                               activeDot={false}
                               isAnimationActive={false}
                               name="Trend Line"
-                            />
-                          )}
-                          
-                          {/* Show two different line styles based on smoothing toggle */}
-                          {!smoothing && (
-                            <Line 
-                              type="linear"
-                              dataKey="value" 
-                              stroke={color}
-                              strokeWidth={2}
-                              dot={false}
-                              activeDot={{ r: 4 }}
-                              isAnimationActive={false}
-                              name="Actual Data"
-                            />
-                          )}
-                          {smoothing && (
-                            <Line 
-                              type="monotoneX"
-                              dataKey="value" 
-                              stroke={color}
-                              strokeWidth={2}
-                              dot={false}
-                              activeDot={{ r: 5 }}
-                              isAnimationActive={false}
-                              name="Smoothed Data"
                             />
                           )}
                           {/* Add a visual indicator that smoothing is active */}
