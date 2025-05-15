@@ -18,54 +18,6 @@ export type RegressionResult = {
   rSquared: number;       // R-squared value (goodness of fit)
 };
 
-/**
- * Process data points to handle only extreme outliers
- * 
- * @param trendPoints Array of trend data points
- * @returns Processed array of trend points with only extreme outliers handled
- */
-export function processDataPoints(trendPoints: TagTrendPoint[] | undefined): TagTrendPoint[] {
-  if (!trendPoints || trendPoints.length <= 2) return trendPoints || [];
-  
-  // Filter out null values but keep zeros (they might be real measurements)
-  const validPoints = trendPoints.filter(point => point.value !== null);
-  
-  if (validPoints.length <= 2) return validPoints;
-  
-  // Calculate statistics only on non-zero values for better outlier detection
-  const nonZeroValues = validPoints
-    .filter(p => p.value !== 0)
-    .map(p => p.value as number);
-  
-  if (nonZeroValues.length <= 2) return validPoints; // Not enough data for statistics
-  
-  const sum = nonZeroValues.reduce((acc, val) => acc + val, 0);
-  const mean = sum / nonZeroValues.length;
-  
-  // Calculate standard deviation
-  const squaredDiffs = nonZeroValues.map(value => {
-    const diff = value - mean;
-    return diff * diff;
-  });
-  const avgSquareDiff = squaredDiffs.reduce((acc, val) => acc + val, 0) / squaredDiffs.length;
-  const stdDev = Math.sqrt(avgSquareDiff);
-  
-  // Define threshold for extreme outliers (5 standard deviations - very conservative)
-  const threshold = 5 * stdDev;
-  
-  // Only replace extreme outliers
-  return validPoints.map(point => {
-    const value = point.value as number;
-    // Only replace non-zero values that are extreme outliers
-    if (value !== 0 && Math.abs(value - mean) > threshold) {
-      return {
-        ...point,
-        value: mean // Replace only extreme outliers
-      };
-    }
-    return point;
-  });
-}
 
 /**
  * Filter trend points to remove null values and zeros

@@ -74,9 +74,13 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
               ? typeof value.value === 'boolean'
                 ? value.value ? 'Active' : 'Inactive'
                 : typeof value.value === 'number'
-                  ? definition.precision !== undefined
-                    ? value.value.toFixed(definition.precision)
-                    : value.value
+                  ? (() => {
+                      // Apply scaling if defined
+                      const scaledValue = definition.scale ? value.value * definition.scale : value.value;
+                      return definition.precision !== undefined
+                        ? scaledValue.toFixed(definition.precision)
+                        : scaledValue;
+                    })()
                   : value.value
               : 'N/A'}
           </span>

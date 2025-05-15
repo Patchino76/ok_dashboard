@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { useTagTrend } from "@/hooks"
 import { Loader2 } from "lucide-react"
-import { calculateRegression, filterValidPoints, generateRegressionLine, processDataPoints } from "./utils/trendCalculation"
+import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
 
 type KpiDetailDialogProps = {
   definition: TagDefinition | null
@@ -102,10 +102,20 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
     }
   )
   
-  // Filter out null values for display
+  // Filter out null values for display and apply scaling if needed
   const validPoints = useMemo(() => {
-    return (trendPoints || []).filter(point => point.value !== null);
-  }, [trendPoints]);
+    const filtered = (trendPoints || []).filter(point => point.value !== null);
+    
+    // Apply scaling if defined
+    if (definition?.scale && filtered.length > 0) {
+      return filtered.map(point => ({
+        ...point,
+        value: point.value !== null ? (point.value as number) * definition.scale! : null
+      }));
+    }
+    
+    return filtered;
+  }, [trendPoints, definition]);
   
   // Transform data for chart and regression calculation
   const chartData = useMemo(() => {
@@ -130,7 +140,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
     return generateRegressionLine(regression, chartData);
   }, [regression, chartData]);
   
-  // Calculate min and max values for proper chart scaling
+  // Calculate min and max values for proper chart scaling with human-readable values
   const { minValue, maxValue } = useMemo(() => {
     // Combine all data points (both actual data and regression line)
     const allPoints = [...validPoints, ...regressionLineData];
@@ -143,16 +153,56 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
     if (values.length === 0) return { minValue: 0, maxValue: 100 };
     
     // Calculate min and max
-    const min = Math.min(...values);
+    let min = Math.min(...values);
     const max = Math.max(...values);
+    
+    // Never show negative values
+    min = Math.max(0, min);
     
     // Add padding (20% of the range)
     const range = max - min;
     const padding = range * 0.2;
     
+    // Calculate human-readable min/max that are divisible by nice round numbers
+    const roundToNiceNumber = (value: number): number => {
+      // Determine the magnitude of the value
+      const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+      
+      // Choose appropriate rounding based on magnitude
+      if (magnitude >= 1000) {
+        return Math.floor(value / 1000) * 1000;
+      } else if (magnitude >= 100) {
+        return Math.floor(value / 100) * 100;
+      } else if (magnitude >= 10) {
+        return Math.floor(value / 10) * 10;
+      } else {
+        return Math.floor(value);
+      }
+    };
+    
+    const roundToCeilingNiceNumber = (value: number): number => {
+      // Determine the magnitude of the value
+      const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
+      
+      // Choose appropriate rounding based on magnitude
+      if (magnitude >= 1000) {
+        return Math.ceil(value / 1000) * 1000;
+      } else if (magnitude >= 100) {
+        return Math.ceil(value / 100) * 100;
+      } else if (magnitude >= 10) {
+        return Math.ceil(value / 10) * 10;
+      } else {
+        return Math.ceil(value);
+      }
+    };
+    
+    // Calculate nice round numbers for min and max
+    const niceMin = min === 0 ? 0 : roundToNiceNumber(min - padding);
+    const niceMax = roundToCeilingNiceNumber(max + padding);
+    
     return {
-      minValue: min - padding,
-      maxValue: max + padding
+      minValue: niceMin,
+      maxValue: niceMax
     };
   }, [validPoints, regressionLineData]);
   
@@ -177,7 +227,15 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                 {value?.value !== null && value?.value !== undefined
                   ? typeof value.value === 'boolean'
                     ? value.value ? 'Active' : 'Inactive'
-                    : value.value
+                    : (() => {
+                        // Apply scaling if defined
+                        const scaledValue = definition.scale && typeof value.value === 'number' 
+                          ? value.value * definition.scale 
+                          : value.value;
+                        return definition.precision !== undefined && typeof scaledValue === 'number'
+                          ? Number(scaledValue).toFixed(definition.precision)
+                          : scaledValue;
+                      })()
                   : 'N/A'} 
                 <span className="text-sm text-muted-foreground ml-1">{definition.unit}</span>
               </div>
@@ -210,7 +268,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                 
                 {activeTab === "trend" && (
                   <div className="flex items-center space-x-2">
-                    <Label htmlFor="smoothing" className="text-sm">гладко</Label>
+                    <Label htmlFor="smoothing" className="text-sm">филтър</Label>
                     <Switch 
                       id="smoothing" 
                       checked={smoothing} 
@@ -261,7 +319,13 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                           />
                           <Tooltip 
                             contentStyle={{ backgroundColor: 'white', borderRadius: '4px', fontSize: '12px', border: '1px solid #ccc' }}
-                            formatter={(value: any) => [Number(value).toFixed(definition.precision || 0), '']}
+                            formatter={(value: any, name: string) => {
+                              // Format the value with appropriate precision
+                              const formattedValue = Number(value).toFixed(definition.precision || 0);
+                              // Return label based on the data series name
+                              return [formattedValue, name === 'regressionValue' ? 'Изчислено' : 'Реално'];
+                            }}
+                            labelFormatter={(label) => `Час: ${label}`}
                           />
                           
                           {/* Main data line */}
@@ -274,7 +338,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                             activeDot={{ r: 4 }}
                             connectNulls={false} // Don't connect across null values
                             isAnimationActive={false}
-                            name="Actual Data"
+                            name="value"
                           />
                           
                           {/* Regression trend line */}
@@ -289,7 +353,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                               dot={false}
                               activeDot={false}
                               isAnimationActive={false}
-                              name="Trend Line"
+                              name="regressionValue"
                             />
                           )}
                           {/* Add a visual indicator that smoothing is active */}

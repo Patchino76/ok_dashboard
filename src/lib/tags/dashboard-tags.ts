@@ -120,10 +120,10 @@ export const dashboardTags: TagDefinition[] = [
   {id: 1438, name: "CUFLOTAS2-S7-400PV_CU_LINE_10", desc: "Технологичен концентрат", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null},
   
   // Преса
-  {id: 553, name: "FP-AB_LC1_TOTALWEIGHT-PREVIOUSDAY", desc: "Филтър преси - преработка", unit: "t/ден", precision: 0, group: "Преса", icon: "filterpress", state: null},
+  {id: 553, name: "FP-AB_LC1_TOTALWEIGHT-PREVIOUSDAY", desc: "Филтър преси - преработка", unit: "t/ден", precision: 0, group: "Преса", icon: "filterpress", state: null, scale: 0.001},
   
   // Авт. везна
-  {id: 1440, name: "SCALES-OK_CUCONC_CURRENT_DAY_OUT", desc: "Автомобилна везна - концентрат", unit: "t/ден", precision: 0, group: "Авт. везна", icon: "truck", state: null},
+  {id: 1440, name: "SCALES-OK_CUCONC_CURRENT_DAY_OUT", desc: "Автомобилна везна - концентрат", unit: "t/ден", precision: 0, group: "Авт. везна", icon: "truck", state: null, scale: 0.001},
   
   // ВХС
   {id: 450, name: "WATERPARK-VHS_RADIN_IZVOR_FT601", desc: "ВХС - Свежа вода", unit: "l/s", precision: 0, group: "ВХС", icon: "waterflow", state: null},

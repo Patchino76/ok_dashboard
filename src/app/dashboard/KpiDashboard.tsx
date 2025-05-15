@@ -52,7 +52,7 @@ export function KpiDashboard() {
     return [
       // Make sure КЕТ1 is the first one
       "КЕТ1", "КЕТ3", "КЕТ", "МГТЛ", "ССТ", "Поток 1-4", "Поток 5-13", "Поток 15", "Поток 16", 
-      "Бункери", "Мелнично", "Флотация", "Преса", "Авт. веза", "ВХС"
+      "Бункери", "Мелнично", "Флотация", "Преса", "Авт. везна", "ВХС"
     ];
   }, []);
   
@@ -72,7 +72,7 @@ export function KpiDashboard() {
     "Мелнично": <RotateCw size={16} />,
     "Флотация": <CircuitBoard size={16} />,
     "Преса": <Hammer size={16} />,
-    "Авт. веза": <Truck size={16} />,
+    "Авт. везна": <Truck size={16} />,
     "ВХС": <Waves size={16} />
   }), []);
   
@@ -202,15 +202,17 @@ export function KpiDashboard() {
       </div>
       
       {/* Detail Dialog */}
-      <KpiDetailDialog 
-        definition={selectedTag?.definition || null}
-        value={selectedTag?.value}
-        open={selectedTag !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedTag(null)
-        }}
-        color={selectedTag?.definition ? getColorFromGroup(selectedTag.definition.group) : undefined}
-      />
+      {selectedTag !== null && (
+        <KpiDetailDialog 
+          definition={selectedTag?.definition || null}
+          value={selectedTag?.value}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setSelectedTag(null)
+          }}
+          color={selectedTag?.definition ? getColorFromGroup(selectedTag.definition.group) : undefined}
+        />
+      )}
     </div>
   )
 }
