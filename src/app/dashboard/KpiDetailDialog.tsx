@@ -162,40 +162,124 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
     // Never show negative values
     min = Math.max(0, min);
     
-    // Add padding (20% of the range)
+    // Calculate the data range
     const range = max - min;
-    const padding = range * 0.2;
+    
+    // Determine if we're dealing with very small values (< 0.1)
+    const isVerySmallValue = max < 0.1;
+    
+    // Determine if we have small variations relative to the base value
+    // For very small values, we use a different threshold
+    const variationThreshold = isVerySmallValue ? 0.5 : 0.1; // 50% for very small values, 10% otherwise
+    const isSmallVariation = min > 0 ? (range / min < variationThreshold) : true;
+    
+    // Adjust padding based on value size and variation
+    let paddingPercentage;
+    if (isVerySmallValue) {
+      // For very small values like 0.038, use minimal padding
+      paddingPercentage = 0.1; // 10% padding
+    } else if (isSmallVariation) {
+      // For normal values with small variations
+      paddingPercentage = 0.05; // 5% padding
+    } else {
+      // For normal values with large variations
+      paddingPercentage = 0.2; // 20% padding
+    }
+    
+    const padding = range * paddingPercentage;
     
     // Calculate human-readable min/max that are divisible by nice round numbers
     const roundToNiceNumber = (value: number): number => {
-      // Determine the magnitude of the value
+      // Special handling for very small values (< 0.1)
+      if (isVerySmallValue) {
+        // Determine the magnitude for very small values
+        const decimalPlaces = Math.abs(Math.floor(Math.log10(value))) + 1;
+        const factor = Math.pow(10, decimalPlaces);
+        
+        // Round to appropriate decimal places based on magnitude
+        return Math.floor(value * factor) / factor;
+      }
+      
+      // Determine the magnitude of the value for normal cases
       const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
       
-      // Choose appropriate rounding based on magnitude
-      if (magnitude >= 1000) {
-        return Math.floor(value / 1000) * 1000;
-      } else if (magnitude >= 100) {
-        return Math.floor(value / 100) * 100;
-      } else if (magnitude >= 10) {
-        return Math.floor(value / 10) * 10;
+      // For small variations, use finer-grained rounding
+      if (isSmallVariation) {
+        if (magnitude >= 1000) {
+          return Math.floor(value / 100) * 100;
+        } else if (magnitude >= 100) {
+          return Math.floor(value / 10) * 10;
+        } else if (magnitude >= 10) {
+          return Math.floor(value);
+        } else if (magnitude >= 1) {
+          return Math.floor(value * 10) / 10; // Round to 0.1
+        } else if (magnitude >= 0.1) {
+          return Math.floor(value * 100) / 100; // Round to 0.01
+        } else {
+          return Math.floor(value * 1000) / 1000; // Round to 0.001
+        }
       } else {
-        return Math.floor(value);
+        // Standard rounding for larger variations
+        if (magnitude >= 1000) {
+          return Math.floor(value / 1000) * 1000;
+        } else if (magnitude >= 100) {
+          return Math.floor(value / 100) * 100;
+        } else if (magnitude >= 10) {
+          return Math.floor(value / 10) * 10;
+        } else if (magnitude >= 1) {
+          return Math.floor(value);
+        } else if (magnitude >= 0.1) {
+          return Math.floor(value * 10) / 10; // Round to 0.1
+        } else {
+          return Math.floor(value * 100) / 100; // Round to 0.01
+        }
       }
     };
     
     const roundToCeilingNiceNumber = (value: number): number => {
-      // Determine the magnitude of the value
+      // Special handling for very small values (< 0.1)
+      if (isVerySmallValue) {
+        // Determine the magnitude for very small values
+        const decimalPlaces = Math.abs(Math.floor(Math.log10(value))) + 1;
+        const factor = Math.pow(10, decimalPlaces);
+        
+        // Round to appropriate decimal places based on magnitude
+        return Math.ceil(value * factor) / factor;
+      }
+      
+      // Determine the magnitude of the value for normal cases
       const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
       
-      // Choose appropriate rounding based on magnitude
-      if (magnitude >= 1000) {
-        return Math.ceil(value / 1000) * 1000;
-      } else if (magnitude >= 100) {
-        return Math.ceil(value / 100) * 100;
-      } else if (magnitude >= 10) {
-        return Math.ceil(value / 10) * 10;
+      // For small variations, use finer-grained rounding
+      if (isSmallVariation) {
+        if (magnitude >= 1000) {
+          return Math.ceil(value / 100) * 100;
+        } else if (magnitude >= 100) {
+          return Math.ceil(value / 10) * 10;
+        } else if (magnitude >= 10) {
+          return Math.ceil(value);
+        } else if (magnitude >= 1) {
+          return Math.ceil(value * 10) / 10; // Round to 0.1
+        } else if (magnitude >= 0.1) {
+          return Math.ceil(value * 100) / 100; // Round to 0.01
+        } else {
+          return Math.ceil(value * 1000) / 1000; // Round to 0.001
+        }
       } else {
-        return Math.ceil(value);
+        // Standard rounding for larger variations
+        if (magnitude >= 1000) {
+          return Math.ceil(value / 1000) * 1000;
+        } else if (magnitude >= 100) {
+          return Math.ceil(value / 100) * 100;
+        } else if (magnitude >= 10) {
+          return Math.ceil(value / 10) * 10;
+        } else if (magnitude >= 1) {
+          return Math.ceil(value);
+        } else if (magnitude >= 0.1) {
+          return Math.ceil(value * 10) / 10; // Round to 0.1
+        } else {
+          return Math.ceil(value * 100) / 100; // Round to 0.01
+        }
       }
     };
     
@@ -305,7 +389,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={trendData}
-                          margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
+                          margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                           <XAxis 
@@ -314,11 +398,20 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                             tick={{ fontSize: 10 }}
                           />
                           <YAxis 
-                            width={40}
+                            width={50} // Slightly wider for small decimal values
                             domain={[Math.max(0, minValue), maxValue]} // Use our calculated min/max values but never go below 0
                             tick={{ fontSize: 10 }}
-                            tickFormatter={(value) => typeof value === 'number' ? value.toFixed(definition.precision || 0) : value.toString()}
-                            allowDataOverflow={false} // Allow data to extend beyond the domain if needed
+                            tickCount={5} // Control the number of ticks for better readability
+                            tickFormatter={(value) => {
+                              // For very small values, show more decimal places
+                              if (value < 0.1) {
+                                // Use at least 3 decimal places for very small values
+                                const precision = Math.max(3, definition.precision || 0);
+                                return value.toFixed(precision);
+                              }
+                              return typeof value === 'number' ? value.toFixed(definition.precision || 0) : value.toString();
+                            }}
+                            allowDataOverflow={false} // Don't allow data to extend beyond the domain
                           />
                           <Tooltip 
                             contentStyle={{ backgroundColor: 'white', borderRadius: '4px', fontSize: '12px', border: '1px solid #ccc' }}
@@ -343,9 +436,9 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                             type={smoothing ? "monotone" : "linear"}
                             dataKey="value" 
                             stroke={color || "#2563eb"} // Blue color as default
-                            strokeWidth={2}
-                            dot={{ r: 1 }}
-                            activeDot={{ r: 4 }}
+                            strokeWidth={2.5} // Slightly thicker for better visibility
+                            dot={{ r: 1.5, strokeWidth: 1 }} // Slightly larger dots
+                            activeDot={{ r: 5, strokeWidth: 1 }} // Larger active dots
                             connectNulls={false} // Don't connect across null values
                             isAnimationActive={false}
                             name="value"
@@ -359,7 +452,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                               dataKey="value" 
                               stroke="#ef4444" // Red color
                               strokeDasharray="5 5" // Dashed line
-                              strokeWidth={2}
+                              strokeWidth={2.5} // Slightly thicker for better visibility
                               dot={false}
                               activeDot={false}
                               isAnimationActive={false}
