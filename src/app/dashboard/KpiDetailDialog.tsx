@@ -11,7 +11,7 @@ import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { useTagTrend } from "@/hooks"
 import { Loader2 } from "lucide-react"
 import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
@@ -73,9 +73,12 @@ const formatTrendData = (trendPoints: any[], applySmoothing: boolean = false) =>
     const minutes = date.getMinutes().toString().padStart(2, '0');
     const formattedTime = `${hours}:${minutes}`;
     
+    // Ensure value is never negative
+    const safeValue = typeof point.value === 'number' ? Math.max(0, point.value) : null;
+    
     return {
       time: formattedTime,
-      value: typeof point.value === 'number' ? point.value : null
+      value: safeValue
     };
   });
   
@@ -312,7 +315,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                           />
                           <YAxis 
                             width={40}
-                            domain={[minValue, maxValue]} // Use our calculated min/max values
+                            domain={[Math.max(0, minValue), maxValue]} // Use our calculated min/max values but never go below 0
                             tick={{ fontSize: 10 }}
                             tickFormatter={(value) => typeof value === 'number' ? value.toFixed(definition.precision || 0) : value.toString()}
                             allowDataOverflow={false} // Allow data to extend beyond the domain if needed
@@ -326,6 +329,13 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                               return [formattedValue, name === 'regressionValue' ? 'Изчислено' : 'Реално'];
                             }}
                             labelFormatter={(label) => `Час: ${label}`}
+                          />
+                          
+                          {/* Add Legend */}
+                          <Legend 
+                            verticalAlign="top"
+                            height={36}
+                            formatter={(value) => value === 'value' ? 'Реално' : 'Изчислено'}
                           />
                           
                           {/* Main data line */}
