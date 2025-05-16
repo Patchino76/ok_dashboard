@@ -8,6 +8,7 @@ export interface TagDefinition {
   state: string[] | null;
   precision?: number;
   scale?: number; // Optional scaling factor for value display (e.g., 0.001 to convert kg to tons)
+  maxValue?: number; // Optional maximum value for use with the FillBar component
 }
 
 export interface TagValue {

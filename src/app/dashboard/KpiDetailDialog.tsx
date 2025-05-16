@@ -15,6 +15,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useTagTrend } from "@/hooks"
 import { Loader2 } from "lucide-react"
 import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
+import { smoothData, formatTrendData, calculateAxisBounds, formatYAxisTick } from "./utils/trendVisualization"
 
 type KpiDetailDialogProps = {
   definition: TagDefinition | null
@@ -22,68 +23,6 @@ type KpiDetailDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   color?: string // Color for the trend line, derived from the group
-}
-
-// Apply a moving average smoothing to data points
-const smoothData = (data: any[], windowSize: number = 3) => {
-  if (!data || data.length < windowSize) return data;
-  
-  const result = [];
-  
-  for (let i = 0; i < data.length; i++) {
-    let sum = 0;
-    let count = 0;
-    
-    // Calculate average of points in the window
-    for (let j = Math.max(0, i - Math.floor(windowSize/2)); 
-         j <= Math.min(data.length - 1, i + Math.floor(windowSize/2)); 
-         j++) {
-      if (data[j].value !== undefined && !isNaN(data[j].value)) {
-        sum += data[j].value;
-        count++;
-      }
-    }
-    
-    // Create a new point with the smoothed value
-    result.push({
-      ...data[i],
-      value: count > 0 ? sum / count : data[i].value
-    });
-  }
-  
-  return result;
-};
-
-// Format trend data for chart display
-const formatTrendData = (trendPoints: any[], applySmoothing: boolean = false) => {
-  if (!trendPoints || !Array.isArray(trendPoints) || trendPoints.length === 0) {
-    return [];
-  }
-  
-  // Sort points by timestamp to ensure proper display
-  const sortedPoints = [...trendPoints].sort((a, b) => {
-    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
-  });
-  
-  // Map the points to the format needed for the chart
-  const formattedData = sortedPoints.map(point => {
-    // Simple date formatting
-    const date = new Date(point.timestamp);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const formattedTime = `${hours}:${minutes}`;
-    
-    // Ensure value is never negative
-    const safeValue = typeof point.value === 'number' ? Math.max(0, point.value) : null;
-    
-    return {
-      time: formattedTime,
-      value: safeValue
-    };
-  });
-  
-  // Apply smoothing if requested
-  return applySmoothing ? smoothData(formattedData, 3) : formattedData;
 }
 
 export function KpiDetailDialog({ definition, value, open, onOpenChange, color = "#0ea5e9" }: KpiDetailDialogProps) {
@@ -144,153 +83,8 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
   }, [regression, chartData]);
   
   // Calculate min and max values for proper chart scaling with human-readable values
-  const { minValue, maxValue } = useMemo(() => {
-    // Combine all data points (both actual data and regression line)
-    const allPoints = [...validPoints, ...regressionLineData];
-    
-    // Extract all numeric values
-    const values = allPoints
-      .map(point => point.value)
-      .filter((value): value is number => typeof value === 'number' && !isNaN(value));
-    
-    if (values.length === 0) return { minValue: 0, maxValue: 100 };
-    
-    // Calculate min and max
-    let min = Math.min(...values);
-    const max = Math.max(...values);
-    
-    // Never show negative values
-    min = Math.max(0, min);
-    
-    // Calculate the data range
-    const range = max - min;
-    
-    // Determine if we're dealing with very small values (< 0.1)
-    const isVerySmallValue = max < 0.1;
-    
-    // Determine if we have small variations relative to the base value
-    // For very small values, we use a different threshold
-    const variationThreshold = isVerySmallValue ? 0.5 : 0.1; // 50% for very small values, 10% otherwise
-    const isSmallVariation = min > 0 ? (range / min < variationThreshold) : true;
-    
-    // Adjust padding based on value size and variation
-    let paddingPercentage;
-    if (isVerySmallValue) {
-      // For very small values like 0.038, use minimal padding
-      paddingPercentage = 0.1; // 10% padding
-    } else if (isSmallVariation) {
-      // For normal values with small variations
-      paddingPercentage = 0.05; // 5% padding
-    } else {
-      // For normal values with large variations
-      paddingPercentage = 0.2; // 20% padding
-    }
-    
-    const padding = range * paddingPercentage;
-    
-    // Calculate human-readable min/max that are divisible by nice round numbers
-    const roundToNiceNumber = (value: number): number => {
-      // Special handling for very small values (< 0.1)
-      if (isVerySmallValue) {
-        // Determine the magnitude for very small values
-        const decimalPlaces = Math.abs(Math.floor(Math.log10(value))) + 1;
-        const factor = Math.pow(10, decimalPlaces);
-        
-        // Round to appropriate decimal places based on magnitude
-        return Math.floor(value * factor) / factor;
-      }
-      
-      // Determine the magnitude of the value for normal cases
-      const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
-      
-      // For small variations, use finer-grained rounding
-      if (isSmallVariation) {
-        if (magnitude >= 1000) {
-          return Math.floor(value / 100) * 100;
-        } else if (magnitude >= 100) {
-          return Math.floor(value / 10) * 10;
-        } else if (magnitude >= 10) {
-          return Math.floor(value);
-        } else if (magnitude >= 1) {
-          return Math.floor(value * 10) / 10; // Round to 0.1
-        } else if (magnitude >= 0.1) {
-          return Math.floor(value * 100) / 100; // Round to 0.01
-        } else {
-          return Math.floor(value * 1000) / 1000; // Round to 0.001
-        }
-      } else {
-        // Standard rounding for larger variations
-        if (magnitude >= 1000) {
-          return Math.floor(value / 1000) * 1000;
-        } else if (magnitude >= 100) {
-          return Math.floor(value / 100) * 100;
-        } else if (magnitude >= 10) {
-          return Math.floor(value / 10) * 10;
-        } else if (magnitude >= 1) {
-          return Math.floor(value);
-        } else if (magnitude >= 0.1) {
-          return Math.floor(value * 10) / 10; // Round to 0.1
-        } else {
-          return Math.floor(value * 100) / 100; // Round to 0.01
-        }
-      }
-    };
-    
-    const roundToCeilingNiceNumber = (value: number): number => {
-      // Special handling for very small values (< 0.1)
-      if (isVerySmallValue) {
-        // Determine the magnitude for very small values
-        const decimalPlaces = Math.abs(Math.floor(Math.log10(value))) + 1;
-        const factor = Math.pow(10, decimalPlaces);
-        
-        // Round to appropriate decimal places based on magnitude
-        return Math.ceil(value * factor) / factor;
-      }
-      
-      // Determine the magnitude of the value for normal cases
-      const magnitude = Math.pow(10, Math.floor(Math.log10(value)));
-      
-      // For small variations, use finer-grained rounding
-      if (isSmallVariation) {
-        if (magnitude >= 1000) {
-          return Math.ceil(value / 100) * 100;
-        } else if (magnitude >= 100) {
-          return Math.ceil(value / 10) * 10;
-        } else if (magnitude >= 10) {
-          return Math.ceil(value);
-        } else if (magnitude >= 1) {
-          return Math.ceil(value * 10) / 10; // Round to 0.1
-        } else if (magnitude >= 0.1) {
-          return Math.ceil(value * 100) / 100; // Round to 0.01
-        } else {
-          return Math.ceil(value * 1000) / 1000; // Round to 0.001
-        }
-      } else {
-        // Standard rounding for larger variations
-        if (magnitude >= 1000) {
-          return Math.ceil(value / 1000) * 1000;
-        } else if (magnitude >= 100) {
-          return Math.ceil(value / 100) * 100;
-        } else if (magnitude >= 10) {
-          return Math.ceil(value / 10) * 10;
-        } else if (magnitude >= 1) {
-          return Math.ceil(value);
-        } else if (magnitude >= 0.1) {
-          return Math.ceil(value * 10) / 10; // Round to 0.1
-        } else {
-          return Math.ceil(value * 100) / 100; // Round to 0.01
-        }
-      }
-    };
-    
-    // Calculate nice round numbers for min and max
-    const niceMin = min === 0 ? 0 : roundToNiceNumber(min - padding);
-    const niceMax = roundToCeilingNiceNumber(max + padding);
-    
-    return {
-      minValue: niceMin,
-      maxValue: niceMax
-    };
+  const { minValue, maxValue, isVerySmallValue } = useMemo(() => {
+    return calculateAxisBounds(validPoints, regressionLineData);
   }, [validPoints, regressionLineData]);
   
   // Format data for the chart
@@ -402,15 +196,11 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                             domain={[Math.max(0, minValue), maxValue]} // Use our calculated min/max values but never go below 0
                             tick={{ fontSize: 10 }}
                             tickCount={5} // Control the number of ticks for better readability
-                            tickFormatter={(value) => {
-                              // For very small values, show more decimal places
-                              if (value < 0.1) {
-                                // Use at least 3 decimal places for very small values
-                                const precision = Math.max(3, definition.precision || 0);
-                                return value.toFixed(precision);
-                              }
-                              return typeof value === 'number' ? value.toFixed(definition.precision || 0) : value.toString();
-                            }}
+                            tickFormatter={(value) => 
+                              typeof value === 'number' 
+                                ? formatYAxisTick(value, definition.precision, isVerySmallValue)
+                                : value.toString()
+                            }
                             allowDataOverflow={false} // Don't allow data to extend beyond the domain
                           />
                           <Tooltip 

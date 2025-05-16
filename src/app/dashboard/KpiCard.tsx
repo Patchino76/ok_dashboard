@@ -1,12 +1,13 @@
 'use client'
 
-import React from "react"
+import React, { useMemo } from "react"
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Power } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
-import { getBorderColorFromGroup } from "@/lib/utils"
+import { getBorderColorFromGroup, getColorFromGroup } from "@/lib/utils"
 import { useTagTrend } from "@/hooks"
 import { Sparkline } from "./components/Sparkline"
+import { FillBar } from "./components/FillBar"
 import { calculateTrend, calculateRegression, generateRegressionLine, TrendDirection, filterValidPoints } from "./utils/trendCalculation"
 
 type KpiCardProps = {
@@ -41,14 +42,22 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
   const regression = validPoints.length >= 2 ? calculateRegression(validPoints) : null;
   const regressionLineData = regression ? generateRegressionLine(regression, validPoints) : []
   
-  // Get border color class from group name using utility function
-  const borderColor = getBorderColorFromGroup(definition.group);
+  // Calculate max value from trend points for the fill bar
+  const maxTrendValue = useMemo(() => {
+    if (!validPoints || validPoints.length === 0) return 0;
+    const values = validPoints.map(p => p.value as number).filter(v => v !== null && !isNaN(v));
+    return values.length > 0 ? Math.max(...values) : 0;
+  }, [validPoints]);
   
-  // Map trend to icons
+  // Get border color class and hex color from group name using utility functions
+  const borderColor = getBorderColorFromGroup(definition.group);
+  const groupColor = getColorFromGroup(definition.group);
+  
+  // Map trend to icons with colors derived from the group
   const trendIcon: Record<'up' | 'down' | 'neutral', React.ReactNode> = {
-    up: <ArrowUpRight className="h-4 w-4 text-emerald-500" />,
-    down: <ArrowDownRight className="h-4 w-4 text-red-500" />,
-    neutral: <ArrowRight className="h-4 w-4 text-gray-500" />,
+    up: <ArrowUpRight className="h-4 w-4" style={{ color: groupColor }} />,
+    down: <ArrowDownRight className="h-4 w-4" style={{ color: groupColor }} />,
+    neutral: <ArrowRight className="h-4 w-4" style={{ color: groupColor }} />,
   }
 
   return (
@@ -90,11 +99,8 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
           <div className="flex items-center text-xs ml-2">
             {trendIcon[trend]}
             <span 
-              className={trend === "up" 
-                ? "ml-1 text-emerald-500" 
-                : trend === "down" 
-                ? "ml-1 text-red-500" 
-                : "ml-1 text-gray-500"}
+              className="ml-1"
+              style={{ color: groupColor }}
             >
               {trendValue}
             </span>
@@ -102,17 +108,31 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
             {typeof value?.value === 'number' && trendPoints && trendPoints.length > 1 && (
               <Sparkline 
                 data={trendPoints} 
-                color={trend === "up" ? "#10b981" : trend === "down" ? "#ef4444" : "#6b7280"} 
+                color={groupColor} 
                 className="ml-2"
                 showRegressionLine={true}
                 regressionLineData={regressionLineData}
-                regressionLineColor={trend === "up" ? "rgba(16, 185, 129, 0.5)" : trend === "down" ? "rgba(239, 68, 68, 0.5)" : "rgba(107, 114, 128, 0.5)"}
+                regressionLineColor={`${groupColor}80`} // Adding 50% transparency
               />
             )}
           </div>
         </div>
         
-        <div className="mt-3 flex justify-between items-center">
+        {/* Fill bar to visualize current value relative to max value */}
+        {typeof value?.value === 'number' && definition.maxValue && (
+          <div className="mt-3 mb-2">
+            <FillBar 
+              currentValue={value.value} 
+              maxValue={definition.maxValue}
+              barColor={groupColor}
+              height={4}
+              showValues={true}
+              unit={definition.unit}
+            />
+          </div>
+        )}
+        
+        <div className="mt-2 flex justify-between items-center">
           <span className="text-xs text-muted-foreground">
             {value?.timestamp 
               ? new Date(value.timestamp).toLocaleTimeString() 

@@ -2,8 +2,6 @@ from sqlalchemy import create_engine, text
 import pandas as pd
 from datetime import datetime, timedelta
 import logging
-import math  # Added for sine wave calculations in trend data
-import random
 import os
 import time
 
@@ -62,6 +60,7 @@ class DatabaseManager:
             f"Connection Timeout=30;"
             f"Trusted_Connection=no;"
             f"TrustServerCertificate=yes;"
+            f"timezone=+03:00;"  # Set timezone to UTC+3
         )
         
         # Create engine with connection pooling enabled
@@ -93,7 +92,7 @@ class DatabaseManager:
         try:
             # Query the database for the tag value
             query = text("""
-                SELECT TOP 1 LoggerTagID, Value, IndexTime 
+                SELECT TOP 1 LoggerTagID, Value, DATEADD(hour, 3, IndexTime) AS IndexTime 
                 FROM LoggerValues
                 WHERE LoggerTagID IN (:tag_id)
                 ORDER BY IndexTime DESC
@@ -149,7 +148,7 @@ class DatabaseManager:
                     FROM LoggerValues
                     WHERE LoggerTagID IN ({tag_id_list})
                 )
-                SELECT LoggerTagID, Value, IndexTime
+                SELECT LoggerTagID, Value, DATEADD(hour, 3, IndexTime) AS IndexTime
                 FROM LatestTagValues
                 WHERE row_num = 1
             """)
@@ -211,16 +210,7 @@ class DatabaseManager:
                 return {"timestamps": [], "values": []}
         except Exception as e:
             logger.error(f"Error checking if tag exists: {e}")
-            # Continue anyway, we'll try to generate data
-
-        # Get the current value to use as a base for synthetic data
-        current_value = None
-        try:
-            tag_value = self.get_tag_value(tag_id)
-            if tag_value and tag_value.get("value") is not None:
-                current_value = tag_value["value"]
-        except Exception as e:
-            logger.error(f"Error getting current value for trend: {e}")
+            return {"timestamps": [], "values": []}
 
         try:
             # Query the database for trend data
@@ -232,7 +222,7 @@ class DatabaseManager:
             
             # Format times for SQL query
             query = text("""
-                SELECT LoggerTagID, Value, IndexTime 
+                SELECT LoggerTagID, Value, DATEADD(hour, 3, IndexTime) AS IndexTime 
                 FROM LoggerValues
                 WHERE LoggerTagID IN (:tag_id)
                 AND IndexTime BETWEEN :start_time AND :end_time
@@ -250,9 +240,9 @@ class DatabaseManager:
                 }).fetchall()
                 
                 if not result or len(result) == 0:
-                    logger.info(f"No trend data found for tag ID {tag_id} - generating synthetic data")
-                    # Generate synthetic trend data so the frontend has something to display
-                    return self._generate_synthetic_trend_data(tag_id, hours, current_value)
+                    logger.info(f"No trend data found for tag ID {tag_id}")
+                    # Return empty arrays instead of generating synthetic data
+                    return {"timestamps": [], "values": []}
                     
                 for row in result:
                     values.append(row.Value)
@@ -376,64 +366,7 @@ class DatabaseManager:
                 "description": f"Unknown tag {tag_id}",
                 "unit": ""
             }
-    def _generate_synthetic_trend_data(self, tag_id, hours, current_value):
-        """Generate synthetic trend data for development/testing with correct timezone handling"""
-        """Generate synthetic trend data for development/testing
-        
-        Args:
-            tag_id: The tag ID to generate data for
-            hours: Number of hours of data to generate
-            current_value: Current value of the tag (if available)
-            tag_details: Details about the tag
-            
-        Returns:
-            dict: A dictionary with timestamps and values arrays
-        """
-        from datetime import datetime, timedelta
-        import random
-        
-        # Use a consistent seed for reproducible results
-        random.seed(tag_id)
-        
-        # Determine a sensible base value
-        if current_value is not None and isinstance(current_value, (int, float)):
-            base_value = current_value
-        else:
-            # If there's no current value, generate a reasonable one based on tag_id
-            base_value = random.uniform(50, 500)  # Generate a base value between 50-500
-        
-        # For performance reasons, limit the number of data points
-        # Use 1 point per hour instead of 12 points per hour
-        data_points = min(hours, 24)  # Cap at 24 points maximum
-        
-        timestamps = []
-        values = []
-        
-        # Very simple trend parameters
-        trend_direction = 1 if random.random() > 0.5 else -1
-        trend_strength = 0.1
-        
-        end_time = datetime.now()
-        
-        # Generate fewer data points for better performance
-        for i in range(data_points):
-            # Only generate hourly data points
-            point_time = end_time - timedelta(hours=hours-i)
-            
-            timestamps.append(point_time.isoformat())
-            
-            # Simplified value calculation
-            trend_component = base_value * trend_strength * (i / data_points) * trend_direction
-            noise = base_value * 0.05 * (random.random() - 0.5)
-            
-            value = max(0, base_value + trend_component + noise)
-            values.append(round(value, 2))  # Round to 2 decimal places for efficiency
-        
-        # Cache this result would be a good performance improvement in a real app
-        return {
-            "timestamps": timestamps,
-            "values": values
-        }
+
         
     def close(self):
         """Close database connections"""
@@ -448,80 +381,49 @@ class MockDatabaseManager:
         self.tag_details_cache = {}
     
     def get_tag_value(self, tag_id):
-        """Get a simulated current value for a tag"""
-        # Generate consistent random values based on tag_id
-        random.seed(tag_id)
-        value = random.uniform(20, 100)
+        """Get a value for a tag when database is unavailable"""
+        logger.warning(f"Database unavailable - returning zero value for tag {tag_id}")
         return {
             "tag_id": tag_id,
-            "value": value,
+            "value": 0,
             "timestamp": datetime.now().isoformat(),
-            "quality": "Good",
-            "mode": "Simulated"
+            "quality": "Bad",
+            "mode": "Offline"
         }
     
     def get_tag_values(self, tag_ids):
-        """Get simulated values for multiple tags"""
+        """Get values for multiple tags when database is unavailable"""
+        logger.warning(f"Database unavailable - returning zero values for {len(tag_ids)} tags")
         return {tag_id: self.get_tag_value(tag_id) for tag_id in tag_ids}
     
     def get_tag_trend(self, tag_id, hours=8):
-        """Generate simulated trend data for a tag"""
-        current_value = random.uniform(20, 100)
-        return self._generate_synthetic_trend_data(tag_id, hours, current_value)
+        """Return empty trend data when database is unavailable"""
+        logger.warning(f"Database unavailable - returning empty trend data for tag {tag_id}")
+        return {
+            "timestamps": [],
+            "values": []
+        }
     
     def get_tag_states(self, state_tag_ids):
-        """Get simulated boolean states for multiple tags"""
-        return {tag_id: bool(random.getrandbits(1)) for tag_id in state_tag_ids}
+        """Get boolean states for multiple tags when database is unavailable"""
+        logger.warning(f"Database unavailable - returning false states for {len(state_tag_ids)} tags")
+        return {tag_id: False for tag_id in state_tag_ids}
     
     def get_tag_details(self, tag_id):
-        """Get simulated tag details"""
+        """Get tag details when database is unavailable"""
         if tag_id in self.tag_details_cache:
             return self.tag_details_cache[tag_id]
         
-        # Create simulated tag details
+        # Create basic tag details
         details = {
-            "tag_id": tag_id,
-            "name": f"Simulated Tag {tag_id}",
-            "description": f"Mock tag {tag_id} (database unavailable)",
-            "units": "Units",
-            "min_value": 0,
-            "max_value": 100,
-            "format": "%.2f"
+            "id": tag_id,
+            "name": f"Tag_{tag_id}",
+            "description": f"Unavailable tag {tag_id}",
+            "unit": ""
         }
         
         self.tag_details_cache[tag_id] = details
         return details
-    
-    def _generate_synthetic_trend_data(self, tag_id, hours, current_value):
-        """Generate synthetic trend data for development/testing"""
-        # Generate time points from (now - hours) to now
-        end_time = datetime.now()
-        start_time = end_time - timedelta(hours=hours)
-        
-        # Create evenly spaced timestamps
-        num_points = min(hours * 60, 500)  # Cap at 500 points to avoid excessive data
-        timestamps = [start_time + timedelta(minutes=i*(hours*60/num_points)) for i in range(num_points)]
-        timestamps_iso = [ts.isoformat() for ts in timestamps]
-        
-        # Generate synthetic values based on sine wave + random noise + trend
-        random.seed(tag_id)  # Ensure consistent randomness for same tag
-        base = current_value * 0.7  # Base value
-        amplitude = current_value * 0.3  # Amplitude of sine wave
-        
-        # Generate values with sine wave pattern + slight random variations
-        values = []
-        for i in range(num_points):
-            progress = i / num_points  # 0 to 1 scale for position in timeline
-            # Sine wave + linear trend + random noise
-            value = base + amplitude * math.sin(progress * 6 * math.pi) + (progress * 5) + random.uniform(-2, 2)
-            values.append(round(value, 2))
-        
-        return {
-            "tag_id": tag_id,
-            "timestamps": timestamps_iso,
-            "values": values,
-            "mode": "Simulated"
-        }
     
     def close(self):
         """Mock close method"""
