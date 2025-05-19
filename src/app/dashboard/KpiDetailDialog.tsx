@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { useTagTrend } from "@/hooks"
-import { Loader2 } from "lucide-react"
+import { Loader2, ArrowLeft, X } from "lucide-react"
 import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
 import { smoothData, formatTrendData, calculateAxisBounds, formatYAxisTick } from "./utils/trendVisualization"
 
@@ -93,11 +93,24 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px]">
-        <DialogHeader>
-          <DialogTitle>
-            {definition.desc}
-          </DialogTitle>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="relative">
+          <div>
+            <DialogTitle>
+              {definition.desc}
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground sm:hidden mt-1">
+              {value?.timestamp ? new Date(value.timestamp).toLocaleTimeString() : 'No time data'}
+              {definition.unit ? ` · ${definition.unit}` : ''}
+            </p>
+          </div>
+          <button
+            className="absolute top-0 right-0 sm:hidden p-1.5 text-muted-foreground hover:text-foreground rounded-full"
+            onClick={() => onOpenChange(false)}
+            aria-label="Back to dashboard"
+          >
+            <X size={18} />  
+          </button>
         </DialogHeader>
         
         <div className="mt-4">
@@ -122,14 +135,14 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
               </div>
             </div>
             
-            <div className="bg-card p-4 rounded-lg border">
+            <div className="bg-card p-4 rounded-lg border hidden sm:block">
               <h3 className="text-sm font-medium text-muted-foreground">Измервателна единица</h3>
               <div className="mt-2 text-2xl font-bold">
                 {definition.unit}
               </div>
             </div>
             
-            <div className="bg-card p-4 rounded-lg border">
+            <div className="bg-card p-4 rounded-lg border hidden sm:block">
               <h3 className="text-sm font-medium text-muted-foreground">Последно обновение</h3>
               <div className="mt-2 text-xl font-bold">
                 {value?.timestamp 
@@ -163,7 +176,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
               </div>
               
               <TabsContent value="trend">
-                <div className="h-[300px]">
+                <div className="h-[350px] sm:h-[400px]">
                   {/* Only render chart content when the trend tab is active */}
                   {activeTab === "trend" && (
                     trendLoading ? (
