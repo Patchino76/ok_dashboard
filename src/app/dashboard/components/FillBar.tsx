@@ -6,7 +6,9 @@ type FillBarProps = {
   height?: number;
   className?: string;
   barColor?: string;
+  barColorClass?: string; // Tailwind class for bar color
   backgroundColor?: string;
+  backgroundColorClass?: string; // Tailwind class for background color
   showValues?: boolean; // Whether to show min/max values as text
   unit?: string; // Unit to display with max value
 }
@@ -20,8 +22,10 @@ export const FillBar = ({
   maxValue,
   height = 4,
   className = '',
-  barColor = '#3b82f6', // Default blue color
-  backgroundColor = '#e5e7eb', // Default gray background
+  barColor,
+  barColorClass = 'bg-blue-500', // Default blue Tailwind class
+  backgroundColor,
+  backgroundColorClass = 'bg-gray-200', // Default gray Tailwind class
   showValues = true, // Show min/max values by default
   unit = '', // Unit to display with max value
 }: FillBarProps) => {
@@ -37,11 +41,11 @@ export const FillBar = ({
     <div className={`flex flex-col w-full ${className}`}>
       {/* Bar with fill */}
       <div 
-        className={`w-full rounded-full overflow-hidden ${showValues ? 'mb-1' : ''}`}
+        className={`w-full rounded-full overflow-hidden ${showValues ? 'mb-1' : ''} ${backgroundColorClass}`}
         style={{ height: `${height}px`, backgroundColor }}
       >
         <div 
-          className="h-full transition-all duration-300 ease-in-out"
+          className={`h-full transition-all duration-300 ease-in-out ${barColorClass}`}
           style={{ 
             width: `${fillPercentage}%`, 
             backgroundColor: barColor 

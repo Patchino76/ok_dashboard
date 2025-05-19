@@ -16,8 +16,8 @@ export const dashboardTags: TagDefinition[] = [
   // КЕТ3
   {id: 1063, name: "KET3_FB_ALLIS", desc: "КET3: ГТЛ27 ALLIS старт / стоп", unit: "bool", group: "КЕТ3", icon: null, state: null},
   {id: 779, name: "KET3_FB_TFK", desc: "КET3: ГТЛ45 TFK Старт / Стоп", unit: "bool", group: "КЕТ3", icon: null, state: null},
-  {id: 38, name: "KET3_BELT_SCALE_GTL27", desc: "КET3: ГТЛ27 ALLIS разход на руда", unit: "t/h", precision: 0, group: "КЕТ3", icon: "conveyer", state: ["KET3_FB_ALLIS"], maxValue: 1000},
-  {id: 230, name: "KET3_BELT_SCALE_GTL45", desc: "КET3: ГТЛ45 TFK разход на руда", unit: "t/h", precision: 0, group: "КЕТ3", icon: "conveyer", state: ["KET3_FB_TFK"], maxValue: 1000},
+  {id: 38, name: "KET3_BELT_SCALE_GTL27", desc: "КET3: ГТЛ27 ALLIS разход на руда", unit: "t/h", precision: 0, group: "КЕТ3", icon: "conveyer", state: ["KET3_FB_ALLIS"], maxValue: 2000},
+  {id: 230, name: "KET3_BELT_SCALE_GTL45", desc: "КET3: ГТЛ45 TFK разход на руда", unit: "t/h", precision: 0, group: "КЕТ3", icon: "conveyer", state: ["KET3_FB_TFK"], maxValue: 2000},
   {id: 1191, name: "KET3_SUM_BELT_SCALE27_45", desc: "КET3: ГТЛ570 разход на руда", unit: "t/h", precision: 0, group: "КЕТ3", icon: "conveyer", state: ["KET3_FB_ALLIS", "KET3_FB_TFK"], maxValue: 2000},
   {id: 231, name: "KET3_CURRENT_DAILY_QUANTITY", desc: "КET3: Тотал преработена руда", unit: "t", precision: 0, group: "КЕТ3", icon: "weight", state: null},
   

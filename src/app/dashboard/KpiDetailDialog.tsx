@@ -30,7 +30,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
 
   // Track active tab to avoid rendering unused content
   const [activeTab, setActiveTab] = useState("trend");
-  const [smoothing, setSmoothing] = useState(false);
+  const [smoothing, setSmoothing] = useState(true);
 
   // Only fetch data when the dialog is actually open
   const { data: trendPoints, loading: trendLoading, error: trendError } = useTagTrend(
@@ -103,7 +103,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
         <div className="mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
             <div className="bg-card p-4 rounded-lg border">
-              <h3 className="text-sm font-medium text-muted-foreground">Current Value</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Текуща стойност</h3>
               <div className="mt-2 text-2xl font-bold">
                 {value?.value !== null && value?.value !== undefined
                   ? typeof value.value === 'boolean'
@@ -123,14 +123,14 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
             </div>
             
             <div className="bg-card p-4 rounded-lg border">
-              <h3 className="text-sm font-medium text-muted-foreground">Unit</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Измервателна единица</h3>
               <div className="mt-2 text-2xl font-bold">
                 {definition.unit}
               </div>
             </div>
             
             <div className="bg-card p-4 rounded-lg border">
-              <h3 className="text-sm font-medium text-muted-foreground">Last Update</h3>
+              <h3 className="text-sm font-medium text-muted-foreground">Последно обновение</h3>
               <div className="mt-2 text-xl font-bold">
                 {value?.timestamp 
                   ? new Date(value.timestamp).toLocaleTimeString() 
@@ -227,8 +227,8 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                             dataKey="value" 
                             stroke={color || "#2563eb"} // Blue color as default
                             strokeWidth={2.5} // Slightly thicker for better visibility
-                            dot={{ r: 1.5, strokeWidth: 1 }} // Slightly larger dots
-                            activeDot={{ r: 5, strokeWidth: 1 }} // Larger active dots
+                            dot={false} // No dots on the line
+                            activeDot={{ r: 5, strokeWidth: 1 }} // Keep active dot for hover/interaction
                             connectNulls={false} // Don't connect across null values
                             isAnimationActive={false}
                             name="value"
@@ -250,11 +250,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                             />
                           )}
                           {/* Add a visual indicator that smoothing is active */}
-                          {smoothing && (
-                            <text x="50%" y="15" textAnchor="middle" fill="#888" fontSize="12">
-                              гладко
-                            </text>
-                          )}
+                          {smoothing                     }
                         </LineChart>
                       </ResponsiveContainer>
                     )

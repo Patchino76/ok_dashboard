@@ -3,11 +3,12 @@
 import React, { useMemo, useState } from "react"
 import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock, Power } from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
+import { FillBar } from "./components/FillBar"
 import { cn, getBorderColorFromGroup, getColorFromGroup } from "@/lib/utils"
 import { useTagTrend } from "@/hooks"
 import { calculateTrend, calculateRegression, generateRegressionLine, TrendDirection, filterValidPoints } from "./utils/trendCalculation"
+import { smoothData } from "./utils/trendVisualization"
 
 type KpiCardProps = {
   definition: TagDefinition
@@ -72,10 +73,21 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
     return new Date(value.timestamp).toLocaleTimeString();
   }, [value?.timestamp]);
   
-  // Generate sparkline data from trend points
+  // Generate sparkline data from trend points with smoothing
   const sparklineData = useMemo(() => {
     if (!validPoints || validPoints.length < 2) return [];
-    return validPoints.map(p => p.value as number);
+    
+    // Format points for smoothing
+    const dataPoints = validPoints.map(p => ({
+      value: p.value as number,
+      timestamp: p.timestamp
+    }));
+    
+    // Apply smoothing with window size of 15
+    const smoothedPoints = smoothData(dataPoints, 15);
+    
+    // Extract just the values for the sparkline
+    return smoothedPoints.map(p => p.value as number);
   }, [validPoints]);
   
   // Generate sparkline path
@@ -160,15 +172,15 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
           )}
         </div>
 
-        {/* Sparkline */}
-        {typeof value?.value === 'number' && sparklineData.length > 1 && (
-          <div className="h-8 mb-1">
+        {/* Sparkline - Always maintain height for consistent layout */}
+        <div className="h-8 mb-1">
+          {typeof value?.value === 'number' && sparklineData.length > 1 ? (
             <svg width="100%" height="100%" viewBox="0 0 100 30" preserveAspectRatio="none">
               <path
                 d={generateSparklinePath()}
                 fill="none"
                 stroke={groupColor}
-                strokeWidth="1.5"
+                strokeWidth="1.0"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -185,28 +197,22 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
                 </linearGradient>
               </defs>
             </svg>
-          </div>
-        )}
+          ) : null}
+        </div>
 
-        {/* Progress bar */}
-        {typeof value?.value === 'number' && definition.maxValue && (
-          <div className="mb-2">
-            <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>0</span>
-              <span>
-                {definition.maxValue} {definition.unit}
-              </span>
-            </div>
-            <Progress 
-              value={percentage} 
-              className="h-2"
-              style={{ 
-                '--progress-background': 'rgb(229 231 235)',
-                '--progress-foreground': groupColor
-              } as React.CSSProperties}
+        {/* FillBar - Always maintain height for consistent layout */}
+        <div className="mb-1 min-h-[28px] mt-4">
+          {typeof value?.value === 'number' && definition.maxValue ? (
+            <FillBar
+              currentValue={definition.scale ? value.value * definition.scale : value.value}
+              maxValue={definition.maxValue}
+              height={8}
+              barColorClass="bg-slate-500" 
+              backgroundColorClass="bg-gray-200" /* Darker slate background */
+              unit={definition.unit}
             />
-          </div>
-        )}
+          ) : null}
+        </div>
 
         {/* Footer with timestamp and action */}
         <div className="flex items-center justify-between text-xs text-gray-500 mt-3">

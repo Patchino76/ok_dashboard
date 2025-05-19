@@ -66,7 +66,7 @@ export const formatTrendData = (trendPoints: any[], applySmoothing: boolean = fa
   });
   
   // Apply smoothing if requested
-  return applySmoothing ? smoothData(formattedData, 3) : formattedData;
+  return applySmoothing ? smoothData(formattedData, 15) : formattedData;
 };
 
 /**
