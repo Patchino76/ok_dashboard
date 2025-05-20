@@ -37,9 +37,8 @@ export const FillBar = ({
   }
 
   // Calculate the fill percentage (capped at 100%)
-  // If inverse is true, we display maxValue - currentValue to show remaining capacity
-  const displayValue = inverse ? maxValue - currentValue : currentValue;
-  const fillPercentage = Math.min(100, Math.max(0, (displayValue / maxValue) * 100));
+  // The calculation happens in a utility function for consistency
+  const fillPercentage = Math.min(100, Math.max(0, (inverse ? maxValue - currentValue : currentValue) / maxValue * 100));
   
   return (
     <div className={`flex flex-col w-full ${className}`}>

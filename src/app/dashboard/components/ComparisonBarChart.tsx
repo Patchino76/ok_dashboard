@@ -3,7 +3,9 @@
 import React from 'react';
 import { TagDefinition, TagValue } from '@/lib/tags/types';
 import { cn } from '@/lib/utils';
-import { renderTagIcon } from '@/app/dashboard/KpiCard';
+import { renderTagIcon } from '@/lib/utils/kpi/iconUtils';
+import { calculateDisplayValue, calculatePercentage, formatTagValue } from '@/lib/utils/kpi/valueCalculations';
+import { getColorForIconType, getIconTypeTitle } from '@/lib/utils/kpi/visualUtils';
 
 interface ComparisonBarChartProps {
   tags: {
@@ -19,7 +21,6 @@ export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) 
 
   // Find the maximum value for scaling
   const maxValue = Math.max(
-    ...displayTags.map(tag => tag.value?.value !== undefined ? Number(tag.value.value) : 0),
     ...displayTags.map(tag => tag.definition.maxValue !== undefined ? Number(tag.definition.maxValue) : 0)
   );
 
@@ -36,24 +37,21 @@ export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) 
 
       <div className="space-y-4">
         {displayTags.map(({ definition, value }) => {
+          // Get the raw value for display
           const rawValue = value?.value !== undefined ? Number(value.value) : 0;
           
-          // Handle inverse logic (for bunkers where lower values are better)
+          // Calculate display value (handles inverse logic internally)
+          const displayValue = calculateDisplayValue(value, definition);
+          
+          // Format values for display
+          const formattedValue = formatTagValue(rawValue, definition);
           const maxVal = definition.maxValue !== undefined ? Number(definition.maxValue) : 0;
+          const maxValueFormatted = formatTagValue(maxVal, definition);
           
-          // For inverse tags (like bunker levels), we want to show max - value
-          // This shows how much space is available rather than how full it is
-          const displayValue = definition.inverse ? maxVal - rawValue : rawValue;
+          // Calculate percentage with our utility
+          const percentage = calculatePercentage(value, definition);
           
-          // Format the raw value for display purposes - always show actual value
-          const formattedValue = formatValue(rawValue, definition.precision);
-          
-          // Calculate percentage based on displayValue (which respects inverse logic)
-          const percentage = maxVal ? (displayValue / maxVal) * 100 : 0;
-          
-          const maxValueFormatted = formatValue(maxVal, definition.precision);
-          
-          // Get color based on icon type and inverse setting
+          // Get color using our utility
           const barColor = getColorForIconType(iconType, definition.inverse ? 100 - percentage : percentage);
           
           return (
@@ -105,45 +103,4 @@ export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) 
   );
 }
 
-// Helper function to format values with proper precision
-function formatValue(value: number, precision?: number): string {
-  if (precision !== undefined) {
-    return value.toFixed(precision);
-  }
-  return value.toString();
-}
 
-// Helper function to get the appropriate bar color based on icon type and percentage
-function getColorForIconType(iconType: string, percentage: number): string {
-  // Base colors by icon type
-  const baseColors: Record<string, string> = {
-    'level': '#3b82f6', // blue for levels
-    'conveyer': '#10b981', // emerald for conveyers
-    'crusher': '#f59e0b', // amber for crushers
-    'weight': '#6366f1', // indigo for weight
-    'power': '#ef4444', // red for power
-    'factory': '#8b5cf6', // violet for factory
-    'time': '#64748b', // slate for time
-  };
-  
-  // Get color based on icon type, with fallback
-  return baseColors[iconType] || '#6b7280'; // gray as fallback
-}
-
-// Helper function to get a human-readable title for the icon type
-function getIconTypeTitle(iconType: string): string {
-  switch (iconType) {
-    case 'conveyer':
-      return 'Материален поток';
-    case 'crusher':
-      return 'Мощност на трошачки';
-    case 'level':
-      return 'Ниво';
-    case 'weight':
-      return 'Тегло';
-    case 'power':
-      return 'Консумация на енергия';
-    default:
-      return iconType.charAt(0).toUpperCase() + iconType.slice(1);
-  }
-}

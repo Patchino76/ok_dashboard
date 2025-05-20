@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useMemo, useState } from "react"
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock, Power, Waves, GaugeCircle, ArrowRightLeft, Weight, CalendarClock, Hammer, Activity, Timer, Container, Factory, Cylinder, ZapOff } from "lucide-react"
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock, Power } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { FillBar } from "./components/FillBar"
@@ -16,35 +16,9 @@ type KpiCardProps = {
   onClick: () => void
 }
 
-// Helper function to render the appropriate icon based on the icon property
-export const renderTagIcon = (iconType: string | null) => {
-  if (!iconType) return null;
-  
-  const iconProps = { size: 16 };
-  
-  switch (iconType) {
-    case 'level':
-      return <Cylinder {...iconProps} />; // Better for level measurements in containers
-    case 'conveyer':
-      return <ArrowRightLeft {...iconProps} />; // Represents material movement on conveyers
-    case 'weight':
-      return <Weight {...iconProps} />; // Perfect for weight measurements
-    case 'flotaion':
-      return <Container {...iconProps} />; // Container representing flotation cells
-    case 'power':
-      return <Activity {...iconProps} />; // For power/electricity
-    case 'time':
-      return <Timer {...iconProps} />; // For time-based measurements
-    case 'crusher':
-      return <Hammer {...iconProps} />; // For crushers/mills
-    case 'factory':
-      return <Factory {...iconProps} />; // For production areas
-    case 'total':
-      return <CalendarClock {...iconProps} />; // For accumulated totals
-    default:
-      return <GaugeCircle {...iconProps} />; // Default fallback
-  }
-};
+// Import icon utilities
+import { renderTagIcon } from "@/lib/utils/kpi/iconUtils";
+import { calculateDisplayValue, formatTagValue } from "@/lib/utils/kpi/valueCalculations";
 
 export function KpiCard({ definition, value, onClick }: KpiCardProps) {
   const [isHovering, setIsHovering] = useState(false);
@@ -242,7 +216,7 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
               currentValue={definition.scale ? value.value * definition.scale : value.value}
               maxValue={definition.maxValue}
               height={8}
-              barColorClass="bg-slate-500" 
+              barColorClass="bg-slate-500"
               backgroundColorClass="bg-gray-200"
               unit={definition.unit}
               inverse={definition.inverse}
