@@ -23,14 +23,14 @@ export const dashboardTags: TagDefinition[] = [
   
   // КЕТ
   {id: 1525, name: "KET_SUM_BELT_CURRENT_QUANTITY", desc: "КET: Тотал преработена руда", unit: "t", precision: 0, group: "КЕТ", icon: "weight", state: null},
-  {id: 3731, name: "KET1_WAREHOUSE1_LEVEL", desc: "Открит склад 1: - кота", unit: "m", precision: 1, group: "КЕТ", icon: "pile", state: null, maxValue: 1200},
-  {id: 4661, name: "KET1_WAREHOUSE1_LEVEL1", desc: "Открит склад 1: - ниво", unit: "m", precision: 1, group: "КЕТ", icon: "pile", state: null, maxValue: 25},
+  {id: 3731, name: "KET1_WAREHOUSE1_LEVEL", desc: "Открит склад 1: - кота", unit: "m", precision: 1, group: "КЕТ", icon: "level", state: null, maxValue: 1200},
+  {id: 4661, name: "KET1_WAREHOUSE1_LEVEL1", desc: "Открит склад 1: - ниво", unit: "m", precision: 1, group: "КЕТ", icon: "level", state: null, maxValue: 25},
   
   // МГТЛ
   {id: 1715, name: "MGTL-TBM230-BELT-RUNNING", desc: "МГТЛ: старт / стоп", unit: "bool", group: "МГТЛ", icon: "weight", state: null},
   {id: 3671, name: "MGTL-TBM230-CURRENT-TON-PH", desc: "МГТЛ разход на руда", unit: "t/h", precision: 0, group: "МГТЛ", icon: "conveyer", state: ["MGTL-TBM230-BELT-RUNNING"], maxValue: 1200},
   {id: 1714, name: "MGTL-TBM230-SHIFT-TONS", desc: "МГТЛ: преминала руда", unit: "t", precision: 0, group: "МГТЛ", icon: "weight", state: null},
-  {id: 3067, name: "SST_NIVO_OTKRIT_SLAD_2", desc: "Открит склад 2: - ниво", unit: "m", precision: 1, group: "МГТЛ", icon: "pile", state: null, maxValue: 20},
+  {id: 3067, name: "SST_NIVO_OTKRIT_SLAD_2", desc: "Открит склад 2: - ниво", unit: "m", precision: 1, group: "МГТЛ", icon: "level", state: null, maxValue: 20},
   
   // ССТ Баланс
   {id: 1192, name: "SST_SUM_POTOK_1_4", desc: "ССТ - Вход", unit: "t/h", precision: 0, group: "ССТ", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR1"], maxValue: 2000},
@@ -109,9 +109,9 @@ export const dashboardTags: TagDefinition[] = [
   {id: 3594, name: "SST_SUM_MB2_1_10_AVG", desc: "Междинни бункери: средно ниво", unit: "m", precision: 1, group: "Бункери", icon: "level", state: null, maxValue: 10},
 
   // Мелнично
-  {id: 1250, name: "MFC-MILLS_SUMORE_1_11", desc: "Мелнично: Разход на руда", unit: "t/h", precision: 0, group: "Мелнично", icon: "conveyer", state: null, maxValue: 2500},
-  {id: 2114, name: "MFC_SUM_SHIFTS_1_11", desc: "Мелнично: Преработена руда", unit: "t", precision: 0, group: "Мелнично", icon: "weight", state: null},
-  {id: 2135, name: "MFC_SUM_SHIFTSYESTERDAY_1_11", desc: "Мелнично: Преработена руда за предходния ден", unit: "t", precision: 0, group: "Мелнично", icon: "weight", state: null},
+  {id: 1250, name: "MFC-MILLS_SUMORE_1_11", desc: "МФЦ: Разход на руда", unit: "t/h", precision: 0, group: "Мелнично", icon: "conveyer", state: null, maxValue: 2500},
+  {id: 2114, name: "MFC_SUM_SHIFTS_1_11", desc: "МФЦ: Преработена руда", unit: "t", precision: 0, group: "Мелнично", icon: "weight", state: null},
+  {id: 2135, name: "MFC_SUM_SHIFTSYESTERDAY_1_11", desc: "МФЦ: Преработена руда за предходния ден", unit: "t", precision: 0, group: "Мелнично", icon: "weight", state: null},
   
   // Флотация
   {id: 3288, name: "RECOVERY_LINEALL_CU_LONG", desc: "Общo извличане", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null, maxValue: 100},

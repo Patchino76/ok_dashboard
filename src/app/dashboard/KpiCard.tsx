@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useMemo, useState } from "react"
-import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock, Power } from "lucide-react"
+import { ArrowDownRight, ArrowRight, ArrowUpRight, Clock, Power, Waves, GaugeCircle, ArrowRightLeft, Weight, CalendarClock, Hammer, Activity, Timer, Container, Factory, Cylinder, ZapOff } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { FillBar } from "./components/FillBar"
@@ -15,6 +15,36 @@ type KpiCardProps = {
   value: TagValue | null | undefined
   onClick: () => void
 }
+
+// Helper function to render the appropriate icon based on the icon property
+const renderTagIcon = (iconType: string | null) => {
+  if (!iconType) return null;
+  
+  const iconProps = { size: 16 };
+  
+  switch (iconType) {
+    case 'level':
+      return <Cylinder {...iconProps} />; // Better for level measurements in containers
+    case 'conveyer':
+      return <ArrowRightLeft {...iconProps} />; // Represents material movement on conveyers
+    case 'weight':
+      return <Weight {...iconProps} />; // Perfect for weight measurements
+    case 'flotaion':
+      return <Container {...iconProps} />; // Container representing flotation cells
+    case 'power':
+      return <Activity {...iconProps} />; // For power/electricity
+    case 'time':
+      return <Timer {...iconProps} />; // For time-based measurements
+    case 'crusher':
+      return <Hammer {...iconProps} />; // For crushers/mills
+    case 'factory':
+      return <Factory {...iconProps} />; // For production areas
+    case 'total':
+      return <CalendarClock {...iconProps} />; // For accumulated totals
+    default:
+      return <GaugeCircle {...iconProps} />; // Default fallback
+  }
+};
 
 export function KpiCard({ definition, value, onClick }: KpiCardProps) {
   const [isHovering, setIsHovering] = useState(false);
@@ -135,7 +165,7 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
       <div className="relative p-4">
         {/* Header with title and status */}
         <div className="flex items-center justify-between mb-2">
-          <h3 className="font-medium text-sm text-gray-800 line-clamp-1 pr-6">{definition.desc}</h3>
+          <h3 className="font-medium text-sm text-gray-800 pr-6">{definition.desc}</h3>
           
           {definition.state && definition.state.length > 0 && (
             <div className={cn("rounded-full p-1.5", value?.active ? "bg-green-500/10" : "bg-red-500/10")}>
@@ -146,8 +176,13 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
           )}
         </div>
 
-        {/* Main value and trend */}
+        {/* Main value, icon and trend */}
         <div className="flex items-baseline gap-2 mb-1">
+          {definition.icon && (
+            <div className="flex items-center text-gray-500 mr-1" style={{ marginBottom: '2px' }}>
+              {renderTagIcon(definition.icon)}
+            </div>
+          )}
           <span className="text-3xl font-bold text-gray-900">{formattedValue}</span>
           <span className="text-sm text-gray-500">{definition.unit}</span>
           
@@ -212,18 +247,6 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
               unit={definition.unit}
             />
           ) : null}
-        </div>
-
-        {/* Footer with timestamp and action */}
-        <div className="flex items-center justify-between text-xs text-gray-500 mt-3">
-          <div className="flex items-center">
-            <Clock className="h-3 w-3 mr-1" />
-            {timeDisplay}
-          </div>
-          <div className="flex items-center" style={{ color: groupColor }}>
-            <span className="font-medium">View Details</span>
-            <ArrowUpRight className="h-3 w-3 ml-1" />
-          </div>
         </div>
       </div>
     </Card>
