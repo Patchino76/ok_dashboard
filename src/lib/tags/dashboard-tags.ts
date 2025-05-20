@@ -41,15 +41,15 @@ export const dashboardTags: TagDefinition[] = [
   {id: 1856, name: "SST_FB_UPPER_SCREEN_STR3", desc: "ПОТОК 3: горно сито старт / Стоп", unit: "bool", group: "Поток 1-4", icon: null, state: null},
   {id: 1858, name: "SST_FB_UPPER_SCREEN_STR4", desc: "ПОТОК 4: горно сито старт / Стоп", unit: "bool", group: "Поток 1-4", icon: null, state: null},
 
-  {id: 87, name: "SST_WEIGHT_SCALE_STR1", desc: "ПОТОК 1: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR1"], maxValue: 1000, comparison: true},
-  {id: 101, name: "SST_WEIGHT_SCALE_STR2", desc: "ПОТОК 2: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR2"], maxValue: 1000, comparison: true},
-  {id: 115, name: "SST_WEIGHT_SCALE_STR3", desc: "ПОТОК 3: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR3"], maxValue: 1000, comparison: true},
-  {id: 129, name: "SST_WEIGHT_SCALE_STR4", desc: "ПОТОК 4: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR4"], maxValue: 1000, comparison: true},
+  {id: 87, name: "SST_WEIGHT_SCALE_STR1", desc: "ПОТОК 1: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR1"], maxValue: 1000, comparison: true, statistics:true},
+  {id: 101, name: "SST_WEIGHT_SCALE_STR2", desc: "ПОТОК 2: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR2"], maxValue: 1000, comparison: true, statistics:true},
+  {id: 115, name: "SST_WEIGHT_SCALE_STR3", desc: "ПОТОК 3: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR3"], maxValue: 1000, comparison: true, statistics:true},
+  {id: 129, name: "SST_WEIGHT_SCALE_STR4", desc: "ПОТОК 4: ДЛ разход на руда", unit: "t/h", precision: 0, group: "Поток 1-4", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR4"], maxValue: 1000, comparison: true, statistics:true},
 
-  {id: 86, name: "SST_POWER_CRUSHER_MOTOR_STR1", desc: "ПОТОК 1: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR1"], maxValue: 300, comparison: true},
-  {id: 100, name: "SST_POWER_CRUSHER_MOTOR_STR2", desc: "ПОТОК 2: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR2"], maxValue: 300, comparison: true},
-  {id: 114, name: "SST_POWER_CRUSHER_MOTOR_STR3", desc: "ПОТОК 3: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR3"], maxValue: 300, comparison: true},
-  {id: 128, name: "SST_POWER_CRUSHER_MOTOR_STR4", desc: "ПОТОК 4: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR4"], maxValue: 300, comparison: true},
+  {id: 86, name: "SST_POWER_CRUSHER_MOTOR_STR1", desc: "ПОТОК 1: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR1"], maxValue: 300, comparison: true, statistics:true},
+  {id: 100, name: "SST_POWER_CRUSHER_MOTOR_STR2", desc: "ПОТОК 2: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR2"], maxValue: 300, comparison: true, statistics:true},
+  {id: 114, name: "SST_POWER_CRUSHER_MOTOR_STR3", desc: "ПОТОК 3: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR3"], maxValue: 300, comparison: true, statistics:true},
+  {id: 128, name: "SST_POWER_CRUSHER_MOTOR_STR4", desc: "ПОТОК 4: мощност на трошачка", unit: "kW", precision: 0, group: "Поток 1-4", icon: "crusher", state: ["SST_FB_UPPER_SCREEN_STR4"], maxValue: 300, comparison: true, statistics:true},
 
   // Поток 5-13
   {id: 911, name: "SST_FB_SCREEN_STR5", desc: "ПОТОК 5: долно сито старт / стоп", unit: "bool", group: "Поток 5-13", icon: null, state: null},

@@ -13,9 +13,13 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { useTagTrend } from "@/hooks"
-import { Loader2, ArrowLeft, X } from "lucide-react"
+import { Loader2, ArrowLeft, X, Clock } from "lucide-react"
 import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
 import { smoothData, formatTrendData, calculateAxisBounds, formatYAxisTick } from "./utils/trendVisualization"
+import { TimeRangeSelector, TimeRange } from "./components/TimeRangeSelector"
+import { getHoursFromTimeRange, getTimeRangeLabel } from "@/lib/utils/kpi/timeUtils"
+import { LoadingSpinner } from "./components/LoadingSpinner"
+import { StatisticsView } from "./components/StatisticsView"
 
 type KpiDetailDialogProps = {
   definition: TagDefinition | null
@@ -31,15 +35,34 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
   // Track active tab to avoid rendering unused content
   const [activeTab, setActiveTab] = useState("trend");
   const [smoothing, setSmoothing] = useState(true);
+  const [isSmoothing, setIsSmoothing] = useState(false);
+  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('8h');
+  const [isChangingTimeRange, setIsChangingTimeRange] = useState(false);
 
+  // Calculate hours from selected time range
+  const hours = getHoursFromTimeRange(selectedTimeRange);
+
+  // Handle time range changes
+  const handleTimeRangeChange = (newRange: TimeRange) => {
+    setIsChangingTimeRange(true);
+    setSelectedTimeRange(newRange);
+    
+    // Clear the loading state after a short delay to allow the next fetch to start
+    setTimeout(() => {
+      setIsChangingTimeRange(false);
+    }, 100);
+  };
+  
   // Only fetch data when the dialog is actually open
+  // Make sure to fetch when details tab is active if statistics are enabled
+  const needsStatistics = activeTab === "details" && definition?.statistics;
   const { data: trendPoints, loading: trendLoading, error: trendError } = useTagTrend(
     definition?.name || '',
-    8, // 24 hours of data
+    hours, // Hours of data based on selected time range
     { 
-      enabled: open && !!definition?.name, // Only fetch when dialog is open and we have a tag name
+      enabled: open && !!definition?.name && (activeTab === "trend" || needsStatistics), // Only fetch when needed
       retry: 1, // Only retry once
-      refetchOnMount: false, // Don't refetch automatically to prevent excessive API calls
+      refetchOnMount: true, // Refetch when component mounts to ensure data is available for both tabs
       staleTime: 5 * 60 * 1000, // Consider data fresh for 5 minutes
     }
   )
@@ -153,36 +176,58 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
           </div>
           
           <div className="rounded-lg border p-4">
-            <Tabs defaultValue="trend">
+            <Tabs value={activeTab} onValueChange={(value) => {
+              console.log('Tab changed to:', value);
+              setActiveTab(value);
+              // Force data load when switching to details tab if statistics are enabled
+              if (value === 'details' && definition.statistics) {
+                console.log('Loading data for statistics...');
+                setIsChangingTimeRange(true);
+                setTimeout(() => setIsChangingTimeRange(false), 200);
+              }
+            }}>
               <div className="flex justify-between items-center mb-4">
-                <TabsList>
-                  <TabsTrigger value="trend" onClick={() => setActiveTab("trend")}>Тренд (24ч)</TabsTrigger>
-                  <TabsTrigger value="details" onClick={() => setActiveTab("details")}>Детали</TabsTrigger>
+                <TabsList className="grid w-12rem grid-cols-2">
+                  <TabsTrigger value="trend">Графика</TabsTrigger>
+                  <TabsTrigger value="details">Статистики</TabsTrigger>
                 </TabsList>
                 
-                {activeTab === "trend" && (
-                  <div className="flex items-center space-x-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                  <div className="flex items-center space-x-2 order-2 sm:order-1">
                     <Label htmlFor="smoothing" className="text-sm">филтър</Label>
                     <Switch 
                       id="smoothing" 
                       checked={smoothing} 
                       onCheckedChange={(checked: boolean) => {
-                        console.log('Smoothing changed to:', checked);
-                        setSmoothing(checked);
+                        setIsSmoothing(true);
+                        setTimeout(() => {
+                          setSmoothing(checked);
+                          setIsSmoothing(false);
+                        }, 300); // Brief delay to show loading state
                       }} 
                     />
                   </div>
-                )}
+                  
+                  <div className="sm:ml-auto order-1 sm:order-2">
+                    <TimeRangeSelector
+                      selectedRange={selectedTimeRange}
+                      onChange={handleTimeRangeChange}
+                      className="scale-[0.85] origin-right"
+                    />
+                  </div>
+                </div>
               </div>
               
               <TabsContent value="trend">
                 <div className="h-[350px] sm:h-[400px]">
                   {/* Only render chart content when the trend tab is active */}
                   {activeTab === "trend" && (
-                    trendLoading ? (
+                    (trendLoading || isChangingTimeRange || isSmoothing) ? (
                       <div className="h-full flex items-center justify-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                        <span className="ml-2 text-muted-foreground">Loading trend data...</span>
+                        <LoadingSpinner 
+                          size={32} 
+                          text={`Зареждане на данни за ${getTimeRangeLabel(selectedTimeRange)}...`} 
+                        />
                       </div>
                     ) : trendError ? (
                       <div className="h-full flex items-center justify-center">
@@ -203,6 +248,38 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                             dataKey="time" 
                             tickCount={6} 
                             tick={{ fontSize: 10 }}
+                            axisLine={{ stroke: '#ddd' }}
+                            // Add markers for day boundaries
+                            ticks={(() => {
+                              // Get evenly distributed time ticks (show ~6 time points)
+                              const dataLength = trendData.length;
+                              const step = Math.max(1, Math.floor(dataLength / 6));
+                              const timeTicks = [];
+                              for (let i = 0; i < dataLength; i += step) {
+                                timeTicks.push(trendData[i]?.time);
+                              }
+                              // Add the last point if not already included
+                              if (dataLength > 0 && timeTicks[timeTicks.length - 1] !== trendData[dataLength - 1]?.time) {
+                                timeTicks.push(trendData[dataLength - 1]?.time);
+                              }
+                              return timeTicks;
+                            })()}
+                          />
+                          {/* Add a second XAxis for date markers */}
+                          <XAxis 
+                            dataKey="timestamp"
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={(value) => {
+                              // Find points that represent the start of a day
+                              const point = trendData.find(p => p.timestamp === value && p.isNewDay);
+                              return point ? point.date : '';
+                            }}
+                            tick={{ fontSize: 10, fill: '#666' }}
+                            xAxisId="date"
+                            tickCount={trendData.filter(p => p.isNewDay).length}
+                            // Only show ticks for day starting points
+                            ticks={trendData.filter(p => p.isNewDay).map(p => p.timestamp)}
                           />
                           <YAxis 
                             width={50} // Slightly wider for small decimal values
@@ -224,7 +301,16 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                               // Return label based on the data series name
                               return [formattedValue, name === 'regressionValue' ? 'Изчислено' : 'Реално'];
                             }}
-                            labelFormatter={(label) => `Час: ${label}`}
+                            labelFormatter={(label, payload) => {
+                              // Find the data point using the time label to match
+                              if (payload && payload.length > 0 && payload[0].payload) {
+                                const dataPoint = payload[0].payload;
+                                return dataPoint.fullDateTime ? 
+                                  `Дата: ${dataPoint.fullDateTime}` : 
+                                  `Време: ${label}`;
+                              }
+                              return `Време: ${label}`;
+                            }}
                           />
                           
                           {/* Add Legend */}
@@ -272,34 +358,35 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
               </TabsContent>
               
               <TabsContent value="details">
-                {/* Only render detail content when the details tab is active */}
-                {activeTab === "details" && (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="text-sm font-medium mb-1">ID</h4>
-                        <p className="text-muted-foreground">{definition.id}</p>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium mb-1">Name</h4>
-                        <p className="text-muted-foreground">{definition.name}</p>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium mb-1">Group</h4>
-                        <p className="text-muted-foreground">{definition.group}</p>
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-medium mb-1">Unit</h4>
-                        <p className="text-muted-foreground">{definition.unit}</p>
-                      </div>
+                <div className="space-y-4">
+                  {/* Display statistics section if the tag has statistics property */}
+                  {definition.statistics && (
+                    <div className="mt-1">
+                      <h4 className="text-sm font-medium mb-3 flex items-center">
+                        <span className="bg-primary/10 text-primary rounded-md px-2 py-0.5 text-xs mr-2">Статистически анализ</span>
+                        Разпределение на данните
+                      </h4>
+                      {trendLoading || isChangingTimeRange ? (
+                        <div className="h-[300px] flex items-center justify-center">
+                          <LoadingSpinner 
+                            size={24} 
+                            text="Зареждане на статистически данни..." 
+                          />
+                        </div>
+                      ) : !validPoints || validPoints.length === 0 ? (
+                        <div className="h-[100px] flex items-center justify-center">
+                          <p className="text-muted-foreground">Няма данни за статистически анализ</p>
+                        </div>
+                      ) : (
+                        <StatisticsView 
+                          trendData={validPoints}
+                          definition={definition}
+                          color={color}
+                        />
+                      )}
                     </div>
-                    
-                    <div>
-                      <h4 className="text-sm font-medium mb-1">Description</h4>
-                      <p className="text-muted-foreground">{definition.desc}</p>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
           </div>

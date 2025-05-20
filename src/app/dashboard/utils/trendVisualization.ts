@@ -50,23 +50,88 @@ export const formatTrendData = (trendPoints: any[], applySmoothing: boolean = fa
   
   // Map the points to the format needed for the chart
   const formattedData = sortedPoints.map(point => {
-    // Simple date formatting
+    // Format date and time
     const date = new Date(point.timestamp);
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const formattedTime = `${hours}:${minutes}`;
+    
+    // Create formatting for display and tooltip
+    const formattedDate = `${day}.${month}`;
+    const fullDateTime = `${formattedDate} ${formattedTime}`;
+    
+    // Track if this is the start of a new day (midnight or first point of the day)
+    const isNewDay = date.getHours() === 0 && date.getMinutes() === 0;
     
     // Ensure value is never negative
     const safeValue = typeof point.value === 'number' ? Math.max(0, point.value) : null;
     
     return {
-      time: formattedTime,
+      time: formattedTime,      // Used for basic tick display
+      fullDateTime,            // Used for tooltips
+      date: formattedDate,     // Date part for reference
+      timestamp: date.getTime(), // Raw timestamp for sorting
+      isNewDay,                // Flag for day markers
       value: safeValue
     };
   });
   
   // Apply smoothing if requested
   return applySmoothing ? smoothData(formattedData, 15) : formattedData;
+};
+
+/**
+ * Format a date for display with the specified format
+ */
+export const formatDate = (date: Date): string => {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  return `${day}.${month}`;
+};
+
+/**
+ * Check if two dates represent the same day
+ */
+export const isSameDay = (date1: Date, date2: Date): boolean => {
+  return date1.getDate() === date2.getDate() && 
+         date1.getMonth() === date2.getMonth() && 
+         date1.getFullYear() === date2.getFullYear();
+};
+
+/**
+ * Generate day markers for the X-axis
+ */
+export const generateDayMarkers = (points: any[]): { value: number; label: string }[] => {
+  if (!points || points.length === 0) return [];
+  
+  const markers: { value: number; label: string }[] = [];
+  let currentDay: Date | null = null;
+  
+  // Sort points by timestamp
+  const sortedPoints = [...points].sort((a, b) => a.timestamp - b.timestamp);
+  
+  // Process each point
+  for (let i = 0; i < sortedPoints.length; i++) {
+    const date = new Date(sortedPoints[i].timestamp);
+    
+    // If this is a new day or the first point
+    if (!currentDay || !isSameDay(date, currentDay)) {
+      // Mark the start of the day
+      const dayStart = new Date(date);
+      dayStart.setHours(0, 0, 0, 0);
+      
+      markers.push({
+        value: dayStart.getTime(),
+        label: formatDate(dayStart)
+      });
+      
+      currentDay = new Date(date);
+    }
+  }
+  
+  return markers;
 };
 
 /**

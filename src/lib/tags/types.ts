@@ -11,6 +11,7 @@ export interface TagDefinition {
   maxValue?: number; // Optional maximum value for use with the FillBar component
   comparison?: boolean;
   inverse?: boolean; // If true, the visualization should show maxValue - value (for levels where lower is better)
+  statistics?: boolean;
 }
 
 export interface TagValue {

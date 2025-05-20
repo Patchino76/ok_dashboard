@@ -1,4 +1,10 @@
-import { TrendDirection, TrendPoint } from '@/lib/types';
+// Defining types locally to avoid dependency issues
+export type TrendDirection = 'up' | 'down' | 'neutral';
+
+export interface TrendPoint {
+  timestamp: string;
+  value: number | null;
+}
 
 interface RegressionResult {
   slope: number;

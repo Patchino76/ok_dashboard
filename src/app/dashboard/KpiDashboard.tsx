@@ -38,6 +38,8 @@ import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { useDashboardTags } from "@/hooks/useDashboardTags"
 import { getColorFromGroup } from "@/lib/utils"
 import { dashboardTags } from "@/lib/tags/dashboard-tags"
+import { LoadingSpinner } from "./components/LoadingSpinner"
+import { groupTagsByIcon } from "@/lib/utils/kpi/visualUtils"
 import { ComparisonBarChart } from "./components/ComparisonBarChart"
 
 export function KpiDashboard() {
@@ -247,11 +249,21 @@ function TabContent({
     [groupTags]
   );
   
+
+  
   // Fetch tag values using the simplified hook
   const { data, loading } = useDashboardTags(tagNames);
   
+  // Show loading states
   if (loading) {
-    return <div className="text-center py-8">Loading {group} metrics...</div>
+    return (
+      <div className="flex justify-center items-center py-16">
+        <LoadingSpinner 
+          size={32} 
+          text={`Зареждане на данни за ${group}...`}
+        />
+      </div>
+    );
   }
   
   // Combine definitions with their values
@@ -263,31 +275,27 @@ function TabContent({
   // Get filtered tags for comparison view
   const comparisonTags = tags.filter(tag => tag.definition.comparison === true);
   
-  // Group tags by icon type for comparison view
-  const tagsByIcon = comparisonTags.reduce((acc, tag) => {
-    const iconType = tag.definition.icon;
-    if (!iconType) return acc;
-    
-    if (!acc[iconType]) {
-      acc[iconType] = [];
-    }
-    
-    acc[iconType].push(tag);
-    return acc;
-  }, {} as Record<string, typeof comparisonTags>);
+  // Group tags by icon type for comparison view using our utility function
+  const tagsByIcon = groupTagsByIcon(comparisonTags);
   
   return (
     <>
-      {/* Comparison mode toggle - only shown if there are comparison tags */}
-      {hasComparisonTags && (
-        <div className="flex items-center justify-end mb-4 gap-2">
-          <span className="text-sm text-gray-600">Групиран изглед</span>
-          <Switch
-            checked={showComparison}
-            onCheckedChange={setShowComparison}
-          />
-        </div>
-      )}
+      {/* Header controls with comparison toggle */}
+      <div className="flex justify-end mb-6">
+        {/* Only show comparison toggle if there are comparison tags */}
+        {hasComparisonTags && (
+          <div className="flex items-center gap-2">
+            <Switch
+              id={`comparison-${group}`}
+              checked={showComparison}
+              onCheckedChange={setShowComparison}
+            />
+            <label htmlFor={`comparison-${group}`} className="text-sm font-medium cursor-pointer">
+              Сравнение
+            </label>
+          </div>
+        )}
+      </div>
       
       {/* Standard view */}
       {!showComparison && (
