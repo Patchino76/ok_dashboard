@@ -14,17 +14,13 @@ interface ComparisonBarChartProps {
 }
 
 export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) {
-  // Sort tags by value for better visualization
-  const sortedTags = [...tags].sort((a, b) => {
-    const valueA = a.value?.value !== undefined ? Number(a.value.value) : 0;
-    const valueB = b.value?.value !== undefined ? Number(b.value.value) : 0;
-    return valueB - valueA;
-  });
+  // Use tags in their original order without sorting
+  const displayTags = [...tags];
 
   // Find the maximum value for scaling
   const maxValue = Math.max(
-    ...sortedTags.map(tag => tag.value?.value !== undefined ? Number(tag.value.value) : 0),
-    ...sortedTags.map(tag => tag.definition.maxValue !== undefined ? Number(tag.definition.maxValue) : 0)
+    ...displayTags.map(tag => tag.value?.value !== undefined ? Number(tag.value.value) : 0),
+    ...displayTags.map(tag => tag.definition.maxValue !== undefined ? Number(tag.definition.maxValue) : 0)
   );
 
   return (
@@ -39,7 +35,7 @@ export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) 
       </div>
 
       <div className="space-y-4">
-        {sortedTags.map(({ definition, value }) => {
+        {displayTags.map(({ definition, value }) => {
           const currentValue = value?.value !== undefined ? Number(value.value) : 0;
           const percentage = maxValue ? (currentValue / maxValue) * 100 : 0;
           const formattedValue = formatValue(currentValue, definition.precision);
@@ -47,6 +43,9 @@ export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) 
             definition.maxValue !== undefined ? Number(definition.maxValue) : 0,
             definition.precision
           );
+          
+          // Get color based on icon type
+          const barColor = getColorForIconType(iconType, percentage);
           
           return (
             <div key={definition.id} className="space-y-1">
@@ -60,18 +59,33 @@ export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) 
                 </div>
               </div>
               
-              <div className="relative h-6 bg-gray-100 rounded-full overflow-hidden">
+              <div className="relative h-7 bg-gray-100 rounded-lg overflow-hidden shadow-inner">
+                {/* Bar fill */}
                 <div 
-                  className={cn(
-                    "absolute top-0 left-0 h-full rounded-full",
-                    getBarColor(percentage)
-                  )}
-                  style={{ width: `${percentage}%` }}
+                  className="absolute top-0 left-0 h-full transition-all duration-500 ease-out"
+                  style={{ 
+                    width: `${percentage}%`,
+                    background: `linear-gradient(90deg, ${barColor}80, ${barColor})`,
+                  }}
                 />
-                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-end px-2">
-                  <span className="text-xs font-medium text-gray-600">
-                    {maxValueFormatted} {definition.unit}
+                
+                {/* Current value indicator */}
+                <div className="absolute top-0 left-0 h-full flex items-center">
+                  <span 
+                    className="ml-2 text-xs font-semibold text-white drop-shadow-sm"
+                    style={{ display: percentage < 10 ? 'none' : 'block' }}
+                  >
+                    {formattedValue} {definition.unit}
                   </span>
+                </div>
+                
+                {/* Max value indicator */}
+                <div className="absolute top-0 right-0 h-full flex items-center pr-2">
+                  <div className="flex items-center">
+                    <span className="text-xs font-medium text-gray-600">
+                      max: {maxValueFormatted}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -90,11 +104,21 @@ function formatValue(value: number, precision?: number): string {
   return value.toString();
 }
 
-// Helper function to get the appropriate bar color based on percentage
-function getBarColor(percentage: number): string {
-  if (percentage > 80) return "bg-red-500";
-  if (percentage > 60) return "bg-amber-500";
-  return "bg-green-500";
+// Helper function to get the appropriate bar color based on icon type and percentage
+function getColorForIconType(iconType: string, percentage: number): string {
+  // Base colors by icon type
+  const baseColors: Record<string, string> = {
+    'level': '#3b82f6', // blue for levels
+    'conveyer': '#10b981', // emerald for conveyers
+    'crusher': '#f59e0b', // amber for crushers
+    'weight': '#6366f1', // indigo for weight
+    'power': '#ef4444', // red for power
+    'factory': '#8b5cf6', // violet for factory
+    'time': '#64748b', // slate for time
+  };
+  
+  // Get color based on icon type, with fallback
+  return baseColors[iconType] || '#6b7280'; // gray as fallback
 }
 
 // Helper function to get a human-readable title for the icon type
