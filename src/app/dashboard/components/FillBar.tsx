@@ -11,6 +11,7 @@ type FillBarProps = {
   backgroundColorClass?: string; // Tailwind class for background color
   showValues?: boolean; // Whether to show min/max values as text
   unit?: string; // Unit to display with max value
+  inverse?: boolean; // Whether to invert the fill (for cases where lower is better)
 }
 
 /**
@@ -28,6 +29,7 @@ export const FillBar = ({
   backgroundColorClass = 'bg-gray-200', // Default gray Tailwind class
   showValues = true, // Show min/max values by default
   unit = '', // Unit to display with max value
+  inverse = false, // Default to normal fill direction (higher is better)
 }: FillBarProps) => {
   // Ensure we have valid values to work with
   if (!currentValue || !maxValue || maxValue <= 0) {
@@ -35,7 +37,9 @@ export const FillBar = ({
   }
 
   // Calculate the fill percentage (capped at 100%)
-  const fillPercentage = Math.min(100, Math.max(0, (currentValue / maxValue) * 100));
+  // If inverse is true, we display maxValue - currentValue to show remaining capacity
+  const displayValue = inverse ? maxValue - currentValue : currentValue;
+  const fillPercentage = Math.min(100, Math.max(0, (displayValue / maxValue) * 100));
   
   return (
     <div className={`flex flex-col w-full ${className}`}>

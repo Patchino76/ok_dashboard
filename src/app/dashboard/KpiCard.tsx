@@ -243,8 +243,9 @@ export function KpiCard({ definition, value, onClick }: KpiCardProps) {
               maxValue={definition.maxValue}
               height={8}
               barColorClass="bg-slate-500" 
-              backgroundColorClass="bg-gray-200" /* Darker slate background */
+              backgroundColorClass="bg-gray-200"
               unit={definition.unit}
+              inverse={definition.inverse}
             />
           ) : null}
         </div>

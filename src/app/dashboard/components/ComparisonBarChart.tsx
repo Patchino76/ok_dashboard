@@ -36,16 +36,25 @@ export function ComparisonBarChart({ tags, iconType }: ComparisonBarChartProps) 
 
       <div className="space-y-4">
         {displayTags.map(({ definition, value }) => {
-          const currentValue = value?.value !== undefined ? Number(value.value) : 0;
-          const percentage = maxValue ? (currentValue / maxValue) * 100 : 0;
-          const formattedValue = formatValue(currentValue, definition.precision);
-          const maxValueFormatted = formatValue(
-            definition.maxValue !== undefined ? Number(definition.maxValue) : 0,
-            definition.precision
-          );
+          const rawValue = value?.value !== undefined ? Number(value.value) : 0;
           
-          // Get color based on icon type
-          const barColor = getColorForIconType(iconType, percentage);
+          // Handle inverse logic (for bunkers where lower values are better)
+          const maxVal = definition.maxValue !== undefined ? Number(definition.maxValue) : 0;
+          
+          // For inverse tags (like bunker levels), we want to show max - value
+          // This shows how much space is available rather than how full it is
+          const displayValue = definition.inverse ? maxVal - rawValue : rawValue;
+          
+          // Format the raw value for display purposes - always show actual value
+          const formattedValue = formatValue(rawValue, definition.precision);
+          
+          // Calculate percentage based on displayValue (which respects inverse logic)
+          const percentage = maxVal ? (displayValue / maxVal) * 100 : 0;
+          
+          const maxValueFormatted = formatValue(maxVal, definition.precision);
+          
+          // Get color based on icon type and inverse setting
+          const barColor = getColorForIconType(iconType, definition.inverse ? 100 - percentage : percentage);
           
           return (
             <div key={definition.id} className="space-y-1">
