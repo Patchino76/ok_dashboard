@@ -31,12 +31,14 @@ import {
 } from "lucide-react"
 import { KpiCard } from "./KpiCard"
 import { KpiDetailDialog } from "./KpiDetailDialog"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getTagGroups } from "@/lib/tags"
 import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { useDashboardTags } from "@/hooks/useDashboardTags"
 import { getColorFromGroup } from "@/lib/utils"
 import { dashboardTags } from "@/lib/tags/dashboard-tags"
+import { ComparisonBarChart } from "./components/ComparisonBarChart"
 
 export function KpiDashboard() {
   // State for the selected tag for the detail dialog
@@ -225,10 +227,18 @@ function TabContent({
   group: string; 
   onTagSelect: (tag: { definition: TagDefinition; value: TagValue | null | undefined }) => void;
 }) {
+  const [showComparison, setShowComparison] = useState(false);
+  
   // Get all the tag definitions for this group (filtering out boolean state tags)
   const groupTags = useMemo(() => 
     dashboardTags.filter(tag => tag.group === group && tag.unit !== 'bool'),
     [group]
+  );
+  
+  // Check if any tags in this group have the comparison property
+  const hasComparisonTags = useMemo(() => 
+    groupTags.some(tag => tag.comparison === true),
+    [groupTags]
   );
   
   // Get the tag names to fetch
@@ -250,16 +260,61 @@ function TabContent({
     value: data[definition.name]
   }));
   
+  // Get filtered tags for comparison view
+  const comparisonTags = tags.filter(tag => tag.definition.comparison === true);
+  
+  // Group tags by icon type for comparison view
+  const tagsByIcon = comparisonTags.reduce((acc, tag) => {
+    const iconType = tag.definition.icon;
+    if (!iconType) return acc;
+    
+    if (!acc[iconType]) {
+      acc[iconType] = [];
+    }
+    
+    acc[iconType].push(tag);
+    return acc;
+  }, {} as Record<string, typeof comparisonTags>);
+  
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-      {tags.map(({ definition, value }) => (
-        <KpiCard
-          key={definition.id}
-          definition={definition}
-          value={value}
-          onClick={() => onTagSelect({ definition, value })}
-        />
-      ))}
-    </div>
+    <>
+      {/* Comparison mode toggle - only shown if there are comparison tags */}
+      {hasComparisonTags && (
+        <div className="flex items-center justify-end mb-4 gap-2">
+          <span className="text-sm text-gray-600">Групиран изглед</span>
+          <Switch
+            checked={showComparison}
+            onCheckedChange={setShowComparison}
+          />
+        </div>
+      )}
+      
+      {/* Standard view */}
+      {!showComparison && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          {tags.map(({ definition, value }) => (
+            <KpiCard
+              key={definition.id}
+              definition={definition}
+              value={value}
+              onClick={() => onTagSelect({ definition, value })}
+            />
+          ))}
+        </div>
+      )}
+      
+      {/* Comparison view */}
+      {showComparison && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Object.entries(tagsByIcon).map(([iconType, iconTags]) => (
+            <ComparisonBarChart 
+              key={iconType}
+              tags={iconTags}
+              iconType={iconType}
+            />
+          ))}
+        </div>
+      )}
+    </>
   )
 }

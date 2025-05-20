@@ -17,7 +17,7 @@ type KpiCardProps = {
 }
 
 // Helper function to render the appropriate icon based on the icon property
-const renderTagIcon = (iconType: string | null) => {
+export const renderTagIcon = (iconType: string | null) => {
   if (!iconType) return null;
   
   const iconProps = { size: 16 };
