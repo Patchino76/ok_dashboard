@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Card, Grid, Flex, Heading, Text, Button } from "@radix-ui/themes";
-import { BarChart, FileSpreadsheet, Activity, AreaChart } from 'lucide-react';
+import { BarChart, FileSpreadsheet, Activity, AreaChart, GitFork } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -21,6 +21,21 @@ export default function Home() {
               <Text>View performance metrics and KPIs for dispatcher operations</Text>
               <Flex mt="auto" pt="2">
                 <Button variant="soft" size="2">Open Dashboard</Button>
+              </Flex>
+            </Flex>
+          </Card>
+        </Link>
+        
+        <Link href="/mills" className="no-underline">
+          <Card className="h-full hover:shadow-md transition-shadow cursor-pointer">
+            <Flex direction="column" gap="2" p="4" height="100%">
+              <Flex justify="between" align="center" mb="2">
+                <Heading size="4">Mills Operations</Heading>
+                <GitFork className="text-primary h-5 w-5" />
+              </Flex>
+              <Text>Monitor mills performance, ore consumption and shift totals</Text>
+              <Flex mt="auto" pt="2">
+                <Button variant="soft" size="2">Open Mills</Button>
               </Flex>
             </Flex>
           </Card>

@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 
 # Import the DatabaseManager
 from database import DatabaseManager, create_db_manager
+from api_utils.mills_utils import MillsUtils
+from datetime import datetime
 
 # Configuration
 CORS_ORIGINS = ["http://localhost:3000"]  # Add production URLs as needed
@@ -120,6 +122,76 @@ async def get_tag_states(
     return string_keyed_result
 
 # For testing/development
+# ----------------------------- Mills API Endpoints -----------------------------
+
+@app.get("/api/mills/ore-by-mill")
+async def get_ore_by_mill(mill: str, db: DatabaseManager = Depends(get_db)):
+    """
+    Get the current values for a specific mill across all shifts
+    
+    Parameters:
+    - mill: The mill identifier (e.g., 'Mill01')
+    """
+    mills_utils = MillsUtils(db)
+    result = mills_utils.fetch_ore_totals_by_mill(mill)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail=f"No data found for mill {mill}")
+        
+    return result
+
+@app.get("/api/mills/trend-by-tag")
+async def get_mills_trend_by_tag(
+    mill: str, 
+    tag: str = "ore",
+    trendPoints: int = 500,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Get trend data for a specific mill and tag type
+    
+    Parameters:
+    - mill: The mill identifier (e.g., 'Mill01')
+    - tag: The tag category to fetch (default: 'ore')
+    - trendPoints: Number of data points to retrieve (default: 500)
+    """
+    mills_utils = MillsUtils(db)
+    result = mills_utils.fetch_trend_by_tag(mill, tag, trendPoints)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail=f"No trend data found for mill {mill} and tag {tag}")
+        
+    return result
+
+@app.get("/api/mills/by-parameter")
+async def get_mills_by_parameter(
+    parameter: str = "ore",
+    date: str = None,
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Get values for all mills for a specific parameter
+    
+    Parameters:
+    - parameter: The parameter to fetch (default: 'ore')
+    - date: Date to fetch data for in ISO format (default: current date)
+    """
+    mills_utils = MillsUtils(db)
+    
+    selected_date = None
+    if date:
+        try:
+            selected_date = datetime.fromisoformat(date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid date format: {date}. Use ISO format (YYYY-MM-DD).")
+    
+    result = mills_utils.fetch_all_mills_by_parameter(parameter, selected_date)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail=f"No data found for parameter {parameter}")
+        
+    return result
+
 if __name__ == "__main__":
     import uvicorn
     import traceback

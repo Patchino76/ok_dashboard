@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Flex, Text, Box } from "@radix-ui/themes";
-import { Activity, Home } from 'lucide-react';
+import { Activity, Home, GitFork } from 'lucide-react';
 
 export default function NavbarClient() {
   const pathname = usePathname();
@@ -29,6 +29,14 @@ export default function NavbarClient() {
         >
           <Activity size={16} />
           <Text>KPI Dashboard</Text>
+        </Link>
+        
+        <Link 
+          href="/mills" 
+          className={`no-underline flex items-center gap-2 px-3 py-2 rounded-md ${pathname === '/mills' ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50 text-foreground'}`}
+        >
+          <GitFork size={16} />
+          <Text>Mills</Text>
         </Link>
       </Flex>
     </Flex>
