@@ -31,7 +31,6 @@ export const TrendChartOre: React.FC<TrendChartOreProps> = ({ data, min, max }) 
       data={convertedData}
       color="#2563eb"
       height="100%"
-      target={data.target}
       smoothing={true}
       showRegression={true}
       min={min}
