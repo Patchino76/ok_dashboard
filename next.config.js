@@ -18,6 +18,8 @@ module.exports = {
   images: {
     unoptimized: true
   },
-
-  // Using CSS to hide development overlay instead of configuration
+  
+  // Use standard rendering for API routes
+  poweredByHeader: false,
 };
+

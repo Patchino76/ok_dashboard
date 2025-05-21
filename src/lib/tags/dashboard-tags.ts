@@ -34,7 +34,8 @@ export const dashboardTags: TagDefinition[] = [
   
   // ССТ Баланс
   {id: 1192, name: "SST_SUM_POTOK_1_4", desc: "ССТ - Вход", unit: "t/h", precision: 0, group: "ССТ", icon: "conveyer", state: ["SST_FB_UPPER_SCREEN_STR1"], maxValue: 2000, statistics:true},
-  
+  {id: 206, name: "SST_WEIGHT_SCALE_SST7_STR16", desc: "ССТ - Циркулационен товар", unit: "t/h", precision: 0, group: "ССТ", icon: "conveyer", state: ["SST_CB_ON_PV1_STR16"], maxValue: 1000, statistics:true},
+  {id: 191, name: "SST_WEIGHT_SCALE_MB1_STR15", desc: "ССТ - Изход", unit: "t/h", precision: 0, group: "ССТ", icon: "conveyer", state: ["SST_FB_SST5_STR15", "SST_FB_SST6_STR15"], maxValue: 3000, statistics:true},
   // Поток 1-4
   {id: 1854, name: "SST_FB_UPPER_SCREEN_STR1", desc: "ПОТОК 1: горно сито старт / стоп", unit: "bool", group: "Поток 1-4", icon: null, state: null},
   {id: 1855, name: "SST_FB_UPPER_SCREEN_STR2", desc: "ПОТОК 2: горно сито старт / стоп", unit: "bool", group: "Поток 1-4", icon: null, state: null},
@@ -114,10 +115,10 @@ export const dashboardTags: TagDefinition[] = [
   {id: 2135, name: "MFC_SUM_SHIFTSYESTERDAY_1_11", desc: "МФЦ: Преработена руда за предходния ден", unit: "t", precision: 0, group: "Мелнично", icon: "weight", state: null},
   
   // Флотация
-  {id: 3288, name: "RECOVERY_LINEALL_CU_LONG", desc: "Общo извличане", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null, maxValue: 100, statistics:true},
-  {id: 1435, name: "CUFLOTAS2-S7-400PV_CU_LINE_7", desc: "Захранване флотация", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null, maxValue: 1, statistics:true},
-  {id: 1600, name: "CUFLOTAS2-S7-400PV_CU_LINE_6", desc: "Краен отпадък", unit: "% Cu", precision: 3, group: "Флотация", icon: "Flotation", state: null, maxValue: 0.5, statistics:true},
-  {id: 1438, name: "CUFLOTAS2-S7-400PV_CU_LINE_10", desc: "Технологичен концентрат", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null, maxValue: 30, statistics:true},
+  {id: 3288, name: "RECOVERY_LINEALL_CU_LONG", desc: "МФЦ: Общo извличане", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null, maxValue: 100, statistics:true},
+  {id: 1435, name: "CUFLOTAS2-S7-400PV_CU_LINE_7", desc: "МФЦ: Захранване флотация", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null, maxValue: 1, statistics:true},
+  {id: 1600, name: "CUFLOTAS2-S7-400PV_CU_LINE_6", desc: "МФЦ: Краен отпадък", unit: "% Cu", precision: 3, group: "Флотация", icon: "Flotation", state: null, maxValue: 0.5, statistics:true},
+  {id: 1438, name: "CUFLOTAS2-S7-400PV_CU_LINE_10", desc: "МФЦ: Технологичен концентрат", unit: "% Cu", precision: 3, group: "Флотация", icon: "flotaion", state: null, maxValue: 30, statistics:true},
   
   // Преса
   {id: 553, name: "FP-AB_LC1_TOTALWEIGHT-PREVIOUSDAY", desc: "Филтър преси - преработка", unit: "t/ден", precision: 0, group: "Преса", icon: "filterpress", state: null, scale: 0.001, maxValue: 5000},

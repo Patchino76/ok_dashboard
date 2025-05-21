@@ -5,6 +5,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Format numbers with specified decimal places and locale formatting
+export function formatNumber(value: number | string | boolean | null | undefined, precision: number = 0): string {
+  if (value === null || value === undefined) return '-';
+  
+  // Convert to number if it's a string or boolean
+  const numValue = typeof value === 'boolean' ? (value ? 1 : 0) : 
+                  typeof value === 'string' ? parseFloat(value) : value;
+  
+  // Check if it's a valid number
+  if (isNaN(numValue)) return '-';
+  
+  return numValue.toLocaleString('bg-BG', { 
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision
+  });
+}
+
 // Mapping of Tailwind color classes to hex values
 const tailwindColors = {
   "amber-600": "#d97706",

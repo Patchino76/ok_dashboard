@@ -3,12 +3,50 @@
 import Link from 'next/link';
 import { Card, Grid, Flex, Heading, Text, Button, Box, Avatar, Badge } from "@radix-ui/themes";
 import { BarChart, FileSpreadsheet, Activity, AreaChart, GitFork, Clock, TrendingUp, LayoutDashboard, ArrowRight } from 'lucide-react';
+import { useDashboardTags } from '@/hooks/useDashboardTags';
+import { formatNumber } from '@/lib/utils';
 
 export default function Home() {
+  // Fetch the three specific tag values
+  const { data: tagData, loading } = useDashboardTags([
+    'MFC-MILLS_SUMORE_1_11',     // МФЦ: Разход на руда
+    'RECOVERY_LINEALL_CU_LONG',  // Общo извличане
+    'CUFLOTAS2-S7-400PV_CU_LINE_10', // Технологичен концентрат
+  ]);
+  
+  // Extract and type-narrow tag values
+  const mfcOre = typeof tagData?.['MFC-MILLS_SUMORE_1_11']?.value === 'number' 
+    ? tagData?.['MFC-MILLS_SUMORE_1_11']?.value as number : 0;
+    
+  const recovery = typeof tagData?.['RECOVERY_LINEALL_CU_LONG']?.value === 'number'
+    ? tagData?.['RECOVERY_LINEALL_CU_LONG']?.value as number : 0;
+    
+  const concentrate = typeof tagData?.['CUFLOTAS2-S7-400PV_CU_LINE_10']?.value === 'number' 
+    ? tagData?.['CUFLOTAS2-S7-400PV_CU_LINE_10']?.value as number : 0;
+  
+  // Format the stats for display
   const stats = [
-    { label: 'Shift Productivity', value: '93%', trend: '+2.5%', positive: true },
-    { label: 'Processed Ore', value: '1,245 t', trend: '-1.2%', positive: false },
-    { label: 'Equipment Uptime', value: '98%', trend: '+0.8%', positive: true }
+    { 
+      label: 'Мелнично: Разход на руда', 
+      value: loading ? '...' : `${formatNumber(mfcOre, 0)} t/h`, 
+      trend: mfcOre > 2000 ? '+5.2%' : '-2.1%', 
+      positive: mfcOre > 2000,
+      active: tagData?.['MFC-MILLS_SUMORE_1_11']?.active ?? false
+    },
+    { 
+      label: 'Флотация: Общо извличане', 
+      value: loading ? '...' : `${formatNumber(recovery, 1)}%`, 
+      trend: recovery > 85 ? '+3.7%' : '-1.5%', 
+      positive: recovery > 85,
+      active: tagData?.['RECOVERY_LINEALL_CU_LONG']?.active ?? false
+    },
+    { 
+      label: 'Флотация: Технологичен концентрат', 
+      value: loading ? '...' : `${formatNumber(concentrate, 1)}%`, 
+      trend: concentrate > 25 ? '+2.3%' : '-0.8%',
+      positive: concentrate > 25,
+      active: tagData?.['CUFLOTAS2-S7-400PV_CU_LINE_10']?.active ?? false
+    }
   ];
 
   return (
@@ -36,9 +74,14 @@ export default function Home() {
         <Heading size="4" mb="3">Обзор за деня</Heading>
         <Grid columns={{ initial: "1", sm: "3" }} gap="4">
           {stats.map((stat, index) => (
-            <Card key={index} className="bg-white shadow-sm">
+            <Card key={index} className={`bg-white shadow-sm ${!stat.active ? 'opacity-70' : ''}`}>
               <Flex direction="column" gap="1" p="4">
-                <Text size="2" className="text-gray-500">{stat.label}</Text>
+                <Flex justify="between" align="center">
+                  <Text size="2" className="text-gray-500">{stat.label}</Text>
+                  {!stat.active && (
+                    <Badge size="1" variant="soft" color="gray">Неактивен</Badge>
+                  )}
+                </Flex>
                 <Flex justify="between" align="center">
                   <Heading size="6">{stat.value}</Heading>
                   <Badge color={stat.positive ? 'green' : 'red'} variant="soft">
