@@ -8,9 +8,7 @@ from datetime import datetime, timedelta
 from database import DatabaseManager, create_db_manager
 from api_utils.mills_utils import MillsUtils
 from datetime import datetime
-
-# Configuration
-CORS_ORIGINS = ["http://localhost:3000"]  # Add production URLs as needed
+from config import HOST, PORT, CORS_ORIGINS
 
 app = FastAPI(title="OK Dashboard API")
 
@@ -206,7 +204,7 @@ if __name__ == "__main__":
         print(f"Database manager created successfully: {type(test_db).__name__}")
         
         # Start the server
-        uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+        uvicorn.run("api:app", host=HOST, port=PORT, reload=True)
     except Exception as e:
         print(f"Error during API startup: {str(e)}")
         print("Full traceback:")
