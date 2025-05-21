@@ -11,7 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { smoothData, calculateAxisBounds } from "@/lib/utils/trends/trendVisualization";
-import { calculateRegression } from "@/lib/utils/trends/trendCalculation";
+import { calculateRegression } from "@/app/dashboard/utils/trendCalculation";
 import type { TagTrendPoint } from "@/lib/tags/types";
 
 interface TrendChartOreProps {
@@ -45,6 +45,43 @@ export const TrendChartOre: React.FC<TrendChartOreProps> = ({ data, min, max }) 
     // Apply smoothing with a window size of 15 for smoother lines
     return smoothData(rawData, 15);
   }, [rawData]);
+  
+  // Calculate regression based on raw data for accuracy
+  const regressionResult = useMemo(() => {
+    // Convert raw data to TagTrendPoint format for the regression function
+    const trendPoints = rawData.map(point => ({ 
+      timestamp: point.timestamp, 
+      value: point.value 
+    })) as TagTrendPoint[];
+    
+    // Use the dashboard's calculation function which processes time properly
+    return calculateRegression(trendPoints);
+  }, [rawData]);
+  
+  // Generate regression line data points
+  const regressionLine = useMemo(() => {
+    if (!regressionResult || chartData.length === 0) return [];
+    
+    // Calculate the start and end timestamps
+    const startTime = new Date(chartData[0].timestamp).getTime();
+    const timeSpan = new Date(chartData[chartData.length-1].timestamp).getTime() - startTime;
+    
+    // Create points for the regression line
+    return chartData.map((point, index) => {
+      // Calculate the exact time position for accurate regression
+      const pointTime = new Date(point.timestamp).getTime();
+      const timePosition = (pointTime - startTime) / timeSpan;
+      
+      // Interpolate between start and end values
+      const regressionValue = regressionResult.startValue + 
+        (regressionResult.endValue - regressionResult.startValue) * timePosition;
+      
+      return {
+        timestamp: point.timestamp,
+        regressionValue: regressionValue
+      };
+    });
+  }, [chartData, regressionResult]);
   
   // Calculate Y-axis domain
   const yDomain = useMemo(() => {
@@ -106,14 +143,30 @@ export const TrendChartOre: React.FC<TrendChartOreProps> = ({ data, min, max }) 
           width={30}
         />
         <Tooltip content={customTooltip} />
-        {data.target && <ReferenceLine y={data.target} stroke="#EF4444" strokeDasharray="5 5" />}
+        {/* Remove the target reference line as it conflicts with regression line */}
+        {/* Main data line */}
         <Line
           type="monotone"
           dataKey="value"
-          stroke="#0284c7"
+          stroke="#2563eb"
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 6 }}
+        />
+        
+        {/* Regression trend line */}
+        <Line
+          type="monotone"
+          data={regressionLine}
+          dataKey="regressionValue"
+          stroke="#ef4444"
+          strokeDasharray="5 5"
+          strokeWidth={2}
+          dot={false}
+          activeDot={false}
+          isAnimationActive={false}
+          name=""
+          legendType="none"
         />
       </LineChart>
     </ResponsiveContainer>
