@@ -11,15 +11,13 @@ import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { useTagTrend } from "@/hooks"
-import { Loader2, ArrowLeft, X, Clock } from "lucide-react"
-import { calculateRegression, filterValidPoints, generateRegressionLine } from "./utils/trendCalculation"
-import { smoothData, formatTrendData, calculateAxisBounds, formatYAxisTick } from "./utils/trendVisualization"
+import { X } from "lucide-react"
 import { TimeRangeSelector, TimeRange } from "./components/TimeRangeSelector"
 import { getHoursFromTimeRange, getTimeRangeLabel } from "@/lib/utils/kpi/timeUtils"
 import { LoadingSpinner } from "./components/LoadingSpinner"
 import { StatisticsView } from "./components/StatisticsView"
+import { TrendChart } from "@/components/charts/trend/TrendChart"
 
 type KpiDetailDialogProps = {
   definition: TagDefinition | null
@@ -82,37 +80,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
     return filtered;
   }, [trendPoints, definition]);
   
-  // Transform data for chart and regression calculation
-  const chartData = useMemo(() => {
-    if (!validPoints || validPoints.length === 0) return [];
-    
-    // Convert to the format needed for regression calculation
-    return validPoints.map(point => ({
-      ...point,
-      x: new Date(point.timestamp).getTime(),
-      y: point.value as number
-    }));
-  }, [validPoints]);
-  
-  // Calculate regression
-  const regression = useMemo(() => {
-    return chartData.length >= 2 ? calculateRegression(chartData) : null;
-  }, [chartData]);
-  
-  // Generate regression line data
-  const regressionLineData = useMemo(() => {
-    if (!regression || chartData.length < 2) return [];
-    return generateRegressionLine(regression, chartData);
-  }, [regression, chartData]);
-  
-  // Calculate min and max values for proper chart scaling with human-readable values
-  const { minValue, maxValue, isVerySmallValue } = useMemo(() => {
-    return calculateAxisBounds(validPoints, regressionLineData);
-  }, [validPoints, regressionLineData]);
-  
-  // Format data for the chart
-  const trendData = useMemo(() => formatTrendData(validPoints, smoothing), [validPoints, smoothing]);
-  const formattedRegressionData = useMemo(() => formatTrendData(regressionLineData, false), [regressionLineData]);
+  // We'll directly use the validPoints in the TrendChart component
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -231,127 +199,22 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                       </div>
                     ) : trendError ? (
                       <div className="h-full flex items-center justify-center">
-                        <p className="text-red-500">Error loading trend data</p>
+                        <p className="text-red-500">Грешка при зареждане на данните</p>
                       </div>
-                    ) : trendData.length === 0 ? (
+                    ) : validPoints.length === 0 ? (
                       <div className="h-full flex items-center justify-center">
-                        <p className="text-muted-foreground">No trend data available</p>
+                        <p className="text-muted-foreground">Няма данни за избрания период</p>
                       </div>
                     ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                          data={trendData}
-                          margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                          <XAxis 
-                            dataKey="time" 
-                            tickCount={6} 
-                            tick={{ fontSize: 10 }}
-                            axisLine={{ stroke: '#ddd' }}
-                            // Add markers for day boundaries
-                            ticks={(() => {
-                              // Get evenly distributed time ticks (show ~6 time points)
-                              const dataLength = trendData.length;
-                              const step = Math.max(1, Math.floor(dataLength / 6));
-                              const timeTicks = [];
-                              for (let i = 0; i < dataLength; i += step) {
-                                timeTicks.push(trendData[i]?.time);
-                              }
-                              // Add the last point if not already included
-                              if (dataLength > 0 && timeTicks[timeTicks.length - 1] !== trendData[dataLength - 1]?.time) {
-                                timeTicks.push(trendData[dataLength - 1]?.time);
-                              }
-                              return timeTicks;
-                            })()}
-                          />
-                          {/* Add a second XAxis for date markers */}
-                          <XAxis 
-                            dataKey="timestamp"
-                            axisLine={false}
-                            tickLine={false}
-                            tickFormatter={(value) => {
-                              // Find points that represent the start of a day
-                              const point = trendData.find(p => p.timestamp === value && p.isNewDay);
-                              return point ? point.date : '';
-                            }}
-                            tick={{ fontSize: 10, fill: '#666' }}
-                            xAxisId="date"
-                            tickCount={trendData.filter(p => p.isNewDay).length}
-                            // Only show ticks for day starting points
-                            ticks={trendData.filter(p => p.isNewDay).map(p => p.timestamp)}
-                          />
-                          <YAxis 
-                            width={50} // Slightly wider for small decimal values
-                            domain={[Math.max(0, minValue), maxValue]} // Use our calculated min/max values but never go below 0
-                            tick={{ fontSize: 10 }}
-                            tickCount={5} // Control the number of ticks for better readability
-                            tickFormatter={(value) => 
-                              typeof value === 'number' 
-                                ? formatYAxisTick(value, definition.precision, isVerySmallValue)
-                                : value.toString()
-                            }
-                            allowDataOverflow={false} // Don't allow data to extend beyond the domain
-                          />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: 'white', borderRadius: '4px', fontSize: '12px', border: '1px solid #ccc' }}
-                            formatter={(value: any, name: string) => {
-                              // Format the value with appropriate precision
-                              const formattedValue = Number(value).toFixed(definition.precision || 0);
-                              // Return label based on the data series name
-                              return [formattedValue, name === 'regressionValue' ? 'Изчислено' : 'Реално'];
-                            }}
-                            labelFormatter={(label, payload) => {
-                              // Find the data point using the time label to match
-                              if (payload && payload.length > 0 && payload[0].payload) {
-                                const dataPoint = payload[0].payload;
-                                return dataPoint.fullDateTime ? 
-                                  `Дата: ${dataPoint.fullDateTime}` : 
-                                  `Време: ${label}`;
-                              }
-                              return `Време: ${label}`;
-                            }}
-                          />
-                          
-                          {/* Add Legend */}
-                          <Legend 
-                            verticalAlign="top"
-                            height={36}
-                            formatter={(value) => value === 'value' ? 'Реално' : 'Изчислено'}
-                          />
-                          
-                          {/* Main data line */}
-                          <Line 
-                            type={smoothing ? "monotone" : "linear"}
-                            dataKey="value" 
-                            stroke={color || "#2563eb"} // Blue color as default
-                            strokeWidth={2.5} // Slightly thicker for better visibility
-                            dot={false} // No dots on the line
-                            activeDot={{ r: 5, strokeWidth: 1 }} // Keep active dot for hover/interaction
-                            connectNulls={false} // Don't connect across null values
-                            isAnimationActive={false}
-                            name="value"
-                          />
-                          
-                          {/* Regression trend line */}
-                          {formattedRegressionData.length > 1 && (
-                            <Line 
-                              data={formattedRegressionData}
-                              type="linear"
-                              dataKey="value" 
-                              stroke="#ef4444" // Red color
-                              strokeDasharray="5 5" // Dashed line
-                              strokeWidth={2.5} // Slightly thicker for better visibility
-                              dot={false}
-                              activeDot={false}
-                              isAnimationActive={false}
-                              name="regressionValue"
-                            />
-                          )}
-                          {/* Add a visual indicator that smoothing is active */}
-                          {smoothing                     }
-                        </LineChart>
-                      </ResponsiveContainer>
+                      <TrendChart 
+                        data={validPoints}
+                        color={color}
+                        height="100%"
+                        smoothing={smoothing}
+                        showRegression={true}
+                        unit={definition?.unit}
+                        precision={definition?.precision}
+                      />
                     )
                   )}
                 </div>

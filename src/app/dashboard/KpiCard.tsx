@@ -7,8 +7,8 @@ import { TagDefinition, TagValue } from "@/lib/tags/types"
 import { FillBar } from "./components/FillBar"
 import { cn, getBorderColorFromGroup, getColorFromGroup } from "@/lib/utils"
 import { useTagTrend } from "@/hooks"
-import { calculateTrend, calculateRegression, generateRegressionLine, TrendDirection, filterValidPoints } from "./utils/trendCalculation"
-import { smoothData } from "./utils/trendVisualization"
+import { calculateTrend, calculateRegression, generateRegressionLine, TrendDirection, filterValidPoints } from "@/components/charts/trend/trendCalculation"
+import { smoothData } from "@/components/charts/trend/trendVisualization"
 
 type KpiCardProps = {
   definition: TagDefinition

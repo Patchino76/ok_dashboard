@@ -1,6 +1,6 @@
 import React from 'react';
 import { TagTrendPoint } from '@/lib/tags/types';
-import { filterValidPoints } from '../utils/trendCalculation';
+import { filterValidPoints } from '@/components/charts/trend/trendCalculation';
 
 type SparklineProps = {
   data: TagTrendPoint[]
