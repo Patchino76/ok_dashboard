@@ -31,10 +31,10 @@ export const TrendChartOre: React.FC<TrendChartOreProps> = ({ data, min, max }) 
       return [];
     }
     
-    // Create data points with timestamp and value
+    // Create data points with timestamp and value (ensure integer values)
     return data.values.map((value, index) => ({
       timestamp: data.timestamps[index],
-      value: value
+      value: Math.round(value) // Ensure integer values
     }));
   }, [data]);
   
@@ -72,9 +72,11 @@ export const TrendChartOre: React.FC<TrendChartOreProps> = ({ data, min, max }) 
       const pointTime = new Date(point.timestamp).getTime();
       const timePosition = (pointTime - startTime) / timeSpan;
       
-      // Interpolate between start and end values
-      const regressionValue = regressionResult.startValue + 
-        (regressionResult.endValue - regressionResult.startValue) * timePosition;
+      // Calculate regression value using the slope-intercept formula: y = mx + b
+      // This is the correct way to calculate points on a regression line
+      const regressionValue = Math.round(
+        regressionResult.slope * pointTime + regressionResult.intercept
+      );
       
       return {
         timestamp: point.timestamp,
@@ -112,7 +114,7 @@ export const TrendChartOre: React.FC<TrendChartOreProps> = ({ data, min, max }) 
           <p className="text-sm font-medium">
             {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </p>
-          <p className="text-sm">{`${payload[0].value.toFixed(0)} t/h`}</p>
+          <p className="text-sm">{`${Math.round(payload[0].value)} t/h`}</p>
         </div>
       );
     }
@@ -139,7 +141,7 @@ export const TrendChartOre: React.FC<TrendChartOreProps> = ({ data, min, max }) 
         <YAxis
           domain={yDomain as [number, number]}
           tick={{ fontSize: 10 }}
-          tickFormatter={(value) => typeof value === 'number' ? value.toFixed(0) : value.toString()}
+          tickFormatter={(value) => typeof value === 'number' ? Math.round(value).toString() : value.toString()}
           width={30}
         />
         <Tooltip content={customTooltip} />

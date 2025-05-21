@@ -107,7 +107,7 @@ const MillInfo = ({
               <TableCell className="relative p-0 px-4">
                 <div className="absolute left-0 top-10 h-2 bg-blue-100 z-0" 
                      style={{ width: `${Math.min(100, ((millProps.shift1 || 0) / 2000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{millProps.shift1}</div>
+                <div className="relative z-10 py-4">{Math.round(millProps.shift1 || 0)}</div>
               </TableCell>
               <TableCell className="font-medium">t</TableCell>
             </TableRow>
@@ -116,7 +116,7 @@ const MillInfo = ({
               <TableCell className="relative p-0 px-4">
                 <div className="absolute left-0 top-10 h-2 bg-blue-100 z-0" 
                      style={{ width: `${Math.min(100, ((millProps.shift2 || 0) / 2000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{millProps.shift2}</div>
+                <div className="relative z-10 py-4">{Math.round(millProps.shift2 || 0)}</div>
               </TableCell>
               <TableCell className="font-medium">t</TableCell>
             </TableRow>
@@ -125,7 +125,7 @@ const MillInfo = ({
               <TableCell className="relative p-0 px-4">
                 <div className="absolute left-0 top-10 h-2 bg-blue-100 z-0" 
                      style={{ width: `${Math.min(100, ((millProps.shift3 || 0) / 2000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{millProps.shift3}</div>
+                <div className="relative z-10 py-4">{Math.round(millProps.shift3 || 0)}</div>
               </TableCell>
               <TableCell className="font-medium">t</TableCell>
             </TableRow>
@@ -134,7 +134,7 @@ const MillInfo = ({
               <TableCell className="relative p-0 px-4">
                 <div className="absolute left-0 top-10 h-2 bg-green-100 z-0" 
                      style={{ width: `${Math.min(100, ((millProps.total || 0) / 6000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{millProps.total}</div>
+                <div className="relative z-10 py-4">{Math.round(millProps.total || 0)}</div>
               </TableCell>
               <TableCell className="font-medium">t</TableCell>
             </TableRow>
@@ -143,7 +143,7 @@ const MillInfo = ({
               <TableCell className="relative p-0 px-4">
                 <div className="absolute left-0 top-10 h-2 bg-orange-100 z-0" 
                      style={{ width: `${Math.min(100, ((millProps.ore || 0) / 240) * 100)}%` }} />
-                <div className="relative z-10 py-4">{millProps.ore}</div>
+                <div className="relative z-10 py-4">{Math.round(millProps.ore || 0)}</div>
               </TableCell>
               <TableCell className="font-medium">t/h</TableCell>
             </TableRow>
