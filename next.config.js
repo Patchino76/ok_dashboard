@@ -18,4 +18,6 @@ module.exports = {
   images: {
     unoptimized: true
   },
+
+  // Using CSS to hide development overlay instead of configuration
 };

@@ -111,24 +111,34 @@ export function TrendChart({
       
       return (
         <div className="bg-card p-2 border rounded shadow-sm">
-          <p className="text-sm font-medium">{dateLabel}</p>
+          <p className="text-sm font-medium">
+            <span className="font-semibold">дата / час </span>{dateLabel}
+          </p>
           <div className="mt-1">
             {payload.map((item: any, index: number) => {
-              if (item.dataKey === 'value') {
-                // Format the value according to precision
-                const formattedValue = isVerySmallValue || precision !== undefined
-                  ? Number(item.value).toFixed(precision !== undefined ? precision : 4)
-                  : Math.round(item.value * 100) / 100;
-                
-                return (
-                  <p key={index} className="text-sm flex items-center">
-                    <span className="w-3 h-3 inline-block mr-2" 
-                      style={{ backgroundColor: item.stroke || color }}></span>
-                    <span>{formattedValue}{unit ? ` ${unit}` : ''}</span>
-                  </p>
-                );
+              // Skip items that aren't related to our data
+              if (!item.dataKey || item.dataKey !== 'value') {
+                return null;
               }
-              return null;
+              
+              // Format the value according to precision
+              const formattedValue = isVerySmallValue || precision !== undefined
+                ? Number(item.value).toFixed(precision !== undefined ? precision : 4)
+                : Math.round(item.value * 100) / 100;
+              
+              // Check if this is the regression line data by examining the stroke color
+              const isRegressionLine = item.stroke === '#ef4444';
+              
+              return (
+                <p key={index} className="text-sm flex items-center">
+                  <span className="w-3 h-3 inline-block mr-2" 
+                    style={{ backgroundColor: item.stroke }}></span>
+                  <span className="font-semibold">
+                    {isRegressionLine ? 'тенденция ' : 'стойност '}
+                  </span>
+                  <span className="ml-2">{formattedValue}{unit ? ` ${unit}` : ''}</span>
+                </p>
+              );
             })}
           </div>
         </div>

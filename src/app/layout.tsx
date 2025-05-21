@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OK Dashboard",
+  title: "Profimine",
   description: "Data analysis dashboard",
 };
 
@@ -37,9 +37,9 @@ export default function RootLayout({
       >
         <QueryClientProvider>
           <Theme accentColor="green" scaling="100%" radius="medium">
-            <div className="flex h-screen w-screen bg-gray-50">
+            <div className="flex h-screen w-screen bg-gray-50 relative">
               <Sidebar />
-              <main className="flex-1 overflow-auto p-6 h-full">
+              <main className="flex-1 overflow-auto p-4 md:p-6 h-full md:ml-0 ml-0 pt-16 md:pt-6">
                 {children}
               </main>
             </div>

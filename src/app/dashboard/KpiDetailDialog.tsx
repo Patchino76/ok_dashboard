@@ -31,7 +31,15 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
   if (!definition) return null
 
   // Track active tab to avoid rendering unused content
+  // Default to trend tab, especially if statistics aren't available
   const [activeTab, setActiveTab] = useState("trend");
+  
+  // Reset to trend tab if we switch to a tag without statistics
+  React.useEffect(() => {
+    if (!definition?.statistics && activeTab === "details") {
+      setActiveTab("trend");
+    }
+  }, [definition, activeTab]);
   const [smoothing, setSmoothing] = useState(true);
   const [isSmoothing, setIsSmoothing] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('8h');
@@ -157,7 +165,13 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
               <div className="flex justify-between items-center mb-4">
                 <TabsList className="grid w-12rem grid-cols-2">
                   <TabsTrigger value="trend">Графика</TabsTrigger>
-                  <TabsTrigger value="details">Статистики</TabsTrigger>
+                  <TabsTrigger 
+                    value="details" 
+                    disabled={!definition.statistics}
+                    className={!definition.statistics ? "cursor-not-allowed opacity-50" : ""}
+                  >
+                    Статистики
+                  </TabsTrigger>
                 </TabsList>
                 
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-center">

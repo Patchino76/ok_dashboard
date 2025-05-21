@@ -17,7 +17,7 @@ export default function Home() {
       <Box className="bg-white rounded-xl p-6 shadow-sm mb-6">
         <Flex justify="between" align="center">
           <Box>
-            <Heading size="7" mb="1">Табло</Heading>
+            <Heading size="7" mb="1">Табло Profimine</Heading>
             <Text size="3" className="text-gray-500">Добре дошли в контролния панел на Елаците-Мед</Text>
           </Box>
           <Box className="flex items-center gap-4">

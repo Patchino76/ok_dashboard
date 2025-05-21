@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { Progress } from "@/components/ui/progress";
 import { TrendingUp, Gauge } from "lucide-react";
 
 import { MillInfoProps, TrendDataPoint } from "@/lib/hooks/useMills";
@@ -80,9 +81,9 @@ const MillInfo = ({
   const [showGraph, setShowGraph] = useState(true);
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="pb-2 text-center flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">{millProps.title}</CardTitle>
+    <Card className="w-full h-full flex flex-col">
+      <CardHeader className="pb-2 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <CardTitle className="text-lg text-center sm:text-left">{millProps.title}</CardTitle>
         <div className="flex items-center gap-2">
           <TrendingUp className={`w-4 h-4 ${showGraph ? 'text-primary' : 'text-muted-foreground'}`} />
           <Switch
@@ -93,76 +94,98 @@ const MillInfo = ({
           <Gauge className={`w-4 h-4 ${!showGraph ? 'text-primary' : 'text-muted-foreground'}`} />
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 flex-1 flex flex-col">
         <AnimatedGif
           state={millProps.state}
           gifSrc="/images/mill_running.gif"
           jpgSrc="/images/mill_stopped.jpg"
           altText={`Mill status: ${millProps.state ? 'Running' : 'Stopped'}`}
         />
-        <Table>
-          <TableBody>
-            <TableRow>
-              <TableCell className="font-medium">Смяна 1</TableCell>
-              <TableCell className="relative p-0 px-4">
-                <div className="absolute left-0 top-10 h-2 bg-blue-100 z-0" 
-                     style={{ width: `${Math.min(100, ((millProps.shift1 || 0) / 2000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{Math.round(millProps.shift1 || 0)}</div>
+        <Table className="w-full">
+          <TableBody className="grid grid-cols-[120px_1fr_40px]">
+            <TableRow className="grid grid-cols-subgrid col-span-3 items-center py-1 border-b">
+              <TableCell className="font-medium px-4">Смяна 1</TableCell>
+              <TableCell className="px-4">
+                <div className="flex items-center space-x-2">
+                  <Progress 
+                    value={Math.min(100, ((millProps.shift1 || 0) / 1300) * 100)} 
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300" 
+                  />
+                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.shift1 || 0)}</span>
+                </div>
               </TableCell>
-              <TableCell className="font-medium">t</TableCell>
+              <TableCell className="font-medium text-center px-1">t</TableCell>
             </TableRow>
-            <TableRow>
-              <TableCell className="font-medium">Смяна 2</TableCell>
-              <TableCell className="relative p-0 px-4">
-                <div className="absolute left-0 top-10 h-2 bg-blue-100 z-0" 
-                     style={{ width: `${Math.min(100, ((millProps.shift2 || 0) / 2000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{Math.round(millProps.shift2 || 0)}</div>
+            <TableRow className="grid grid-cols-subgrid col-span-3 items-center py-1 border-b">
+              <TableCell className="font-medium px-4">Смяна 2</TableCell>
+              <TableCell className="px-4">
+                <div className="flex items-center space-x-2">
+                  <Progress 
+                    value={Math.min(100, ((millProps.shift2 || 0) / 1300) * 100)} 
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300" 
+                  />
+                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.shift2 || 0)}</span>
+                </div>
               </TableCell>
-              <TableCell className="font-medium">t</TableCell>
+              <TableCell className="font-medium text-center px-1">t</TableCell>
             </TableRow>
-            <TableRow>
-              <TableCell className="font-medium">Смяна 3</TableCell>
-              <TableCell className="relative p-0 px-4">
-                <div className="absolute left-0 top-10 h-2 bg-blue-100 z-0" 
-                     style={{ width: `${Math.min(100, ((millProps.shift3 || 0) / 2000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{Math.round(millProps.shift3 || 0)}</div>
+            <TableRow className="grid grid-cols-subgrid col-span-3 items-center py-1 border-b">
+              <TableCell className="font-medium px-4">Смяна 3</TableCell>
+              <TableCell className="px-4">
+                <div className="flex items-center space-x-2">
+                  <Progress 
+                    value={Math.min(100, ((millProps.shift3 || 0) / 1300) * 100)} 
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300" 
+                  />
+                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.shift3 || 0)}</span>
+                </div>
               </TableCell>
-              <TableCell className="font-medium">t</TableCell>
+              <TableCell className="font-medium text-center px-1">t</TableCell>
             </TableRow>
-            <TableRow>
-              <TableCell className="font-medium">Тотал</TableCell>
-              <TableCell className="relative p-0 px-4">
-                <div className="absolute left-0 top-10 h-2 bg-green-100 z-0" 
-                     style={{ width: `${Math.min(100, ((millProps.total || 0) / 6000) * 100)}%` }} />
-                <div className="relative z-10 py-4">{Math.round(millProps.total || 0)}</div>
+            <TableRow className="grid grid-cols-subgrid col-span-3 items-center py-1 border-b">
+              <TableCell className="font-medium px-4">Тотал</TableCell>
+              <TableCell className="px-4">
+                <div className="flex items-center space-x-2">
+                  <Progress 
+                    value={Math.min(100, ((millProps.total || 0) / 5000) * 100)} 
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-green-300" 
+                  />
+                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.total || 0)}</span>
+                </div>
               </TableCell>
-              <TableCell className="font-medium">t</TableCell>
+              <TableCell className="font-medium text-center px-1">t</TableCell>
             </TableRow>
-            <TableRow>
-              <TableCell className="font-medium">Лента</TableCell>
-              <TableCell className="relative p-0 px-4">
-                <div className="absolute left-0 top-10 h-2 bg-orange-100 z-0" 
-                     style={{ width: `${Math.min(100, ((millProps.ore || 0) / 240) * 100)}%` }} />
-                <div className="relative z-10 py-4">{Math.round(millProps.ore || 0)}</div>
+            <TableRow className="grid grid-cols-subgrid col-span-3 items-center py-1">
+              <TableCell className="font-medium px-4">Лента</TableCell>
+              <TableCell className="px-4">
+                <div className="flex items-center space-x-2">
+                  <Progress 
+                    value={Math.min(100, ((millProps.ore || 0) / 220) * 100)} 
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-orange-300" 
+                  />
+                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.ore || 0)}</span>
+                </div>
               </TableCell>
-              <TableCell className="font-medium">t/h</TableCell>
+              <TableCell className="font-medium text-center px-1">t/h</TableCell>
             </TableRow>
           </TableBody>
         </Table>
-        <div className="w-full" style={{ height: 200 }}>
+        <div className="w-full mt-auto flex-1 min-h-[180px]">
           {showGraph ? (
-            <TrendChartOre 
-              data={{
-                // Process the data to filter out extreme outliers
-                values: processDataPoints(oreTrend.map(point => point.value)),
-                timestamps: oreTrend.map(point => point.timestamp),
-                target: gaugeData.SP, // Use the setpoint as the target
-              }}
-              min={gaugeData.min}
-              max={gaugeData.max}
-            />
+            <div className="h-full">
+              <TrendChartOre 
+                data={{
+                  // Process the data to filter out extreme outliers
+                  values: processDataPoints(oreTrend.map(point => point.value)),
+                  timestamps: oreTrend.map(point => point.timestamp),
+                  target: gaugeData.SP, // Use the setpoint as the target
+                }}
+                min={gaugeData.min}
+                max={gaugeData.max}
+              />
+            </div>
           ) : (
-            <div className="w-full h-full p-8">
+            <div className="w-full h-full flex items-center justify-center p-2 sm:p-4">
               <SemiCircleOreGauge {...gaugeData} />
             </div>
           )}

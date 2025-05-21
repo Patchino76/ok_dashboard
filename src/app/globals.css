@@ -1,6 +1,15 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Hide Next.js Dev Tools Overlay */
+#__next-route-announcer__,
+[data-nextjs-route-announcer],
+[data-next-dev-menu],
+[data-next-turbopack-dev-ui],
+[data-turbopack-dev-ui] {
+  display: none !important;
+}
+
 /* Custom utilities */
 .scrollbar-none {
   scrollbar-width: none; /* Firefox */
