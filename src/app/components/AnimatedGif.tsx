@@ -27,7 +27,7 @@ const AnimatedGif: React.FC<AnimatedGifProps> = ({
         alt={altText}
         width={width}
         height={height}
-        className="rounded-md object-cover"
+        className={`rounded-md object-cover ${!state ? 'opacity-60' : ''}`}
       />
     </div>
   );

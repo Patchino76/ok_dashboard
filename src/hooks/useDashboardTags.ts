@@ -4,8 +4,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagValue } from '@/lib/tags/types';
 
-// API Base URL - could be moved to a .env file
-const API_BASE_URL = 'http://localhost:8000/api';
+// Using Next.js API routes with relative URLs
 
 /**
  * Fetches a tag value directly from the API by its name
@@ -19,14 +18,31 @@ async function fetchTagValue(tagName: string): Promise<TagValue> {
   }
   
   try {
-    // Call the API directly with the tag ID
-    const response = await fetch(`${API_BASE_URL}/tag-value/${tag.id}`);
+    // Call the FastAPI backend directly
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${apiUrl}/api/tag-value/${tag.id}`, {
+      headers: {
+        'Accept': 'application/json'
+      },
+      cache: 'no-store'
+    });
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch tag ${tag.id}: ${response.statusText}`);
+    // Don't throw on non-OK response, attempt to parse JSON first
+    let data;
+    try {
+      data = await response.json();
+      
+      // If we have data even with an error status, use it
+      if (data && (data.value !== undefined || data.timestamp)) {
+        console.log(`Retrieved data for tag ${tag.id} despite status ${response.status}`);
+      } else if (!response.ok) {
+        // Only throw if we don't have usable data
+        throw new Error(`Failed to fetch tag ${tag.id}: ${response.statusText}`);
+      }
+    } catch (parseError) {
+      console.error(`Error parsing response for tag ${tag.id}:`, parseError);
+      throw new Error(`Failed to parse data for tag ${tag.id}`);
     }
-    
-    const data = await response.json();
     
     // Handle numeric boolean values (0/1 → false/true)
     const value = tag.unit === 'bool' && typeof data.value === 'number'

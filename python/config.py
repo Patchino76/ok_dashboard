@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from typing import List
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
 # Get environment mode
 ENV = os.getenv("NODE_ENV", "development")

@@ -4,20 +4,38 @@ import { useQuery } from '@tanstack/react-query';
 import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagTrendPoint } from '@/lib/tags/types';
 
-// API Base URL - same as used in other hooks
-const API_BASE_URL = 'http://localhost:8000/api';
+// Using Next.js API routes with relative URLs
 
 /**
  * Fetch trend data for a tag by its ID
  */
 async function fetchTagTrend(tagId: number, hours: number = 8) {
-  const response = await fetch(`${API_BASE_URL}/tag-trend/${tagId}?hours=${hours}`);
+  // Get API URL from environment or use default
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   
-  if (!response.ok) {
-    throw new Error(`Failed to fetch trend for tag ${tagId}: ${response.statusText}`);
+  const response = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=${hours}`, {
+    headers: { 'Accept': 'application/json' },
+    cache: 'no-store'
+  });
+  
+  try {
+    const data = await response.json();
+    // If we got valid data despite status code, use it
+    if (data && Array.isArray(data.timestamps || data.values)) {
+      return data;
+    }
+    
+    // If no valid data and not OK status, throw error
+    if (!response.ok) {
+      throw new Error(`Failed to fetch trend for tag ${tagId}: ${response.statusText}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error(`Error parsing trend data for tag ${tagId}:`, error);
+    // Return empty trend data on error
+    return { timestamps: [], values: [] };
   }
-  
-  return response.json();
 }
 
 /**

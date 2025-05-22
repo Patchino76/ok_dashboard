@@ -40,6 +40,10 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
       setActiveTab("trend");
     }
   }, [definition, activeTab]);
+  
+  // We'll use this to track if we're on the details tab separately
+  // This helps ensure UI elements are properly hidden/shown
+  const isDetailsTab = activeTab === "details";
   const [smoothing, setSmoothing] = useState(true);
   const [isSmoothing, setIsSmoothing] = useState(false);
   const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('8h');
@@ -164,22 +168,23 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
             }}>
               <div className="flex justify-between items-center mb-4">
                 <TabsList className="grid w-12rem grid-cols-2">
-                  <TabsTrigger value="trend">Графика</TabsTrigger>
+                  <TabsTrigger value="trend">Тренд</TabsTrigger>
                   <TabsTrigger 
                     value="details" 
                     disabled={!definition.statistics}
                     className={!definition.statistics ? "cursor-not-allowed opacity-50" : ""}
                   >
-                    Статистики
+                    Стат.
                   </TabsTrigger>
                 </TabsList>
                 
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <div className="flex items-center space-x-2 order-2 sm:order-1">
-                    <Label htmlFor="smoothing" className="text-sm">филтър</Label>
+                {/* Keep smoothing switch on the same row with tabs */}
+                {activeTab === "trend" && (
+                  <div className="flex items-center">
+                    <Label htmlFor="smoothing" className="text-sm mr-2">филтър</Label>
                     <Switch 
                       id="smoothing" 
-                      checked={smoothing} 
+                      checked={smoothing}
                       onCheckedChange={(checked: boolean) => {
                         setIsSmoothing(true);
                         setTimeout(() => {
@@ -189,15 +194,7 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                       }} 
                     />
                   </div>
-                  
-                  <div className="sm:ml-auto order-1 sm:order-2">
-                    <TimeRangeSelector
-                      selectedRange={selectedTimeRange}
-                      onChange={handleTimeRangeChange}
-                      className="scale-[0.85] origin-right"
-                    />
-                  </div>
-                </div>
+                )}
               </div>
               
               <TabsContent value="trend">
@@ -232,6 +229,14 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                     )
                   )}
                 </div>
+                
+                {/* Time range selector below chart */}
+                <div className="flex justify-center mt-4">
+                  <TimeRangeSelector
+                    selectedRange={selectedTimeRange}
+                    onChange={handleTimeRangeChange}
+                  />
+                </div>
               </TabsContent>
               
               <TabsContent value="details">
@@ -261,6 +266,14 @@ export function KpiDetailDialog({ definition, value, open, onOpenChange, color =
                           color={color}
                         />
                       )}
+                      
+                      {/* Time range selector below statistics */}
+                      <div className="flex justify-center mt-6">
+                        <TimeRangeSelector
+                          selectedRange={selectedTimeRange}
+                          onChange={handleTimeRangeChange}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>

@@ -7,8 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { dashboardTags } from '@/lib/tags/dashboard-tags';
 import { TagValue } from '@/lib/tags/types';
 
-// API Base URL - should match the one in useDashboardTags.ts
-const API_BASE_URL = 'http://localhost:8000/api';
+// Using Next.js API routes with relative URLs
 
 /**
  * Fetch multiple tag values in a single API call
@@ -34,13 +33,29 @@ async function fetchTagValues(tagNames: string[]): Promise<Record<string, TagVal
   try {
     // Convert tag IDs to query parameters
     const queryParams = tagIds.map(id => `tag_ids=${id}`).join('&');
-    const response = await fetch(`${API_BASE_URL}/tag-values?${queryParams}`);
     
-    if (!response.ok) {
-      throw new Error(`Failed to fetch tags: ${response.statusText}`);
+    // Get API URL from environment or use default
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    
+    const response = await fetch(`${apiUrl}/api/tag-values?${queryParams}`, {
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store'
+    });
+    
+    let responseData;
+    try {
+      responseData = await response.json();
+      
+      // Continue even if we got an error status but have data
+      if (!responseData || !responseData.root) {
+        if (!response.ok) {
+          throw new Error(`Failed to fetch tags: ${response.statusText}`);
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing batch tag values:', error);
+      return {}; // Return empty object on parsing error
     }
-    
-    const responseData = await response.json();
     
     // Map the response data back to tag names
     const result: Record<string, TagValue> = {};

@@ -21,5 +21,11 @@ module.exports = {
   
   // Use standard rendering for API routes
   poweredByHeader: false,
+
+  // Environment variables that will be available at build time
+  env: {
+    // This allows server-side code to access the API URL
+    API_SERVER_URL: process.env.NEXT_PUBLIC_API_URL,
+  },
 };
 
