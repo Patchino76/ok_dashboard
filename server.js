@@ -4,6 +4,7 @@
  */
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const { parse } = require('url');
 const next = require('next');
 
 // Environment setup
@@ -47,7 +48,13 @@ app.prepare().then(() => {
   
   // All other requests go to Next.js
   server.all('*', (req, res) => {
-    return handle(req, res);
+    try {
+      const parsedUrl = parse(req.url, true);
+      return handle(req, res, parsedUrl);
+    } catch (err) {
+      console.error('Error handling request:', err);
+      res.status(500).send('Internal Server Error');
+    }
   });
   
   // Start server

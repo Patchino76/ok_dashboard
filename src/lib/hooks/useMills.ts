@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import axios from "axios";
+import apiClient from "@/lib/api/api-client";
 
 export interface MillInfoProps {
   title: string;
@@ -28,7 +28,7 @@ export function useMills(mill: string, refreshInterval: number = 20) {
   return useQuery<MillInfoProps>({
     queryKey: ["ore-by-mill-totals", mill],
     queryFn: async () => {
-      const response = await axios.get<MillInfoProps>(
+      const response = await apiClient.get<MillInfoProps>(
         `/api/mills/ore-by-mill`,
         {
           params: { mill },
@@ -54,7 +54,7 @@ export function useMillsTrendByTag(
   return useQuery<TrendDataPoint[]>({
     queryKey: ["mills-trend-by-tag", mill, tag, trendPoints],
     queryFn: async () => {
-      const response = await axios.get<TrendDataPoint[]>(
+      const response = await apiClient.get<TrendDataPoint[]>(
         `/api/mills/trend-by-tag`,
         {
           params: { mill, tag, trendPoints },
@@ -80,7 +80,7 @@ export function useMillsByParameter(
   return useQuery<MillsByParameter[]>({
     queryKey: ["mills-by-parameter", parameter, date],
     queryFn: async () => {
-      const response = await axios.get<MillsByParameter[]>(
+      const response = await apiClient.get<MillsByParameter[]>(
         `/api/mills/by-parameter`,
         {
           params: {
