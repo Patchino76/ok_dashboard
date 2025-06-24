@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 # Import the DatabaseManager
 from database import DatabaseManager, create_db_manager
 from api_utils.mills_utils import MillsUtils
-from datetime import datetime
+from mills_analysis.mills_fetcher import get_mills_by_param
 from config import HOST, PORT, CORS_ORIGINS
 
 app = FastAPI(title="OK Dashboard API")
@@ -169,8 +169,11 @@ async def get_tag_states(
 # For testing/development
 # ----------------------------- Mills API Endpoints -----------------------------
 
-@app.get("/api/mills/ore-by-mill")
-async def get_ore_by_mill(mill: str, db: DatabaseManager = Depends(get_db)):
+
+
+
+@app.get("/mills/{mill}/ore")
+def get_ore_by_mill(mill: str, db: DatabaseManager = Depends(get_db)):
     """
     Get the current values for a specific mill across all shifts
     
@@ -236,6 +239,54 @@ async def get_mills_by_parameter(
         raise HTTPException(status_code=404, detail=f"No data found for parameter {parameter}")
         
     return result
+
+@app.get("/mills/data")
+def get_mills_data(
+    parameter: str, 
+    start_ts: str, 
+    end_ts: str = None, 
+    freq: str = "5min",
+    db: DatabaseManager = Depends(get_db)
+):
+    """
+    Get historical data for all mills for a specific parameter within a time range.
+    
+    Parameters:
+    - parameter: The parameter to fetch (e.g., 'Ore', 'Power')
+    - start_ts: Start timestamp in ISO format (YYYY-MM-DDTHH:MM:SS)
+    - end_ts: End timestamp in ISO format (default: current time)
+    - freq: Resampling frequency (default: '5min')
+    """
+    # Convert string timestamps to datetime
+    try:
+        start = datetime.fromisoformat(start_ts)
+        end = datetime.fromisoformat(end_ts) if end_ts else datetime.now()
+    except ValueError:
+        raise HTTPException(status_code=400, 
+                           detail="Invalid timestamp format. Use ISO format: YYYY-MM-DDTHH:MM:SS")
+    
+    # Fetch data using our function
+    try:
+        result_df = get_mills_by_param(parameter=parameter, start_ts=start, end_ts=end, freq=freq)
+        
+        if result_df.empty:
+            return {"message": "No data found for the specified parameters", "data": []}
+        
+        # Convert DataFrame to JSON-serializable format
+        result_df['timestamp'] = result_df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+        result = result_df.to_dict(orient='records')
+        
+        return {
+            "parameter": parameter,
+            "start_ts": start_ts,
+            "end_ts": end_ts or datetime.now().isoformat(),
+            "freq": freq,
+            "count": len(result),
+            "data": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, 
+                           detail=f"Error retrieving mill data: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

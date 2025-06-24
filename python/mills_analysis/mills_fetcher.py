@@ -17,8 +17,8 @@ engine = create_engine(f"postgresql://{user}:{password}@{host}:{port}/{database}
 MILLS = ['MILL_01', 'MILL_02', 'MILL_03', 'MILL_04', 'MILL_05', 'MILL_06', 
          'MILL_07', 'MILL_08', 'MILL_09', 'MILL_10', 'MILL_11', 'MILL_12']
 
-def get_mill_data(parameter: str, start_ts: datetime, end_ts: datetime,
-               connection_config: Optional[Dict[str, Any]] = None) -> pd.DataFrame:
+def get_mills_by_param(parameter: str, start_ts: datetime, end_ts: datetime,
+               connection_config: Optional[Dict[str, Any]] = None, freq: str = '5min') -> pd.DataFrame:
     # Use provided connection config if any
     current_engine = engine
     if connection_config:
@@ -63,7 +63,7 @@ def get_mill_data(parameter: str, start_ts: datetime, end_ts: datetime,
     common_end = df_pivoted.dropna(how='all').index.max()
     
     # Resample to ensure consistent timestamps across all mills
-    full_index = pd.date_range(start=common_start, end=common_end, freq='1min')
+    full_index = pd.date_range(start=common_start, end=common_end, freq=freq)
     df_resampled = pd.DataFrame(index=full_index)
     
     # Resample each mill's data to the new index
@@ -86,8 +86,8 @@ if __name__ == "__main__":
     end_time = datetime.now()
     start_time = end_time - timedelta(days=3)
     
-    # Fetch data
-    df = get_mill_data(parameter='Ore', start_ts=start_time, end_ts=end_time)
+    # Fetch data with 5min frequency
+    df = get_mills_by_param(parameter='PSI80', start_ts=start_time, end_ts=end_time, freq='5min')
     
     # Display minimal information
     if not df.empty:
