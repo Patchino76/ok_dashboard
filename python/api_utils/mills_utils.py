@@ -25,13 +25,25 @@ class MillsUtils:
         result_dict = {}
         
         try:
+            # Normalize the mill name for case-insensitive comparison
+            # Find the properly capitalized mill name if it exists
+            proper_mill_name = None
+            for item in millsNames:
+                if item["en"].lower() == mill.lower():
+                    proper_mill_name = item["en"]
+                    break
+                    
+            # If we couldn't find a match, use the original value
+            if proper_mill_name is None:
+                proper_mill_name = mill
+            
             # Prepare list of tag IDs to fetch in a single query
             tag_ids = []
             tag_categories = {}
             
             # Collect tag IDs for each shift and category
             for shift_key in mills_tags.keys():
-                mill_tag = next((tag for tag in mills_tags[shift_key] if tag["name"] == mill), None)
+                mill_tag = next((tag for tag in mills_tags[shift_key] if tag["name"].lower() == proper_mill_name.lower()), None)
                 if mill_tag:
                     tag_id = mill_tag["id"]
                     tag_ids.append(tag_id)

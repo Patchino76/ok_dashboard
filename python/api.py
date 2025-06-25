@@ -170,15 +170,30 @@ async def get_tag_states(
 # ----------------------------- Mills API Endpoints -----------------------------
 
 
-
-
-@app.get("/mills/{mill}/ore")
+@app.get("/api/mills/{mill}/ore") 
 def get_ore_by_mill(mill: str, db: DatabaseManager = Depends(get_db)):
     """
     Get the current values for a specific mill across all shifts
     
     Parameters:
     - mill: The mill identifier (e.g., 'Mill01')
+    """
+    mills_utils = MillsUtils(db)
+    result = mills_utils.fetch_ore_totals_by_mill(mill)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail=f"No data found for mill {mill}")
+        
+    return result
+
+@app.get("/api/mills/ore-by-mill")
+def get_ore_by_mill_query(mill: str, db: DatabaseManager = Depends(get_db)):
+    """
+    Alternative endpoint for getting mill ore data using query parameters
+    to match frontend expectations
+    
+    Parameters:
+    - mill: The mill identifier (e.g., 'Mill01') as a query parameter
     """
     mills_utils = MillsUtils(db)
     result = mills_utils.fetch_ore_totals_by_mill(mill)
@@ -240,8 +255,8 @@ async def get_mills_by_parameter(
         
     return result
 
-@app.get("/mills/data")
-def get_mills_data(
+@app.get("/api/mills/all_mills_by_param")
+def get_all_mills_by_param(
     parameter: str, 
     start_ts: str, 
     end_ts: str = None, 
