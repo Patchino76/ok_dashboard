@@ -30,6 +30,14 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
   timeRange,
   millsData,
 }) => {
+  // Debug logging
+  console.log('MillComparisonTab received millsData:', millsData);
+  console.log('MillComparisonTab millsData structure:', millsData ? Object.keys(millsData) : 'No data');
+  if (millsData?.data) {
+    console.log('MillComparisonTab data array length:', millsData.data.length);
+    console.log('MillComparisonTab first data sample:', millsData.data[0]);
+  }
+  
   const [chartData, setChartData] = useState<MillData[]>([]);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);

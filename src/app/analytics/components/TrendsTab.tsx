@@ -52,20 +52,30 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
   // Ensure parameter is always a string
   const paramString = typeof parameter === 'object' ? 'Ore' : String(parameter);
   
+  // Debug logging
+  console.log('TrendsTab received trendData:', trendData);
+  console.log('TrendsTab trendData length:', trendData.length);
+  if (trendData.length > 0) {
+    console.log('First trend data sample:', trendData[0]);
+  }
+  
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMills, setSelectedMills] = useState<Record<string, boolean>>({});
   const [parameterUnit, setParameterUnit] = useState<string>("");
 
-  // Initialize selected mills
+  // Initialize selected mills based on actual trend data
   useEffect(() => {
-    const initialMills: Record<string, boolean> = {};
-    millsNames.forEach((mill, index) => {
-      const millName = typeof mill === 'string' ? mill : mill.en;
-      initialMills[millName] = index < 3;
-    });
-    setSelectedMills(initialMills);
-  }, []);
+    if (trendData && trendData.length > 0) {
+      const initialMills: Record<string, boolean> = {};
+      trendData.forEach((mill, index) => {
+        // Select first 3 mills by default
+        initialMills[mill.mill_name] = index < 3;
+      });
+      setSelectedMills(initialMills);
+      console.log('TrendsTab initialized selectedMills:', initialMills);
+    }
+  }, [trendData]);
 
   // Get parameter info for display
   useEffect(() => {
@@ -132,6 +142,13 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
       });
     }
     
+    console.log('TrendsTab processedData result:', result);
+    console.log('TrendsTab processedData length:', result.length);
+    if (result.length > 0) {
+      console.log('TrendsTab first processed data point:', result[0]);
+      console.log('TrendsTab last processed data point:', result[result.length - 1]);
+    }
+    
     return result;
   }, [trendData, selectedMills]);
 
@@ -193,8 +210,8 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
       
       {/* Horizontal mill selection */}
       <div className="mb-6 flex flex-wrap gap-4">
-        {millsNames.map((mill, index) => {
-          const millName = typeof mill === 'string' ? mill : mill.en;
+        {trendData.map((mill, index) => {
+          const millName = mill.mill_name;
           return (
             <div key={`mill-${index}-${millName}`} className="flex items-center">
               <input
@@ -212,7 +229,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
                   className="w-3 h-3 inline-block mr-1 rounded-sm" 
                   style={{ backgroundColor: millColors[index % millColors.length] }}
                 ></span>
-                MILL_{millName}
+                {millName}
               </label>
             </div>
           );
@@ -258,7 +275,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
                     stroke={millColors[index % millColors.length]}
                     dot={false}
                     activeDot={{ r: 5 }}
-                    name={`MILL_${mill.mill_name}`}
+                    name={mill.mill_name}
                   />
                 ))}
             </LineChart>

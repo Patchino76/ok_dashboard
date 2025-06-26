@@ -1,6 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import React, { useState, useMemo } from "react";
 
 // Import our components
 import { MillComparisonTab } from "./components/MillComparisonTab";
@@ -9,20 +8,10 @@ import { StatisticsTab } from "./components/StatisticsTab";
 import { AnalyticsTab } from "./components/AnalyticsTab";
 import { ParameterSelector } from "./components/ParameterSelector";
 
-// Interface for the mill data that will be shared across components
-interface MillData {
-  mill_name: string;
-  values: number[];
-  timestamps: string[];
-  [key: string]: any;
-}
+// Import our custom hook
+import { useMillsAnalytics, getTimeRangeParams } from "@/lib/hooks/useAnalytics";
 
-// Interface for trend data
-interface TrendData {
-  mill_name: string;
-  values: number[];
-  timestamps: string[];
-}
+// We're using the interfaces defined in our custom hook
 
 export default function AnalyticsPage() {
   // State for the selected parameter and time range
@@ -30,37 +19,37 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState<string>("24h");
   const [activeTab, setActiveTab] = useState<string>("comparison");
   
-  // State for the fetched data
-  const [millsData, setMillsData] = useState<any>(null);
-  const [trendData, setTrendData] = useState<TrendData[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // API base URL
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  
-  // Helper function to get time range based on selection
-  const getTimeRange = () => {
-    const now = new Date();
-    const startDate = new Date(now);
-    
-    switch (timeRange) {
-      case "7d":
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "30d":
-        startDate.setDate(now.getDate() - 30);
-        break;
-      default: // 24h
-        startDate.setDate(now.getDate() - 1);
-    }
-    
+  // Use useMemo to stabilize the query parameters object
+  const queryParams = useMemo(() => {
+    const timeRangeParams = getTimeRangeParams(timeRange);
     return {
-      start_ts: startDate.toISOString(),
-      end_ts: now.toISOString()
+      parameter: selectedParameter,
+      start_ts: timeRangeParams.start_ts,
+      end_ts: timeRangeParams.end_ts,
+      freq: '1h'
     };
-  };
+  }, [selectedParameter, timeRange]);
   
+  // Use the custom hook to fetch analytics data
+  const { 
+    data,
+    rawData,
+    isLoading, 
+    error 
+  } = useMillsAnalytics(queryParams);
+
+  // Extract the transformed data with fallbacks
+  const comparisonData = data?.comparisonData || [];
+  const trendData = data?.trendData || [];
+
+  // Debug logging
+  console.log('Analytics Page - Raw data from hook:', rawData);
+  console.log('Analytics Page - Transformed data from hook:', data);
+  console.log('Analytics Page - Comparison data:', comparisonData);
+  console.log('Analytics Page - Trend data:', trendData);
+  console.log('Analytics Page - Comparison data length:', comparisonData.length);
+  console.log('Analytics Page - Trend data length:', trendData.length);
+
   // Handler for parameter change
   const handleParameterChange = (parameter: string) => {
     setSelectedParameter(parameter);
@@ -71,66 +60,7 @@ export default function AnalyticsPage() {
     setTimeRange(range);
   };
   
-  // Centralized function to fetch mills data
-  useEffect(() => {
-    const fetchMillsData = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      const { start_ts, end_ts } = getTimeRange();
-      
-      try {
-        // Fetch data for mill comparison
-        const response = await axios.get(`${API_BASE_URL}/api/mills/all_mills_by_param`, {
-          params: {
-            parameter: selectedParameter,
-            start_ts,
-            end_ts,
-            freq: '1h'
-          }
-        });
-        
-        if (response.data && response.data.data) {
-          setMillsData(response.data);
-        } else {
-          setError("No data available from API");
-        }
-        
-        // Fetch trend data (using the same parameters)
-        // Calculate start and end timestamps based on time range
-        const end = new Date();
-        const start = new Date();
-        
-        if (timeRange === "24h") {
-          start.setHours(start.getHours() - 24);
-        } else if (timeRange === "7d") {
-          start.setDate(start.getDate() - 7);
-        } else if (timeRange === "30d") {
-          start.setDate(start.getDate() - 30);
-        }
-        
-        const trendResponse = await axios.get(`${API_BASE_URL}/api/mills/all_mills_by_param`, {
-          params: {
-            parameter: selectedParameter,
-            start_ts: start.toISOString(),
-            end_ts: end.toISOString(),
-            freq: '1h'
-          }
-        });
-        
-        if (trendResponse.data && trendResponse.data.mills_data) {
-          setTrendData(trendResponse.data.mills_data);
-        }
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch data");
-        console.error("Error fetching data:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchMillsData();
-  }, [selectedParameter, timeRange, API_BASE_URL]);  // Re-fetch when these dependencies change
+  // The useMillsAnalytics hook handles data fetching automatically when dependencies change
 
   return (
     <div id="analytics-container" className="h-screen flex flex-col p-4">
@@ -219,7 +149,7 @@ export default function AnalyticsPage() {
           ) : error ? (
             <div className="p-4 border-l-4 border-red-500 bg-red-50 text-red-700">
               <p className="font-medium">Error</p>
-              <p>{error}</p>
+              <p>{(error as Error).message || "Failed to fetch data"}</p>
             </div>
           ) : (
             <>
@@ -227,7 +157,7 @@ export default function AnalyticsPage() {
                 <MillComparisonTab 
                   parameter={selectedParameter} 
                   timeRange={timeRange}
-                  millsData={millsData}
+                  millsData={rawData}
                 />
               )}
               
@@ -243,7 +173,7 @@ export default function AnalyticsPage() {
                 <StatisticsTab 
                   parameter={selectedParameter} 
                   timeRange={timeRange}
-                  millsData={millsData}
+                  millsData={undefined}
                 />
               )}
               
@@ -251,7 +181,7 @@ export default function AnalyticsPage() {
                 <AnalyticsTab 
                   parameter={selectedParameter} 
                   timeRange={timeRange}
-                  millsData={millsData}
+                  millsData={undefined}
                 />
               )}
             </>

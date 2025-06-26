@@ -1,13 +1,19 @@
 import axios from 'axios';
 
+// Get base URL from environment variables, default to localhost in development
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 // Create a centralized API client that will be used throughout the app
 const apiClient = axios.create({
-  baseURL: 'http://em-m-db4.ellatzite-med.com:8001',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   }
 });
+
+// Log the base URL being used
+console.log(`API client initialized with baseURL: ${API_BASE_URL}`);
 
 // Add interceptor to log all requests for debugging
 apiClient.interceptors.request.use(
