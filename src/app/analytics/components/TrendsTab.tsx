@@ -62,6 +62,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMills, setSelectedMills] = useState<Record<string, boolean>>({});
+  const [allSelected, setAllSelected] = useState<boolean>(false);
   const [parameterUnit, setParameterUnit] = useState<string>("");
 
   // Initialize selected mills based on actual trend data
@@ -91,6 +92,20 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
       ...prev,
       [millName]: !prev[millName]
     }));
+  };
+  
+  // Toggle all mills at once
+  const handleToggleAll = () => {
+    const newState = !allSelected;
+    setAllSelected(newState);
+    
+    // Create a new object with all mills set to the new state
+    const newSelectedMills: Record<string, boolean> = {};
+    trendData.forEach(mill => {
+      newSelectedMills[mill.mill_name] = newState;
+    });
+    
+    setSelectedMills(newSelectedMills);
   };
 
   // Format time range for display
@@ -197,7 +212,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
   }
 
   return (
-    <div className="h-full flex flex-col p-4 space-y-4 overflow-hidden">
+    <div className="h-full flex flex-col p-4 overflow-hidden">
       {/* Header with time range */}
       <div className="flex items-center justify-between mb-2">
         <div>
@@ -208,83 +223,142 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
         </div>
       </div>
       
-      {/* Horizontal mill selection */}
-      <div className="mb-6 flex flex-wrap gap-4">
-        {trendData.map((mill, index) => {
-          const millName = mill.mill_name;
-          return (
-            <div key={`mill-${index}-${millName}`} className="flex items-center">
-              <input
-                type="checkbox"
-                id={`mill-${millName}`}
-                checked={!!selectedMills[millName]}
-                onChange={() => handleMillToggle(millName)}
-                className="mr-2"
-              />
-              <label 
-                htmlFor={`mill-${millName}`} 
-                className="text-sm flex items-center cursor-pointer"
+      {/* Main content area with chart and sidebar */}
+      <div className="flex flex-grow h-full">
+        {/* Chart area - taking most of the space */}
+        <div className="flex-grow relative h-full">
+          {processedData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={processedData}
+                margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                <XAxis 
+                  dataKey="timestamp" 
+                  tickFormatter={(timestamp) => {
+                    const date = new Date(timestamp);
+                    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+                  }}
+                  stroke="#94a3b8"
+                  fontSize={12}
+                />
+                <YAxis 
+                  domain={[0, 'auto']}
+                  stroke="#94a3b8"
+                  fontSize={12}
+                  tickFormatter={(value) => value.toFixed(0)}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                {trendData
+                  .filter(mill => selectedMills[mill.mill_name])
+                  .map((mill, index) => (
+                    <Line
+                      key={mill.mill_name}
+                      type="monotone"
+                      dataKey={mill.mill_name}
+                      stroke={millColors[index % millColors.length]}
+                      dot={false}
+                      activeDot={{ r: 5 }}
+                      name={mill.mill_name}
+                    />
+                  ))}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <p className="text-gray-500">No trend data available</p>
+            </div>
+          )}
+        </div>
+
+        {/* Vertical mill selection sidebar - now on the right */}
+        <div className="ml-6 w-48 flex flex-col overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-medium text-gray-600">Mill Selection</div>
+            
+            {/* Select/Deselect All Switch */}
+            <div className="flex items-center">
+              <label
+                className="text-xs flex items-center cursor-pointer mr-1"
+                onClick={handleToggleAll}
+              >
+                <span className="truncate">{allSelected ? 'Deselect All' : 'Select All'}</span>
+              </label>
+              <div 
+                className={`relative inline-flex items-center h-4 rounded-full w-8 cursor-pointer transition-colors ease-in-out duration-200 border ${
+                  allSelected ? 'bg-gray-400' : 'bg-gray-200'
+                }`} 
+                style={{ 
+                  borderColor: allSelected ? '#9CA3AF' : '#E5E7EB'
+                }}
+                onClick={handleToggleAll}
               >
                 <span 
-                  className="w-3 h-3 inline-block mr-1 rounded-sm" 
-                  style={{ backgroundColor: millColors[index % millColors.length] }}
-                ></span>
-                {millName}
-              </label>
+                  className={`inline-block w-3 h-3 transform rounded-full transition ease-in-out duration-200 ${
+                    allSelected ? 'translate-x-4' : 'translate-x-1'
+                  }`}
+                  style={{ 
+                    backgroundColor: allSelected ? '#4B5563' : '#CBD5E0',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
+                />
+              </div>
             </div>
-          );
-        })}
-      </div>
-      
-      {/* Chart area */}
-      <div className="flex-1 h-[400px]">
-        {processedData.length > 0 ? (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={processedData}
-              margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              <XAxis
-                dataKey="timestamp"
-                type="category"
-                tickFormatter={(time: string) => {
-                  const date = new Date(time);
-                  return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-                }}
-                interval="preserveStartEnd"
-                minTickGap={50}
-                tick={{ fontSize: 10 }}
-              />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                tickFormatter={(value: number) => value.toFixed(1)}
-                width={35}
-              />
-              <Tooltip content={CustomTooltip} />
-              <Legend height={30} wrapperStyle={{ paddingTop: '10px' }} />
-
-              {/* Render a line for each selected mill */}
-              {trendData
-                .filter(mill => selectedMills[mill.mill_name])
-                .map((mill, index) => (
-                  <Line
-                    key={`line-${mill.mill_name}`}
-                    type="monotone"
-                    dataKey={mill.mill_name}
-                    stroke={millColors[index % millColors.length]}
-                    dot={false}
-                    activeDot={{ r: 5 }}
-                    name={mill.mill_name}
-                  />
-                ))}
-            </LineChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <p className="text-gray-500">No trend data available</p>
           </div>
-        )}
+          
+          {/* Individual mill switches with extra spacing after the header */}
+          <div className="flex flex-col space-y-4 pt-4 border-t border-gray-200">  
+          {trendData.map((mill, index) => {
+            const millName = mill.mill_name;
+            const isSelected = !!selectedMills[millName];
+            const millColor = millColors[index % millColors.length];
+            
+            // Convert MILL_01 to index for millsNames lookup (MILL_01 -> 0, MILL_02 -> 1, etc.)
+            const millIndex = parseInt(millName.replace('MILL_', '')) - 1;
+            const displayName = millsNames[millIndex]?.bg || millName;
+            
+            return (
+              <div key={`mill-${index}-${millName}`} className="flex items-center">
+                <label 
+                  className="text-xs flex items-center cursor-pointer flex-grow mr-1"
+                  onClick={() => handleMillToggle(millName)}
+                >
+                  <span 
+                    className="inline-block mr-1 rounded-sm" 
+                    style={{ 
+                      backgroundColor: millColor,
+                      width: '8px',
+                      height: '8px' 
+                    }}
+                  ></span>
+                  <span className="truncate">{displayName}</span>
+                </label>
+                {/* Smaller grey switch */}
+                <div 
+                  className={`relative inline-flex items-center h-4 rounded-full w-8 cursor-pointer transition-colors ease-in-out duration-200 border ${
+                    isSelected ? 'bg-gray-400' : 'bg-gray-200'
+                  }`} 
+                  style={{ 
+                    borderColor: isSelected ? '#9CA3AF' : '#E5E7EB'
+                  }}
+                  onClick={() => handleMillToggle(millName)}
+                >
+                  <span 
+                    className={`inline-block w-3 h-3 transform rounded-full transition ease-in-out duration-200 ${
+                      isSelected ? 'translate-x-4' : 'translate-x-1'
+                    }`}
+                    style={{ 
+                      backgroundColor: isSelected ? '#4B5563' : '#CBD5E0',
+                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+          </div>
+        </div>
       </div>
     </div>
   );
