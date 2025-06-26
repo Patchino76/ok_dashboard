@@ -141,7 +141,7 @@ export default function Home() {
             </Card>
           </Link>
           
-          <Link href="/mills/analytics" className="no-underline">
+          <Link href="/analytics" className="no-underline">
           <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-purple-500">
             <Flex direction="column" p="5" height="100%">
               <Flex justify="between" align="center" mb="3">

@@ -4,9 +4,10 @@ import React from "react";
 interface StatisticsTabProps {
   parameter: string;
   timeRange: string;
+  millsData: any;
 }
 
-export const StatisticsTab: React.FC<StatisticsTabProps> = ({ parameter, timeRange }) => {
+export const StatisticsTab: React.FC<StatisticsTabProps> = ({ parameter, timeRange, millsData }) => {
   return (
     <div className="p-4">
       <h2 className="text-xl font-semibold mb-6">Статистика</h2>
