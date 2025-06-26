@@ -141,6 +141,7 @@ export default function Home() {
             </Card>
           </Link>
           
+          <Link href="/mills/analytics" className="no-underline">
           <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-purple-500">
             <Flex direction="column" p="5" height="100%">
               <Flex justify="between" align="center" mb="3">
@@ -151,13 +152,14 @@ export default function Home() {
                   <ArrowRight className="h-4 w-4 text-purple-600" />
                 </Box>
               </Flex>
-              <Heading size="4" mb="2">Анализ на ефективността</Heading>
+              <Heading size="4" mb="2">Аналитики на смилане</Heading>
               <Text className="text-gray-500 mb-2">Следете индикаторите за производителност по екипи и смени</Text>
               <Box className="mt-auto">
                 <Badge size="1" variant="soft" color="gray">Очаквайте скоро</Badge>
               </Box>
             </Flex>
           </Card>
+          </Link>
           
           <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-amber-500">
             <Flex direction="column" p="5" height="100%">

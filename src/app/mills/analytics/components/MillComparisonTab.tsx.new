@@ -1,0 +1,305 @@
+"use client";
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { getParameterByValue } from "./ParameterSelector";
+import { millsNames } from "@/lib/tags/mills-tags";
+import { SimpleBarChart } from "./SimpleBarChart";
+
+// Type definition for the mill data
+interface MillData {
+  mill_name: string;
+  parameter_value: number;
+}
+
+interface StatsData {
+  avg: number;
+  min: number;
+  max: number;
+  minMill: string;
+  maxMill: string;
+}
+
+interface MillComparisonTabProps {
+  parameter: string;
+  timeRange: string;
+}
+
+export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
+  parameter,
+  timeRange,
+}) => {
+  const [millsData, setMillsData] = useState<MillData[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [stats, setStats] = useState<StatsData>({
+    avg: 0,
+    min: 0,
+    max: 0,
+    minMill: "",
+    maxMill: ""
+  });
+
+  // Convert timeRange to actual timestamps
+  const getTimeRange = () => {
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch(timeRange) {
+      case "7d":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "30d":
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case "24h":
+      default:
+        startDate.setDate(now.getDate() - 1);
+    }
+    
+    return {
+      start_ts: startDate.toISOString(),
+      end_ts: now.toISOString()
+    };
+  };
+
+  // API base URL - use environment variable or fallback to localhost:8000
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      const { start_ts, end_ts } = getTimeRange();
+      
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/mills/all_mills_by_param`, {
+          params: {
+            parameter,
+            start_ts,
+            end_ts,
+            freq: '1h'  // 1 hour resolution
+          }
+        });
+        
+        console.log('Full API Response:', response.data);
+        
+        // Process the data for the chart
+        if (response.data.data && response.data.data.length > 0) {
+          const apiData = response.data.data;
+          console.log('API Data length:', apiData.length);
+          
+          // Find the latest timestamp
+          let latestTimestamp = '';
+          let latestData: any[] = [];
+          
+          // Check if timestamp field exists in the data
+          if (apiData[0].timestamp) {
+            // Find the latest timestamp in the dataset
+            const timestamps = apiData.map((item: any) => new Date(item.timestamp).getTime());
+            const latestDate = new Date(Math.max(...timestamps));
+            latestTimestamp = latestDate.toISOString();
+            
+            console.log('Latest timestamp:', latestTimestamp);
+            
+            // Filter only records with the latest timestamp
+            latestData = apiData.filter((item: any) => 
+              new Date(item.timestamp).getTime() === latestDate.getTime()
+            );
+            
+            console.log('Latest data length:', latestData.length);
+            if (latestData.length > 0) {
+              console.log('Latest data first item:', latestData[0]);
+              console.log('Available keys in first item:', Object.keys(latestData[0]));
+            }
+          } else {
+            // If no timestamp, assume the data is already the latest
+            latestData = apiData;
+          }
+          
+          // Initialize mills data array and stats variables
+          const millDataArray: MillData[] = [];
+          let totalSum = 0;
+          let totalCount = 0;
+          let minValue = Infinity;
+          let maxValue = -Infinity;
+          let minMill = "";
+          let maxMill = "";
+          
+          // APPROACH 1: Check if each record represents a mill
+          if (latestData.length > 0 && latestData[0].mill_id && latestData[0].value !== undefined) {
+            console.log('Processing data using Approach 1 (mill_id/value structure)');
+            
+            latestData.forEach((item: any) => {
+              if (item.mill_id && item.value !== undefined) {
+                const value = parseFloat(item.value);
+                if (!isNaN(value)) {
+                  // Format mill name to be more user-friendly
+                  const millDisplayName = `Mill ${item.mill_id.replace('MILL_', '')}`;
+                  
+                  millDataArray.push({
+                    mill_name: millDisplayName,
+                    parameter_value: Number(value.toFixed(2))
+                  });
+                  
+                  // Update stats
+                  totalSum += value;
+                  totalCount++;
+                  
+                  if (value < minValue) {
+                    minValue = value;
+                    minMill = millDisplayName;
+                  }
+                  
+                  if (value > maxValue) {
+                    maxValue = value;
+                    maxMill = millDisplayName;
+                  }
+                }
+              }
+            });
+          } 
+          // APPROACH 2: Check if mills are direct properties of the record
+          else if (latestData.length > 0) {
+            console.log('Processing data using Approach 2 (mills as properties)');
+            const firstItem = latestData[0];
+            
+            // Check each mill name against properties in the data
+            millsNames.forEach(mill => {
+              const millKey = mill.en;
+              if (firstItem[millKey] !== null && firstItem[millKey] !== undefined) {
+                const value = parseFloat(firstItem[millKey]);
+                if (!isNaN(value)) {
+                  // Format mill name to be more user-friendly
+                  const millDisplayName = `Mill ${millKey.replace('MILL_', '')}`;
+                  
+                  millDataArray.push({
+                    mill_name: millDisplayName,
+                    parameter_value: Number(value.toFixed(2))
+                  });
+                  
+                  // Update stats
+                  totalSum += value;
+                  totalCount++;
+                  
+                  if (value < minValue) {
+                    minValue = value;
+                    minMill = millDisplayName;
+                  }
+                  
+                  if (value > maxValue) {
+                    maxValue = value;
+                    maxMill = millDisplayName;
+                  }
+                }
+              }
+            });
+          }
+          
+          console.log('Processed mill data array:', millDataArray);
+          
+          // Sort by mill name
+          millDataArray.sort((a: MillData, b: MillData) => a.mill_name.localeCompare(b.mill_name));
+          
+          // Set states
+          setMillsData(millDataArray);
+          setStats({
+            avg: totalCount > 0 ? Number((totalSum / totalCount).toFixed(2)) : 0,
+            min: minValue !== Infinity ? Number(minValue.toFixed(2)) : 0,
+            max: maxValue !== -Infinity ? Number(maxValue.toFixed(2)) : 0,
+            minMill,
+            maxMill
+          });
+        } else {
+          console.log('No data received from API or data is empty');
+          setError("No data available");
+        }
+      } catch (err) {
+        console.error("Error fetching mills data:", err);
+        setError("Failed to fetch data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [parameter, timeRange, API_BASE_URL]);
+
+  // Get parameter details for display
+  const parameterInfo = getParameterByValue(parameter);
+  
+  if (loading) {
+    return (
+      <div className="w-full h-80 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center space-y-4">
+          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+          <div className="h-48 bg-gray-200 rounded w-full"></div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="p-4 border-l-4 border-red-500 bg-red-50 text-red-700">
+        <p className="font-medium">Error</p>
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-semibold mb-2">
+            Сравнение на мелници - {parameterInfo?.labelBg || parameter}
+          </h2>
+          <p className="text-muted-foreground">
+            Текущи стойности за всичките 12 мелници ({parameterInfo?.unit || ''})
+          </p>
+        </div>
+        
+        <div className="flex flex-col items-start md:items-end mt-2 md:mt-0">
+          <div className="flex gap-2">
+            <span className="font-medium">Средно:</span>
+            <span>{stats.avg} {parameterInfo?.unit}</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-medium">Макс:</span>
+            <span>{stats.max} {parameterInfo?.unit} ({stats.maxMill})</span>
+          </div>
+          <div className="flex gap-2">
+            <span className="font-medium">Мин:</span>
+            <span>{stats.min} {parameterInfo?.unit} ({stats.minMill})</span>
+          </div>
+        </div>
+      </div>
+      
+      <div className="w-full h-80">
+        {millsData.length > 0 ? (
+          <SimpleBarChart data={millsData} parameter={parameter} />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center border rounded-md">
+            <p className="text-gray-500">No mill data available to display</p>
+          </div>
+        )}
+      </div>
+      
+      <div className="flex items-center justify-center gap-8 mt-4">
+        <div className="flex items-center">
+          <div className="w-4 h-4 bg-[#22c55e] mr-2"></div>
+          <span>Оптимално (≥85%)</span>
+        </div>
+        <div className="flex items-center">
+          <div className="w-4 h-4 bg-[#facc15] mr-2"></div>
+          <span>Добро (75-84%)</span>
+        </div>
+        <div className="flex items-center">
+          <div className="w-4 h-4 bg-[#ef4444] mr-2"></div>
+          <span>Внимание (&lt;75%)</span>
+        </div>
+      </div>
+    </div>
+  );
+};

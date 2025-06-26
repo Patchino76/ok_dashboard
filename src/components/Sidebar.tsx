@@ -45,7 +45,7 @@ export default function Sidebar() {
     { href: '/', label: 'Табло', icon: <Home className="w-5 h-5" /> },
     { href: '/dashboard', label: 'Производствени KPI', icon: <TrendingUp className="w-5 h-5" /> },
     { href: '/mills', label: 'Параметри на мелнично', icon: <GitFork className="w-5 h-5" /> },
-    { href: '/performance', label: 'Показатели за ефективност', icon: <BarChart3 className="w-5 h-5" /> },
+    { href: '/analytics', label: 'Аналитики', icon: <BarChart3 className="w-5 h-5" /> },
     { href: '/resources', label: 'Разпределение на ресурси', icon: <Share2 className="w-5 h-5" /> },
     { href: '/personnel', label: 'Персонал', icon: <Users className="w-5 h-5" /> },
     { href: '/settings', label: 'Настройки', icon: <Settings className="w-5 h-5" /> },
