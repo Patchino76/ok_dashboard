@@ -42,6 +42,8 @@ export default function AnalyticsPage() {
   const comparisonData = data?.comparisonData || [];
   const trendData = data?.trendData || [];
 
+  // Mill selections are now managed in Zustand store
+
   // Debug logging
   console.log('Analytics Page - Raw data from hook:', rawData);
   console.log('Analytics Page - Transformed data from hook:', data);

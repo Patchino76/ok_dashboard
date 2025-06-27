@@ -1,9 +1,26 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { getParameterByValue } from "./ParameterSelector";
 import { millsNames } from "@/lib/tags/mills-tags";
+import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
 import { SimpleBarChart } from "./SimpleBarChart";
+
+// Mill colors for visual consistency with TrendsTab
+const millColors = [
+  "#3b82f6", // blue
+  "#f97316", // orange
+  "#10b981", // green
+  "#ef4444", // red
+  "#8b5cf6", // purple
+  "#f59e0b", // amber
+  "#14b8a6", // teal
+  "#ec4899", // pink
+  "#6366f1", // indigo
+  "#84cc16", // lime
+  "#06b6d4", // cyan
+  "#d946ef", // fuchsia
+];
 
 // Type definition for the mill data
 interface MillData {
@@ -28,8 +45,16 @@ interface MillComparisonTabProps {
 export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
   parameter,
   timeRange,
-  millsData,
+  millsData
 }) => {
+  // Access mill selection state from Zustand store
+  const { 
+    selectedMills, 
+    allSelected, 
+    toggleMill,
+    toggleAllMills,
+    initializeMills 
+  } = useMillSelectionStore();
   // Debug logging
   console.log('MillComparisonTab received millsData:', millsData);
   console.log('MillComparisonTab millsData structure:', millsData ? Object.keys(millsData) : 'No data');
@@ -39,9 +64,29 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
   }
   
   const [chartData, setChartData] = useState<MillData[]>([]);
+  const [filteredChartData, setFilteredChartData] = useState<MillData[]>([]);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  // Using shared mill selection state from parent instead of local state
+  
+  // Use store actions for toggles
+  const handleMillToggle = (millName: string) => toggleMill(millName);
+  const handleToggleAll = () => toggleAllMills();
+  
+  // Initialize mill selections when chart data is available
+  useEffect(() => {
+    if (chartData && chartData.length > 0) {
+      const millNames = chartData.map(mill => mill.mill_name);
+      
+      // Check if we need to initialize (only if the mills in store don't match current data)
+      const shouldInitialize = millNames.some(name => selectedMills[name] === undefined);
+      
+      if (shouldInitialize) {
+        initializeMills(millNames);
+      }
+    }
+  }, [chartData, selectedMills, initializeMills]);
 
   // Function to extract mill data from API response
   const extractMillDataFromResponse = (responseData: any): MillData[] => {
@@ -208,8 +253,8 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
       // Extract the mill data
       const extractedData = extractMillDataFromResponse(millsData);
       setChartData(extractedData);
-
-      // Calculate stats
+      
+          // Calculate stats based on extracted data
       if (extractedData.length > 0) {
         const stats = calculateStats(extractedData);
         setStatsData(stats);
@@ -221,6 +266,22 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
       setLoading(false);
     }
   }, [millsData, parameter]);
+  
+  // Update filtered chart data when selection changes
+  useEffect(() => {
+    if (chartData.length > 0 && Object.keys(selectedMills).length > 0) {
+      const filtered = chartData.filter(mill => selectedMills[mill.mill_name]);
+      setFilteredChartData(filtered);
+      
+      // Recalculate stats based on filtered data
+      if (filtered.length > 0) {
+        const stats = calculateStats(filtered);
+        setStatsData(stats);
+      } else {
+        setStatsData(null);
+      }
+    }
+  }, [chartData, selectedMills]);
 
   // Get parameter details for display
   const parameterInfo = getParameterByValue(parameter);
@@ -282,19 +343,111 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
         </div>
       </div>
       
-      <div ref={containerRef} className="flex-1 p-4 overflow-auto">
-        {chartData && chartData.length > 0 ? (
-          <SimpleBarChart 
-            data={chartData} 
-            nameKey="mill_name" 
-            valueKey="parameter_value" 
-            valueLabel={parameterInfo?.unit} 
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center border rounded-md">
-            <p className="text-gray-500">No mill data available</p>
+      {/* Main content area with chart and sidebar */}
+      <div className="flex flex-1 p-4 overflow-hidden">
+        {/* Chart area */}
+        <div className="flex-1 overflow-auto" ref={containerRef}>
+          {filteredChartData && filteredChartData.length > 0 ? (
+            <SimpleBarChart 
+              data={filteredChartData} 
+              nameKey="mill_name" 
+              valueKey="parameter_value" 
+              valueLabel={parameterInfo?.unit} 
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center border rounded-md">
+              <p className="text-gray-500">No mill data available</p>
+            </div>
+          )}
+        </div>
+        
+        {/* Vertical mill selection sidebar */}
+        <div className="ml-6 w-48 flex flex-col overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm font-medium text-gray-600">Mill Selection</div>
+            
+            {/* Select/Deselect All Switch */}
+            <div className="flex items-center">
+              <label
+                className="text-xs flex items-center cursor-pointer mr-1"
+                onClick={handleToggleAll}
+              >
+                <span className="truncate">{allSelected ? 'Deselect All' : 'Select All'}</span>
+              </label>
+              <div 
+                className={`relative inline-flex items-center h-4 rounded-full w-8 cursor-pointer transition-colors ease-in-out duration-200 border ${
+                  allSelected ? 'bg-gray-400' : 'bg-gray-200'
+                }`} 
+                style={{ 
+                  borderColor: allSelected ? '#9CA3AF' : '#E5E7EB'
+                }}
+                onClick={handleToggleAll}
+              >
+                <span 
+                  className={`inline-block w-3 h-3 transform rounded-full transition ease-in-out duration-200 ${
+                    allSelected ? 'translate-x-4' : 'translate-x-1'
+                  }`}
+                  style={{ 
+                    backgroundColor: allSelected ? '#4B5563' : '#CBD5E0',
+                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                  }}
+                />
+              </div>
+            </div>
           </div>
-        )}
+          
+          {/* Individual mill switches */}
+          <div className="flex flex-col space-y-4 pt-4 border-t border-gray-200">  
+            {chartData.map((mill, index) => {
+              const millName = mill.mill_name;
+              const isSelected = !!selectedMills[millName];
+              const millColor = millColors[index % millColors.length];
+              
+              // Get Bulgarian mill name
+              const millNumber = parseInt(millName.replace(/\D/g, ''));
+              const displayName = millsNames[millNumber-1]?.bg || millName;
+              
+              return (
+                <div key={`mill-${index}-${millName}`} className="flex items-center">
+                  <label 
+                    className="text-xs flex items-center cursor-pointer flex-grow mr-1"
+                    onClick={() => handleMillToggle(millName)}
+                  >
+                    <span 
+                      className="inline-block mr-1 rounded-sm" 
+                      style={{ 
+                        backgroundColor: millColor,
+                        width: '8px',
+                        height: '8px' 
+                      }}
+                    ></span>
+                    <span className="truncate">{displayName}</span>
+                  </label>
+                  {/* Smaller grey switch */}
+                  <div 
+                    className={`relative inline-flex items-center h-4 rounded-full w-8 cursor-pointer transition-colors ease-in-out duration-200 border ${
+                      isSelected ? 'bg-gray-400' : 'bg-gray-200'
+                    }`} 
+                    style={{ 
+                      borderColor: isSelected ? '#9CA3AF' : '#E5E7EB'
+                    }}
+                    onClick={() => handleMillToggle(millName)}
+                  >
+                    <span 
+                      className={`inline-block w-3 h-3 transform rounded-full transition ease-in-out duration-200 ${
+                        isSelected ? 'translate-x-4' : 'translate-x-1'
+                      }`}
+                      style={{ 
+                        backgroundColor: isSelected ? '#4B5563' : '#CBD5E0',
+                        boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </div>
   );

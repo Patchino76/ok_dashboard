@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { getParameterByValue } from "./ParameterSelector";
 import { millsNames } from "@/lib/tags/mills-tags";
+import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
 
 interface MillTrendData {
   mill_name: string;
@@ -31,11 +32,7 @@ type Parameter = {
 interface TrendsTabProps {
   parameter: string;
   timeRange: string;
-  trendData?: Array<{
-    mill_name: string;
-    values: number[];
-    timestamps: string[];
-  }>;
+  trendData: MillTrendData[];
 }
 
 // Array of colors for mill lines
@@ -48,7 +45,19 @@ const millColors = [
   "#ef4444", // Red
 ];
 
-export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, trendData = [] }) => {
+export const TrendsTab: React.FC<TrendsTabProps> = ({ 
+  parameter, 
+  timeRange, 
+  trendData
+ }) => {
+  // Access mill selection state from Zustand store
+  const { 
+    selectedMills, 
+    allSelected, 
+    toggleMill, 
+    toggleAllMills, 
+    initializeMills 
+  } = useMillSelectionStore();
   // Ensure parameter is always a string
   const paramString = typeof parameter === 'object' ? 'Ore' : String(parameter);
   
@@ -61,22 +70,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
   
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedMills, setSelectedMills] = useState<Record<string, boolean>>({});
-  const [allSelected, setAllSelected] = useState<boolean>(false);
   const [parameterUnit, setParameterUnit] = useState<string>("");
-
-  // Initialize selected mills based on actual trend data
-  useEffect(() => {
-    if (trendData && trendData.length > 0) {
-      const initialMills: Record<string, boolean> = {};
-      trendData.forEach((mill, index) => {
-        // Select first 3 mills by default
-        initialMills[mill.mill_name] = index < 3;
-      });
-      setSelectedMills(initialMills);
-      console.log('TrendsTab initialized selectedMills:', initialMills);
-    }
-  }, [trendData]);
 
   // Get parameter info for display
   useEffect(() => {
@@ -86,27 +80,23 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({ parameter, timeRange, tren
     }
   }, [paramString]);
 
-  // Toggle mill selection
-  const handleMillToggle = (millName: string) => {
-    setSelectedMills(prev => ({
-      ...prev,
-      [millName]: !prev[millName]
-    }));
-  };
+  // Initialize mill selections when trend data is available
+  useEffect(() => {
+    if (trendData && trendData.length > 0) {
+      const millNames = trendData.map(mill => mill.mill_name);
+      
+      // Check if we need to initialize (only if the mills in store don't match current data)
+      const shouldInitialize = millNames.some(name => selectedMills[name] === undefined);
+      
+      if (shouldInitialize) {
+        initializeMills(millNames);
+      }
+    }
+  }, [trendData, selectedMills, initializeMills]);
   
-  // Toggle all mills at once
-  const handleToggleAll = () => {
-    const newState = !allSelected;
-    setAllSelected(newState);
-    
-    // Create a new object with all mills set to the new state
-    const newSelectedMills: Record<string, boolean> = {};
-    trendData.forEach(mill => {
-      newSelectedMills[mill.mill_name] = newState;
-    });
-    
-    setSelectedMills(newSelectedMills);
-  };
+  // Use store actions for toggles
+  const handleMillToggle = (millName: string) => toggleMill(millName);
+  const handleToggleAll = () => toggleAllMills();
 
   // Format time range for display
   const formatTimeRange = (): string => {
