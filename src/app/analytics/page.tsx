@@ -22,11 +22,20 @@ export default function AnalyticsPage() {
   // Use useMemo to stabilize the query parameters object
   const queryParams = useMemo(() => {
     const timeRangeParams = getTimeRangeParams(timeRange);
+    
+    // Adjust frequency based on time range
+    let freq = '1h';
+    if (timeRange === '8h') {
+      freq = '15m'; // Use 15-minute intervals for 8h range
+    } else if (timeRange === '30d') {
+      freq = '6h'; // Use 6-hour intervals for 30d range to reduce data points
+    }
+    
     return {
       parameter: selectedParameter,
       start_ts: timeRangeParams.start_ts,
       end_ts: timeRangeParams.end_ts,
-      freq: '1h'
+      freq: freq
     };
   }, [selectedParameter, timeRange]);
   
@@ -82,6 +91,14 @@ export default function AnalyticsPage() {
           <div className="w-full md:w-1/2">
             <h2 className="text-sm font-medium mb-2">Времеви диапазон</h2>
             <div className="flex gap-2">
+              <button 
+                onClick={() => handleTimeRangeChange("8h")}
+                className={`px-3 py-1 text-sm rounded ${timeRange === "8h" ? 
+                  "bg-blue-600 text-white" : 
+                  "bg-gray-200 text-gray-800"}`}
+              >
+                8 Часа
+              </button>
               <button 
                 onClick={() => handleTimeRangeChange("24h")}
                 className={`px-3 py-1 text-sm rounded ${timeRange === "24h" ? 

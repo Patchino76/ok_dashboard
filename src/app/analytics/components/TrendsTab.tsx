@@ -265,7 +265,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
         {/* Vertical mill selection sidebar - now on the right */}
         <div className="ml-6 w-48 flex flex-col overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-medium text-gray-600">Mill Selection</div>
+            <div className="text-sm font-medium text-gray-600">Мелници</div>
             
             {/* Select/Deselect All Switch */}
             <div className="flex items-center">

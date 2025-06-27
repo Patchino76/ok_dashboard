@@ -71,7 +71,7 @@ export function useMillsAnalytics(
   
   // Transform data for components
   const transformedData = useMemo(() => {
-    if (!queryResult.data?.data || !Array.isArray(queryResult.data.data)) {
+    if (!queryResult.data?.data || !Array.isArray(queryResult.data.data) || queryResult.data.data.length === 0) {
       console.log('No data available for transformation');
       return { comparisonData: [], trendData: [] };
     }
@@ -82,18 +82,43 @@ export function useMillsAnalytics(
 
     // Extract mill names from the first row (excluding timestamp)
     const firstRow = queryResult.data.data[0];
+    if (!firstRow) {
+      console.log('No first row data available');
+      return { comparisonData: [], trendData: [] };
+    }
+    
     const millNames = Object.keys(firstRow).filter(key => key !== 'timestamp');
     console.log('Detected mill names:', millNames);
 
-    // Get the latest row for comparison data
-    const latestRow = queryResult.data.data[queryResult.data.data.length - 1];
-    console.log('Latest row for comparison:', latestRow);
-
-    // Create comparison data (latest values for each mill)
-    const comparisonData = millNames.map(millName => ({
-      mill_name: millName,
-      parameter_value: latestRow[millName] || 0
-    }));
+    // Calculate mean values across the time range for each mill
+    const millSums = {} as Record<string, { sum: number; count: number }>;
+    millNames.forEach(millName => {
+      millSums[millName] = { sum: 0, count: 0 };
+    });
+    
+    // Calculate sums and counts for each mill
+    queryResult.data.data.forEach(row => {
+      millNames.forEach(millName => {
+        if (row[millName] !== null && row[millName] !== undefined) {
+          millSums[millName].sum += Number(row[millName]);
+          millSums[millName].count += 1;
+        }
+      });
+    });
+    
+    console.log('Mill data aggregation:', millSums);
+    
+    // Create comparison data (mean values for each mill)
+    const comparisonData = millNames.map(millName => {
+      const data = millSums[millName];
+      const meanValue = data.count > 0 ? data.sum / data.count : 0;
+      
+      return {
+        mill_name: millName,
+        parameter_value: meanValue
+      };
+    });
+    
 
     console.log('Transformed comparison data:', comparisonData);
 
@@ -145,6 +170,9 @@ export function getTimeRangeParams(timeRange: string): { start_ts: string, end_t
   const startDate = new Date(now);
   
   switch (timeRange) {
+    case "8h":
+      startDate.setHours(now.getHours() - 8);
+      break;
     case "7d":
       startDate.setDate(now.getDate() - 7);
       break;
