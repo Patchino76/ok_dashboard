@@ -4,6 +4,7 @@ import axios from "axios";
 import { getParameterByValue } from "./ParameterSelector";
 import { millsNames } from "@/lib/tags/mills-tags";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
+import { useMillRangesStore } from "@/lib/store/millRangesStore";
 import { SimpleBarChart } from "./SimpleBarChart";
 
 // Mill colors for visual consistency with TrendsTab
@@ -55,6 +56,24 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
     toggleAllMills,
     initializeMills 
   } = useMillSelectionStore();
+  
+  // Access mill ranges state from Zustand store
+  const {
+    lowThreshold,
+    highThreshold,
+    lowColor,
+    yellowColor,
+    highColor,
+    setLowThreshold,
+    setHighThreshold,
+    calculateThresholds
+  } = useMillRangesStore();
+  
+  // We'll calculate the thresholds based on chart data when it's available
+  // This is just a placeholder for initial render
+  const [currentThresholds, setCurrentThresholds] = useState<{ low: number, high: number }>(
+    { low: 0, high: 0 }
+  );
   // Debug logging
   console.log('MillComparisonTab received millsData:', millsData);
   console.log('MillComparisonTab millsData structure:', millsData ? Object.keys(millsData) : 'No data');
@@ -63,7 +82,7 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
     console.log('MillComparisonTab first data sample:', millsData.data[0]);
   }
   
-  const [chartData, setChartData] = useState<MillData[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
   const [filteredChartData, setFilteredChartData] = useState<MillData[]>([]);
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -87,6 +106,22 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
       }
     }
   }, [chartData, selectedMills, initializeMills]);
+
+  // Calculate thresholds whenever chart data changes
+  useEffect(() => {
+    if (filteredChartData && filteredChartData.length > 0) {
+      // Extract parameter values for calculating thresholds
+      const values = filteredChartData.map(item => Number(item.parameter_value) || 0);
+      
+      // Calculate thresholds using the store's helper function
+      const thresholds = calculateThresholds(values);
+      setCurrentThresholds(thresholds);
+      
+      // Debug logging
+      console.log('Current thresholds:', thresholds);
+      console.log('Current percentage thresholds:', { lowThreshold, highThreshold });
+    }
+  }, [filteredChartData, calculateThresholds, lowThreshold, highThreshold]);
 
   // Function to extract mill data from API response
   const extractMillDataFromResponse = (responseData: any): MillData[] => {
@@ -325,21 +360,68 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
         </div>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="text-sm text-gray-500">Минимум</div>
-          <div className="text-xl font-bold">{statsData?.min || 0} <span className="text-sm">{parameterInfo?.unit}</span></div>
-          <div className="text-sm text-gray-500">Цех {statsData?.minMill || ""}</div>
+      {/* Range Settings Controls */}
+      <div className="p-4 border-b">
+        <div className="flex items-center mb-2">
+          <h3 className="text-sm font-medium">Bar Color Thresholds</h3>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: lowColor }}></div>
+              <span className="ml-1 text-xs text-gray-500">Low</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: yellowColor }}></div>
+              <span className="ml-1 text-xs text-gray-500">Medium</span>
+            </div>
+            <div className="flex items-center">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: highColor }}></div>
+              <span className="ml-1 text-xs text-gray-500">High</span>
+            </div>
+          </div>
         </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="text-sm text-gray-500">Средно</div>
-          <div className="text-xl font-bold">{statsData?.avg || 0} <span className="text-sm">{parameterInfo?.unit}</span></div>
-          <div className="text-sm text-gray-500">Всички цехове</div>
-        </div>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <div className="text-sm text-gray-500">Максимум</div>
-          <div className="text-xl font-bold">{statsData?.max || 0} <span className="text-sm">{parameterInfo?.unit}</span></div>
-          <div className="text-sm text-gray-500">Цех {statsData?.maxMill || ""}</div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          {/* Low Threshold */}
+          <div className="flex items-center">
+            <label className="text-xs text-gray-500 w-20">Low Threshold:</label>
+            <input 
+              type="number" 
+              value={currentThresholds.low.toFixed(2)} 
+              onChange={(e) => {
+                // Convert back to percentage to store in the ranges store
+                const mean = statsData?.avg || 0;
+                if (mean > 0) {
+                  const newValue = Number(e.target.value);
+                  const percentage = ((newValue / mean) - 1) * 100;
+                  setLowThreshold(percentage);
+                }
+              }} 
+              className="w-20 px-2 py-1 text-sm border rounded" 
+              step="1"
+            />
+            <span className="ml-1 text-xs text-gray-500">{parameterInfo?.unit}</span>
+          </div>
+          
+          {/* High Threshold */}
+          <div className="flex items-center">
+            <label className="text-xs text-gray-500 w-20">High Threshold:</label>
+            <input 
+              type="number" 
+              value={currentThresholds.high.toFixed(2)} 
+              onChange={(e) => {
+                // Convert back to percentage to store in the ranges store
+                const mean = statsData?.avg || 0;
+                if (mean > 0) {
+                  const newValue = Number(e.target.value);
+                  const percentage = ((newValue / mean) - 1) * 100;
+                  setHighThreshold(percentage);
+                }
+              }} 
+              className="w-20 px-2 py-1 text-sm border rounded" 
+              step="1"
+            />
+            <span className="ml-1 text-xs text-gray-500">{parameterInfo?.unit}</span>
+          </div>
         </div>
       </div>
       
@@ -352,7 +434,8 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
               data={filteredChartData} 
               nameKey="mill_name" 
               valueKey="parameter_value" 
-              valueLabel={parameterInfo?.unit} 
+              valueLabel={parameterInfo?.unit}
+              thresholds={currentThresholds}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center border rounded-md">

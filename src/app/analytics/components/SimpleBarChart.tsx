@@ -1,29 +1,45 @@
 "use client";
 import React from "react";
 import { getParameterByValue } from "./ParameterSelector";
+import { useMillRangesStore } from "@/lib/store/millRangesStore";
 
 interface SimpleBarChartProps {
   data: Array<{ [key: string]: any }>;
   nameKey?: string;
   valueKey?: string;
   valueLabel?: string;
+  thresholds?: {
+    low: number;
+    high: number;
+  };
 }
 
 export const SimpleBarChart: React.FC<SimpleBarChartProps> = ({ 
   data, 
   nameKey = 'mill_name', 
   valueKey = 'parameter_value',
-  valueLabel = ''
+  valueLabel = '',
+  thresholds
 }) => {
   // Find the maximum value for scaling
   const maxValue = Math.max(...data.map(item => Number(item[valueKey]) || 0));
   
-  // Color thresholds
-  const getBarColor = (percentage: number) => {
-    if (percentage >= 0.85) return "#22c55e"; // Green - Optimal (≥85%)
-    if (percentage >= 0.75) return "#facc15"; // Yellow - Good (75-84%)
-    return "#ef4444";                         // Red - Attention (<75%)
+  // Get colors from store
+  const { lowColor, yellowColor, highColor } = useMillRangesStore();
+  
+  // Use provided thresholds if available, otherwise use defaults
+  const millValues = data.map(item => Number(item[valueKey]) || 0);
+  const calculatedThresholds = thresholds || { low: 0, high: 0 };
+  
+  // Color thresholds based on value
+  const getBarColor = (value: number) => {
+    if (value >= calculatedThresholds.high) return highColor; // High - Green by default
+    if (value >= calculatedThresholds.low) return yellowColor; // Between low and high - Yellow by default
+    return lowColor; // Below low - Red by default
   };
+  
+  // Debug thresholds
+  console.log('Bar chart using thresholds:', calculatedThresholds);
 
   return (
     <div className="w-full h-full flex flex-col px-4">      
@@ -33,7 +49,7 @@ export const SimpleBarChart: React.FC<SimpleBarChartProps> = ({
           const value = Number(item[valueKey]) || 0;
           const percentage = maxValue > 0 ? (value / maxValue) : 0;
           const barWidth = `${Math.max(percentage * 100, 2)}%`;
-          const color = getBarColor(percentage);
+          const color = getBarColor(value);
           const name = String(item[nameKey] || '');
           
           return (
@@ -59,27 +75,7 @@ export const SimpleBarChart: React.FC<SimpleBarChartProps> = ({
         })}
       </div>
       
-      {/* Compact legend */}
-      <div className="mt-2 flex justify-between border-t pt-2 text-xs">
-        <div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-red-500"></div>
-            <span>&lt; 75%</span>
-          </div>
-        </div>
-        <div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-yellow-400"></div>
-            <span>75% - 84%</span>
-          </div>
-        </div>
-        <div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 rounded bg-green-500"></div>
-            <span>&gt; 85%</span>
-          </div>
-        </div>
-      </div>
+      {/* Legend removed as per request */}
     </div>
   );
 };
