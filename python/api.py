@@ -10,6 +10,9 @@ from api_utils.mills_utils import MillsUtils
 from mills_analysis.mills_fetcher import get_mills_by_param
 from config import HOST, PORT, CORS_ORIGINS
 
+# Import mills ML router for XGBoost integration
+from mills_ml_router import get_mills_ml_router, get_ml_system_info
+
 app = FastAPI(title="OK Dashboard API")
 
 # Configure CORS
@@ -20,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include mills ML router for XGBoost functionality
+app.include_router(get_mills_ml_router(), prefix="/api/v1/ml", tags=["Mills ML"])
 
 # ----------------------------- Models -----------------------------
 
@@ -54,14 +60,27 @@ def get_db():
 
 # ----------------------------- API Endpoints -----------------------------
 
-@app.get("/api/health-check")
+@app.get("/health")
 async def health_check():
-    """Health check endpoint for monitoring and proxy testing"""
+    """
+    Health check endpoint for monitoring and proxy testing
+    """
+    ml_info = get_ml_system_info()
     return {
-        "status": "ok",
-        "service": "FastAPI Backend",
-        "timestamp": datetime.now().isoformat()
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "ml_system": {
+            "available": ml_info["available"],
+            "endpoints_count": len(ml_info["endpoints"])
+        }
     }
+
+@app.get("/api/ml/info")
+async def ml_system_info():
+    """
+    Get information about the Mills ML system capabilities
+    """
+    return get_ml_system_info()
 
 @app.get("/api/tag-value/{tag_id}", response_model=TagValue)
 async def get_tag_value(tag_id: int, db: DatabaseManager = Depends(get_db)):
