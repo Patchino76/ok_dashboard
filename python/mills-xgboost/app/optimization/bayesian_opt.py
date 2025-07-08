@@ -8,11 +8,7 @@ import json
 import os
 from datetime import datetime
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Use the main app's logging configuration
 
 logger = logging.getLogger(__name__)
 

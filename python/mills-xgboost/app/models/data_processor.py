@@ -3,12 +3,7 @@ import numpy as np
 from sklearn.preprocessing import StandardScaler
 import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
+# Use the main app's logging configuration
 logger = logging.getLogger(__name__)
 
 class DataProcessor:

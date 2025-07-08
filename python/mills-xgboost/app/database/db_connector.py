@@ -3,16 +3,7 @@ from sqlalchemy import create_engine
 import logging
 from datetime import datetime
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
-)
-
-# Create logger for this module
+# Use the main app's logging configuration
 logger = logging.getLogger(__name__)
 
 class MillsDataConnector:

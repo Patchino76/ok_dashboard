@@ -1,0 +1,28 @@
+2025-07-08 09:29:26,124 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-08 09:29:26,124 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-08 09:29:26,124 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-08 09:29:26,124 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-08 09:29:26,125 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-08 09:29:26,125 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-08 09:29:26,126 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 09:29:26,126 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 09:29:26,131 - database - INFO - Attempting to connect to database...
+2025-07-08 09:29:26,131 - database - INFO - Using default configuration
+2025-07-08 09:29:26,190 - database - INFO - Successfully connected to database pulse on 10.20.2.10
+2025-07-08 09:29:26,192 - database - INFO - Database connection successful
+2025-07-08 09:29:26,284 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 09:29:26,284 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 09:29:26,289 - database - INFO - Attempting to connect to database...
+2025-07-08 09:29:26,289 - database - INFO - Using default configuration
+2025-07-08 09:29:26,303 - database - INFO - Successfully connected to database pulse on 10.20.2.10
+2025-07-08 09:29:26,305 - database - INFO - Database connection successful
+2025-07-08 09:30:15,084 - app.database.db_connector - INFO - Database connection initialized successfully
+2025-07-08 09:30:15,085 - app.api.endpoints - INFO - Fetching data for mill 6 from 2025-06-08 06:06:10.189000+00:00 to 2025-07-08 06:06:10.189000+00:00
+2025-07-08 09:30:15,086 - app.database.db_connector - INFO - Retrieving mill data for mill 6 from 2025-06-08 06:06:10.189000+00:00 to 2025-07-08 06:06:10.189000+00:00
+2025-07-08 09:30:22,313 - app.database.db_connector - ERROR - Error retrieving mill data: (psycopg2.OperationalError) could not translate host name "string" to address: No such host is known. 
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-07-08 09:30:22,313 - app.database.db_connector - ERROR - Error combining data: (psycopg2.OperationalError) could not translate host name "string" to address: No such host is known. 
+
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-07-08 09:30:22,314 - app.api.endpoints - ERROR - Error during model training: 400: No data found for the specified parameters

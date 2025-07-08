@@ -9,12 +9,7 @@ import os
 import json
 from datetime import datetime
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
+# Get logger without reconfiguring - use the main app's logger configuration
 logger = logging.getLogger(__name__)
 
 class MillsXGBoostModel:
@@ -41,7 +36,7 @@ class MillsXGBoostModel:
         self.feature_importance = None
         self.model_params = {}
         
-        logger.info(f"XGBoost model initialized for target: {target_col}")
+        # Model initialized - no need to log this basic initialization
     
     def train(self, X_train, X_test, y_train, y_test, scaler, params=None):
         """
@@ -179,19 +174,23 @@ class MillsXGBoostModel:
             raise ValueError("No model to save. Train the model first.")
         
         try:
+            # Use absolute path for models directory
+            if not os.path.isabs(directory):
+                # Create absolute path relative to the project root
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                directory = os.path.join(project_root, directory)
+                logger.info(f"Using absolute path for models directory: {directory}")
+            
             # Create directory if it doesn't exist
             os.makedirs(directory, exist_ok=True)
             
-            # Generate timestamp for filenames
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            model_prefix = f"xgboost_{self.target_col}_{timestamp}"
-            
-            # Save model in binary format
-            model_path = os.path.join(directory, f"{model_prefix}.json")
+            # Use fixed filenames that overwrite on each training
+            model_path = os.path.join(directory, f'xgboost_{self.target_col}_model.json')
+            scaler_path = os.path.join(directory, f'xgboost_{self.target_col}_scaler.pkl')
+            metadata_path = os.path.join(directory, f'xgboost_{self.target_col}_metadata.json')
             self.model.save_model(model_path)
             
             # Save scaler
-            scaler_path = os.path.join(directory, f"{model_prefix}_scaler.pkl")
             joblib.dump(self.scaler, scaler_path)
             
             # Save metadata
@@ -201,10 +200,9 @@ class MillsXGBoostModel:
                 'model_params': self.model_params,
                 'feature_importance': self.feature_importance.to_dict() if self.feature_importance is not None else None,
                 'training_history': self.training_history,
-                'timestamp': timestamp
+                'last_trained': datetime.now().isoformat()
             }
             
-            metadata_path = os.path.join(directory, f"{model_prefix}_metadata.json")
             with open(metadata_path, 'w') as f:
                 json.dump(metadata, f, indent=2)
             

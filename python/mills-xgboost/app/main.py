@@ -9,16 +9,21 @@ from datetime import datetime
 from config.settings import settings
 from app.api.endpoints import router as api_router
 
-# Set up logging
+# Set up logging with meaningful names and fresh log files on server start
 logging_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
 os.makedirs(settings.LOGS_DIR, exist_ok=True)
+
+# Create log file name with server start timestamp
+server_start_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+log_filename = f"mills_xgboost_server_{server_start_time}.log"
+
 logging.basicConfig(
     level=log_level,
     format=logging_format,
     handlers=[
-        logging.FileHandler(os.path.join(settings.LOGS_DIR, f"app_{datetime.now().strftime('%Y%m%d')}.log")),
+        logging.FileHandler(os.path.join(settings.LOGS_DIR, log_filename), mode='w'),  # 'w' mode recreates file
         logging.StreamHandler()
     ]
 )

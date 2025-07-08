@@ -64,11 +64,17 @@ async def train_model(request: TrainingRequest):
         data_processor = DataProcessor()
         X_scaled, y, scaler = data_processor.preprocess(df, features, request.target_col)
         
-        # Split data
-        from sklearn.model_selection import train_test_split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y, test_size=request.test_size, random_state=42
-        )
+        # Split data - use time-ordered split for time series (no shuffling)
+        # Calculate the split point for time series data
+        split_idx = int(len(X_scaled) * (1 - request.test_size))
+        
+        # Time-ordered split (training data is earlier, test data is later)
+        X_train, X_test = X_scaled[:split_idx], X_scaled[split_idx:]
+        y_train, y_test = y[:split_idx], y[split_idx:]
+        
+        logger.info(f"Time-ordered train-test split: {X_train.shape[0]} training samples, {X_test.shape[0]} test samples")
+        logger.info(f"Training data time range: earliest {split_idx} records")
+        logger.info(f"Test data time range: latest {len(X_scaled) - split_idx} records")
         
         # Create and train model
         xgb_model = MillsXGBoostModel(features=features, target_col=request.target_col)

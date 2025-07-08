@@ -34,6 +34,81 @@ try:
     os.makedirs(mills_settings.LOGS_DIR, exist_ok=True)
     os.makedirs("optimization_results", exist_ok=True)
     
+    # Configure mills-xgboost logging to write to files
+    from datetime import datetime
+    
+    # Ensure logs directory uses absolute path
+    if not os.path.isabs(mills_settings.LOGS_DIR):
+        logs_dir = os.path.join(MILLS_XGBOOST_PATH, mills_settings.LOGS_DIR)
+    else:
+        logs_dir = mills_settings.LOGS_DIR
+    
+    # Create logs directory if it doesn't exist
+    os.makedirs(logs_dir, exist_ok=True)
+    
+    # Use fixed log filename as requested
+    log_filename = "mills_xgboost_server.log"
+    log_filepath = os.path.join(logs_dir, log_filename)
+    
+    # Create file and console handlers
+    file_handler = logging.FileHandler(log_filepath, mode='w')
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    # Configure root logger for basic configuration
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[console_handler],
+        force=True  # Override any existing logging configuration
+    )
+    
+    # Import all modules from mills-xgboost to ensure loggers are created
+    try:
+        # This ensures all modules are loaded so their loggers can be configured
+        from app.database import db_connector
+        from app.api import endpoints
+        from app.models import xgboost_model, data_processor
+    except ImportError:
+        pass  # Handle gracefully if imports fail
+    
+    # Reset all loggers and logging configuration
+    logging._handlers.clear()
+    logging._handlerList.clear()
+    
+    # Configure root logger to capture ALL logs from any module
+    root_logger = logging.getLogger()
+    root_logger.handlers = []  # Remove any existing handlers
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(logging.INFO)
+    
+    # Override/monkey patch the logging.getLogger function to ensure all new loggers
+    # inherit our configuration (this is a bit aggressive but will catch everything)
+    original_getLogger = logging.getLogger
+    
+    def patched_getLogger(name=None):
+        logger = original_getLogger(name)
+        if not logger.handlers and name and name.startswith(('app', 'mills')):
+            # Force our handlers on any app.* or mills* loggers
+            logger.handlers = []
+            for handler in root_logger.handlers:
+                if handler not in logger.handlers:
+                    logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+            logger.propagate = True
+        return logger
+    
+    logging.getLogger = patched_getLogger
+    
+    # Log confirmation that mills-xgboost logging is configured
+    mills_logger = logging.getLogger('mills_ml_router')
+    mills_logger.info(f"Mills XGBoost logging configured - log file: {log_filepath}")
+    mills_logger.info(f"Mills XGBoost logs directory: {logs_dir}")
+    mills_logger.info("Mills XGBoost logging system initialized successfully")
+    
     ML_ROUTER_AVAILABLE = True
     
 except ImportError as e:
