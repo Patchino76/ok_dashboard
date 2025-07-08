@@ -1,4 +1,4 @@
-# TEST THE MODEL:
+# TRAIN THE MODEL:
 {
   "db_config": {
     "host": "em-m-db4.ellatzite-med.com",
@@ -34,7 +34,7 @@
 }
 
 
-# TRAIN THE MODEL:
+# TEST THE MODEL:
 {
   "model_id": "xgboost_PSI80_model",
   "data": {

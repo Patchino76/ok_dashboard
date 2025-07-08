@@ -160,12 +160,13 @@ class MillsXGBoostModel:
             logger.error(f"Error during prediction: {e}")
             raise
     
-    def save_model(self, directory='models'):
+    def save_model(self, directory='models', mill_number=None):
         """
         Save the model, scaler, and metadata to disk
         
         Args:
             directory: Directory to save model files
+            mill_number: Mill number to include in the filename (optional)
             
         Returns:
             Dictionary with paths to saved files
@@ -185,9 +186,12 @@ class MillsXGBoostModel:
             os.makedirs(directory, exist_ok=True)
             
             # Use fixed filenames that overwrite on each training
-            model_path = os.path.join(directory, f'xgboost_{self.target_col}_model.json')
-            scaler_path = os.path.join(directory, f'xgboost_{self.target_col}_scaler.pkl')
-            metadata_path = os.path.join(directory, f'xgboost_{self.target_col}_metadata.json')
+            # Include mill number in filename if provided
+            mill_suffix = f'_mill{mill_number}' if mill_number is not None else ''
+            
+            model_path = os.path.join(directory, f'xgboost_{self.target_col}{mill_suffix}_model.json')
+            scaler_path = os.path.join(directory, f'xgboost_{self.target_col}{mill_suffix}_scaler.pkl')
+            metadata_path = os.path.join(directory, f'xgboost_{self.target_col}{mill_suffix}_metadata.json')
             self.model.save_model(model_path)
             
             # Save scaler

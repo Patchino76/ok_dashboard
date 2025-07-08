@@ -3,6 +3,7 @@ from typing import Dict, List, Any
 from datetime import datetime
 import os
 import json
+import uuid
 import logging
 
 from ..database.db_connector import MillsDataConnector
@@ -94,9 +95,9 @@ async def train_model(request: TrainingRequest):
             params=params
         )
         
-        # Save the model
+        # Save the model with mill number in filename
         os.makedirs("models", exist_ok=True)
-        save_results = xgb_model.save_model(directory="models")
+        save_results = xgb_model.save_model(directory="models", mill_number=request.mill_number)
         
         # Store model in memory
         models_store[model_id] = {

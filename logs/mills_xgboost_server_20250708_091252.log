@@ -1,5 +1,0 @@
-2025-07-08 09:12:52,464 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-08 09:12:52,470 - database - INFO - Attempting to connect to database...
-2025-07-08 09:12:52,470 - database - INFO - Using default configuration
-2025-07-08 09:12:52,521 - database - INFO - Successfully connected to database pulse on 10.20.2.10
-2025-07-08 09:12:52,523 - database - INFO - Database connection successful
