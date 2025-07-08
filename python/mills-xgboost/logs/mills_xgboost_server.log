@@ -1,126 +1,27 @@
-2025-07-08 10:23:59,256 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
-2025-07-08 10:23:59,256 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
-2025-07-08 10:23:59,257 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
-2025-07-08 10:23:59,257 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
-2025-07-08 10:23:59,257 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
-2025-07-08 10:23:59,257 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
-2025-07-08 10:23:59,258 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-08 10:23:59,258 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-08 10:23:59,263 - database - INFO - Attempting to connect to database...
-2025-07-08 10:23:59,263 - database - INFO - Using default configuration
-2025-07-08 10:23:59,315 - database - INFO - Successfully connected to database pulse on 10.20.2.10
-2025-07-08 10:23:59,315 - database - INFO - Database connection successful
-2025-07-08 10:23:59,401 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-08 10:23:59,401 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-08 10:23:59,406 - database - INFO - Attempting to connect to database...
-2025-07-08 10:23:59,407 - database - INFO - Using default configuration
-2025-07-08 10:23:59,421 - database - INFO - Successfully connected to database pulse on 10.20.2.10
-2025-07-08 10:23:59,422 - database - INFO - Database connection successful
-2025-07-08 10:24:10,226 - app.database.db_connector - INFO - Database connection initialized successfully
-2025-07-08 10:24:10,227 - app.api.endpoints - INFO - Fetching data for mill 6 from 2025-07-08 07:24:06.346000+00:00 to 2025-07-08 07:24:06.346000+00:00
-2025-07-08 10:24:10,227 - app.database.db_connector - INFO - Retrieving mill data for mill 6 from 2025-07-08 07:24:06.346000+00:00 to 2025-07-08 07:24:06.346000+00:00
-2025-07-08 10:24:10,278 - app.database.db_connector - INFO - Retrieved 0 rows for Mill 6
-2025-07-08 10:24:10,279 - app.database.db_connector - WARNING - No mill data found for mill 6
-2025-07-08 10:24:10,279 - app.api.endpoints - ERROR - Error during model training: 400: No data found for the specified parameters
-2025-07-08 10:24:19,987 - app.database.db_connector - INFO - Database connection initialized successfully
-2025-07-08 10:24:19,987 - app.api.endpoints - INFO - Fetching data for mill 6 from 2025-07-08 07:24:06.346000+00:00 to 2025-07-08 07:24:06.346000+00:00
-2025-07-08 10:24:19,988 - app.database.db_connector - INFO - Retrieving mill data for mill 6 from 2025-07-08 07:24:06.346000+00:00 to 2025-07-08 07:24:06.346000+00:00
-2025-07-08 10:24:20,072 - app.database.db_connector - INFO - Retrieved 0 rows for Mill 6
-2025-07-08 10:24:20,074 - app.database.db_connector - WARNING - No mill data found for mill 6
-2025-07-08 10:24:20,075 - app.api.endpoints - ERROR - Error during model training: 400: No data found for the specified parameters
-2025-07-08 10:24:34,207 - app.database.db_connector - INFO - Database connection initialized successfully
-2025-07-08 10:24:34,207 - app.api.endpoints - INFO - Fetching data for mill 6 from 2025-06-08 07:24:06.346000+00:00 to 2025-07-08 07:24:06.346000+00:00
-2025-07-08 10:24:34,209 - app.database.db_connector - INFO - Retrieving mill data for mill 6 from 2025-06-08 07:24:06.346000+00:00 to 2025-07-08 07:24:06.346000+00:00
-2025-07-08 10:24:34,960 - app.database.db_connector - INFO - Retrieved 41835 rows for Mill 6
-2025-07-08 10:24:34,960 - app.database.db_connector - INFO - Mill data retrieved: 41835 rows, 12 columns
-2025-07-08 10:24:34,960 - app.database.db_connector - INFO - Mill data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200']
-2025-07-08 10:24:34,974 - app.database.db_connector - INFO - Mill data sample:
-                         Ore  WaterMill  WaterZumpf        Power  ...  PumpRPM    MotorAmp  PSI80  PSI200
-TimeStamp                                                         ...                                    
-2025-06-08 07:25:00  167.866  13.659425  226.600000  1836.375758  ...  696.866  193.849533   51.8    22.8
-2025-06-08 07:26:00  167.866  13.559538  225.749687  1823.095000  ...  696.866  192.367089   51.8    22.8
-2025-06-08 07:27:00  167.866  13.548000  222.493143  1806.466061  ...  696.866  190.949873   51.8    22.8
-
-[3 rows x 12 columns]
-2025-07-08 10:24:35,122 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-08 10:24:35,122 - app.database.db_connector - INFO - Processed mill data: 41835 rows, 12 columns
-2025-07-08 10:24:35,122 - app.database.db_connector - INFO - Retrieving ore quality data
-2025-07-08 10:24:35,128 - app.database.db_connector - INFO - Retrieved 112 rows of ore quality data
-2025-07-08 10:24:35,128 - app.database.db_connector - INFO - Ore data retrieved: 112 rows, 11 columns
-2025-07-08 10:24:35,128 - app.database.db_connector - INFO - Ore data columns: ['id', 'Date', 'Shift', 'TimeStamp', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet', 'Created_At']
-2025-07-08 10:24:35,185 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-08 10:24:35,185 - app.database.db_connector - INFO - Processed ore data: 42721 rows, 9 columns
-2025-07-08 10:24:35,198 - app.database.db_connector - INFO - Joined dataframes with 41440 rows
-2025-07-08 10:24:35,199 - app.database.db_connector - INFO - Combined data has 41440 rows and 21 columns
-2025-07-08 10:24:35,199 - app.database.db_connector - INFO - Combined data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200', 'id', 'Date', 'Shift', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet']
-2025-07-08 10:24:35,211 - app.database.db_connector - INFO - Combined data sample:
-                            Ore  WaterMill  WaterZumpf  ...     Daiki    Shisti  Original_Sheet
-TimeStamp                                               ...                                    
-2025-06-08 14:00:00  169.281123  14.635976  218.460821  ...  0.366920  0.125191             NaN
-2025-06-08 14:01:00  169.309768  14.649057  218.574881  ...  0.366908  0.125075             NaN
-2025-06-08 14:02:00  169.330701  14.666793  218.772626  ...  0.366897  0.124959             NaN
-
-[3 rows x 21 columns]
-2025-07-08 10:24:35,226 - app.models.data_processor - INFO - Applying filters on features
-2025-07-08 10:24:35,230 - app.models.data_processor - INFO - Filtered out 1448 rows (3.49% of data)
-2025-07-08 10:24:35,241 - app.api.endpoints - INFO - Time-ordered train-test split: 31993 training samples, 7999 test samples
-2025-07-08 10:24:35,241 - app.api.endpoints - INFO - Training data time range: earliest 31993 records
-2025-07-08 10:24:35,242 - app.api.endpoints - INFO - Test data time range: latest 7999 records
-2025-07-08 10:24:35,242 - app.models.xgboost_model - INFO - Starting XGBoost model training at 2025-07-08 10:24:35.242103
-2025-07-08 10:24:35,598 - app.models.xgboost_model - INFO - Top 3 important features: DensityHC, WaterZumpf, Ore
-2025-07-08 10:24:35,598 - app.models.xgboost_model - INFO - Model training completed in 0.36 seconds
-2025-07-08 10:24:35,600 - app.models.xgboost_model - INFO - Using absolute path for models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
-2025-07-08 10:24:35,612 - app.models.xgboost_model - INFO - Model saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_model.json
-2025-07-08 10:24:35,612 - app.models.xgboost_model - INFO - Scaler saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
-2025-07-08 10:24:35,613 - app.models.xgboost_model - INFO - Metadata saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
-2025-07-08 10:25:33,791 - app.database.db_connector - INFO - Database connection initialized successfully
-2025-07-08 10:25:33,792 - app.api.endpoints - INFO - Fetching data for mill 6 from 2025-07-08 07:25:32.529000+00:00 to 2025-07-08 07:25:32.529000+00:00
-2025-07-08 10:25:33,792 - app.database.db_connector - INFO - Retrieving mill data for mill 6 from 2025-07-08 07:25:32.529000+00:00 to 2025-07-08 07:25:32.529000+00:00
-2025-07-08 10:25:33,877 - app.database.db_connector - INFO - Retrieved 0 rows for Mill 6
-2025-07-08 10:25:33,878 - app.database.db_connector - WARNING - No mill data found for mill 6
-2025-07-08 10:25:33,879 - app.api.endpoints - ERROR - Error during model training: 400: No data found for the specified parameters
-2025-07-08 10:26:02,815 - app.database.db_connector - INFO - Database connection initialized successfully
-2025-07-08 10:26:02,816 - app.api.endpoints - INFO - Fetching data for mill 6 from 2025-06-08 07:25:32.529000+00:00 to 2025-07-08 07:25:32.529000+00:00
-2025-07-08 10:26:02,816 - app.database.db_connector - INFO - Retrieving mill data for mill 6 from 2025-06-08 07:25:32.529000+00:00 to 2025-07-08 07:25:32.529000+00:00
-2025-07-08 10:26:03,472 - app.database.db_connector - INFO - Retrieved 41834 rows for Mill 6
-2025-07-08 10:26:03,472 - app.database.db_connector - INFO - Mill data retrieved: 41834 rows, 12 columns
-2025-07-08 10:26:03,472 - app.database.db_connector - INFO - Mill data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200']
-2025-07-08 10:26:03,497 - app.database.db_connector - INFO - Mill data sample:
-                         Ore  WaterMill  WaterZumpf        Power  ...     PumpRPM    MotorAmp  PSI80  PSI200
-TimeStamp                                                         ...                                       
-2025-06-08 07:26:00  167.866  13.559538  225.749687  1823.095000  ...  696.866000  192.367089   51.8    22.8
-2025-06-08 07:27:00  167.866  13.548000  222.493143  1806.466061  ...  696.866000  190.949873   51.8    22.8
-2025-06-08 07:28:00  167.866  13.578475  219.057800  1828.463077  ...  693.142778  193.289234   51.8    22.8
-
-[3 rows x 12 columns]
-2025-07-08 10:26:03,633 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-08 10:26:03,634 - app.database.db_connector - INFO - Processed mill data: 41834 rows, 12 columns
-2025-07-08 10:26:03,634 - app.database.db_connector - INFO - Retrieving ore quality data
-2025-07-08 10:26:03,638 - app.database.db_connector - INFO - Retrieved 112 rows of ore quality data
-2025-07-08 10:26:03,640 - app.database.db_connector - INFO - Ore data retrieved: 112 rows, 11 columns
-2025-07-08 10:26:03,640 - app.database.db_connector - INFO - Ore data columns: ['id', 'Date', 'Shift', 'TimeStamp', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet', 'Created_At']
-2025-07-08 10:26:03,735 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-08 10:26:03,736 - app.database.db_connector - INFO - Processed ore data: 42721 rows, 9 columns
-2025-07-08 10:26:03,760 - app.database.db_connector - INFO - Joined dataframes with 41440 rows
-2025-07-08 10:26:03,762 - app.database.db_connector - INFO - Combined data has 41440 rows and 21 columns
-2025-07-08 10:26:03,763 - app.database.db_connector - INFO - Combined data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200', 'id', 'Date', 'Shift', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet']
-2025-07-08 10:26:03,790 - app.database.db_connector - INFO - Combined data sample:
-                            Ore  WaterMill  WaterZumpf  ...     Daiki    Shisti  Original_Sheet
-TimeStamp                                               ...                                    
-2025-06-08 14:00:00  169.281123  14.635976  218.460821  ...  0.366920  0.125191             NaN
-2025-06-08 14:01:00  169.309768  14.649057  218.574881  ...  0.366908  0.125075             NaN
-2025-06-08 14:02:00  169.330701  14.666793  218.772626  ...  0.366897  0.124959             NaN
-
-[3 rows x 21 columns]
-2025-07-08 10:26:03,830 - app.models.data_processor - INFO - Applying filters on features
-2025-07-08 10:26:03,849 - app.models.data_processor - INFO - Filtered out 1448 rows (3.49% of data)
-2025-07-08 10:26:03,867 - app.api.endpoints - INFO - Time-ordered train-test split: 31993 training samples, 7999 test samples
-2025-07-08 10:26:03,868 - app.api.endpoints - INFO - Training data time range: earliest 31993 records
-2025-07-08 10:26:03,868 - app.api.endpoints - INFO - Test data time range: latest 7999 records
-2025-07-08 10:26:03,868 - app.models.xgboost_model - INFO - Starting XGBoost model training at 2025-07-08 10:26:03.868201
-2025-07-08 10:26:04,015 - app.models.xgboost_model - INFO - Top 3 important features: DensityHC, WaterZumpf, Ore
-2025-07-08 10:26:04,015 - app.models.xgboost_model - INFO - Model training completed in 0.15 seconds
-2025-07-08 10:26:04,016 - app.models.xgboost_model - INFO - Using absolute path for models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
-2025-07-08 10:26:04,027 - app.models.xgboost_model - INFO - Model saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_model.json
-2025-07-08 10:26:04,028 - app.models.xgboost_model - INFO - Scaler saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
-2025-07-08 10:26:04,028 - app.models.xgboost_model - INFO - Metadata saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
+2025-07-08 10:53:10,540 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-08 10:53:10,540 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-08 10:53:10,541 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-08 10:53:10,541 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-08 10:53:10,541 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-08 10:53:10,541 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-08 10:53:10,542 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 10:53:10,542 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 10:53:10,546 - database - INFO - Attempting to connect to database...
+2025-07-08 10:53:10,547 - database - INFO - Using default configuration
+2025-07-08 10:53:10,600 - database - INFO - Successfully connected to database pulse on 10.20.2.10
+2025-07-08 10:53:10,601 - database - INFO - Database connection successful
+2025-07-08 10:53:10,687 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 10:53:10,687 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-08 10:53:10,694 - database - INFO - Attempting to connect to database...
+2025-07-08 10:53:10,694 - database - INFO - Using default configuration
+2025-07-08 10:53:10,707 - database - INFO - Successfully connected to database pulse on 10.20.2.10
+2025-07-08 10:53:10,708 - database - INFO - Database connection successful
+2025-07-08 10:58:17,679 - app.api.endpoints - INFO - Model xgboost_PSI80_model not found in memory, attempting to load from disk
+2025-07-08 10:58:17,680 - app.api.endpoints - INFO - Using models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
+2025-07-08 10:58:17,681 - app.api.endpoints - INFO - Loading model from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_model.json
+2025-07-08 10:58:17,681 - app.api.endpoints - INFO - Loading scaler from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
+2025-07-08 10:58:17,681 - app.api.endpoints - INFO - Loading metadata from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
+2025-07-08 10:58:17,845 - app.models.xgboost_model - INFO - Model loaded from c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_model.json
+2025-07-08 10:58:17,847 - app.models.xgboost_model - INFO - Scaler loaded from c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
+2025-07-08 10:58:17,848 - app.models.xgboost_model - INFO - Metadata loaded from c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
+2025-07-08 10:58:17,849 - app.api.endpoints - INFO - Successfully loaded model xgboost_PSI80_model from disk

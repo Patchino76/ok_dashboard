@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, List, Any
 from datetime import datetime
-import uuid
 import os
+import json
 import logging
 
 from ..database.db_connector import MillsDataConnector
@@ -123,9 +123,62 @@ async def train_model(request: TrainingRequest):
 async def predict(request: PredictionRequest):
     """Make predictions using a trained model"""
     try:
-        # Check if model exists
+        # Check if model exists in memory
         if request.model_id not in models_store:
-            raise HTTPException(status_code=404, detail="Model not found")
+            # Try to load from disk
+            try:
+                logger.info(f"Model {request.model_id} not found in memory, attempting to load from disk")
+                # Import the model class
+                from ..models.xgboost_model import MillsXGBoostModel
+                
+                # Create an instance and load the model
+                model = MillsXGBoostModel()
+                
+                # Use the full model name as provided
+                model_id = request.model_id
+                
+                # Construct paths for model files directly without using settings
+                import os
+                
+                # Use absolute path to models directory
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                base_dir = os.path.join(project_root, 'models')
+                
+                # Log the directory we're using
+                logger.info(f"Using models directory: {base_dir}")
+                
+                # Determine target column (PSI80, PSI200, etc.) from the model_id
+                # Extract it from the model_id or default to PSI80
+                target_col = "PSI80"  # Default
+                if "_PSI" in model_id:
+                    target_col = model_id.split("_")[1]
+                
+                # Construct paths for model, scaler, and metadata
+                model_path = os.path.join(base_dir, f"{model_id}.json")
+                scaler_path = os.path.join(base_dir, f"xgboost_{target_col}_scaler.pkl")
+                metadata_path = os.path.join(base_dir, f"xgboost_{target_col}_metadata.json")
+                
+                logger.info(f"Loading model from path: {model_path}")
+                logger.info(f"Loading scaler from path: {scaler_path}")
+                logger.info(f"Loading metadata from path: {metadata_path}")
+                
+                # Load model with paths
+                model.load_model(model_path, scaler_path, metadata_path)
+                
+                # Read metadata directly from file to get additional info
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                
+                # Store in memory for future use
+                models_store[request.model_id] = {
+                    "model": model,
+                    "target_col": model.target_col,
+                    "metadata": metadata
+                }
+                logger.info(f"Successfully loaded model {model_id} from disk")
+            except Exception as e:
+                logger.error(f"Failed to load model from disk: {str(e)}")
+                raise HTTPException(status_code=404, detail="Model not found")
         
         # Get model
         model_info = models_store[request.model_id]

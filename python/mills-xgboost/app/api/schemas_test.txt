@@ -1,0 +1,50 @@
+# TEST THE MODEL:
+{
+  "db_config": {
+    "host": "em-m-db4.ellatzite-med.com",
+    "port": 5432,
+    "dbname": "em_pulse_data",
+    "user": "s.lyubenov",
+    "password": "tP9uB7sH7mK6zA7t"
+  },
+  "mill_number": 6,
+  "start_date": "2025-07-08T07:59:50.005Z",
+  "end_date": "2025-07-08T07:59:50.005Z",
+  "features": [
+    "Ore",
+    "WaterMill",
+    "WaterZumpf",
+    "PressureHC",
+    "DensityHC",
+    "MotorAmp",
+    "Shisti",
+    "Daiki"
+  ],
+  "target_col": "PSI80",
+  "test_size": 0.2,
+  "params": {
+    "n_estimators": 300,
+    "learning_rate": 0.05,
+    "max_depth": 6,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "early_stopping_rounds": 30,
+    "objective": "reg:squarederror"
+  }
+}
+
+
+# TRAIN THE MODEL:
+{
+  "model_id": "xgboost_PSI80_model",
+  "data": {
+    "Ore": 169.3,
+    "WaterMill": 14.65,
+    "WaterZumpf": 218.5,
+    "PressureHC": 83.2,
+    "DensityHC": 1.68,
+    "MotorAmp": 42.7,
+    "Shisti": 0.125,
+    "Daiki": 0.367
+  }
+}
