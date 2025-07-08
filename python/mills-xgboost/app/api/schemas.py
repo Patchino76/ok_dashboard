@@ -4,11 +4,11 @@ from datetime import datetime
 
 class DatabaseConfig(BaseModel):
     """Database connection configuration"""
-    host: str
-    port: int
-    dbname: str
-    user: str
-    password: str
+    host: str = "em-m-db4.ellatzite-med.com"
+    port: int = 5432
+    dbname: str = "em_pulse_data"
+    user: str = "s.lyubenov"
+    password: str = "tP9uB7sH7mK6zA7t"
 
 class TrainingParameters(BaseModel):
     """XGBoost model training parameters"""
@@ -22,14 +22,17 @@ class TrainingParameters(BaseModel):
 
 class TrainingRequest(BaseModel):
     """Request model for training an XGBoost model"""
-    db_config: DatabaseConfig
-    mill_number: int
-    start_date: datetime
-    end_date: datetime
-    features: List[str] = None
+    db_config: DatabaseConfig = Field(default_factory=DatabaseConfig)
+    mill_number: int = 6
+    start_date: datetime = Field(default_factory=lambda: datetime.now() - timedelta(days=30))
+    end_date: datetime = Field(default_factory=lambda: datetime.now())
+    features: List[str] = [
+        "Ore", "WaterMill", "WaterZumpf", "PressureHC", 
+        "DensityHC", "MotorAmp", "Shisti", "Daiki"
+    ]
     target_col: str = "PSI80"
     test_size: float = 0.2
-    params: Optional[TrainingParameters] = None
+    params: Optional[TrainingParameters] = Field(default_factory=TrainingParameters)
 
 class ModelMetrics(BaseModel):
     """Model performance metrics"""
