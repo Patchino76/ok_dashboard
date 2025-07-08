@@ -141,7 +141,7 @@ async def predict(request: PredictionRequest):
                 # Construct paths for model files directly without using settings
                 import os
                 
-                # Use absolute path to models directory
+                # Use absolute path to mills-xgboost/models directory
                 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
                 base_dir = os.path.join(project_root, 'models')
                 
@@ -203,9 +203,44 @@ async def predict(request: PredictionRequest):
 async def optimize_parameters(request: OptimizationRequest):
     """Optimize mill parameters using Bayesian optimization"""
     try:
-        # Check if model exists
+        # Check if model exists in memory or load from disk
         if request.model_id not in models_store:
-            raise HTTPException(status_code=404, detail="Model not found")
+            logger.info(f"Model {request.model_id} not found in memory, attempting to load from disk")
+            try:
+                # Determine file paths using mills-xgboost/models directory
+                models_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'models'))
+                model_path = os.path.join(models_dir, f"{request.model_id}.json")
+                scaler_path = os.path.join(models_dir, f"{request.model_id.replace('_model', '_scaler')}.pkl")
+                metadata_path = os.path.join(models_dir, f"{request.model_id.replace('_model', '_metadata')}.json")
+                
+                # Check if files exist
+                if not os.path.exists(model_path) or not os.path.exists(scaler_path):
+                    raise FileNotFoundError(f"Model files not found at {model_path}")
+                
+                # Load model
+                import json
+                from app.models.xgboost_model import MillsXGBoostModel
+                
+                model = MillsXGBoostModel()
+                model.load_model(model_path, scaler_path)
+                
+                # Load metadata if exists
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                else:
+                    metadata = {}
+                    
+                # Store in memory for future use
+                models_store[request.model_id] = {
+                    "model": model,
+                    "metadata": metadata
+                }
+                
+                logger.info(f"Successfully loaded model {request.model_id} from disk")
+            except Exception as e:
+                logger.error(f"Failed to load model from disk: {str(e)}")
+                raise HTTPException(status_code=404, detail=f"Model not found and could not be loaded: {str(e)}")
         
         # Get model
         model_info = models_store[request.model_id]

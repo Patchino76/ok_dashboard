@@ -1,0 +1,36 @@
+{
+  "target_col": "PSI80",
+  "maximize": true,
+  "bounds": {
+    "Ore": [
+      150.0,
+      190.0
+    ],
+    "WaterMill": [
+      12.0,
+      16.0
+    ],
+    "WaterZumpf": [
+      200.0,
+      240.0
+    ],
+    "PressureHC": [
+      80.0,
+      90.0
+    ],
+    "DensityHC": [
+      1.6,
+      1.8
+    ]
+  },
+  "best_params": {
+    "Ore": 164.9816047538945,
+    "WaterMill": 15.802857225639665,
+    "WaterZumpf": 229.2797576724562,
+    "PressureHC": 85.98658484197037,
+    "DensityHC": 1.6312037280884875
+  },
+  "best_target": -1000000.0,
+  "history": [],
+  "timestamp": "20250708_152736"
+}

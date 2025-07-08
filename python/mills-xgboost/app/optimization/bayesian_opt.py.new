@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
 from bayes_opt import BayesianOptimization
-# Import the utility function directly from bayesian_optimization
-from bayes_opt.util import UtilityFunction
+# In version 3.0.1, the acquisition functions are directly imported from the package
+from bayes_opt import acquisition as bayes_acq
 import logging
 import json
 import os
@@ -207,11 +207,11 @@ class MillBayesianOptimizer:
             
             # Set acquisition function
             if acq == 'ucb':
-                acq_func = UtilityFunction(kind=acq, kappa=kappa)
+                acq_func = bayes_acq.UtilityFunction(kind=acq, kappa=kappa)
             else:  # 'ei' or 'poi'
-                acq_func = UtilityFunction(kind=acq, xi=xi)
+                acq_func = bayes_acq.UtilityFunction(kind=acq, xi=xi)
                 
-            self.optimizer.set_gp_params(acquisition_function=acq_func)
+            self.optimizer.set_acq(acq_func)
             
             # Flag to track if any optimization step succeeded
             all_steps_failed = True

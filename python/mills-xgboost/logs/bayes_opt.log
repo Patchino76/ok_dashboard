@@ -1,0 +1,15 @@
+2025-07-08 16:08:31,138 - [INFO] - BAYES-OPT: Bayesian optimization logger initialized
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT: ================================================================================
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT: STARTING BAYESIAN OPTIMIZATION FOR TARGET: PSI80
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT: Optimization goal: MAXIMIZE PSI80
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT: Initial points: 5, Optimization iterations: 20
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT: Acquisition function: ei, kappa: 2.5, xi: 0.0
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT: ================================================================================
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT: Parameter bounds:
+2025-07-08 16:11:47,520 - [INFO] - BAYES-OPT:   Ore: [150.0, 190.0]
+2025-07-08 16:11:47,521 - [INFO] - BAYES-OPT:   WaterMill: [12.0, 16.0]
+2025-07-08 16:11:47,521 - [INFO] - BAYES-OPT:   WaterZumpf: [200.0, 240.0]
+2025-07-08 16:11:47,521 - [INFO] - BAYES-OPT:   PressureHC: [80.0, 90.0]
+2025-07-08 16:11:47,521 - [INFO] - BAYES-OPT:   DensityHC: [1.6, 1.8]
+2025-07-08 16:11:47,522 - [ERROR] - BAYES-OPT: Optimization process failed: module 'bayes_opt.acquisition' has no attribute 'UtilityFunction'
+2025-07-08 16:11:47,522 - [ERROR] - BAYES-OPT: OPTIMIZATION PROCESS TERMINATED WITH ERROR
