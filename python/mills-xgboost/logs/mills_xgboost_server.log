@@ -26,3 +26,48 @@
 
 (Background on this error at: https://sqlalche.me/e/20/e3q8)
 2025-07-08 09:30:22,314 - app.api.endpoints - ERROR - Error during model training: 400: No data found for the specified parameters
+2025-07-08 09:37:52,291 - app.database.db_connector - INFO - Database connection initialized successfully
+2025-07-08 09:37:52,292 - app.api.endpoints - INFO - Fetching data for mill 6 from 2025-06-08 09:36:37+03:00 to 2025-07-08 09:36:37+03:00
+2025-07-08 09:37:52,293 - app.database.db_connector - INFO - Retrieving mill data for mill 6 from 2025-06-08 09:36:37+03:00 to 2025-07-08 09:36:37+03:00
+2025-07-08 09:37:53,106 - app.database.db_connector - INFO - Retrieved 41703 rows for Mill 6
+2025-07-08 09:37:53,107 - app.database.db_connector - INFO - Mill data retrieved: 41703 rows, 12 columns
+2025-07-08 09:37:53,108 - app.database.db_connector - INFO - Mill data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200']
+2025-07-08 09:37:53,138 - app.database.db_connector - INFO - Mill data sample:
+                         Ore  WaterMill  WaterZumpf        Power  ...     PumpRPM    MotorAmp  PSI80  PSI200
+TimeStamp                                                         ...                                       
+2025-06-08 09:37:00  165.853  13.692326  223.284125  1828.359275  ...  694.163889  194.819353   53.5    19.5
+2025-06-08 09:38:00  165.853  13.701523  219.442857  1815.130149  ...  687.821133  192.921940   53.5    19.5
+2025-06-08 09:39:00  165.853  13.688000  220.669750  1874.029851  ...  689.672000  199.358954   53.5    19.5
+
+[3 rows x 12 columns]
+2025-07-08 09:37:53,202 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
+2025-07-08 09:37:53,202 - app.database.db_connector - INFO - Processed mill data: 41703 rows, 12 columns
+2025-07-08 09:37:53,203 - app.database.db_connector - INFO - Retrieving ore quality data
+2025-07-08 09:37:53,216 - app.database.db_connector - INFO - Retrieved 112 rows of ore quality data
+2025-07-08 09:37:53,217 - app.database.db_connector - INFO - Ore data retrieved: 112 rows, 11 columns
+2025-07-08 09:37:53,217 - app.database.db_connector - INFO - Ore data columns: ['id', 'Date', 'Shift', 'TimeStamp', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet', 'Created_At']
+2025-07-08 09:37:53,318 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
+2025-07-08 09:37:53,319 - app.database.db_connector - INFO - Processed ore data: 42721 rows, 9 columns
+2025-07-08 09:37:53,358 - app.database.db_connector - INFO - Joined dataframes with 41440 rows
+2025-07-08 09:37:53,360 - app.database.db_connector - INFO - Combined data has 41440 rows and 21 columns
+2025-07-08 09:37:53,361 - app.database.db_connector - INFO - Combined data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200', 'id', 'Date', 'Shift', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet']
+2025-07-08 09:37:53,413 - app.database.db_connector - INFO - Combined data sample:
+                            Ore  WaterMill  WaterZumpf  ...     Daiki    Shisti  Original_Sheet
+TimeStamp                                               ...                                    
+2025-06-08 14:00:00  169.281123  14.635976  218.460821  ...  0.366920  0.125191             NaN
+2025-06-08 14:01:00  169.309768  14.649057  218.574881  ...  0.366908  0.125075             NaN
+2025-06-08 14:02:00  169.330701  14.666793  218.772626  ...  0.366897  0.124959             NaN
+
+[3 rows x 21 columns]
+2025-07-08 09:37:53,450 - app.models.data_processor - INFO - Applying filters on features
+2025-07-08 09:37:53,462 - app.models.data_processor - INFO - Filtered out 1448 rows (3.49% of data)
+2025-07-08 09:37:53,488 - app.api.endpoints - INFO - Time-ordered train-test split: 31993 training samples, 7999 test samples
+2025-07-08 09:37:53,489 - app.api.endpoints - INFO - Training data time range: earliest 31993 records
+2025-07-08 09:37:53,489 - app.api.endpoints - INFO - Test data time range: latest 7999 records
+2025-07-08 09:37:53,491 - app.models.xgboost_model - INFO - Starting XGBoost model training at 2025-07-08 09:37:53.491044
+2025-07-08 09:37:53,798 - app.models.xgboost_model - INFO - Top 3 important features: DensityHC, WaterZumpf, Ore
+2025-07-08 09:37:53,798 - app.models.xgboost_model - INFO - Model training completed in 0.31 seconds
+2025-07-08 09:37:53,799 - app.models.xgboost_model - INFO - Using absolute path for models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
+2025-07-08 09:37:53,812 - app.models.xgboost_model - INFO - Model saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_model.json
+2025-07-08 09:37:53,812 - app.models.xgboost_model - INFO - Scaler saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
+2025-07-08 09:37:53,812 - app.models.xgboost_model - INFO - Metadata saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
