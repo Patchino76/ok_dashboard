@@ -8,7 +8,7 @@ The project implements a production-ready system for:
 
 1. Training XGBoost regression models to predict mill performance metrics (PSI80, FR200)
 2. Applying Bayesian optimization techniques to find optimal mill parameter settings
-3. Exposing these capabilities through a FastAPI web service
+3. Exposing these capabilities through a FastAPI web service integrated with the main API
 
 ## System Architecture
 
@@ -35,31 +35,43 @@ mills-xgboost/
 │   └── main.py                 # FastAPI application
 ├── config/
 │   └── settings.py             # Configuration settings
-├── logs/                       # Directory for log files
-├── models/                     # Directory for saved models
+├── logs/                       # Directory for fixed log files (mills_xgboost_server.log)
+├── models/                     # Directory for saved models with mill-specific names
 ├── optimization_results/       # Directory for optimization results
 ├── requirements.txt            # Project dependencies
 ├── README.md                   # Project documentation
-├── run_api.py                  # Script to run the FastAPI server
+├── run_api.py                  # Script to run the standalone FastAPI server
 └── test_system.py              # Test script for system validation
+```
+
+### Main API Integration
+
+The mills-xgboost system is cleanly integrated into the main API via the `mills_ml_router.py` adapter:
+
+```
+ok_dashboard/
+├── python/
+│   ├── api.py                  # Main API with minimal integration code
+│   ├── mills_ml_router.py      # Integration adapter for mills-xgboost
+│   └── mills-xgboost/          # Mills XGBoost system (as detailed above)
 ```
 
 ### Component Relationships and Data Flow
 
 1. **Database Connection**: `db_connector.py` connects to PostgreSQL to retrieve mill sensor data and ore quality data.
 
-2. **Data Processing**: `data_processor.py` preprocesses the raw data for model training and prediction.
+2. **Data Processing**: `data_processor.py` preprocesses the raw data for model training and prediction with time-ordered train-test split.
 
-3. **Model Training**: `xgboost_model.py` trains XGBoost models using the processed data.
+3. **Model Training**: `xgboost_model.py` trains XGBoost models using the processed data and saves models with mill-specific filenames.
 
 4. **Parameter Optimization**: `bayesian_opt.py` uses trained models to find optimal mill parameters.
 
-5. **API Interface**: FastAPI endpoints in `endpoints.py` expose the functionality through RESTful API.
+5. **API Integration**: `mills_ml_router.py` integrates the ML functionality with the main API at `/api/v1/ml/*` prefix.
 
 ```
 [PostgreSQL DB] → [MillsDataConnector] → [DataProcessor] → [MillsXGBoostModel]
                                                               ↓
-[FastAPI] ← [API Endpoints] ← [MillBayesianOptimizer] ← [Trained Model]
+[Main API] ← [mills_ml_router.py] ← [API Endpoints] ← [Trained Model/Optimizer]
 ```
 
 ## Detailed Component Explanations
@@ -197,8 +209,16 @@ Expose model training, prediction, and optimization capabilities through a RESTf
 **API Endpoints (`endpoints.py`)**
 
 - Implements API endpoints:
-  - `POST /train`: Train a new XGBoost model
+  - `POST /train`: Train a new XGBoost model with mill-specific naming
+    - Models are saved with mill number in the filename (e.g., `xgboost_PSI80_mill6_model.json`)
+    - Uses time-ordered train-test split (no shuffling) for time series data
+    - Stores trained models both on disk and in memory for immediate use
   - `POST /predict`: Make predictions with a trained model
+    - Can load models from disk if not found in memory
+    - Supports full model name including mill number (e.g., `xgboost_PSI80_mill6_model`)
+  - `POST /optimize`: Run Bayesian optimization to find optimal mill parameters
+  - `GET /models`: List available trained models
+  - `GET /status`: Health check endpoint
   - `POST /optimize`: Run Bayesian optimization on mill parameters
   - `GET /models`: List all available models
 
