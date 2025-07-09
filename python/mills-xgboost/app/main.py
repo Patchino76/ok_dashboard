@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="API for XGBoost regression models for mill optimization and Bayesian parameter tuning"
+    description="API for XGBoost regression models for mill optimization and parameter tuning"
 )
 
 # Add CORS middleware

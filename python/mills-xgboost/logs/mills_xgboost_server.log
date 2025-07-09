@@ -1,145 +1,45 @@
-2025-07-09 09:40:08,682 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
-2025-07-09 09:40:08,682 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
-2025-07-09 09:40:08,683 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
-2025-07-09 09:40:08,683 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
-2025-07-09 09:40:08,684 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
-2025-07-09 09:40:08,684 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
-2025-07-09 09:40:08,685 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 09:40:08,685 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 09:40:08,689 - database - INFO - Attempting to connect to database...
-2025-07-09 09:40:08,690 - database - INFO - Using default configuration
-2025-07-09 09:40:08,738 - database - INFO - Successfully connected to database pulse on 10.20.2.10
-2025-07-09 09:40:08,738 - database - INFO - Database connection successful
-2025-07-09 09:40:08,825 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 09:40:08,825 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 09:40:08,831 - database - INFO - Attempting to connect to database...
-2025-07-09 09:40:08,831 - database - INFO - Using default configuration
-2025-07-09 09:40:08,843 - database - INFO - Successfully connected to d2025-07-09 09:40:09,135 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:40:42,267 - watchfiles.main - INFO - 3 changes detected
-2025-07-09 09:40:49,198 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:40:49,898 - watchfiles.main - INFO - 4 changes detected
-2025-07-09 09:41:09,547 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:41:19,404 - watchfiles.main - INFO - 106 changes detected
-2025-07-09 09:41:20,664 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:41:21,302 - watchfiles.main - INFO - 13 changes detected
-2025-07-09 09:41:23,126 - watchfiles.main - INFO - 6 changes detected
-2025-07-09 09:42:09,873 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:43:10,257 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:43:49,972 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:43:50,675 - watchfiles.main - INFO - 4 changes detected
-2025-07-09 09:43:58,486 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:44:45,246 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:46:50,777 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:46:51,541 - watchfiles.main - INFO - 4 changes detected
-2025-07-09 09:50:21,813 - watchfiles.main - INFO - 3 changes detected
-2025-07-09 09:50:51,774 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:50:52,470 - watchfiles.main - INFO - 4 changes detected
-2025-07-09 09:52:18,141 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:52:27,612 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:52:48,107 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:53:52,605 - watchfiles.main - INFO - 1 change detected
-2025-07-09 09:53:53,367 - watchfiles.main - INFO - 4 changes detected
-ata sample:
-                         Ore  WaterMill  ...      PSI80     PSI200
-TimeStamp                                ...                      
-2025-06-09 06:41:00  174.594  18.082111  ...  50.100000  25.600000
-2025-06-09 06:42:00  174.594  18.085718  ...  50.100000  25.600000
-2025-06-09 06:43:00  174.594  18.108182  ...  49.330769  27.042308
-
-[3 rows x 12 columns]
-2025-07-09 09:40:41,515 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-09 09:40:41,515 - app.database.db_connector - INFO - Processed mill data: 40439 rows, 12 columns
-2025-07-09 09:40:41,516 - app.database.db_connector - INFO - Retrieving ore quality data
-2025-07-09 09:40:41,526 - app.database.db_connector - INFO - Retrieved 115 rows of ore quality data
-2025-07-09 09:40:41,527 - app.database.db_connector - INFO - Ore data retrieved: 115 rows, 11 columns
-2025-07-09 09:40:41,528 - app.database.db_connector - INFO - Ore data columns: ['id', 'Date', 'Shift', 'TimeStamp', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet', 'Created_At']
-2025-07-09 09:40:41,624 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-09 09:40:41,625 - app.database.db_connector - INFO - Processed ore data: 42721 rows, 9 columns
-2025-07-09 09:40:41,662 - app.database.db_connector - INFO - Joined dataframes with 40000 rows
-2025-07-09 09:40:41,664 - app.database.db_connector - INFO - Combined data has 40000 rows and 21 columns
-2025-07-09 09:40:41,664 - app.database.db_connector - INFO - Combined data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200', 'id', 'Date', 'Shift', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet']
-2025-07-09 09:40:41,696 - app.database.db_connector - INFO - Combined data sample:
-                            Ore  WaterMill  ...    Shisti  Original_Sheet
-TimeStamp                                   ...                          
-2025-06-09 14:00:00  171.962652  14.357156  ...  0.132322             NaN
-2025-06-09 14:01:00  172.077052  14.433706  ...  0.132225             NaN
-2025-06-09 14:02:00  172.204739  14.496340  ...  0.132128             NaN
-
-[3 rows x 21 columns]
-2025-07-09 09:40:41,720 - app.models.data_processor - INFO - Applying filters on features
-2025-07-09 09:40:41,729 - app.models.data_processor - INFO - Filtered out 1448 rows (3.62% of data)
-2025-07-09 09:40:41,754 - app.api.endpoints - INFO - Time-ordered train-test split: 30841 training samples, 7711 test samples
-2025-07-09 09:40:41,755 - app.api.endpoints - INFO - Training data time range: earliest 30841 records
-2025-07-09 09:40:41,756 - app.api.endpoints - INFO - Test data time range: latest 7711 records
-2025-07-09 09:40:41,757 - app.models.xgboost_model - INFO - Starting XGBoost model training at 2025-07-09 09:40:41.757046
-2025-07-09 09:40:42,132 - app.models.xgboost_model - INFO - Top 3 important features: DensityHC, WaterZumpf, Ore
-2025-07-09 09:40:42,132 - app.models.xgboost_model - INFO - Model training completed in 0.38 seconds
-2025-07-09 09:40:42,136 - app.models.xgboost_model - INFO - Using absolute path for models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
-2025-07-09 09:40:42,148 - app.models.xgboost_model - INFO - Model saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_mill6_model.json
-2025-07-09 09:40:42,148 - app.models.xgboost_model - INFO - Scaler saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_mill6_scaler.pkl
-2025-07-09 09:40:42,148 - app.models.xgboost_model - INFO - Metadata saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_mill6_metadata.json
-2025-07-09 09:41:59,445 - app.api.endpoints - INFO - Model string not found in memory, attempting to load from disk
-2025-07-09 09:41:59,446 - app.api.endpoints - INFO - Using models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
-2025-07-09 09:41:59,447 - app.api.endpoints - INFO - Loading model from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\string.json
-2025-07-09 09:41:59,447 - app.api.endpoints - INFO - Loading scaler from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
-2025-07-09 09:41:59,448 - app.api.endpoints - INFO - Loading metadata from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
-2025-07-09 09:41:59,454 - app.models.xgboost_model - ERROR - Error loading model: [09:41:59] C:\buildkite-agent\builds\buildkite-windows-cpu-autoscaling-group-i-0ed59c031377d09b8-1\xgboost\xgboost-ci-windows\src\common\io.cc:147: Opening c:\Projects\ok_dashboard\python\mills-xgboost\models\string.json failed: unknown error
-2025-07-09 09:41:59,455 - app.api.endpoints - ERROR - Failed to load model from disk: [09:41:59] C:\buildkite-agent\builds\buildkite-windows-cpu-autoscaling-group-i-0ed59c031377d09b8-1\xgboost\xgboost-ci-windows\src\common\io.cc:147: Opening c:\Projects\ok_dashboard\python\mills-xgboost\models\string.json failed: unknown error
-2025-07-09 09:41:59,456 - app.api.endpoints - ERROR - Error during prediction: 404: Model not found
-2025-07-09 09:42:58,452 - app.api.endpoints - INFO - Model xgboost_PSI80_model not found in memory, attempting to load from disk
-2025-07-09 09:42:58,452 - app.api.endpoints - INFO - Using models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
-2025-07-09 09:42:58,452 - app.api.endpoints - INFO - Loading model from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_model.json
-2025-07-09 09:42:58,452 - app.api.endpoints - INFO - Loading scaler from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
-2025-07-09 09:42:58,453 - app.api.endpoints - INFO - Loading metadata from path: c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
-2025-07-09 09:42:58,489 - app.models.xgboost_model - INFO - Model loaded from c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_model.json
-2025-07-09 09:42:58,492 - app.models.xgboost_model - INFO - Scaler loaded from c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_scaler.pkl
-2025-07-09 09:42:58,493 - app.models.xgboost_model - INFO - Metadata loaded from c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_metadata.json
-2025-07-09 09:42:58,493 - app.api.endpoints - INFO - Successfully loaded model xgboost_PSI80_model from disk
-2025-07-09 09:43:19,996 - app.api.endpoints - INFO - Model string not found in memory, attempting to load from disk
-2025-07-09 09:43:19,997 - app.api.endpoints - ERROR - Failed to load model from disk: Model files not found at c:\Projects\ok_dashboard\python\mills-xgboost\models\string.json
-2025-07-09 09:43:19,998 - app.api.endpoints - ERROR - Error during optimization: 404: Model not found and could not be loaded: Model files not found at c:\Projects\ok_dashboard\python\mills-xgboost\models\string.json
-2025-07-09 09:50:20,544 - app.database.db_connector - INFO - Database connection initialized successfully
-2025-07-09 09:50:20,544 - app.api.endpoints - INFO - Fetching data for mill 8 from 2025-06-09 06:40:18.115000+00:00 to 2025-07-09 06:40:18.115000+00:00
-2025-07-09 09:50:20,544 - app.database.db_connector - INFO - Retrieving mill data for mill 8 from 2025-06-09 06:40:18.115000+00:00 to 2025-07-09 06:40:18.115000+00:00
-2025-07-09 09:50:21,114 - app.database.db_connector - INFO - Retrieved 40444 rows for Mill 8
-2025-07-09 09:50:21,114 - app.database.db_connector - INFO - Mill data retrieved: 40444 rows, 12 columns
-2025-07-09 09:50:21,114 - app.database.db_connector - INFO - Mill data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200']
-2025-07-09 09:50:21,144 - app.database.db_connector - INFO - Mill data sample:
-                         Ore  WaterMill  ...    PSI80     PSI200
-TimeStamp                                ...                    
-2025-06-09 06:41:00  173.286  16.736200  ...  51.9125  23.435417
-2025-06-09 06:42:00  173.286  16.774205  ...  51.6000  23.800000
-2025-06-09 06:43:00  173.286  16.874000  ...  51.6000  23.800000
-
-[3 rows x 12 columns]
-2025-07-09 09:50:21,247 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-09 09:50:21,248 - app.database.db_connector - INFO - Processed mill data: 40444 rows, 12 columns
-2025-07-09 09:50:21,249 - app.database.db_connector - INFO - Retrieving ore quality data
-2025-07-09 09:50:21,264 - app.database.db_connector - INFO - Retrieved 115 rows of ore quality data
-2025-07-09 09:50:21,264 - app.database.db_connector - INFO - Ore data retrieved: 115 rows, 11 columns
-2025-07-09 09:50:21,265 - app.database.db_connector - INFO - Ore data columns: ['id', 'Date', 'Shift', 'TimeStamp', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet', 'Created_At']
-2025-07-09 09:50:21,320 - app.database.db_connector - INFO - Applied smoothing with rolling window of size 15
-2025-07-09 09:50:21,321 - app.database.db_connector - INFO - Processed ore data: 42721 rows, 9 columns
-2025-07-09 09:50:21,355 - app.database.db_connector - INFO - Joined dataframes with 40005 rows
-2025-07-09 09:50:21,356 - app.database.db_connector - INFO - Combined data has 40005 rows and 21 columns
-2025-07-09 09:50:21,357 - app.database.db_connector - INFO - Combined data columns: ['Ore', 'WaterMill', 'WaterZumpf', 'Power', 'ZumpfLevel', 'PressureHC', 'DensityHC', 'PulpHC', 'PumpRPM', 'MotorAmp', 'PSI80', 'PSI200', 'id', 'Date', 'Shift', 'Class_15', 'Class_12', 'Grano', 'Daiki', 'Shisti', 'Original_Sheet']
-2025-07-09 09:50:21,377 - app.database.db_connector - INFO - Combined data sample:
-                            Ore  WaterMill  ...    Shisti  Original_Sheet
-TimeStamp                                   ...                          
-2025-06-09 14:00:00  159.989680  13.947350  ...  0.132322             NaN
-2025-06-09 14:01:00  159.966528  13.947303  ...  0.132225             NaN
-2025-06-09 14:02:00  159.939749  13.949083  ...  0.132128             NaN
-
-[3 rows x 21 columns]
-2025-07-09 09:50:21,398 - app.models.data_processor - INFO - Applying filters on features
-2025-07-09 09:50:21,405 - app.models.data_processor - INFO - Filtered out 3641 rows (9.10% of data)
-2025-07-09 09:50:21,414 - app.api.endpoints - INFO - Time-ordered train-test split: 29091 training samples, 7273 test samples
-2025-07-09 09:50:21,414 - app.api.endpoints - INFO - Training data time range: earliest 29091 records
-2025-07-09 09:50:21,415 - app.api.endpoints - INFO - Test data time range: latest 7273 records
-2025-07-09 09:50:21,415 - app.models.xgboost_model - INFO - Starting XGBoost model training at 2025-07-09 09:50:21.415505
-2025-07-09 09:50:21,717 - app.models.xgboost_model - INFO - Top 3 important features: DensityHC, MotorAmp, Ore
-2025-07-09 09:50:21,717 - app.models.xgboost_model - INFO - Model training completed in 0.30 seconds
-2025-07-09 09:50:21,717 - app.models.xgboost_model - INFO - Using absolute path for models directory: c:\Projects\ok_dashboard\python\mills-xgboost\models
-2025-07-09 09:50:21,745 - app.models.xgboost_model - INFO - Model saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_mill8_model.json
-2025-07-09 09:50:21,745 - app.models.xgboost_model - INFO - Scaler saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_mill8_scaler.pkl
-2025-07-09 09:50:21,746 - app.models.xgboost_model - INFO - Metadata saved to c:\Projects\ok_dashboard\python\mills-xgboost\models\xgboost_PSI80_mill8_metadata.json
+2025-07-09 10:22:34,383 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-09 10:22:34,383 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-09 10:22:34,384 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-09 10:22:34,384 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 10:22:34,392 - database - INFO - Attempting to connect to database...
+2025-07-09 10:22:34,392 - database - INFO - Using default configuration
+2025-07-09 10:22:34,446 - database - INFO - Successfully connected to database pulse on 10.20.2.10
+2025-07-09 10:22:34,448 - database - INFO - Database connection successful
+2025-07-09 10:22:34,544 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 10:22:34,544 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 10:22:34,549 - database - INFO - Attempting to connect to database...
+2025-07-09 10:22:34,549 - database - INFO - Using default configuration
+2025-07-09 10:22:34,569 - database - INFO - Successfully connected to d2025-07-09 10:22:34,836 - watchfiles.main - INFO - 5 changes detected
+2025-07-09 10:22:35,226 - watchfiles.main - INFO - 2 changes detected
+2025-07-09 10:22:35,612 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:35,999 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:36,385 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:36,775 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:37,161 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:37,551 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:37,939 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:38,325 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:38,712 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:39,096 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:39,480 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:39,866 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:40,254 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:40,703 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:41,092 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:41,481 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:41,873 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:42,320 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:42,707 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:43,094 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:43,481 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:43,872 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:44,260 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:44,646 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:45,034 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:45,420 - watchfiles.main - INFO - 1 change detected
+2025-07-09 10:22:45,805 - watchfiles.main - INFO - 1 change detected

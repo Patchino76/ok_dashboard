@@ -335,8 +335,10 @@ if __name__ == "__main__":
         test_db = create_db_manager()
         print(f"Database manager created successfully: {type(test_db).__name__}")
         
-        # Start the server
-        uvicorn.run("api:app", host=HOST, port=PORT, reload=True)
+        # Start the server with selective reload
+        # Only watch main code directories, exclude logs and __pycache__
+        reload_dirs = [".", "./mills-xgboost/app"]
+        uvicorn.run("api:app", host=HOST, port=PORT, reload=True, reload_dirs=reload_dirs)
     except Exception as e:
         print(f"Error during API startup: {str(e)}")
         print("Full traceback:")

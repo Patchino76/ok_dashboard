@@ -9,7 +9,7 @@ import logging
 from ..database.db_connector import MillsDataConnector
 from ..models.xgboost_model import MillsXGBoostModel
 from ..models.data_processor import DataProcessor
-from ..optimization.bayesian_opt import MillBayesianOptimizer
+# Optimization imports will be added later
 from .schemas import (
     TrainingRequest, TrainingResponse, 
     PredictionRequest, PredictionResponse,
@@ -201,105 +201,19 @@ async def predict(request: PredictionRequest):
 
 @router.post("/optimize", response_model=OptimizationResponse)
 async def optimize_parameters(request: OptimizationRequest):
-    """Optimize mill parameters using Bayesian optimization"""
-    try:
-        # Check if model exists in memory or load from disk
-        if request.model_id not in models_store:
-            logger.info(f"Model {request.model_id} not found in memory, attempting to load from disk")
-            try:
-                # Determine file paths using mills-xgboost/models directory
-                models_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'models'))
-                model_path = os.path.join(models_dir, f"{request.model_id}.json")
-                scaler_path = os.path.join(models_dir, f"{request.model_id.replace('_model', '_scaler')}.pkl")
-                metadata_path = os.path.join(models_dir, f"{request.model_id.replace('_model', '_metadata')}.json")
-                
-                # Check if files exist
-                if not os.path.exists(model_path) or not os.path.exists(scaler_path):
-                    raise FileNotFoundError(f"Model files not found at {model_path}")
-                
-                # Load model
-                import json
-                from app.models.xgboost_model import MillsXGBoostModel
-                
-                model = MillsXGBoostModel()
-                model.load_model(model_path, scaler_path)
-                
-                # Load metadata if exists
-                if os.path.exists(metadata_path):
-                    with open(metadata_path, 'r') as f:
-                        metadata = json.load(f)
-                else:
-                    metadata = {}
-                    
-                # Store in memory for future use
-                models_store[request.model_id] = {
-                    "model": model,
-                    "metadata": metadata
-                }
-                
-                logger.info(f"Successfully loaded model {request.model_id} from disk")
-            except Exception as e:
-                logger.error(f"Failed to load model from disk: {str(e)}")
-                raise HTTPException(status_code=404, detail=f"Model not found and could not be loaded: {str(e)}")
-        
-        # Get model
-        model_info = models_store[request.model_id]
-        model = model_info["model"]
-        
-        # Create optimizer
-        optimizer = MillBayesianOptimizer(
-            xgboost_model=model,
-            target_col=model.target_col,
-            maximize=request.maximize
-        )
-        
-        # Set parameter bounds
-        if request.parameter_bounds:
-            optimizer.set_parameter_bounds(request.parameter_bounds)
-        else:
-            optimizer.set_parameter_bounds()
-        
-        # Run optimization
-        os.makedirs("optimization_results", exist_ok=True)
-        opt_results = optimizer.optimize(
-            init_points=request.init_points,
-            n_iter=request.n_iter,
-            save_dir="optimization_results"
-        )
-        
-        # Get recommendations
-        recommendations = optimizer.recommend_parameters(n_recommendations=3)
-        
-        # Store optimization results
-        models_store[request.model_id]["last_optimization"] = {
-            "results": opt_results,
-            "timestamp": datetime.now().isoformat()
-        }
-        
-        # Format recommendations for response
-        formatted_recommendations = [
-            ParameterRecommendation(
-                params=rec["params"],
-                predicted_value=rec["predicted_value"]
-            )
-            for rec in recommendations
-        ]
-        
-        # Prepare response
-        response = {
-            "best_params": opt_results["best_params"],
-            "best_target": opt_results["best_target"],
-            "target_col": model.target_col,
-            "maximize": request.maximize,
-            "recommendations": formatted_recommendations,
-            "model_id": request.model_id
-        }
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error during optimization: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
+    """Endpoint for parameter optimization (placeholder)
+    
+    This endpoint will be implemented with a different optimization library in the future.
+    Currently returns a not implemented message.
+    """
+    # Log that this endpoint is not yet implemented
+    logger.info(f"Optimize endpoint called with model {request.model_name} - not yet implemented")
+    
+    # Return a placeholder response indicating this feature is coming soon
+    raise HTTPException(
+        status_code=501,
+        detail="Optimization endpoint is not yet implemented. A new optimization library will be integrated soon."
+    )
 
 @router.get("/models", response_model=Dict[str, Any])
 async def list_models():
