@@ -7,9 +7,9 @@
     "user": "s.lyubenov",
     "password": "tP9uB7sH7mK6zA7t"
   },
-  "mill_number": 6,
-  "start_date": "2025-07-08T07:59:50.005Z",
-  "end_date": "2025-07-08T07:59:50.005Z",
+  "mill_number": 8,
+  "start_date": "2025-06-09T06:40:18.115Z",
+  "end_date": "2025-07-09T06:40:18.115Z",
   "features": [
     "Ore",
     "WaterMill",
@@ -47,4 +47,22 @@
     "Shisti": 0.125,
     "Daiki": 0.367
   }
+}
+
+# TEST BAYESIAN OPT ENDPOINT:
+{
+  "model_id": "xgboost_PSI80_mill8_model",
+  "parameter_bounds": {
+    "Ore": [150.0, 200.0],
+    "WaterMill": [10.0, 20.0],
+    "WaterZumpf": [180.0, 250.0],
+    "PressureHC": [70.0, 90.0],
+    "DensityHC": [1.5, 1.9],
+    "MotorAmp": [30.0, 50.0],
+    "Shisti": [0.05, 0.2],
+    "Daiki": [0.2, 0.5]
+  },
+  "init_points": 5,
+  "n_iter": 25,
+  "maximize": false
 }
