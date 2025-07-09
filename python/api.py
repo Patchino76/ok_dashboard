@@ -4,14 +4,58 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, RootModel
 from datetime import datetime, timedelta
 
-# Import the DatabaseManager
+# Import the DatabaseManager and configuration first before path modifications
 from database import DatabaseManager, create_db_manager
 from api_utils.mills_utils import MillsUtils
 from mills_analysis.mills_fetcher import get_mills_by_param
-from config import HOST, PORT, CORS_ORIGINS
 
-# Import mills ML router for XGBoost integration
-from mills_ml_router import get_mills_ml_router, get_ml_system_info
+# Import config variables explicitly with absolute import path
+import importlib.util
+import os
+
+# Get absolute path to the config.py file in the current directory
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.py')
+
+# Load the config module from the absolute path
+spec = importlib.util.spec_from_file_location('config_local', config_path)
+config_local = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(config_local)
+
+# Get config variables
+HOST = config_local.HOST
+PORT = config_local.PORT
+CORS_ORIGINS = config_local.CORS_ORIGINS
+
+# Direct import for mills-xgboost integration
+import sys
+import os
+import logging
+from pathlib import Path
+
+# Configure logging
+logger = logging.getLogger('api')
+
+# Path to mills-xgboost directory
+MILLS_XGBOOST_PATH = Path(__file__).parent / "mills-xgboost"
+
+# Create necessary __init__.py files
+for pkg_path in [
+    MILLS_XGBOOST_PATH / "app" / "__init__.py",
+    MILLS_XGBOOST_PATH / "app" / "api" / "__init__.py",
+    MILLS_XGBOOST_PATH / "app" / "models" / "__init__.py",
+    MILLS_XGBOOST_PATH / "app" / "database" / "__init__.py"
+]:
+    os.makedirs(os.path.dirname(pkg_path), exist_ok=True)
+    if not os.path.exists(pkg_path):
+        with open(pkg_path, "w") as f:
+            f.write("# Auto-generated package init\n")
+
+# Create directories for models and logs if needed
+os.makedirs("models", exist_ok=True)
+os.makedirs("logs", exist_ok=True)
+
+# Ensure mills-xgboost is in the path - do this AFTER all main imports to prevent conflicts
+sys.path.insert(0, str(MILLS_XGBOOST_PATH))
 
 app = FastAPI(title="OK Dashboard API")
 
@@ -24,8 +68,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include mills ML router for XGBoost functionality
-app.include_router(get_mills_ml_router(), prefix="/api/v1/ml", tags=["Mills ML"])
+# Import the mills-xgboost router directly
+try:
+    from app.api.endpoints import router as mills_xgboost_router
+    app.include_router(mills_xgboost_router, prefix="/api/v1/ml", tags=["Mills ML"])
+    ML_SYSTEM_AVAILABLE = True
+    logger.info(f"Successfully loaded Mills ML router with {len(mills_xgboost_router.routes)} routes")
+    
+    # Log all loaded routes for debugging
+    for route in mills_xgboost_router.routes:
+        logger.info(f"Registered ML route: {route.path} [{','.join(route.methods)}]")
+except Exception as e:
+    logger.error(f"Failed to load Mills ML router: {e}")
+    ML_SYSTEM_AVAILABLE = False
+
 
 # ----------------------------- Models -----------------------------
 
@@ -65,13 +121,12 @@ async def health_check():
     """
     Health check endpoint for monitoring and proxy testing
     """
-    ml_info = get_ml_system_info()
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "ml_system": {
-            "available": ml_info["available"],
-            "endpoints_count": len(ml_info["endpoints"])
+            "available": ML_SYSTEM_AVAILABLE,
+            "endpoints_count": len(mills_xgboost_router.routes) if ML_SYSTEM_AVAILABLE else 0
         }
     }
 
@@ -80,7 +135,23 @@ async def ml_system_info():
     """
     Get information about the Mills ML system capabilities
     """
-    return get_ml_system_info()
+    if not ML_SYSTEM_AVAILABLE:
+        return {
+            "available": False,
+            "endpoints": [],
+            "models_dir": "models",
+            "logs_dir": "logs"
+        }
+    
+    # List of endpoints from the router
+    endpoints_list = [f"{route.path} - {', '.join(route.methods)}" for route in mills_xgboost_router.routes]
+    
+    return {
+        "available": True,
+        "endpoints": endpoints_list,
+        "models_dir": "models",
+        "logs_dir": "logs"
+    }
 
 @app.get("/api/tag-value/{tag_id}", response_model=TagValue)
 async def get_tag_value(tag_id: int, db: DatabaseManager = Depends(get_db)):

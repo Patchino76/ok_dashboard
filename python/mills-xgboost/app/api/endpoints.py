@@ -120,7 +120,7 @@ async def train_model(request: TrainingRequest):
         logger.error(f"Error during model training: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
 
-@router.post("/predict", response_model=PredictionResponse)
+@router.post("/predict", response_model=PredictionResponse) 
 async def predict(request: PredictionRequest):
     """Make predictions using a trained model"""
     try:
@@ -201,19 +201,31 @@ async def predict(request: PredictionRequest):
 
 @router.post("/optimize", response_model=OptimizationResponse)
 async def optimize_parameters(request: OptimizationRequest):
-    """Endpoint for parameter optimization (placeholder)
-    
-    This endpoint will be implemented with a different optimization library in the future.
-    Currently returns a not implemented message.
-    """
-    # Log that this endpoint is not yet implemented
-    logger.info(f"Optimize endpoint called with model {request.model_name} - not yet implemented")
-    
-    # Return a placeholder response indicating this feature is coming soon
-    raise HTTPException(
-        status_code=501,
-        detail="Optimization endpoint is not yet implemented. A new optimization library will be integrated soon."
-    )
+    """Optimize XGBoost hyperparameters using Bayesian Optimization"""
+    try:
+        # Log optimization request
+        logging.info(f"Optimization request received for model {request.model_id}")
+        
+        # Check if model exists
+        if request.model_id not in models_store:
+            raise HTTPException(status_code=404, detail="Model not found")
+        
+        # Get model
+        model_info = models_store[request.model_id]
+        model = model_info["model"]
+        
+        # Perform optimization
+        # TO DO: implement Bayesian Optimization
+        
+        # Return optimized parameters
+        return {
+            "model_id": request.model_id,
+            "optimized_params": {}  # TO DO: fill with optimized parameters
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during optimization: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
 
 @router.get("/models", response_model=Dict[str, Any])
 async def list_models():

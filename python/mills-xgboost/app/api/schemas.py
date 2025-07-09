@@ -63,13 +63,13 @@ class PredictionResponse(BaseModel):
     target_col: str
     timestamp: datetime
 
-# class OptimizationRequest(BaseModel):
-#     """Request model for parameter optimization"""
-#     model_id: str
-#     parameter_bounds: Optional[Dict[str, List[float]]] = None
-#     init_points: int = 5
-#     n_iter: int = 25
-#     maximize: bool = True
+class OptimizationRequest(BaseModel):
+    """Request model for parameter optimization"""
+    model_id: str
+    parameter_bounds: Optional[Dict[str, List[float]]] = None
+    init_points: int = 5
+    n_iter: int = 25
+    maximize: bool = True
     
 class ParameterRecommendation(BaseModel):
     """Parameter recommendation from optimization"""

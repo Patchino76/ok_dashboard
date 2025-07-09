@@ -1,45 +1,18 @@
-2025-07-09 10:22:34,383 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
-2025-07-09 10:22:34,383 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: c:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
-2025-07-09 10:22:34,384 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
-2025-07-09 10:22:34,384 - mills_ml_router - INFO - Mills XGBoost logs directory: c:\Projects\ok_dashboard\python\mills-xgboost\logs
-2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
-2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
-2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 10:22:34,385 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 10:22:34,392 - database - INFO - Attempting to connect to database...
-2025-07-09 10:22:34,392 - database - INFO - Using default configuration
-2025-07-09 10:22:34,446 - database - INFO - Successfully connected to database pulse on 10.20.2.10
-2025-07-09 10:22:34,448 - database - INFO - Database connection successful
-2025-07-09 10:22:34,544 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 10:22:34,544 - mills_ml_router - INFO - Mills ML router loaded successfully
-2025-07-09 10:22:34,549 - database - INFO - Attempting to connect to database...
-2025-07-09 10:22:34,549 - database - INFO - Using default configuration
-2025-07-09 10:22:34,569 - database - INFO - Successfully connected to d2025-07-09 10:22:34,836 - watchfiles.main - INFO - 5 changes detected
-2025-07-09 10:22:35,226 - watchfiles.main - INFO - 2 changes detected
-2025-07-09 10:22:35,612 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:35,999 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:36,385 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:36,775 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:37,161 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:37,551 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:37,939 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:38,325 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:38,712 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:39,096 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:39,480 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:39,866 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:40,254 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:40,703 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:41,092 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:41,481 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:41,873 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:42,320 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:42,707 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:43,094 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:43,481 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:43,872 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:44,260 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:44,646 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:45,034 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:45,420 - watchfiles.main - INFO - 1 change detected
-2025-07-09 10:22:45,805 - watchfiles.main - INFO - 1 change detected
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: C:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills XGBoost logging configured - log file: C:\Projects\ok_dashboard\python\mills-xgboost\logs\mills_xgboost_server.log
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills XGBoost logs directory: C:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills XGBoost logs directory: C:\Projects\ok_dashboard\python\mills-xgboost\logs
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills XGBoost logging system initialized successfully
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 11:38:58,321 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 11:38:58,325 - database - INFO - Attempting to connect to database...
+2025-07-09 11:38:58,325 - database - INFO - Using default configuration
+2025-07-09 11:38:58,377 - database - INFO - Successfully connected to database pulse on 10.20.2.10
+2025-07-09 11:38:58,378 - database - INFO - Database connection successful
+2025-07-09 11:38:58,462 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 11:38:58,462 - mills_ml_router - INFO - Mills ML router loaded successfully
+2025-07-09 11:38:58,465 - database - INFO - Attempting to connect to database...
+2025-07-09 11:38:58,466 - database - INFO - Using default configuration
+2025-07-09 11:38:58,485 - database - INFO - Successfully connected to 2025-07-09 11:38:58,786 - watchfiles.main - INFO - 1 change detected
+O - Database connection successful
