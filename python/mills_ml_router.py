@@ -5,33 +5,82 @@ This module provides a clean integration layer between the main API and the mill
 machine learning system, maintaining separation of concerns and clean architecture.
 """
 
-import sys
 import os
+import sys
 import logging
+import importlib.util
 from pathlib import Path
+from fastapi import APIRouter
 
-# Add the mills-xgboost directory to Python path
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Path to mills-xgboost directory
 MILLS_XGBOOST_PATH = Path(__file__).parent / "mills-xgboost"
-if str(MILLS_XGBOOST_PATH) not in sys.path:
-    sys.path.insert(0, str(MILLS_XGBOOST_PATH))
+logger.info(f"Mills XGBoost path: {MILLS_XGBOOST_PATH}")
+
+# Create a base router for fallback
+mills_ml_api_router = APIRouter()
+ML_ROUTER_AVAILABLE = False
+
+# Settings placeholder
+mills_settings = None
 
 try:
-    # Import the mills-xgboost router
-    from app.api.endpoints import router as mills_ml_api_router
-    
-    # Import settings to configure paths (using absolute path to avoid conflict)
-    import importlib.util
-    
-    # Load the mills-xgboost settings module directly
+    # Create necessary __init__.py files for proper package structure
+    for pkg_path in [
+        MILLS_XGBOOST_PATH / "app" / "__init__.py",
+        MILLS_XGBOOST_PATH / "app" / "api" / "__init__.py",
+        MILLS_XGBOOST_PATH / "app" / "models" / "__init__.py",
+        MILLS_XGBOOST_PATH / "app" / "database" / "__init__.py",
+        MILLS_XGBOOST_PATH / "app" / "optimization" / "__init__.py",
+        MILLS_XGBOOST_PATH / "config" / "__init__.py"
+    ]:
+        os.makedirs(os.path.dirname(pkg_path), exist_ok=True)
+        if not os.path.exists(pkg_path):
+            with open(pkg_path, "w") as f:
+                f.write("# Auto-generated package init\n")
+                
+    # Load settings directly
     settings_path = MILLS_XGBOOST_PATH / "config" / "settings.py"
-    spec = importlib.util.spec_from_file_location("mills_settings", settings_path)
-    mills_settings_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mills_settings_module)
-    mills_settings = mills_settings_module.settings
+    if os.path.exists(settings_path):
+        logger.info(f"Loading settings from: {settings_path}")
+        spec = importlib.util.spec_from_file_location("mills_settings", settings_path)
+        mills_settings_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mills_settings_module)
+        mills_settings = mills_settings_module.settings
+        logger.info(f"Settings loaded: {mills_settings.APP_NAME}")
+        
+        # Create required directories
+        os.makedirs(mills_settings.MODELS_DIR, exist_ok=True)
+        os.makedirs(mills_settings.LOGS_DIR, exist_ok=True)
+        logger.info(f"Directories created: {mills_settings.MODELS_DIR}, {mills_settings.LOGS_DIR}")
     
-    # Ensure required directories exist
-    os.makedirs(mills_settings.MODELS_DIR, exist_ok=True)
-    os.makedirs(mills_settings.LOGS_DIR, exist_ok=True)
+    # Temporarily modify sys.path to import the router
+    original_path = sys.path.copy()
+    sys.path.insert(0, str(MILLS_XGBOOST_PATH))
+    try:
+        from app.api.endpoints import router as imported_router
+        mills_ml_api_router = imported_router
+        ML_ROUTER_AVAILABLE = True
+        logger.info(f"Successfully loaded ML router with {len(mills_ml_api_router.routes)} routes")
+    except Exception as e:
+        logger.error(f"Failed to load ML router: {e}")
+        
+        # Create mock endpoints for graceful degradation
+        @mills_ml_api_router.get("/status")
+        async def ml_status():
+            return {
+                "status": "unavailable",
+                "message": f"Mills ML system not properly configured: {str(e)}",
+                "available_endpoints": ["/status"]
+            }
+    finally:
+        # Restore original path
+        sys.path = original_path
+    
+    # Create optimization results directory
     os.makedirs("optimization_results", exist_ok=True)
     
     # Configure mills-xgboost logging to write to files
@@ -161,6 +210,6 @@ def get_ml_system_info():
             "/optimize - Bayesian parameter optimization",
             "/models - List available models"
         ] if ML_ROUTER_AVAILABLE else ["/status - Check ML system status"],
-        "models_dir": getattr(mills_settings, 'MODELS_DIR', 'models') if ML_ROUTER_AVAILABLE else None,
-        "logs_dir": getattr(mills_settings, 'LOGS_DIR', 'logs') if ML_ROUTER_AVAILABLE else None
+        "models_dir": getattr(mills_settings, 'MODELS_DIR', 'models') if mills_settings else None,
+        "logs_dir": getattr(mills_settings, 'LOGS_DIR', 'logs') if mills_settings else None
     }
