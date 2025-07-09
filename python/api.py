@@ -407,9 +407,34 @@ if __name__ == "__main__":
         print(f"Database manager created successfully: {type(test_db).__name__}")
         
         # Start the server with selective reload
-        # Only watch main code directories, exclude logs and __pycache__
+        # Only watch main code directories, exclude temp files and folders
         reload_dirs = [".", "./mills-xgboost/app"]
-        uvicorn.run("api:app", host=HOST, port=PORT, reload=True, reload_dirs=reload_dirs)
+        
+        # Configure specific folders to exclude from reload monitoring
+        reload_excludes = [
+            "*/__pycache__",
+            "*/logs/*",
+            "*/.git/*",
+            "*/models/*",
+            "*/.vscode/*",
+            "*/.idea/*",
+            "*/.pytest_cache/*",
+            "*/temp/*",
+            "*/*.pyc",
+            "*/*.pyo",
+            "*/*.pyd"
+        ]
+        
+        # Enable reload but with controlled exclusions
+        uvicorn.run(
+            "api:app", 
+            host=HOST, 
+            port=PORT, 
+            reload=True, 
+            reload_dirs=reload_dirs,
+            reload_excludes=reload_excludes,
+            workers=1
+        )
     except Exception as e:
         print(f"Error during API startup: {str(e)}")
         print("Full traceback:")
