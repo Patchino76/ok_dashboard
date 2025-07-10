@@ -140,16 +140,10 @@ async def predict(request: PredictionRequest):
                 
                 # Construct paths for model files directly without using settings
                 import os
-                import glob
                 
                 # Use absolute path to mills-xgboost/models directory
                 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
                 base_dir = os.path.join(project_root, 'models')
-                
-                # Check if the directory exists
-                if not os.path.exists(base_dir):
-                    logger.error(f"Models directory does not exist: {base_dir}")
-                    raise FileNotFoundError(f"Models directory not found: {base_dir}")
                 
                 # Log the directory we're using
                 logger.info(f"Using models directory: {base_dir}")
@@ -160,42 +154,10 @@ async def predict(request: PredictionRequest):
                 if "_PSI" in model_id:
                     target_col = model_id.split("_")[1]
                 
-                # Standardize model_id handling: user provides base name (e.g., xgboost_PSI80_mill8)
-                # and we add the appropriate suffixes
-                
-                # Clean the model_id by removing any extension or existing suffix
-                base_model_id = model_id.replace('.json', '').replace('_model', '').replace('_metadata', '').replace('_scaler', '')
-                logger.info(f"Using base model ID: {base_model_id}")
-                
-                # Construct paths with standardized suffixes
-                model_path = os.path.join(base_dir, f"{base_model_id}_model.json")
-                scaler_path = os.path.join(base_dir, f"{base_model_id}_scaler.pkl")
-                metadata_path = os.path.join(base_dir, f"{base_model_id}_metadata.json")
-                
-                # Verify model file exists
-                if not os.path.exists(model_path):
-                    logger.error(f"Model file not found: {model_path}")
-                    
-                    # Try to find matching model files in case there's a different naming pattern
-                    all_model_files = glob.glob(os.path.join(base_dir, "*.json"))
-                    matching_files = [f for f in all_model_files if base_model_id in os.path.basename(f)]
-                    
-                    if matching_files:
-                        model_path = matching_files[0]
-                        logger.info(f"Found alternate model file: {model_path}")
-                        # Update other paths based on the found file
-                        file_base = os.path.basename(model_path).replace('.json', '')
-                        scaler_path = os.path.join(base_dir, f"{file_base.replace('_model', '')}_scaler.pkl")
-                        metadata_path = os.path.join(base_dir, f"{file_base.replace('_model', '')}_metadata.json")
-                    else:
-                        raise FileNotFoundError(f"No model file found for {base_model_id}")
-                
-                # Ensure we're using the exact paths needed for logging
-                logger.info(f"Using standardized model files:")
-                logger.info(f"- Model:    {os.path.basename(model_path)}")
-                logger.info(f"- Scaler:   {os.path.basename(scaler_path)}")
-                logger.info(f"- Metadata: {os.path.basename(metadata_path)}")
-
+                # Construct paths for model, scaler, and metadata
+                model_path = os.path.join(base_dir, f"{model_id}.json")
+                scaler_path = os.path.join(base_dir, f"xgboost_{target_col}_scaler.pkl")
+                metadata_path = os.path.join(base_dir, f"xgboost_{target_col}_metadata.json")
                 
                 logger.info(f"Loading model from path: {model_path}")
                 logger.info(f"Loading scaler from path: {scaler_path}")

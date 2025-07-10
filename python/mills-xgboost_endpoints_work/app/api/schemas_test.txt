@@ -36,7 +36,7 @@
 
 # TEST THE MODEL:
 {
-  "model_id": "xgboost_PSI80_mill8",
+  "model_id": "xgboost_PSI80_model",
   "data": {
     "Ore": 169.3,
     "WaterMill": 14.65,
@@ -51,7 +51,7 @@
 
 # TEST BAYESIAN OPT ENDPOINT:
 {
-  "model_id": "xgboost_PSI80_mill8",
+  "model_id": "xgboost_PSI80_mill8_model",
   "parameter_bounds": {
     "Ore": [150.0, 200.0],
     "WaterMill": [10.0, 20.0],
