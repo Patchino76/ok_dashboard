@@ -19,11 +19,30 @@ if project_root not in sys.path:
 from app.models.xgboost_model import MillsXGBoostModel
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+def setup_logger(log_file=None):
+    """Set up logger with file and console handlers"""
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logger.handlers = []  # Clear existing handlers
+    
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Create console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # Create file handler if log_file is specified
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    return logger
+
+# Initialize logger (will be configured with file in main)
+logger = setup_logger()
 
 class BlackBoxFunction:
     """
@@ -187,6 +206,51 @@ def optimize_with_optuna(
     return best_params, best_value, study
 
 
+def export_study_to_csv(study: optuna.study.Study, save_path: str) -> pd.DataFrame:
+    """
+    Export the Optuna study trials to a DataFrame and save as CSV.
+    
+    Args:
+        study: The completed Optuna study
+        save_path: Path to save the CSV file
+        
+    Returns:
+        DataFrame containing the study trials data
+    """
+    # Create a list to hold all trial data
+    trials_data = []
+    
+    # Extract trial information
+    for i, trial in enumerate(study.trials):
+        # Get basic trial info
+        trial_dict = {
+            "trial_number": i,
+            "value": trial.value,  # The objective value
+            "state": trial.state,  # COMPLETE, PRUNED, etc.
+            "datetime_start": trial.datetime_start,
+            "datetime_complete": trial.datetime_complete,
+            "duration": (trial.datetime_complete - trial.datetime_start).total_seconds() if trial.datetime_complete else None
+        }
+        
+        # Add parameters used in this trial
+        for param_name, param_value in trial.params.items():
+            trial_dict[f"param_{param_name}"] = param_value
+            
+        # Add intermediate values if any (for trials that use pruning)
+        for step, intermediate_value in trial.intermediate_values.items():
+            trial_dict[f"intermediate_{step}"] = intermediate_value
+            
+        trials_data.append(trial_dict)
+    
+    # Convert to DataFrame
+    trials_df = pd.DataFrame(trials_data)
+    
+    # Save to CSV
+    trials_df.to_csv(save_path, index=False)
+    
+    return trials_df
+
+
 def plot_optimization_results(study: optuna.study.Study, black_box_func: BlackBoxFunction):
     """
     Plot the optimization results.
@@ -195,12 +259,16 @@ def plot_optimization_results(study: optuna.study.Study, black_box_func: BlackBo
         study: The completed Optuna study
         black_box_func: The black box function that was optimized
     """
+    # Get path to results directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.join(current_dir, "optimization_results")
+    
     # Plot optimization history
     plt.figure(figsize=(10, 6))
     optuna.visualization.matplotlib.plot_optimization_history(study)
     plt.title(f"Optimization History for {black_box_func.model_id}")
     plt.tight_layout()
-    plt.savefig("optimization_history.png")
+    plt.savefig(os.path.join(results_dir, "optimization_history.png"))
     
     # Plot parameter importances if there are enough trials
     if len(study.trials) > 10:
@@ -208,29 +276,35 @@ def plot_optimization_results(study: optuna.study.Study, black_box_func: BlackBo
         optuna.visualization.matplotlib.plot_param_importances(study)
         plt.title(f"Parameter Importances for {black_box_func.model_id}")
         plt.tight_layout()
-        plt.savefig("parameter_importances.png")
+        plt.savefig(os.path.join(results_dir, "parameter_importances.png"))
     
     # Plot parallel coordinate plot
     plt.figure(figsize=(12, 8))
     optuna.visualization.matplotlib.plot_parallel_coordinate(study)
     plt.title(f"Parallel Coordinate Plot for {black_box_func.model_id}")
     plt.tight_layout()
-    plt.savefig("parallel_coordinate.png")
+    plt.savefig(os.path.join(results_dir, "parallel_coordinate.png"))
 
 
-def main():
+def main(log_file=None):
     """Main function to demonstrate usage"""
+    # Configure logger with file if specified
+    global logger
+    if log_file:
+        logger = setup_logger(log_file)
+        logger.info(f"Logging to file: {log_file}")
+    
     # Example model ID and parameter bounds
     model_id = "xgboost_PSI80_mill8"
     parameter_bounds = {
-        "Ore": [150.0, 200.0],
-        "WaterMill": [10.0, 20.0],
-        "WaterZumpf": [180.0, 250.0],
-        "PressureHC": [70.0, 90.0],
-        "DensityHC": [1.5, 1.9],
-        "MotorAmp": [30.0, 50.0],
-        "Shisti": [0.05, 0.2],
-        "Daiki": [0.2, 0.5]
+        "Ore": [160.0, 200.0],
+        "WaterMill": [5.0, 20.0],
+        "WaterZumpf": [160.0, 250.0],
+        "PressureHC": [0.3, 0.5],
+        "DensityHC": [1600, 1800],
+        "MotorAmp": [180, 220],
+        "Shisti": [0.05, 0.3],
+        "Daiki": [0.1, 0.4]
     }
     
     # Create the black box function
@@ -244,12 +318,17 @@ def main():
     logger.info("Starting optimization...")
     best_params, best_value, study = optimize_with_optuna(
         black_box_func=black_box,
-        n_trials=50  # Reduced for testing, increase for better results
+        n_trials=150  # Reduced for testing, increase for better results
     )
     
     # Log results
     logger.info(f"Best value: {best_value}")
     logger.info(f"Best parameters: {best_params}")
+    
+    # Create results directory if it doesn't exist
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.join(current_dir, "optimization_results")
+    os.makedirs(results_dir, exist_ok=True)
     
     # Plot results
     logger.info("Generating plots...")
@@ -263,14 +342,46 @@ def main():
         "n_trials": len(study.trials)
     }
     
+    # Get path to results directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    results_dir = os.path.join(current_dir, "optimization_results")
+    results_file = os.path.join(results_dir, "optimization_results.json")
+    
     # Save results to file
-    with open("optimization_results.json", "w") as f:
+    with open(results_file, "w") as f:
         json.dump(result, f, indent=2)
     
-    logger.info("Results saved to optimization_results.json")
+    logger.info(f"Results saved to {results_file}")
+    
+    # Export study trials to CSV
+    csv_file = os.path.join(results_dir, "optuna_trials.csv")
+    trials_df = export_study_to_csv(study, csv_file)
+    logger.info(f"Exported {len(trials_df)} trials to {csv_file}")
+    
+    # Log summary statistics of trials
+    logger.info(f"Trial statistics:")
+    logger.info(f"  Mean value: {trials_df['value'].mean():.4f}")
+    logger.info(f"  Std deviation: {trials_df['value'].std():.4f}")
+    logger.info(f"  Min value: {trials_df['value'].min():.4f}")
+    logger.info(f"  Max value: {trials_df['value'].max():.4f}")
     
     return result
 
 
 if __name__ == "__main__":
-    main()
+    import os
+    
+    # Define directories for logs and results
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    logs_dir = os.path.join(current_dir, "logs")
+    results_dir = os.path.join(current_dir, "optimization_results")
+    
+    # Create directories if they don't exist
+    os.makedirs(logs_dir, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
+    
+    # Use constant log file name based on model ID
+    model_id = "xgboost_PSI80_mill8"
+    log_file = os.path.join(logs_dir, f"optuna_optimization_{model_id}.log")
+    
+    main(log_file=log_file)

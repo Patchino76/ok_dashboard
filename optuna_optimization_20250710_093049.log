@@ -1,0 +1,10 @@
+2025-07-10 09:30:49,153 - __main__ - INFO - Logging to file: optuna_optimization_20250710_093049.log
+2025-07-10 09:30:49,154 - __main__ - INFO - Creating black box function with model xgboost_PSI80_mill8
+2025-07-10 09:30:49,297 - __main__ - INFO - Successfully loaded model xgboost_PSI80_mill8
+2025-07-10 09:30:49,298 - __main__ - INFO - Features: ['Ore', 'WaterMill', 'WaterZumpf', 'PressureHC', 'DensityHC', 'MotorAmp', 'Shisti', 'Daiki']
+2025-07-10 09:30:49,298 - __main__ - INFO - Target column: PSI80
+2025-07-10 09:30:49,298 - __main__ - INFO - Starting optimization...
+2025-07-10 09:30:50,514 - __main__ - INFO - Best value: 53.697513580322266
+2025-07-10 09:30:50,514 - __main__ - INFO - Best parameters: {'Ore': 154.21285613288606, 'WaterMill': 19.36893555006631, 'WaterZumpf': 212.73556974744102, 'PressureHC': 83.88424497777655, 'DensityHC': 1.8360378055032505, 'MotorAmp': 35.27109643810483, 'Shisti': 0.14281555445748312, 'Daiki': 0.35819810943973734}
+2025-07-10 09:30:50,514 - __main__ - INFO - Generating plots...
+2025-07-10 09:30:51,848 - __main__ - INFO - Results saved to optimization_results.json
