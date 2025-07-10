@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { apiClient } from '../../../lib/api-client'
+import { mlApiClient } from '../../../lib/api-client'
 
 interface PredictParams {
   modelName: string
@@ -21,7 +21,7 @@ export const usePredictTarget = () => {
     setError(null)
 
     try {
-      const response = await apiClient.post<PredictionResponse>(
+      const response = await mlApiClient.post<PredictionResponse>(
         '/api/v1/ml/predict',
         {
           model_name: params.modelName,

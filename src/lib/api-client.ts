@@ -8,6 +8,14 @@ const apiClient = axios.create({
   },
 })
 
+// Create a specific client for ML API endpoints
+const mlApiClient = axios.create({
+  baseURL: 'http://localhost:8000',  // Direct connection to FastAPI server
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
@@ -18,4 +26,14 @@ apiClient.interceptors.response.use(
   }
 )
 
-export { apiClient }
+// Add response interceptor for ML API client too
+mlApiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Handle API errors (can add global error handling here)
+    console.error('ML API request failed:', error)
+    return Promise.reject(error)
+  }
+)
+
+export { apiClient, mlApiClient }

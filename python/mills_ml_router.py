@@ -8,6 +8,7 @@ import os
 import logging
 from pathlib import Path
 import json
+import pandas as pd
 
 # Configure logging
 logger = logging.getLogger('mills_ml_router')
@@ -90,9 +91,15 @@ async def predict(request: Dict[str, Any]):
                     target_col = model_name.split("_")[1]
                 
                 # Construct paths for model, scaler, and metadata
-                model_path = os.path.join(base_dir, f"{model_name}.json")
-                scaler_path = os.path.join(base_dir, f"xgboost_{target_col}_scaler.pkl")
-                metadata_path = os.path.join(base_dir, f"xgboost_{target_col}_metadata.json")
+                model_path = os.path.join(base_dir, f"{model_name}_model.json")
+                scaler_path = os.path.join(base_dir, f"{model_name}_scaler.pkl")
+                metadata_path = os.path.join(base_dir, f"{model_name}_metadata.json")
+                
+                # Log the file paths we're trying to load
+                logger.info(f"Looking for files with these patterns:")
+                logger.info(f"  Model: {model_path}")
+                logger.info(f"  Scaler: {scaler_path}")
+                logger.info(f"  Metadata: {metadata_path}")
                 
                 logger.info(f"Loading model from path: {model_path}")
                 logger.info(f"Loading scaler from path: {scaler_path}")
@@ -136,6 +143,160 @@ async def predict(request: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Error during prediction: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@router.post("/train", response_model=Dict[str, Any])
+async def train_model(request: Dict[str, Any]):
+    """Train a new model with provided data or fetch data from database"""
+    try:
+        # Extract common parameters from the request
+        target_col = request.get("target_col", "PSI80")
+        model_name = request.get("model_name", f"xgboost_{target_col}_custom")
+        features = request.get("features", [])
+        params = request.get("params", {})
+        test_size = request.get("test_size", 0.2)
+        
+        logger.info(f"Training new model: {model_name} for target {target_col}")
+        logger.info(f"Features: {features}")
+        
+        # Determine data source - DB or direct training data
+        db_config = request.get("db_config", {})
+        training_data = request.get("training_data", [])
+        
+        if db_config and isinstance(db_config, dict) and all(k in db_config for k in ["host", "port", "dbname", "user", "password"]):
+            # Fetch data from database
+            logger.info("Using database configuration to fetch training data")
+            mill_number = request.get("mill_number", 8)
+            start_date = request.get("start_date")
+            end_date = request.get("end_date")
+            
+            if not start_date or not end_date:
+                raise HTTPException(status_code=400, detail="Missing start_date or end_date for database query")
+                
+            logger.info(f"Fetching data for mill {mill_number} from {start_date} to {end_date}")
+            
+            try:
+                # Import necessary modules for DB connection
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                from datetime import datetime
+                
+                # Connect to the database
+                conn = psycopg2.connect(
+                    host=db_config["host"],
+                    port=db_config["port"],
+                    dbname=db_config["dbname"],
+                    user=db_config["user"],
+                    password=db_config["password"]
+                )
+                
+                # Create a cursor
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                
+                # Build query to fetch mill data
+                # Adjust the query according to your database schema
+                query = f"""
+                SELECT 
+                    *
+                FROM 
+                    mill_data 
+                WHERE 
+                    mill_number = {mill_number} AND
+                    timestamp BETWEEN '{start_date}' AND '{end_date}'
+                """
+                
+                # Execute query
+                cur.execute(query)
+                
+                # Fetch all results
+                results = cur.fetchall()
+                
+                # Convert to list of dictionaries for DataFrame
+                training_data = [dict(row) for row in results]
+                
+                # Close connections
+                cur.close()
+                conn.close()
+                
+                logger.info(f"Successfully fetched {len(training_data)} records from database")
+                
+            except Exception as e:
+                logger.error(f"Database connection error: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Failed to fetch data from database: {str(e)}")
+        else:
+            # Use provided training data
+            logger.info(f"Using provided training data with {len(training_data)} samples")
+        
+        # Validate input data
+        if not training_data or not isinstance(training_data, list):
+            raise HTTPException(status_code=400, detail="Invalid or missing training data")
+        
+        if not features or not isinstance(features, list):
+            raise HTTPException(status_code=400, detail="Invalid or missing features list")
+        
+        # Create DataFrame from training data
+        try:
+            df = pd.DataFrame(training_data)
+            logger.info(f"DataFrame created with shape: {df.shape}")
+        except Exception as e:
+            logger.error(f"Failed to create DataFrame: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Invalid training data format: {str(e)}")
+        
+        # Create model instance
+        model = MillsXGBoostModel()
+        
+        # Train the model
+        try:
+            model.train(
+                df=df,
+                target_col=target_col,
+                features=features,
+                test_size=test_size,
+                params=params
+            )
+            logger.info("Model training completed successfully")
+        except Exception as e:
+            logger.error(f"Model training failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Model training failed: {str(e)}")
+        
+        # Save model
+        try:
+            base_dir = os.path.join(str(MILLS_XGBOOST_PATH), 'models')
+            os.makedirs(base_dir, exist_ok=True)
+            
+            model_path = os.path.join(base_dir, f"{model_name}_model.json")
+            scaler_path = os.path.join(base_dir, f"{model_name}_scaler.pkl")
+            metadata_path = os.path.join(base_dir, f"{model_name}_metadata.json")
+            
+            model.save_model(model_path, scaler_path, metadata_path)
+            logger.info(f"Model saved as {model_name}")
+        except Exception as e:
+            logger.error(f"Failed to save model: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to save model: {str(e)}")
+        
+        # Store in memory for immediate use
+        models_store[model_name] = {
+            "model": model,
+            "target_col": target_col,
+            "metadata": {
+                "features": features,
+                "params": params
+            }
+        }
+        
+        return {
+            "status": "success",
+            "model_name": model_name,
+            "target_col": target_col,
+            "features": features,
+            "samples": len(training_data),
+            "model_path": model_path
+        }
+        
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error during model training: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
 
 @router.get("/models", response_model=Dict[str, Any])
 async def list_models():
