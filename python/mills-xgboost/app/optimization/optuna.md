@@ -1,6 +1,6 @@
 # Understanding Optimization with Optuna
 
-This document provides a detailed explanation of the `optimize_with_optuna` function, which is designed to optimize parameters for XGBoost models using the Optuna framework.
+This document provides a detailed explanation of the optimization framework that uses Optuna to find optimal parameters for XGBoost models. The framework includes the `optimize_with_optuna` function, visualization tools, and data export capabilities.
 
 ## What is Optuna?
 
@@ -10,18 +10,18 @@ Optuna is an open-source hyperparameter optimization framework specifically desi
 
 ```python
 def optimize_with_optuna(
-    black_box_func: BlackBoxFunction, 
+    black_box_func: BlackBoxFunction,
     n_trials: int = 100,
     timeout: int = None
 ) -> Tuple[Dict[str, float], float, optuna.study.Study]:
     """
     Optimize the black box function using Optuna.
-    
+
     Args:
         black_box_func: The black box function to optimize
         n_trials: Number of optimization trials
         timeout: Timeout in seconds (optional)
-        
+
     Returns:
         Tuple of (best_params, best_value, study)
     """
@@ -36,6 +36,7 @@ def optimize_with_optuna(
 ## Return Value
 
 The function returns a tuple containing:
+
 1. Best parameters found during optimization
 2. Best value achieved with those parameters
 3. The complete Optuna study object
@@ -52,6 +53,7 @@ if not black_box_func.parameter_bounds:
 Before starting optimization, the function checks if parameter bounds have been set. These bounds define the search space for each parameter.
 
 **Example parameter bounds:**
+
 ```python
 parameter_bounds = {
     "Ore": [150.0, 200.0],
@@ -73,7 +75,7 @@ def objective(trial):
     params = {}
     for feature, bounds in black_box_func.parameter_bounds.items():
         params[feature] = trial.suggest_float(feature, bounds[0], bounds[1])
-    
+
     # Call the black box function
     return black_box_func(**params)
 ```
@@ -119,6 +121,7 @@ Here's what happens:
 3. The study runs the optimization for the specified number of trials or until timeout
 
 **Example study creation:**
+
 ```python
 # If black_box_func.maximize is True:
 direction = "maximize"
@@ -143,6 +146,7 @@ After optimization completes:
 3. Both are returned along with the complete study object
 
 **Example results:**
+
 ```python
 # After 50 trials, these might be the results:
 best_params = {
@@ -163,7 +167,7 @@ best_value = 92.3  # The highest PSI80 value achieved
 Optuna uses a technique called Tree-structured Parzen Estimator (TPE) to intelligently search the parameter space. Here's what happens during optimization:
 
 1. **Initial exploration**: Optuna starts by randomly sampling the parameter space to build an initial understanding
-   
+
    ```python
    # Early trials might look like:
    Trial #1: {"Ore": 175.3, "WaterMill": 15.7, ...} → Result: 82.5
@@ -174,7 +178,7 @@ Optuna uses a technique called Tree-structured Parzen Estimator (TPE) to intelli
 2. **Learning from history**: As trials accumulate, Optuna builds probability models of which parameter values lead to good results
 
 3. **Adaptive sampling**: Later trials focus more on promising regions of the parameter space
-   
+
    ```python
    # Later trials might cluster around promising values:
    Trial #20: {"Ore": 191.2, "WaterMill": 18.9, ...} → Result: 90.1
@@ -189,10 +193,11 @@ Optuna uses a technique called Tree-structured Parzen Estimator (TPE) to intelli
 Let's trace through a complete example:
 
 1. **Setup**:
+
    ```python
    # Create black box function with model
    black_box = BlackBoxFunction(model_id="xgboost_PSI80_mill8", maximize=True)
-   
+
    # Set parameter bounds
    parameter_bounds = {
        "Ore": [150.0, 200.0],
@@ -208,6 +213,7 @@ Let's trace through a complete example:
    ```
 
 2. **Call optimize_with_optuna**:
+
    ```python
    best_params, best_value, study = optimize_with_optuna(
        black_box_func=black_box,
@@ -216,9 +222,11 @@ Let's trace through a complete example:
    ```
 
 3. **Inside optimize_with_optuna**:
+
    - The objective function is defined
    - A study is created with direction="maximize"
    - For each trial (50 total):
+
      ```python
      # Trial #1
      params = {
@@ -226,10 +234,10 @@ Let's trace through a complete example:
          "WaterMill": 15.7,   # Suggested by Optuna
          # ... other parameters
      }
-     
+
      # Call black_box with these parameters
      result = black_box(**params)
-     
+
      # Inside black_box.__call__:
      input_data = {
          "Ore": 175.3,
@@ -241,6 +249,7 @@ Let's trace through a complete example:
      ```
 
 4. **After all trials**:
+
    ```python
    # Study contains all trial information
    best_params = {
@@ -249,7 +258,7 @@ Let's trace through a complete example:
        # ... other parameters
    }
    best_value = 92.3
-   
+
    # Return these values
    return best_params, best_value, study
    ```
@@ -262,26 +271,26 @@ The `BlackBoxFunction` class wraps an XGBoost model and provides a callable inte
 def __call__(self, **features) -> float:
     """
     Predict the target value based on the provided features.
-    
+
     Args:
         features: Feature values as keyword arguments
-        
+
     Returns:
         float: The predicted value
     """
     if not self.xgb_model:
         raise ValueError("Model not loaded")
-    
+
     try:
         # Create a dictionary with all features
         input_data = {feature: features.get(feature, 0.0) for feature in self.features}
-        
+
         # Make prediction
         prediction = self.xgb_model.predict(input_data)[0]
-        
+
         # Return prediction (negated if minimizing)
         return prediction if self.maximize else -prediction
-        
+
     except Exception as e:
         logger.error(f"Error in prediction: {str(e)}")
         # Return a very bad value in case of error
@@ -332,10 +341,128 @@ optuna.visualization.matplotlib.plot_parallel_coordinate(study)
 ```
 
 These visualizations help you understand:
+
 - How the optimization progressed over time
 - Which parameters had the most impact on the result
 - How different parameter combinations relate to the objective value
 
+### Exporting Trial Data for Analysis
+
+You can export all trial data to a CSV file for further analysis using the `export_study_to_csv` function:
+
+```python
+def export_study_to_csv(study: optuna.study.Study, save_path: str) -> pd.DataFrame:
+    """
+    Export the Optuna study trials to a DataFrame and save as CSV.
+
+    Args:
+        study: The completed Optuna study
+        save_path: Path to save the CSV file
+
+    Returns:
+        DataFrame containing the study trials data
+    """
+    # Create a list to hold all trial data
+    trials_data = []
+
+    # Extract trial information
+    for i, trial in enumerate(study.trials):
+        # Get basic trial info
+        trial_dict = {
+            "trial_number": i,
+            "value": trial.value,  # The objective value
+            "state": trial.state,  # COMPLETE, PRUNED, etc.
+            "datetime_start": trial.datetime_start,
+            "datetime_complete": trial.datetime_complete,
+            "duration": (trial.datetime_complete - trial.datetime_start).total_seconds() if trial.datetime_complete else None
+        }
+
+        # Add parameters used in this trial
+        for param_name, param_value in trial.params.items():
+            trial_dict[f"param_{param_name}"] = param_value
+
+        # Add intermediate values if any (for trials that use pruning)
+        for step, intermediate_value in trial.intermediate_values.items():
+            trial_dict[f"intermediate_{step}"] = intermediate_value
+
+        trials_data.append(trial_dict)
+
+    # Convert to DataFrame
+    trials_df = pd.DataFrame(trials_data)
+
+    # Save to CSV
+    trials_df.to_csv(save_path, index=False)
+
+    return trials_df
+```
+
+The CSV file contains important information about each trial:
+
+- **trial_number**: Sequential ID of each trial
+- **value**: The objective value achieved with the parameters
+- **state**: Trial state (COMPLETE, PRUNED, etc.)
+- **datetime_start/datetime_complete**: Timestamps for the start and end of each trial
+- **duration**: Time taken for each trial in seconds
+- **param_X columns**: The parameter values tried for each input feature
+- **intermediate_X columns**: Any intermediate values recorded during the trial
+
+## File Organization and Logging
+
+The optimization framework is organized with a clear structure for logs and results:
+
+### Directory Structure
+
+```
+app/optimization/
+├── logs/                               # Directory for log files
+│   └── optuna_optimization_[model_id].log  # Log file for each model
+├── optimization_results/               # Directory for optimization outputs
+│   ├── optimization_history.png        # Plot of optimization progress
+│   ├── parameter_importances.png       # Plot of parameter importance
+│   ├── parallel_coordinate.png         # Parallel coordinates visualization
+│   ├── optimization_results.json       # Best parameters and values
+│   └── optuna_trials.csv               # Detailed data for all trials
+└── test_optuna_opt.py                  # Main script for optimization
+```
+
+### Logging Configuration
+
+The optimization process logs both to console and to a dedicated log file:
+
+```python
+def setup_logger(log_file=None):
+    """Set up logger with file and console handlers"""
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logger.handlers = []  # Clear existing handlers
+
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+    # Create console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # Create file handler if log_file is specified
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
+```
+
+The log file includes:
+
+- Model loading and initialization
+- Parameter boundaries
+- Optimization progress
+- Best parameters and values found
+- Trial statistics
+
 ## Conclusion
 
 The `optimize_with_optuna` function provides a powerful way to find optimal parameter settings for your XGBoost model without having to manually test different combinations. Optuna intelligently explores the parameter space to find the best possible configuration within the given constraints.
+
+With the addition of dedicated logging, organized file outputs, and trial data export to CSV, the framework now provides comprehensive tools for both optimization and analysis of the optimization process.
