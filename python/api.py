@@ -26,36 +26,16 @@ HOST = config_local.HOST
 PORT = config_local.PORT
 CORS_ORIGINS = config_local.CORS_ORIGINS
 
-# Direct import for mills-xgboost integration
-import sys
-import os
+# Import for mills-xgboost integration via adapter module
 import logging
-from pathlib import Path
 
 # Configure logging
 logger = logging.getLogger('api')
 
-# Path to mills-xgboost directory
-MILLS_XGBOOST_PATH = Path(__file__).parent / "mills-xgboost"
-
-# Create necessary __init__.py files
-for pkg_path in [
-    MILLS_XGBOOST_PATH / "app" / "__init__.py",
-    MILLS_XGBOOST_PATH / "app" / "api" / "__init__.py",
-    MILLS_XGBOOST_PATH / "app" / "models" / "__init__.py",
-    MILLS_XGBOOST_PATH / "app" / "database" / "__init__.py"
-]:
-    os.makedirs(os.path.dirname(pkg_path), exist_ok=True)
-    if not os.path.exists(pkg_path):
-        with open(pkg_path, "w") as f:
-            f.write("# Auto-generated package init\n")
-
 # Create directories for models and logs if needed
+import os
 os.makedirs("models", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
-
-# Ensure mills-xgboost is in the path - do this AFTER all main imports to prevent conflicts
-sys.path.insert(0, str(MILLS_XGBOOST_PATH))
 
 app = FastAPI(title="OK Dashboard API")
 
@@ -68,15 +48,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Import the mills-xgboost router directly
+# Import the mills_ml_router adapter module
 try:
-    from app.api.endpoints import router as mills_xgboost_router
-    app.include_router(mills_xgboost_router, prefix="/api/v1/ml", tags=["Mills ML"])
+    from mills_ml_router import router as mills_ml_router
+    app.include_router(mills_ml_router, prefix="/api/v1/ml", tags=["Mills ML"])
     ML_SYSTEM_AVAILABLE = True
-    logger.info(f"Successfully loaded Mills ML router with {len(mills_xgboost_router.routes)} routes")
+    logger.info(f"Successfully loaded Mills ML router with {len(mills_ml_router.routes)} routes")
     
     # Log all loaded routes for debugging
-    for route in mills_xgboost_router.routes:
+    for route in mills_ml_router.routes:
         logger.info(f"Registered ML route: {route.path} [{','.join(route.methods)}]")
 except Exception as e:
     logger.error(f"Failed to load Mills ML router: {e}")
@@ -126,7 +106,7 @@ async def health_check():
         "timestamp": datetime.now().isoformat(),
         "ml_system": {
             "available": ML_SYSTEM_AVAILABLE,
-            "endpoints_count": len(mills_xgboost_router.routes) if ML_SYSTEM_AVAILABLE else 0
+            "endpoints_count": len(mills_ml_router.routes) if ML_SYSTEM_AVAILABLE else 0
         }
     }
 
@@ -144,7 +124,7 @@ async def ml_system_info():
         }
     
     # List of endpoints from the router
-    endpoints_list = [f"{route.path} - {', '.join(route.methods)}" for route in mills_xgboost_router.routes]
+    endpoints_list = [f"{route.path} - {', '.join(route.methods)}" for route in mills_ml_router.routes]
     
     return {
         "available": True,

@@ -1,6 +1,7 @@
 "use client"
 
 import { ProcessControlDashboard } from "@/app/mills-ai/components/process-control-dashboard"
+import { MillsAINavigation } from "@/app/mills-ai/components/mills-ai-navigation"
 
 export default function MillsAIPage() {
   return (
@@ -10,6 +11,7 @@ export default function MillsAIPage() {
           <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Mills AI Control</h1>
           <p className="text-slate-600 dark:text-slate-400 mt-2">AI-Powered Process Variable Control System</p>
         </div>
+        <MillsAINavigation />
         <ProcessControlDashboard />
       </div>
     </div>
