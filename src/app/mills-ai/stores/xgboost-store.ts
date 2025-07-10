@@ -15,6 +15,7 @@ interface TargetData {
   timestamp: number
   value: number
   target: number
+  pv: number
 }
 
 type ParameterBounds = {
@@ -28,7 +29,9 @@ interface XgboostState {
   
   // Target data
   currentTarget: number | null
+  currentPV: number | null
   targetData: TargetData[]
+  simulationActive: boolean
   
   // Model settings
   modelName: string
@@ -36,8 +39,11 @@ interface XgboostState {
   // Actions
   updateParameter: (id: string, value: number) => void
   setPredictedTarget: (target: number) => void
-  addTargetDataPoint: (dataPoint: TargetData) => void
+  addTargetDataPoint: (dataPoint: Omit<TargetData, 'pv'>) => void
   setModelName: (name: string) => void
+  startSimulation: () => void
+  stopSimulation: () => void
+  updateSimulatedPV: () => void
 }
 
 // Icons for parameters
@@ -108,7 +114,9 @@ export const useXgboostStore = create<XgboostState>()(
         
         // Target data
         currentTarget: null,
+        currentPV: 50, // Initial PV value around 50
         targetData: [],
+        simulationActive: false,
         
         // Default model name
         modelName: "xgboost_PSI80_mill8",
@@ -134,9 +142,49 @@ export const useXgboostStore = create<XgboostState>()(
           set({ currentTarget: target }),
           
         addTargetDataPoint: (dataPoint) => 
-          set((state) => ({
-            targetData: [...state.targetData, dataPoint].slice(-50) // Keep last 50 points
-          })),
+          set((state) => {
+            // Generate a simulated PV value around 50 (with random variation)
+            const basePV = state.currentPV || 50
+            const variation = (Math.random() * 2 - 1) * 2 // Random variation between -2 and +2
+            const pv = Math.max(45, Math.min(55, basePV + variation)) // Keep between 45-55
+            
+            // Update current PV
+            return {
+              currentPV: pv,
+              targetData: [...state.targetData, { ...dataPoint, pv }].slice(-50) // Keep last 50 points
+            }
+          }),
+        
+        updateSimulatedPV: () =>
+          set((state) => {
+            if (!state.simulationActive) return {}
+            
+            // Only update if simulation is active
+            // Generate a simulated PV value around 50 (with random variation)
+            const basePV = state.currentPV || 50
+            const variation = (Math.random() * 2 - 1) * 1 // Random variation between -1 and +1
+            const pv = Math.max(45, Math.min(55, basePV + variation)) // Keep between 45-55
+            
+            // Add to trend data
+            const timestamp = Date.now()
+            const targetValue = state.currentTarget || 50 // Use current target or default to 50
+            
+            return {
+              currentPV: pv,
+              targetData: [...state.targetData, { 
+                timestamp, 
+                value: targetValue, 
+                target: targetValue,
+                pv
+              }].slice(-50) // Keep last 50 points
+            }
+          }),
+        
+        startSimulation: () =>
+          set({ simulationActive: true }),
+          
+        stopSimulation: () =>
+          set({ simulationActive: false }),
           
         setModelName: (modelName) => 
           set({ modelName })

@@ -10,16 +10,19 @@ interface TargetData {
   timestamp: number
   value: number
   target: number
+  pv: number
 }
 
 interface TargetFractionDisplayProps {
   currentTarget: number | null
+  currentPV: number | null
   targetData: TargetData[]
   isOptimizing: boolean
 }
 
 export function TargetFractionDisplay({
   currentTarget,
+  currentPV,
   targetData,
   isOptimizing,
 }: TargetFractionDisplayProps) {
@@ -58,15 +61,30 @@ export function TargetFractionDisplay({
           {/* Main Values Display */}
           <div className="lg:col-span-2 flex flex-col justify-center">
             <div className="space-y-6">
-              {/* Current Target */}
-              <div>
-                <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Current Target</div>
-                <div className="mt-1 flex items-end">
-                  <span className="text-4xl font-bold text-blue-600">{currentTarget?.toFixed(1) || 'N/A'}</span>
-                  <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
+              {/* Current Values */}
+              <div className="space-y-4">
+                {/* Process Variable (PV) */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Process Variable (PV)</div>
+                  <div className="mt-1 flex items-end">
+                    <span className="text-4xl font-bold text-emerald-600">{currentPV?.toFixed(1) || 'N/A'}</span>
+                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
+                  </div>
+                  <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    Current measured PSI80 value
+                  </div>
                 </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                  AI-predicted optimal target value
+
+                {/* Current Target/Setpoint (SP) */}
+                <div>
+                  <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Setpoint Target (SP)</div>
+                  <div className="mt-1 flex items-end">
+                    <span className="text-4xl font-bold text-blue-600">{currentTarget?.toFixed(1) || 'N/A'}</span>
+                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
+                  </div>
+                  <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                    AI-predicted optimal target value
+                  </div>
                 </div>
               </div>
 
@@ -86,9 +104,21 @@ export function TargetFractionDisplay({
           {/* Chart */}
           <div className="lg:col-span-5">
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium">Target Prediction Trend</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium">PSI80 Trend</span>
+                </div>
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+                    <span>Process Variable (PV)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span>Setpoint (SP)</span>
+                  </div>
+                </div>
               </div>
 
               <div className="h-[240px]">
@@ -117,8 +147,17 @@ export function TargetFractionDisplay({
                       />
                       <Line
                         type="monotone"
+                        dataKey="pv"
+                        name="Process Variable"
+                        stroke="#10b981"
+                        strokeWidth={2}
+                        dot={true}
+                        animationDuration={300}
+                      />
+                      <Line
+                        type="monotone"
                         dataKey="value"
-                        name="Predicted"
+                        name="Setpoint"
                         stroke="#3b82f6"
                         strokeWidth={2}
                         dot={true}
