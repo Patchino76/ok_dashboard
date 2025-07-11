@@ -1,6 +1,7 @@
 import pandas as pd
 from sqlalchemy import create_engine
 import logging
+import os
 from datetime import datetime
 
 # Use the main app's logging configuration
@@ -103,7 +104,7 @@ class MillsDataConnector:
             logger.error(f"Error retrieving ore quality data: {e}")
             raise
             
-    def process_dataframe(self, df, start_date=None, end_date=None, resample_freq='1min'):
+    def process_dataframe(self, df, start_date=None, end_date=None, resample_freq='1min', no_interpolation=False):
         """
         Process a dataframe for use in modeling - handles resampling, smoothing, etc.
         
@@ -112,6 +113,8 @@ class MillsDataConnector:
             start_date: Optional start date filter
             end_date: Optional end date filter
             resample_freq: Frequency for resampling time series
+            no_interpolation: If True, use forward fill instead of interpolation for resampling
+                             (keeps values constant within periods like shifts)
             
         Returns:
             Processed DataFrame
@@ -147,16 +150,33 @@ class MillsDataConnector:
         numeric_cols = df_processed.select_dtypes(include=['number']).columns.tolist()
         
         if numeric_cols:
-            # Resample and interpolate
-            df_processed = df_processed[numeric_cols].resample(resample_freq).mean().interpolate(method='linear')
+            if no_interpolation:
+                # Resample without interpolation - use forward fill (pad) method
+                # This keeps values constant within periods like shifts
+                df_resampled = df_processed[numeric_cols].resample(resample_freq).ffill()   
+                
+                # Forward fill to keep values constant - this ensures same value throughout the period
+                df_processed = df_resampled.fillna(method='ffill')
+                
+                # # Handle any remaining NAs at the start with backward fill
+                df_processed = df_processed.fillna(method='bfill')
+                logger.info(f"Applied resampling with constant values (no interpolation or smoothing)")
+            else:
+                # Original behavior - resample and interpolate
+                df_processed = df_processed[numeric_cols].resample(resample_freq).mean().interpolate(method='linear')
+                
+                # Fill remaining NAs
+                df_processed = df_processed.interpolate().ffill().bfill()
+                logger.info(f"Applied resampling with interpolation")
+                
+                # Apply smoothing using rolling window only when interpolation is enabled
+                window_size = 15  # Same as in the notebook
+                df_processed = df_processed.rolling(window=window_size, min_periods=1, center=True).mean()
+                logger.info(f"Applied smoothing with rolling window of size {window_size}")
+                
+            # Log the resampling method used
+            logger.info(f"Resampled data to {resample_freq} frequency")
             
-            # Fill remaining NAs
-            df_processed = df_processed.interpolate().ffill().bfill()
-            
-            # Apply smoothing using rolling window
-            window_size = 15  # Same as in the notebook
-            df_processed = df_processed.rolling(window=window_size, min_periods=1, center=True).mean()
-            logger.info(f"Applied smoothing with rolling window of size {window_size}")
             
         return df_processed
     
@@ -188,7 +208,7 @@ class MillsDataConnector:
         
         return joined_df
     
-    def get_combined_data(self, mill_number, start_date=None, end_date=None, resample_freq='1min'):
+    def get_combined_data(self, mill_number, start_date=None, end_date=None, resample_freq='1min', save_to_logs=True, no_interpolation=False):
         """
         Get combined mill and ore quality data, processed and joined
         
@@ -197,6 +217,9 @@ class MillsDataConnector:
             start_date: Start date for data retrieval
             end_date: End date for data retrieval
             resample_freq: Frequency for resampling time series
+            save_to_logs: Whether to save the combined data to a CSV file in the logs folder
+            no_interpolation: If True, use forward fill instead of interpolation for ore data
+                              (keeps values constant within periods like shifts)
             
         Returns:
             Combined DataFrame with mill and ore quality data
@@ -215,8 +238,8 @@ class MillsDataConnector:
             logger.info(f"Mill data sample:\n{mill_data.head(3)}")
             print(mill_data.head(3))
             
-            # Process mill data
-            processed_mill_data = self.process_dataframe(mill_data, start_date, end_date, resample_freq)
+            # Process mill data - always use interpolation for mill data since it's continuous
+            processed_mill_data = self.process_dataframe(mill_data, start_date, end_date, resample_freq, no_interpolation=False)
             logger.info(f"Processed mill data: {len(processed_mill_data)} rows, {len(processed_mill_data.columns)} columns")
             
             # Get ore quality data
@@ -231,15 +254,35 @@ class MillsDataConnector:
             logger.info(f"Ore data retrieved: {len(ore_data)} rows, {len(ore_data.columns)} columns")
             logger.info(f"Ore data columns: {list(ore_data.columns)}")
             
-            # Process ore data
-            processed_ore_data = self.process_dataframe(ore_data, start_date, end_date, resample_freq)
-            logger.info(f"Processed ore data: {len(processed_ore_data)} rows, {len(processed_ore_data.columns)} columns")
+            # Process ore data - apply no_interpolation option as requested
+            processed_ore_data = self.process_dataframe(ore_data, start_date, end_date, resample_freq, no_interpolation=True)
+            logger.info(f"Processed ore data: {len(processed_ore_data)} rows, {len(processed_ore_data.columns)} columns"
+                      f" - {'with constant values (no interpolation)' if no_interpolation else 'with interpolation'}")
+
             
             # Join the two datasets
             combined_data = self.join_dataframes_on_timestamp(processed_mill_data, processed_ore_data)
             logger.info(f"Combined data has {len(combined_data)} rows and {len(combined_data.columns)} columns")
             logger.info(f"Combined data columns: {list(combined_data.columns)}")
             logger.info(f"Combined data sample:\n{combined_data.head(3)}")
+            
+            # Save the combined data to a CSV file in the logs folder if requested
+            if save_to_logs and combined_data is not None and not combined_data.empty:
+                try:
+                    # Create logs directory if it doesn't exist
+                    logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
+                    os.makedirs(logs_dir, exist_ok=True)
+                    
+                    # Generate filename with timestamp
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    filename = f"combined_data_mill{mill_number}_{timestamp}.csv"
+                    filepath = os.path.join(logs_dir, filename)
+                    
+                    # Save to CSV
+                    combined_data.to_csv(filepath)
+                    logger.info(f"Combined data saved to {filepath}")
+                except Exception as e:
+                    logger.error(f"Error saving combined data to logs: {e}")
             
             return combined_data
                 
