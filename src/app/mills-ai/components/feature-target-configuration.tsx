@@ -122,7 +122,7 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
                       value={[parameter.currentMin]}
                       onValueChange={(value) => handleBoundsChange(parameter, "min", value)}
                       min={parameter.min}
-                      max={parameter.currentMax - (parameter.max - parameter.min) * 0.1}
+                      max={Math.min(parameter.currentMax, parameter.max)}
                       step={(parameter.max - parameter.min) / 100}
                       className="mt-1"
                       disabled={!parameter.enabled}
@@ -139,7 +139,7 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
                     <Slider
                       value={[parameter.currentMax]}
                       onValueChange={(value) => handleBoundsChange(parameter, "max", value)}
-                      min={parameter.currentMin + (parameter.max - parameter.min) * 0.1}
+                      min={Math.max(parameter.currentMin, parameter.min)}
                       max={parameter.max}
                       step={(parameter.max - parameter.min) / 100}
                       className="mt-1"
