@@ -8,8 +8,9 @@ interface PredictParams {
 
 interface PredictionResponse {
   prediction: number
-  model_name: string
-  input_parameters: Record<string, number>
+  model_id: string
+  target_col: string
+  timestamp: string
 }
 
 export const usePredictTarget = () => {
@@ -24,8 +25,8 @@ export const usePredictTarget = () => {
       const response = await mlApiClient.post<PredictionResponse>(
         '/api/v1/ml/predict',
         {
-          model_name: params.modelName,
-          parameters: params.parameters
+          model_id: params.modelName,
+          data: params.parameters
         }
       )
       
