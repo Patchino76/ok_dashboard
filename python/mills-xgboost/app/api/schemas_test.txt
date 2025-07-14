@@ -9,7 +9,7 @@
   },
   "mill_number": 8,
   "start_date": "2025-06-10T06:00:00",
-  "end_date": "2025-07-10T22:00:00",
+  "end_date": "2025-07-12T22:00:00",
   "features": [
     "Ore",
     "WaterMill",
@@ -52,16 +52,15 @@
 {
   "model_id": "xgboost_PSI80_mill8",
   "parameter_bounds": {
-    "Ore": [150.0, 200.0],
-    "WaterMill": [10.0, 20.0],
-    "WaterZumpf": [180.0, 250.0],
-    "PressureHC": [70.0, 90.0],
-    "DensityHC": [1.5, 1.9],
-    "MotorAmp": [30.0, 50.0],
-    "Shisti": [0.05, 0.2],
-    "Daiki": [0.2, 0.5]
+    "Ore": [160.0, 200.0],
+    "WaterMill": [5.0, 25.0],
+    "WaterZumpf": [170.0, 250.0],
+    "PressureHC": [0.2, 0.5],
+    "DensityHC": [1500, 1900],
+    "MotorAmp": [170.0, 220],
+    "Shisti": [0.02, 0.5],
+    "Daiki": [0.02, 0.5]
   },
-  "init_points": 5,
-  "n_iter": 25,
-  "maximize": false
+  "n_iter": 50,
+  "maximize": true
 }

@@ -148,41 +148,102 @@ Implement a production-ready XGBoost regression model for mill data with methods
 - Serializes model and scaler for persistence
 - Provides detailed metrics calculation
 
-### 4. Bayesian Optimization (`bayesian_opt.py`)
+### 4. Bayesian Optimization with Optuna (`endpoints.py`)
 
 #### Purpose
 
-Implement Bayesian optimization to tune mill parameters for optimal performance using a trained XGBoost model.
+Implement Bayesian optimization using Optuna to find optimal mill parameters that maximize or minimize a target performance metric using a trained XGBoost model.
 
 #### Key Classes and Methods
 
-- **`MillBayesianOptimizer`**: Main class for Bayesian optimization.
-  - `__init__(self, xgboost_model, target_col='PSI80', maximize=True)`: Initialize with model and objective.
-  - `_black_box_function(self, **kwargs)`: Black box function that predicts outcome using XGBoost model.
-  - `set_parameter_bounds(self, pbounds=None, data=None)`: Set parameter search bounds.
-  - `set_constraints(self, constraints=None)`: Set constraints on parameter combinations.
-  - `_check_constraints(self, params)`: Check if parameters meet all constraints.
-  - `optimize(self, init_points=5, n_iter=25, acq='ei', kappa=2.5, xi=0.0, save_dir=None)`: Run optimization.
-  - `_save_optimization_results(self, directory)`: Save optimization results to disk.
-  - `recommend_parameters(self, n_recommendations=3)`: Get top N parameter recommendations.
+- **`BlackBoxFunction`**: Main class representing the model prediction function to optimize.
+
+  - `__init__(self, model_id: str, xgb_model=None, maximize: bool = True)`: Initialize with model and objective direction.
+  - `_load_model(self)`: Load XGBoost model, scaler, and metadata from disk.
+  - `set_parameter_bounds(self, parameter_bounds: Dict[str, List[float]])`: Set min/max bounds for each parameter.
+  - `__call__(self, **features) -> float`: Predict outcome using XGBoost model for given parameters.
+
+- **`optimize_with_optuna`**: Function that orchestrates the Optuna optimization process.
+  - Parameters: `black_box_func, n_trials=100, timeout=None`
+  - Returns: `Tuple[Dict[str, float], float, optuna.study.Study]` (best parameters, best value, study object)
+
+#### Code Example: BlackBoxFunction Implementation
+
+```python
+class BlackBoxFunction:
+    """A black box function that loads an XGBoost model and predicts output based on input features."""
+
+    def __init__(self, model_id: str, xgb_model=None, maximize: bool = True):
+        self.model_id = model_id
+        self.maximize = maximize
+        self.xgb_model = xgb_model
+        self.parameter_bounds = None
+
+        # If model is not provided, load it
+        if self.xgb_model is None:
+            self._load_model()
+
+    def set_parameter_bounds(self, parameter_bounds: Dict[str, List[float]]):
+        """Set bounds for the parameters to optimize."""
+        self.parameter_bounds = parameter_bounds
+
+        # Validate that bounds are provided for features in the model
+        for feature in parameter_bounds:
+            if feature not in self.features:
+                logger.warning(f"Parameter bound provided for feature '{feature}' which is not in the model features.")
+
+    def __call__(self, **features) -> float:
+        """Predict the target value based on the provided features."""
+        # Create a dictionary with all features
+        input_data = {feature: features.get(feature, 0.0) for feature in self.features}
+
+        # Make prediction
+        prediction = self.xgb_model.predict(input_data)[0]
+
+        # Return prediction (negated if minimizing)
+        return prediction if self.maximize else -prediction
+```
+
+#### Code Example: Optuna Optimization
+
+```python
+def optimize_with_optuna(
+    black_box_func: BlackBoxFunction,
+    n_trials: int = 100,
+    timeout: int = None
+) -> Tuple[Dict[str, float], float, optuna.study.Study]:
+    """Optimize the black box function using Optuna."""
+    # Define the objective function for Optuna
+    def objective(trial):
+        # Suggest values for each parameter within bounds
+        params = {}
+        for feature, bounds in black_box_func.parameter_bounds.items():
+            params[feature] = trial.suggest_float(feature, bounds[0], bounds[1])
+
+        # Call the black box function
+        return black_box_func(**params)
+
+    # Create and run the study
+    direction = "maximize" if black_box_func.maximize else "minimize"
+    study = optuna.create_study(direction=direction)
+    study.optimize(objective, n_trials=n_trials, timeout=timeout)
+
+    # Get best parameters and value
+    best_params = study.best_params
+    best_value = study.best_value
+
+    return best_params, best_value, study
+```
 
 #### Key Implementation Details
 
-- Uses the bayesian-optimization library for Gaussian Process optimization (compatible with version 3.0.1)
+- Uses Optuna for Bayesian optimization with Tree-structured Parzen Estimator (TPE)
 - Supports both maximization and minimization objectives
-- Allows parameter bounds to be derived from data min/max values
-- Supports parameter constraints (e.g., WaterMill ≥ 1.5 × WaterZumpf)
-- Records optimization history for analysis
-- Provides parameter recommendations with predicted performance
-
-#### Version Compatibility Notes
-
-- The implementation is updated to work with bayesian-optimization version 3.0.1
-- In v3.0.1, the acquisition functions API changed:
-  - Previously: `from bayes_opt.util import UtilityFunction` and then `utility = UtilityFunction(kind='ucb', kappa=2.5)`
-  - Now: `from bayes_opt import acquisition as bayes_acq` and then `acquisition_function = bayes_acq.UCB(kappa=2.5)`
-- The code conditionally creates the appropriate acquisition function object based on the selected method ('ucb', 'ei', or 'poi')
-- This ensures compatibility with the latest version while maintaining the same functionality
+- Provides multiple recommendations ranked by performance, not just the best solution
+- Automatically exports optimization trial history to CSV files
+- Returns best parameters, performance value, and the full optimization study object
+- Dynamically loads models from memory or disk based on availability
+- Handles parameter bound validation against model features
 
 ### 5. FastAPI Application (`main.py`, `endpoints.py`, `schemas.py`)
 
@@ -198,29 +259,187 @@ Expose model training, prediction, and optimization capabilities through a RESTf
   - `DatabaseConfig`: Database connection parameters
   - `TrainingParameters`: XGBoost training parameters
   - `TrainingRequest`: Model training request
-  - `ModelMetrics`: Model performance metrics
-  - `TrainingResponse`: Model training response
-  - `PredictionRequest`: Prediction request
-  - `PredictionResponse`: Prediction response
-  - `OptimizationRequest`: Parameter optimization request
-  - `ParameterRecommendation`: Single parameter recommendation
-  - `OptimizationResponse`: Optimization results response
+  - `PredictionRequest`: Request model for model predictions
+  - `PredictionResponse`: Response model with prediction results
+  - `OptimizationRequest`: Request model for parameter optimization
+  - `OptimizationResponse`: Response model with optimization results and recommendations
+  - `Recommendation`: Model for individual parameter recommendations
+
+#### Key Schema Implementations
+
+```python
+class PredictionRequest(BaseModel):
+    model_id: str
+    data: Dict[str, float]
+
+class PredictionResponse(BaseModel):
+    model_id: str
+    prediction: float
+    target_col: str
+
+class OptimizationRequest(BaseModel):
+    model_id: str
+    parameter_bounds: Optional[Dict[str, List[float]]] = None
+    n_iter: Optional[int] = 25
+    init_points: Optional[int] = 5
+    maximize: bool = True
+
+class Recommendation(BaseModel):
+    params: Dict[str, float]
+    predicted_value: float
+
+class OptimizationResponse(BaseModel):
+    best_params: Dict[str, float]
+    best_target: float
+    target_col: str
+    maximize: bool
+    recommendations: List[Recommendation]
+    model_id: str
+```
+
+- `ModelMetrics`: Model performance metrics
+- `TrainingResponse`: Model training response
+- `PredictionRequest`: Prediction request
+- `PredictionResponse`: Prediction response
+- `OptimizationRequest`: Parameter optimization request
+- `ParameterRecommendation`: Single parameter recommendation
+- `OptimizationResponse`: Optimization results response
 
 **API Endpoints (`endpoints.py`)**
 
 - Implements API endpoints:
   - `POST /train`: Train a new XGBoost model with mill-specific naming
     - Models are saved with mill number in the filename (e.g., `xgboost_PSI80_mill6_model.json`)
+  - `POST /predict`: Make predictions using a trained model
+    - Takes model_id and feature data as input
+    - Returns predicted target value
+  - `POST /optimize`: Optimize mill parameters using Bayesian Optimization
+    - Uses Optuna to find optimal parameters that maximize/minimize target metric
+    - Returns best parameters, predicted performance, and multiple recommendations
+  - `GET /models`: List all available models
+  - `GET /info`: API system information
+
+#### Example Endpoint Implementation: `/predict`
+
+```python
+@router.post("/predict", response_model=PredictionResponse)
+async def predict(request: PredictionRequest):
+    """Make predictions with a trained XGBoost model"""
+    try:
+        # Log prediction request
+        logger.info(f"Prediction request received for model {request.model_id}")
+
+        # Check if model exists
+        if request.model_id not in models_store:
+            # Try to load from disk
+            try:
+                model_name = request.model_id.split('.')[0]
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                models_dir = os.path.join(project_root, 'models')
+                model_path = os.path.join(models_dir, f"{model_name}_model.json")
+                scaler_path = os.path.join(models_dir, f"{model_name}_scaler.pkl")
+                metadata_path = os.path.join(models_dir, f"{model_name}_metadata.json")
+
+                # Create model and load from disk
+                model = MillsXGBoostModel()
+                model.load_model(model_path, scaler_path, metadata_path if os.path.exists(metadata_path) else None)
+
+                # Get target column from metadata or use default
+                target_col = "PSI80"
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        target_col = metadata.get('target_col', target_col)
+
+                # Store in memory for future use
+                models_store[request.model_id] = {
+                    "model": model,
+                    "target_col": target_col
+                }
+                logger.info(f"Successfully loaded model {request.model_id} from disk")
+            except Exception as e:
+                logger.error(f"Failed to load model from disk: {str(e)}")
+                raise HTTPException(status_code=404, detail="Model not found")
+
+        # Get model and make prediction
+        model_info = models_store[request.model_id]
+        model = model_info["model"]
+        target_col = model_info.get("target_col", "PSI80")
+
+        # Make prediction
+        prediction = model.predict(request.data)[0]
+
+        # Return prediction
+        return PredictionResponse(
+            model_id=request.model_id,
+            prediction=float(prediction),
+            target_col=target_col
+        )
+    except Exception as e:
+        logger.error(f"Error during prediction: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+```
+
+#### Example Endpoint Implementation: `/optimize` (Partial)
+
+```python
+@router.post("/optimize", response_model=OptimizationResponse)
+async def optimize_parameters(request: OptimizationRequest):
+    """Optimize XGBoost hyperparameters using Bayesian Optimization"""
+    try:
+        # Load model (from memory or disk)
+        # ...
+
+        # Create black box function with the loaded model
+        black_box = BlackBoxFunction(
+            model_id=request.model_id,
+            xgb_model=model,
+            maximize=request.maximize
+        )
+
+        # Set parameter bounds
+        black_box.set_parameter_bounds(parameter_bounds)
+
+        # Run optimization
+        best_params, best_value, study = optimize_with_optuna(
+            black_box_func=black_box,
+            n_trials=n_trials
+        )
+
+        # Generate recommendations from top trials
+        recommendations = []
+        for trial in sorted(study.trials, key=lambda t: t.value, reverse=request.maximize)[:5]:
+            value = trial.value if request.maximize else -trial.value
+            recommendations.append({
+                "params": trial.params,
+                "predicted_value": float(value)
+            })
+
+        # Return optimized parameters with recommendations
+        return OptimizationResponse(
+            best_params=best_params,
+            best_target=float(best_value),
+            target_col=target_col,
+            maximize=request.maximize,
+            recommendations=recommendations,
+            model_id=request.model_id
+        )
+    except Exception as e:
+        logger.error(f"Error during optimization: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
+```
+
     - Uses time-ordered train-test split (no shuffling) for time series data
     - Stores trained models both on disk and in memory for immediate use
-  - `POST /predict`: Make predictions with a trained model
-    - Can load models from disk if not found in memory
-    - Supports full model name including mill number (e.g., `xgboost_PSI80_mill6_model`)
-  - `POST /optimize`: Run Bayesian optimization to find optimal mill parameters
-  - `GET /models`: List available trained models
-  - `GET /status`: Health check endpoint
-  - `POST /optimize`: Run Bayesian optimization on mill parameters
-  - `GET /models`: List all available models
+
+- `POST /predict`: Make predictions with a trained model
+  - Can load models from disk if not found in memory
+  - Supports full model name including mill number (e.g., `xgboost_PSI80_mill6_model`)
+- `POST /optimize`: Run Bayesian optimization to find optimal mill parameters
+- `GET /models`: List available trained models
+- `GET /status`: Health check endpoint
+- `POST /optimize`: Run Bayesian optimization on mill parameters
+- `GET /models`: List all available models
 
 **FastAPI Application (`main.py`)**
 
@@ -351,9 +570,106 @@ Manage application configuration settings.
 
 ## Conclusion
 
+## Frontend Integration
+
+### React Frontend Integration
+
+The frontend integrates with the ML API through a set of custom hooks and components.
+
+### Key Frontend Components
+
+- **XGBoost Simulation Dashboard**: Main dashboard component for interacting with ML models
+- **Parameter optimization UI**: Component for setting parameter bounds and running optimization
+- **Model training interface**: Component for selecting data ranges and training parameters
+
+### API Integration Hooks
+
+#### Prediction Hook Implementation
+
+The prediction functionality is implemented in `use-predict-target.ts` hook which handles API calls to the ML prediction endpoint:
+
+```typescript
+// Type definitions for prediction API
+export interface PredictionResponse {
+  model_id: string;
+  prediction: number;
+  target_col: string;
+}
+
+// Hook for making prediction calls
+export const usePredictTarget = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<number | null>(null);
+
+  const predictTarget = useCallback(
+    async (modelId: string, parameters: Record<string, number>) => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch("/api/v1/ml/predict", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model_id: modelId, // Use correct field name to match API schema
+            data: parameters, // Use correct field name to match API schema
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+
+        const result: PredictionResponse = await response.json();
+        setPrediction(result.prediction);
+        return result.prediction;
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "An unknown error occurred"
+        );
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  return { predictTarget, prediction, isLoading, error };
+};
+```
+
+### Component Usage Example
+
+Example of using the prediction hook in the XGBoost dashboard component:
+
+```typescript
+const XGBoostSimulationDashboard = () => {
+  const { predictTarget, prediction, isLoading, error } = usePredictTarget();
+
+  const handlePrediction = async () => {
+    const parameters = {
+      Ore: oreValue,
+      WaterMill: waterMillValue,
+      WaterZumpf: waterZumpfValue,
+      // Other parameters
+    };
+
+    await predictTarget("xgboost_PSI80_mill8", parameters);
+  };
+
+  // Component render code
+};
+```
+
+## Conclusion
+
 The Mills XGBoost System is a comprehensive solution for mill performance prediction and parameter optimization. The modular architecture and clean separation of concerns make it easy to maintain and extend. The system is designed for production deployment with proper error handling, logging, and no extraneous plotting during production runs.
 
-The key highlights of the implementation are:
+### Key System Highlights
 
 1. Direct PostgreSQL integration with proper handling of case-sensitive columns
 2. Production-ready XGBoost modeling with comprehensive logging
