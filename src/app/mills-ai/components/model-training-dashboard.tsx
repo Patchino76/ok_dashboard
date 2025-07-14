@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { FeatureTargetConfiguration } from "./feature-target-configuration"
 import { ModelTrainingResults } from "./model-training-results"
-import { Brain, Play, Settings, BarChart3 } from "lucide-react"
+import { Brain, Play, Settings, BarChart3, AlertCircle } from "lucide-react"
+import { useModelTraining } from "../hooks/useModelTraining"
 
 export interface ModelParameter {
   id: string
@@ -170,56 +171,27 @@ export function ModelTrainingDashboard() {
 
   const [isTraining, setIsTraining] = useState(false)
   const [trainingResults, setTrainingResults] = useState<TrainingResults | null>(null)
-  const [trainingProgress, setTrainingProgress] = useState(0)
+  const { trainModel, isLoading, progress: trainingProgress, error: trainingError } = useModelTraining()
 
   const handleParameterUpdate = (updatedParameter: ModelParameter) => {
     setParameters((prev) => prev.map((p) => (p.id === updatedParameter.id ? updatedParameter : p)))
   }
 
   const handleTrainModel = async () => {
-    setIsTraining(true)
-    setTrainingProgress(0)
-    setTrainingResults(null)
-
-    // Simulate training progress
-    const progressInterval = setInterval(() => {
-      setTrainingProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval)
-          return 100
-        }
-        return prev + Math.random() * 15
-      })
-    }, 200)
-
-    // Simulate training time
-    await new Promise((resolve) => setTimeout(resolve, 3000))
-
-    // Generate mock results
-    const enabledFeatures = parameters.filter((p) => p.type === "feature" && p.enabled)
-    const mockResults: TrainingResults = {
-      mae: Math.random() * 2 + 1, // 1-3
-      mse: Math.random() * 5 + 2, // 2-7
-      rmse: Math.random() * 2.5 + 1.5, // 1.5-4
-      r2: Math.random() * 0.3 + 0.7, // 0.7-1.0
-      mape: Math.random() * 5 + 2, // 2-7%
-      trainingTime: Math.random() * 30 + 15, // 15-45 seconds
-      featureImportance: enabledFeatures
-        .map((feature) => ({
-          feature: feature.name,
-          importance: Math.random() * 0.8 + 0.1, // 0.1-0.9
-        }))
-        .sort((a, b) => b.importance - a.importance),
-      validationCurve: Array.from({ length: 50 }, (_, i) => ({
-        iteration: i + 1,
-        trainLoss: Math.exp(-i * 0.05) * (1 + Math.random() * 0.1),
-        valLoss: Math.exp(-i * 0.04) * (1.1 + Math.random() * 0.15),
-      })),
+    try {
+      setIsTraining(true)
+      setTrainingResults(null)
+      
+      // Call the API to train the model
+      const results = await trainModel(parameters)
+      
+      // Update UI with results
+      setTrainingResults(results)
+    } catch (err) {
+      console.error('Error during model training:', err)
+    } finally {
+      setIsTraining(false)
     }
-
-    setTrainingResults(mockResults)
-    setIsTraining(false)
-    clearInterval(progressInterval)
   }
 
   const enabledFeatures = parameters.filter((p) => p.type === "feature" && p.enabled).length
@@ -255,11 +227,11 @@ export function ModelTrainingDashboard() {
             </div>
             <Button
               onClick={handleTrainModel}
-              disabled={!canTrain || isTraining}
+              disabled={!canTrain || isTraining || isLoading}
               className="flex items-center gap-2 px-6"
               size="lg"
             >
-              {isTraining ? (
+              {isLoading || isTraining ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                   Training... {trainingProgress.toFixed(0)}%
@@ -271,6 +243,12 @@ export function ModelTrainingDashboard() {
                 </>
               )}
             </Button>
+            {trainingError && (
+              <div className="mt-2 text-red-500 text-sm flex items-center gap-1">
+                <AlertCircle className="h-4 w-4" />
+                <span>Error: {trainingError}</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

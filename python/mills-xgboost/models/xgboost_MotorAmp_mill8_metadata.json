@@ -3,12 +3,11 @@
     "Ore",
     "WaterMill",
     "WaterZumpf",
-    "MotorAmp",
     "DensityHC",
     "PressureHC",
     "Daiki"
   ],
-  "target_col": "PSI80",
+  "target_col": "MotorAmp",
   "model_params": {
     "n_estimators": 300,
     "learning_rate": 0.05,
@@ -20,27 +19,25 @@
   },
   "feature_importance": {
     "Feature": {
-      "4": "DensityHC",
+      "3": "DensityHC",
       "2": "WaterZumpf",
-      "0": "Ore",
-      "3": "MotorAmp",
       "1": "WaterMill",
-      "6": "Daiki",
-      "5": "PressureHC"
+      "4": "PressureHC",
+      "0": "Ore",
+      "5": "Daiki"
     },
     "Importance": {
-      "4": 0.35841748118400574,
-      "2": 0.25608956813812256,
-      "0": 0.15579967200756073,
-      "3": 0.07071880996227264,
-      "1": 0.06582925468683243,
-      "6": 0.05091872066259384,
-      "5": 0.04222647473216057
+      "3": 0.5287666320800781,
+      "2": 0.12083102762699127,
+      "1": 0.1027810350060463,
+      "4": 0.09510540217161179,
+      "0": 0.08266150951385498,
+      "5": 0.06985431909561157
     }
   },
   "training_history": {
-    "best_iteration": 102,
-    "best_score": 0.561878387551201
+    "best_iteration": 14,
+    "best_score": 2.2655798766663025
   },
-  "last_trained": "2025-07-14T14:04:07.517910"
+  "last_trained": "2025-07-14T14:05:57.064540"
 }
