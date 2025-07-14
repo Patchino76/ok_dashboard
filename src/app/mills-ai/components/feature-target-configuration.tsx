@@ -15,11 +15,10 @@ interface FeatureTargetConfigurationProps {
 }
 
 export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: FeatureTargetConfigurationProps) {
-  const handleTypeChange = (parameter: ModelParameter, newType: "feature" | "target" | "disabled") => {
+  const handleTypeChange = (parameter: ModelParameter, newType: "feature" | "target") => {
     onParameterUpdate({
       ...parameter,
       type: newType,
-      enabled: newType !== "disabled",
     })
   }
 
@@ -44,7 +43,7 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
       case "target":
         return <Target className="h-4 w-4 text-green-600" />
       default:
-        return <X className="h-4 w-4 text-slate-400" />
+        return <Zap className="h-4 w-4 text-slate-400" />
     }
   }
 
@@ -63,7 +62,11 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
           </Badge>
         )
       default:
-        return <Badge variant="secondary">Disabled</Badge>
+        return (
+          <Badge variant="default" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+            Feature
+          </Badge>
+        )
     }
   }
 
@@ -93,7 +96,6 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
                   <SelectContent>
                     <SelectItem value="feature">Feature</SelectItem>
                     <SelectItem value="target">Target</SelectItem>
-                    <SelectItem value="disabled">Disabled</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -105,7 +107,6 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
                   <Switch
                     checked={parameter.enabled}
                     onCheckedChange={(enabled) => handleEnabledChange(parameter, enabled)}
-                    disabled={parameter.type === "disabled"}
                   />
                 </div>
               </div>

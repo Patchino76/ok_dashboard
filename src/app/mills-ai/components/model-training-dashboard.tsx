@@ -12,7 +12,7 @@ import { useModelTraining } from "../hooks/useModelTraining"
 export interface ModelParameter {
   id: string
   name: string
-  type: "feature" | "target" | "disabled"
+  type: "feature" | "target"
   enabled: boolean
   min: number
   max: number
@@ -133,7 +133,7 @@ export function ModelTrainingDashboard() {
     {
       id: "Grano",
       name: "Гранодиорити",
-      type: "disabled",
+      type: "feature",
       enabled: false,
       min: 0.0,
       max: 100.0,
@@ -145,7 +145,7 @@ export function ModelTrainingDashboard() {
     {
       id: "Class_12",
       name: "Клас 12",
-      type: "disabled",
+      type: "feature",
       enabled: false,
       min: 0.0,
       max: 100.0,
