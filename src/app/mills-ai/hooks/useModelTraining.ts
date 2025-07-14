@@ -69,18 +69,7 @@ const DEFAULT_PARAMS = {
   objective: "reg:squarederror"
 };
 
-// Map UI parameter IDs to API feature names
-const FEATURE_ID_TO_API_NAME: Record<string, string> = {
-  ore_feed: "Ore",
-  water_mill: "WaterMill",
-  water_zumpf: "WaterZumpf",
-  system_pressure: "PressureHC",
-  pulp_density: "DensityHC",
-  mill_power: "MotorAmp",
-  ph_level: "Shisti",
-  temperature: "Daiki",
-  fraction_recovery: "PSI80"
-};
+// Note: Parameter IDs are now directly used as API feature names
 
 export function useModelTraining() {
   const [isLoading, setIsLoading] = useState(false);
@@ -107,15 +96,13 @@ export function useModelTraining() {
       throw new Error('At least one target must be enabled for training');
     }
 
-    // Map UI parameter IDs to API feature names
-    const featureNames = enabledFeatures
-      .map(feature => FEATURE_ID_TO_API_NAME[feature.id])
-      .filter(Boolean); // Remove any undefined mappings
+    // Use parameter IDs directly as API feature names
+    const featureNames = enabledFeatures.map(feature => feature.id);
     
-    const targetName = FEATURE_ID_TO_API_NAME[enabledTargets[0].id];
+    const targetName = enabledTargets[0].id;
     
     if (!targetName) {
-      throw new Error(`Target parameter ${enabledTargets[0].id} cannot be mapped to API name`);
+      throw new Error(`Target parameter ID is empty or invalid`);
     }
 
     return {
@@ -158,7 +145,6 @@ export function useModelTraining() {
       mse: response.test_metrics.mse,
       rmse: response.test_metrics.rmse,
       r2: response.test_metrics.r2,
-      mape: response.test_metrics.mae * 100 / 0.8, // Rough approximation of MAPE
       trainingTime: response.training_duration,
       featureImportance,
       validationCurve

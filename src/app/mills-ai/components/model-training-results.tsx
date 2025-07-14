@@ -17,7 +17,6 @@ export function ModelTrainingResults({ results }: ModelTrainingResultsProps) {
     { name: "MSE", value: results.mse, color: "#ef4444", description: "Mean Squared Error" },
     { name: "RMSE", value: results.rmse, color: "#f59e0b", description: "Root Mean Squared Error" },
     { name: "R²", value: results.r2, color: "#10b981", description: "R-squared Score" },
-    { name: "MAPE", value: results.mape, color: "#8b5cf6", description: "Mean Absolute Percentage Error" },
   ]
 
   const getPerformanceRating = (r2: number) => {
