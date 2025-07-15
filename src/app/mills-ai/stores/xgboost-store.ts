@@ -35,12 +35,18 @@ interface XgboostState {
   
   // Model settings
   modelName: string
+  availableModels: string[]
+  modelFeatures: string[] | null
+  modelTarget: string | null
+  lastTrained: string | null
   
   // Actions
   updateParameter: (id: string, value: number) => void
   setPredictedTarget: (target: number) => void
   addTargetDataPoint: (dataPoint: Omit<TargetData, 'pv'>) => void
   setModelName: (name: string) => void
+  setAvailableModels: (models: string[]) => void
+  setModelMetadata: (features: string[], target: string, lastTrained: string | null) => void
   startSimulation: () => void
   stopSimulation: () => void
   updateSimulatedPV: () => void
@@ -111,15 +117,80 @@ export const useXgboostStore = create<XgboostState>()(
     persist(
       (set) => ({
         // Initialize parameters with default values (middle of the range)
-        parameters: Object.entries(initialBounds).map(([id, [min, max]]) => ({
-          id,
-          name: id,
-          unit: parameterUnits[id] || "",
-          value: min + (max - min) / 2, // Default to middle of range
-          trend: [],
-          color: parameterColors[id] || "blue",
-          icon: parameterIcons[id] || "📈"
-        })),
+        parameters: [
+          {
+            id: "Ore",
+            name: "Ore Input",
+            unit: "t/h",
+            value: 190,
+            trend: [],
+            color: parameterColors.Ore,
+            icon: parameterIcons.Ore,
+          },
+          {
+            id: "WaterMill",
+            name: "Water Mill",
+            unit: "m³/h",
+            value: 15,
+            trend: [],
+            color: parameterColors.WaterMill,
+            icon: parameterIcons.WaterMill,
+          },
+          {
+            id: "WaterZumpf",
+            name: "Water Zumpf",
+            unit: "m³/h",
+            value: 200,
+            trend: [],
+            color: parameterColors.WaterZumpf,
+            icon: parameterIcons.WaterZumpf,
+          },
+          {
+            id: "PressureHC",
+            name: "HC Pressure",
+            unit: "bar",
+            value: 0.4,
+            trend: [],
+            color: parameterColors.PressureHC,
+            icon: parameterIcons.PressureHC,
+          },
+          {
+            id: "DensityHC",
+            name: "HC Density",
+            unit: "g/L",
+            value: 1700,
+            trend: [],
+            color: parameterColors.DensityHC,
+            icon: parameterIcons.DensityHC,
+          },
+          {
+            id: "MotorAmp",
+            name: "Motor Amperage",
+            unit: "A",
+            value: 200,
+            trend: [],
+            color: parameterColors.MotorAmp,
+            icon: parameterIcons.MotorAmp,
+          },
+          {
+            id: "Shisti",
+            name: "Shisti",
+            unit: "%",
+            value: 0.2,
+            trend: [],
+            color: parameterColors.Shisti,
+            icon: parameterIcons.Shisti,
+          },
+          {
+            id: "Daiki",
+            name: "Daiki",
+            unit: "%",
+            value: 0.3,
+            trend: [],
+            color: parameterColors.Daiki,
+            icon: parameterIcons.Daiki,
+          },
+        ],
         
         // Parameter bounds
         parameterBounds: initialBounds,
@@ -130,8 +201,12 @@ export const useXgboostStore = create<XgboostState>()(
         targetData: [],
         simulationActive: false,
         
-        // Default model name
+        // Model settings
         modelName: "xgboost_PSI80_mill8",
+        availableModels: [],
+        modelFeatures: null,
+        modelTarget: null,
+        lastTrained: null,
         
         // Actions
         updateParameter: (id, value) => 
@@ -199,7 +274,17 @@ export const useXgboostStore = create<XgboostState>()(
           set({ simulationActive: false }),
           
         setModelName: (modelName) => 
-          set({ modelName })
+          set({ modelName }),
+          
+        setAvailableModels: (models) =>
+          set({ availableModels: models }),
+          
+        setModelMetadata: (features, target, lastTrained) =>
+          set({ 
+            modelFeatures: features,
+            modelTarget: target,
+            lastTrained
+          })
       }),
       {
         name: "xgboost-simulation-storage"

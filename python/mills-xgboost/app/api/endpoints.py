@@ -542,16 +542,62 @@ async def optimize_parameters(request: OptimizationRequest):
 
 @router.get("/models", response_model=Dict[str, Any])
 async def list_models():
-    """List all available models"""
+    """List all available models by scanning the models directory"""
     try:
+        import os
+        import glob
+        import json
+        from datetime import datetime
+        
+        # Use absolute path to mills-xgboost/models directory
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+        models_dir = os.path.join(project_root, 'models')
+        
+        # Check if directory exists
+        if not os.path.exists(models_dir):
+            logger.error(f"Models directory does not exist: {models_dir}")
+            return {"error": "Models directory not found"}
+        
+        # Find all metadata files
+        metadata_files = glob.glob(os.path.join(models_dir, '*_metadata.json'))
+        logger.info(f"Found {len(metadata_files)} model metadata files")
+        
         result = {}
-        for model_id, info in models_store.items():
-            result[model_id] = {
-                "created_at": info["created_at"],
-                "features": info["features"],
-                "target_col": info["target_col"],
-                "file_paths": info["file_paths"]
-            }
+        for metadata_file in metadata_files:
+            try:
+                # Extract model ID from filename
+                filename = os.path.basename(metadata_file)
+                model_id = filename.replace('_metadata.json', '')
+                
+                # Read metadata
+                with open(metadata_file, 'r') as f:
+                    metadata = json.load(f)
+                
+                # Check if corresponding model and scaler files exist
+                model_file = os.path.join(models_dir, f"{model_id}_model.json")
+                scaler_file = os.path.join(models_dir, f"{model_id}_scaler.pkl")
+                
+                files_exist = os.path.exists(model_file) and os.path.exists(scaler_file)
+                
+                # Get file modification time as a proxy for creation date
+                try:
+                    mod_time = os.path.getmtime(metadata_file)
+                    mod_time_str = datetime.fromtimestamp(mod_time).isoformat()
+                except:
+                    mod_time_str = "Unknown"
+                
+                # Get required information
+                result[model_id] = {
+                    "name": model_id,
+                    "features": metadata.get("features", []),
+                    "target_col": metadata.get("target_col", ""),
+                    "last_trained": metadata.get("last_trained", mod_time_str),
+                    "files_complete": files_exist
+                }
+            except Exception as e:
+                logger.error(f"Error processing metadata file {metadata_file}: {str(e)}")
+                # Continue with next file
+        
         return result
     except Exception as e:
         logger.error(f"Error listing models: {str(e)}")

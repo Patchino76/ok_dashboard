@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ParameterSimulationCard } from "./parameter-simulation-card"
 import { TargetFractionDisplay } from "./target-fraction-display"
-import { Zap, Activity, Play, Pause, BarChart2 } from "lucide-react"
+import { Zap, Activity, Play, Pause, BarChart2, AlertCircle } from "lucide-react"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
 import { usePredictTarget } from "@/app/mills-ai/hooks/use-predict-target"
+import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface ParameterData {
   timestamp: number
@@ -28,16 +30,82 @@ export function XgboostSimulationDashboard() {
     targetData, 
     modelName,
     simulationActive,
+    availableModels,
+    modelFeatures,
+    modelTarget,
+    lastTrained,
     setPredictedTarget, 
     updateParameter, 
     addTargetDataPoint,
     startSimulation,
     stopSimulation,
-    updateSimulatedPV
+    updateSimulatedPV,
+    setModelName,
+    setAvailableModels,
+    setModelMetadata
   } = useXgboostStore()
   
   const [autoPredict, setAutoPredict] = useState(false)
   const { predictTarget, isPredicting } = usePredictTarget()
+  const { models, isLoading: isLoadingModels, error: modelsError } = useGetModels()
+  
+  // Load available models on component mount
+  useEffect(() => {
+    if (models) {
+      const modelIds = Object.keys(models)
+      setAvailableModels(modelIds)
+      
+      const defaultModelId = "xgboost_PSI80_mill8";
+      
+      // If default model exists in available models, select it
+      if (models[defaultModelId]) {
+        // Only set the model name if it's not already set to the default
+        if (modelName !== defaultModelId) {
+          setModelName(defaultModelId);
+        }
+        
+        // Always load the metadata for the default/current model
+        const model = models[defaultModelId];
+        setModelMetadata(
+          model.features,
+          model.target_col,
+          model.last_trained
+        );
+      } 
+      // If default model doesn't exist but current model does
+      else if (modelName && models[modelName]) {
+        const model = models[modelName];
+        setModelMetadata(
+          model.features,
+          model.target_col,
+          model.last_trained
+        );
+      }
+      // If neither default nor current model exists, use the first available
+      else if (modelIds.length > 0) {
+        const firstModel = models[modelIds[0]];
+        setModelName(modelIds[0]);
+        setModelMetadata(
+          firstModel.features,
+          firstModel.target_col,
+          firstModel.last_trained
+        );
+      }
+    }
+  }, [models, modelName, setAvailableModels, setModelMetadata, setModelName])
+  
+  // Handle model selection change
+  const handleModelChange = (value: string) => {
+    if (value && models && models[value]) {
+      setModelName(value)
+      const model = models[value]
+      setModelMetadata(
+        model.features,
+        model.target_col,
+        model.last_trained
+      )
+    }
+  }
 
   const handlePrediction = async () => {
     const paramValues = Object.fromEntries(
@@ -135,26 +203,65 @@ export function XgboostSimulationDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
-              <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{parameters.length}</div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Active Parameters</div>
+          <div className="grid grid-cols-1 gap-4 mb-4">
+            <div className="flex flex-col">
+              <Label className="mb-1">Select Model</Label>
+              <Select
+                value={modelName}
+                onValueChange={handleModelChange}
+                disabled={isLoadingModels}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableModels.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              
+              {modelsError && (
+                <div className="flex items-center gap-2 text-red-500 mt-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">Error loading models</span>
+                </div>
+              )}
+              
+              {modelFeatures && modelTarget && (
+                <div className="mt-3 text-sm">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold">Target: <span className="text-blue-500">{modelTarget}</span></span>
+                    <span className="font-semibold">Features: <span className="text-green-500">{modelFeatures.length}</span></span>
+                    {lastTrained && <span className="text-xs text-muted-foreground">Last trained: {new Date(lastTrained).toLocaleString()}</span>}
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="text-center p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {inRangeCount}
+          </div>
+          
+          <div className="grid grid-cols-4 gap-4 text-center">
+            <div>
+              <div className="text-4xl font-bold">{parameters.length}</div>
+              <div className="text-sm text-muted-foreground">Active Parameters</div>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-green-500">{inRangeCount}</div>
+              <div className="text-sm text-muted-foreground">In Range</div>
+            </div>
+            <div>
+              <div className="text-4xl font-bold text-blue-500">
+                {currentTarget?.toFixed(1)}%
               </div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">In Range</div>
+              <div className="text-sm text-muted-foreground">Fraction Target</div>
             </div>
-            <div className="text-center p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{currentTarget?.toFixed(1)}%</div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Fraction Target</div>
-            </div>
-            <div className="text-center p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">
+            <div>
+              <div className="text-4xl font-bold text-orange-500">
                 {simulationActive ? "RUNNING" : "PAUSED"}
               </div>
-              <div className="text-sm text-slate-600 dark:text-slate-400">Simulation Status</div>
+              <div className="text-sm text-muted-foreground">Simulation Status</div>
             </div>
           </div>
           
@@ -208,13 +315,15 @@ export function XgboostSimulationDashboard() {
 
       {/* Parameter Control Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {parameters.map((parameter) => (
-          <ParameterSimulationCard
-            key={parameter.id}
-            parameter={parameter}
-            bounds={parameterBounds[parameter.id] || [0, 100]}
-            onParameterUpdate={(id: string, value: number) => updateParameter(id, value)}
-          />
+        {parameters
+          .filter(parameter => !modelFeatures || modelFeatures.includes(parameter.id))
+          .map((parameter) => (
+            <ParameterSimulationCard
+              key={parameter.id}
+              parameter={parameter}
+              bounds={parameterBounds[parameter.id] || [0, 100]}
+              onParameterUpdate={(id: string, value: number) => updateParameter(id, value)}
+            />
         ))}
       </div>
     </div>
