@@ -3,7 +3,7 @@ import { mlApiClient } from '../../../lib/api-client'
 
 interface PredictParams {
   modelName: string
-  parameters: Record<string, number>
+  data: Record<string, number>
 }
 
 interface PredictionResponse {
@@ -26,7 +26,7 @@ export const usePredictTarget = () => {
         '/api/v1/ml/predict',
         {
           model_id: params.modelName,
-          data: params.parameters
+          data: params.data
         }
       )
       

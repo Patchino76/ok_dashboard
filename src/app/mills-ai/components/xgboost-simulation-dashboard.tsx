@@ -47,7 +47,7 @@ export function XgboostSimulationDashboard() {
     try {
       const result = await predictTarget({
         modelName,
-        parameters: paramValues
+        data: paramValues
       })
       
       if (result?.prediction) {

@@ -55,7 +55,10 @@ const parameterIcons: Record<string, string> = {
   DensityHC: "🧪",
   MotorAmp: "⚡",
   Shisti: "🪨",
-  Daiki: "🧬"
+  Daiki: "🧬",
+  PumpRPM: "🔄",
+  Grano: "📏",
+  Class_12: "🔢"
 }
 
 // Colors for parameters
@@ -67,7 +70,10 @@ const parameterColors: Record<string, string> = {
   DensityHC: "purple",
   MotorAmp: "yellow",
   Shisti: "green",
-  Daiki: "orange"
+  Daiki: "orange",
+  PumpRPM: "indigo",
+  Grano: "slate",
+  Class_12: "rose"
 }
 
 // Units for parameters
@@ -79,7 +85,10 @@ const parameterUnits: Record<string, string> = {
   DensityHC: "g/L",
   MotorAmp: "A",
   Shisti: "%",
-  Daiki: "%"
+  Daiki: "%",
+  PumpRPM: "rpm",
+  Grano: "mm",
+  Class_12: "%"
 }
 
 // Parameter bounds from the requirements
@@ -91,7 +100,10 @@ const initialBounds: ParameterBounds = {
   DensityHC: [1600, 1800],
   MotorAmp: [180, 220],
   Shisti: [0.05, 0.3],
-  Daiki: [0.1, 0.4]
+  Daiki: [0.1, 0.4],
+  PumpRPM: [800, 1200],   // Typical pump RPM range for industrial applications
+  Grano: [0.5, 5.0],      // Granularity measurement in mm
+  Class_12: [20, 60]      // Percentage range for Class_12
 }
 
 export const useXgboostStore = create<XgboostState>()(

@@ -383,6 +383,10 @@ async def predict(request: PredictionRequest):
                 with open(metadata_path, 'r') as f:
                     metadata = json.load(f)
                 
+                # Debug logging to identify feature list issue
+                logger.info(f"DEBUG - Features from metadata: {metadata.get('features')}")
+                logger.info(f"DEBUG - Features in loaded model: {model.features}")
+                
                 # Store in memory for future use
                 models_store[request.model_id] = {
                     "model": model,
