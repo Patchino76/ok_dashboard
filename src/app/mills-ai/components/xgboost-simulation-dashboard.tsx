@@ -47,9 +47,9 @@ export function XgboostSimulationDashboard() {
   
   const [autoPredict, setAutoPredict] = useState(false)
   const { predictTarget, isPredicting } = usePredictTarget()
-  const { models, isLoading: isLoadingModels, error: modelsError } = useGetModels()
+  const { models, isLoading: isLoadingModels, error: modelsError, refetch } = useGetModels()
   
-  // Load available models on component mount
+  // Load available models on component mount (only once)
   useEffect(() => {
     if (models) {
       const modelIds = Object.keys(models)
@@ -57,53 +57,82 @@ export function XgboostSimulationDashboard() {
       
       const defaultModelId = "xgboost_PSI80_mill8";
       
-      // If default model exists in available models, select it
-      if (models[defaultModelId]) {
-        // Only set the model name if it's not already set to the default
-        if (modelName !== defaultModelId) {
+      // Only update model and metadata on initial load or if current model doesn't exist
+      if (!modelName || !models[modelName]) {
+        // Try to use default model first
+        if (models[defaultModelId]) {
           setModelName(defaultModelId);
+          const model = models[defaultModelId];
+          setModelMetadata(
+            model.features,
+            model.target_col,
+            model.last_trained
+          );
+        } 
+        // If default doesn't exist, use the first available
+        else if (modelIds.length > 0) {
+          const firstModel = models[modelIds[0]];
+          setModelName(modelIds[0]);
+          setModelMetadata(
+            firstModel.features,
+            firstModel.target_col,
+            firstModel.last_trained
+          );
         }
-        
-        // Always load the metadata for the default/current model
-        const model = models[defaultModelId];
-        setModelMetadata(
-          model.features,
-          model.target_col,
-          model.last_trained
-        );
-      } 
-      // If default model doesn't exist but current model does
-      else if (modelName && models[modelName]) {
-        const model = models[modelName];
-        setModelMetadata(
-          model.features,
-          model.target_col,
-          model.last_trained
-        );
-      }
-      // If neither default nor current model exists, use the first available
-      else if (modelIds.length > 0) {
-        const firstModel = models[modelIds[0]];
-        setModelName(modelIds[0]);
-        setModelMetadata(
-          firstModel.features,
-          firstModel.target_col,
-          firstModel.last_trained
-        );
+      } else {
+        // Always ensure metadata is synced with current model
+        const currentModel = models[modelName];
+        if (currentModel) {
+          setModelMetadata(
+            currentModel.features,
+            currentModel.target_col,
+            currentModel.last_trained
+          );
+        }
       }
     }
   }, [models, modelName, setAvailableModels, setModelMetadata, setModelName])
   
+  // Add debug effect to track model features changes
+  useEffect(() => {
+    console.log('modelFeatures changed:', modelFeatures);
+  }, [modelFeatures])
+  
   // Handle model selection change
-  const handleModelChange = (value: string) => {
-    if (value && models && models[value]) {
-      setModelName(value)
-      const model = models[value]
-      setModelMetadata(
-        model.features,
-        model.target_col,
-        model.last_trained
-      )
+  const handleModelChange = async (value: string) => {
+    if (value) {
+      console.log('Changing model to:', value);
+      
+      // First, update model name in store
+      setModelName(value);
+      
+      // Call the API to refresh the models data
+      // This ensures we always have the latest model metadata
+      console.log('Calling API to refresh models...');
+      await refetch();
+      
+      // Wait for refetch to complete and then update with fresh data
+      setTimeout(() => {
+        if (models && models[value]) {
+          console.log('Refreshed model data:', models[value]);
+          console.log('Updated model features:', models[value].features);
+          
+          // Get model metadata from the refreshed models list
+          const model = models[value];
+          
+          // Update model metadata in store with the freshly fetched features
+          setModelMetadata(
+            model.features,
+            model.target_col,
+            model.last_trained
+          );
+          
+          // Force parameter cards to refresh by triggering state update
+          setAvailableModels([...availableModels]); // Create new array to force re-render
+        } else {
+          console.error('Model not found after refresh:', value);
+        }
+      }, 100); // Give a little time for the state to update after refetch
     }
   }
 
@@ -314,12 +343,17 @@ export function XgboostSimulationDashboard() {
       </Card>
 
       {/* Parameter Control Cards Grid */}
+      {/* Add debugging outside of rendering to avoid TypeScript errors */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {parameters
-          .filter(parameter => !modelFeatures || modelFeatures.includes(parameter.id))
+          .filter(parameter => {
+            // Only show parameters that are included in the selected model's features
+            return !modelFeatures || modelFeatures.includes(parameter.id);
+          })
           .map((parameter) => (
             <ParameterSimulationCard
-              key={parameter.id}
+              key={`${modelName}-${parameter.id}`} // Include modelName in key to force re-render
               parameter={parameter}
               bounds={parameterBounds[parameter.id] || [0, 100]}
               onParameterUpdate={(id: string, value: number) => updateParameter(id, value)}

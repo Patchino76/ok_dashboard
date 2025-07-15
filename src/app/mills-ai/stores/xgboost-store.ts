@@ -279,12 +279,54 @@ export const useXgboostStore = create<XgboostState>()(
         setAvailableModels: (models) =>
           set({ availableModels: models }),
           
-        setModelMetadata: (features, target, lastTrained) =>
+        setModelMetadata: (features, target, lastTrained) => {
+          // First update the basic metadata
           set({ 
             modelFeatures: features,
             modelTarget: target,
             lastTrained
-          })
+          });
+          
+          // Then ensure parameters array includes all necessary features
+          if (features && features.length > 0) {
+            set(state => {
+              // Keep track of existing parameter IDs
+              const existingParamIds = state.parameters.map(p => p.id);
+              
+              // Create array for new parameters that need to be added
+              const newParameters: Parameter[] = [];
+              
+              // For each feature in the model, check if we need to add it
+              features.forEach(featureId => {
+                if (!existingParamIds.includes(featureId)) {
+                  // This feature doesn't exist in parameters yet, add it
+                  // with sensible defaults
+                  newParameters.push({
+                    id: featureId,
+                    name: featureId, // Use ID as name if no better name available
+                    unit: parameterUnits[featureId] || '',
+                    value: initialBounds[featureId] ? 
+                      (initialBounds[featureId][0] + initialBounds[featureId][1]) / 2 : 0,
+                    trend: [],
+                    color: parameterColors[featureId] || 'gray',
+                    icon: parameterIcons[featureId] || '📊'
+                  });
+                }
+              });
+              
+              // If we have new parameters, add them to the state
+              if (newParameters.length > 0) {
+                console.log('Adding new parameters for model:', newParameters);
+                return {
+                  parameters: [...state.parameters, ...newParameters]
+                };
+              }
+              
+              // No changes needed
+              return {};
+            });
+          }
+        }
       }),
       {
         name: "xgboost-simulation-storage"
