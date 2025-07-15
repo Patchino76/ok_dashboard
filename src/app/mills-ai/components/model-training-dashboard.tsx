@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { FeatureTargetConfiguration } from "./feature-target-configuration"
 import { ModelTrainingResults } from "./model-training-results"
-import { Brain, Play, Settings, BarChart3, AlertCircle } from "lucide-react"
+import { ModelPredictionResults } from "./model-prediction-results"
+import { Brain, Play, Settings, BarChart3, AlertCircle, Activity } from "lucide-react"
 import { useModelTraining } from "../hooks/useModelTraining"
+import { useModelPrediction } from "../hooks/useModelPrediction"
 
 export interface ModelParameter {
   id: string
@@ -28,6 +30,7 @@ export interface TrainingResults {
   rmse: number
   r2: number
   trainingTime: number
+  modelId?: string
   featureImportance: Array<{ feature: string; importance: number }>
   validationCurve: Array<{ iteration: number; trainLoss: number; valLoss: number }>
 }
@@ -181,8 +184,11 @@ export function ModelTrainingDashboard() {
   ])
 
   const [isTraining, setIsTraining] = useState(false)
+  const [isPredicting, setIsPredicting] = useState(false)
   const [trainingResults, setTrainingResults] = useState<TrainingResults | null>(null)
-  const { trainModel, isLoading, progress: trainingProgress, error: trainingError } = useModelTraining()
+  const [predictionResult, setPredictionResult] = useState<any>(null)
+  const { trainModel, isLoading: isTrainingLoading, progress: trainingProgress, error: trainingError } = useModelTraining()
+  const { predictWithModel, isLoading: isPredictionLoading, result, error: predictionError } = useModelPrediction()
 
   const handleParameterUpdate = (updatedParameter: ModelParameter) => {
     setParameters((prev) => prev.map((p) => (p.id === updatedParameter.id ? updatedParameter : p)))
@@ -191,17 +197,25 @@ export function ModelTrainingDashboard() {
   const handleTrainModel = async () => {
     try {
       setIsTraining(true)
-      setTrainingResults(null)
-      
-      // Call the API to train the model
       const results = await trainModel(parameters)
-      
-      // Update UI with results
       setTrainingResults(results)
-    } catch (err) {
-      console.error('Error during model training:', err)
+    } catch (error) {
+      console.error('Error training model:', error)
     } finally {
       setIsTraining(false)
+    }
+  }
+
+  const handlePredictWithModel = async () => {
+    try {
+      setIsPredicting(true)
+      const predictionData = await predictWithModel(parameters, trainingResults?.modelId || 'latest')
+      console.log('Prediction result:', predictionData)
+      setPredictionResult(predictionData)
+    } catch (error) {
+      console.error('Error predicting with model:', error)
+    } finally {
+      setIsPredicting(false)
     }
   }
 
@@ -227,8 +241,8 @@ export function ModelTrainingDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
+          <div className="flex flex-col items-start justify-between">
+            <div className="space-y-1 mb-3 w-full">
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Configure your features and targets, then train the XGBoost model
               </p>
@@ -236,31 +250,56 @@ export function ModelTrainingDashboard() {
                 {canTrain ? "Ready to train" : "Select at least 1 feature and 1 target to train"}
               </p>
             </div>
-            <Button
-              onClick={handleTrainModel}
-              disabled={!canTrain || isTraining || isLoading}
-              className="flex items-center gap-2 px-6"
-              size="lg"
-            >
-              {isLoading || isTraining ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                  Training... {trainingProgress.toFixed(0)}%
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Train Model
-                </>
-              )}
-            </Button>
-            {trainingError && (
-              <div className="mt-2 text-red-500 text-sm flex items-center gap-1">
-                <AlertCircle className="h-4 w-4" />
-                <span>Error: {trainingError}</span>
-              </div>
-            )}
+            <div className="flex gap-2 w-full">
+              <Button 
+                onClick={handleTrainModel} 
+                disabled={isTraining || isTrainingLoading || !parameters.some(p => p.type === 'target' && p.enabled)}
+              >
+                {isTraining || isTrainingLoading ? (
+                  <>
+                    <BarChart3 className="mr-2 h-4 w-4 animate-pulse" />
+                    Обучение...
+                  </>
+                ) : (
+                  <>
+                    <Brain className="mr-2 h-4 w-4" />
+                    Обучи модел
+                  </>
+                )}
+              </Button>
+              
+              <Button 
+                onClick={handlePredictWithModel} 
+                disabled={isPredicting || isPredictionLoading || !trainingResults || !parameters.some(p => p.type === 'target' && p.enabled)}
+                variant={!trainingResults ? "outline" : "default"}
+              >
+                {isPredicting || isPredictionLoading ? (
+                  <>
+                    <Activity className="mr-2 h-4 w-4 animate-pulse" />
+                    Предсказване...
+                  </>
+                ) : (
+                  <>
+                    <Activity className="mr-2 h-4 w-4" />
+                    Тествай модела
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
+          {trainingError && (
+            <div className="p-4 mb-4 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              <span>Грешка при обучението: {trainingError}</span>
+            </div>
+          )}
+          
+          {predictionError && (
+            <div className="p-4 mb-4 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              <span>Грешка при предсказването: {predictionError}</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -291,7 +330,23 @@ export function ModelTrainingDashboard() {
             </CardHeader>
             <CardContent>
               {trainingResults ? (
-                <ModelTrainingResults results={trainingResults} />
+                <>
+                  <ModelTrainingResults results={trainingResults} />
+                  
+                  {predictionResult && (
+                    <div className="mt-4">
+                      <h3 className="text-lg font-semibold mb-3 flex items-center">
+                        <Activity className="mr-2 h-5 w-5 text-indigo-600" />
+                        Резултати от предсказване
+                      </h3>
+                      <ModelPredictionResults
+                        result={predictionResult}
+                        targetName={parameters.find(p => p.type === 'target' && p.enabled)?.name || ''}
+                        targetUnit={parameters.find(p => p.type === 'target' && p.enabled)?.unit || ''}
+                      />
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                   <Brain className="h-12 w-12 mx-auto mb-3 opacity-50" />
