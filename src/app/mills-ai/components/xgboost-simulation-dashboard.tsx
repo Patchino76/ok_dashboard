@@ -204,14 +204,6 @@ export function XgboostSimulationDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Target Display */}
-      <TargetFractionDisplay
-        currentTarget={currentTarget}
-        currentPV={currentPV}
-        targetData={targetData}
-        isOptimizing={isPredicting}
-      />
-
       {/* System Overview */}
       <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
         <CardHeader className="pb-4">
@@ -341,6 +333,14 @@ export function XgboostSimulationDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Target Display */}
+      <TargetFractionDisplay
+        currentTarget={currentTarget}
+        currentPV={currentPV}
+        targetData={targetData}
+        isOptimizing={isPredicting}
+      />
 
       {/* Parameter Control Cards Grid */}
       {/* Add debugging outside of rendering to avoid TypeScript errors */}
