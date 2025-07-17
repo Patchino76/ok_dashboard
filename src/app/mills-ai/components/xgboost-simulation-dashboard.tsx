@@ -7,6 +7,23 @@ import { ParameterSimulationCard } from "./parameter-simulation-card"
 import { TargetFractionDisplay } from "./target-fraction-display"
 import { Zap, Activity, Play, Pause, BarChart2, AlertCircle } from "lucide-react"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
+import { millsTags } from "@/lib/tags/mills-tags"
+
+// Define tag interface to match the structure in mills-tags.ts
+interface TagInfo {
+  id: number
+  name: string
+  desc: string
+  unit: string
+  precision: number
+  group: string
+  icon: string
+}
+
+// Define type for millsTags structure
+type MillsTagsType = typeof millsTags
+type TagKey = keyof MillsTagsType
+
 import { usePredictTarget } from "@/app/mills-ai/hooks/use-predict-target"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
 import { Button } from "@/components/ui/button"
@@ -44,6 +61,37 @@ export function XgboostSimulationDashboard() {
     setAvailableModels,
     setModelMetadata
   } = useXgboostStore()
+  const currentMill = 8
+  
+  /**
+   * Get tag ID for a specific feature/target and mill number from millsTags
+   * @param targetKey The feature/target key (e.g., "PSI80", "MotorAmp")
+   * @param millNumber The mill number (e.g., 8 for Mill08)
+   * @returns The tag ID or null if not found
+   */
+  const getTagId = (targetKey: string, millNumber: number): number | null => {
+    // Check if the targetKey exists in millsTags
+    if (!millsTags || !(targetKey in millsTags)) {
+      console.error(`Target ${targetKey} not found in millsTags`)
+      return null
+    }
+
+    // Use type assertion to access the tags array
+    // This is safe because we've checked that targetKey exists in millsTags
+    const tags = millsTags[targetKey as TagKey] as TagInfo[]
+    
+    // Find the entry for the specific mill number
+    const millName = `Mill${String(millNumber).padStart(2, '0')}`
+    const tagInfo = tags.find((tag: TagInfo) => tag.name === millName)
+    
+    if (!tagInfo) {
+      console.error(`Mill ${millNumber} (${millName}) not found for target ${targetKey}`)
+      return null
+    }
+    
+    console.log(`Found tag ID ${tagInfo.id} for ${targetKey}, mill ${millNumber} (${millName})`)
+    return tagInfo.id
+  }
   
   const [autoPredict, setAutoPredict] = useState(false)
   const { predictTarget, isPredicting } = usePredictTarget()
