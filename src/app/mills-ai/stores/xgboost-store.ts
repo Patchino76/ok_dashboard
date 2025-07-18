@@ -500,7 +500,7 @@ export const useXgboostStore = create<XgboostState>()(
                 console.log('Calling prediction API with data:', predictionData);
                 
                 // Call the prediction API
-                const response = await mlApiClient.post<PredictionResponse>('/predict', {
+                const response = await mlApiClient.post<PredictionResponse>('/api/v1/ml/predict', {
                   model_id: 'xgboost_PSI80_mill8', // Using the model for mill 8
                   data: predictionData
                 });
