@@ -376,7 +376,7 @@ export const useXgboostStore = create<XgboostState>()(
         
         fetchRealTimeData: async () => {
           const state = useXgboostStore.getState();
-          const { modelFeatures, currentMill } = state;
+          const { modelFeatures, modelTarget, currentMill } = state;
           
           if (!modelFeatures || modelFeatures.length === 0) {
             console.warn('No model features available for real-time data fetch');
@@ -384,11 +384,15 @@ export const useXgboostStore = create<XgboostState>()(
           }
 
           console.log('Fetching real-time data for features:', modelFeatures);
+          console.log('Model target:', modelTarget);
           console.log('Current mill:', currentMill);
+          console.log('Available millsTags keys:', Object.keys(millsTags));
 
           try {
             // Create a mapping from model feature names to mills tags keys
+            // Handle both uppercase and lowercase variations
             const featureMapping: Record<string, string> = {
+              // Uppercase variations (from model)
               'Ore': 'Ore',
               'WaterMill': 'WaterMill', 
               'WaterZumpf': 'WaterZumpf',
@@ -398,17 +402,21 @@ export const useXgboostStore = create<XgboostState>()(
               'MotorAmp': 'MotorAmp',
               'PSI80': 'PSI80',
               'PumpRPM': 'PumpRPM',
-              'Shisti': 'Shisti'
+              'Shisti': 'Shisti',
             };
 
             // Fetch real-time data for each feature
-            const promises = modelFeatures.map(async (featureName) => {
+            const featurePromises = modelFeatures.map(async (featureName) => {
+              console.log(`Processing feature: "${featureName}"`);
+              
               // Map the feature name to the correct mills tags key
               const millsTagKey = featureMapping[featureName] || featureName;
+              console.log(`Feature "${featureName}" mapped to millsTagKey: "${millsTagKey}"`);
               
               const tagId = getTagId(millsTagKey, currentMill);
               if (!tagId) {
                 console.warn(`Could not find tag ID for feature ${featureName} (mapped to ${millsTagKey}) and mill ${currentMill}`);
+                console.warn('Available millsTags keys:', Object.keys(millsTags));
                 return null;
               }
 
@@ -431,16 +439,65 @@ export const useXgboostStore = create<XgboostState>()(
               return null;
             });
 
-            const results = await Promise.all(promises);
-            console.log('Real-time data results:', results);
+            // Also fetch the target PV value (PSI80) if it's the model target
+            let targetPromise = null;
+            if (modelTarget === 'PSI80') {
+              const targetTagId = getTagId('PSI80', currentMill);
+              if (targetTagId) {
+                console.log(`Fetching target PV data for PSI80 -> tag ID ${targetTagId}`);
+                targetPromise = fetchTagValue(targetTagId).then(tagData => {
+                  console.log('Received target PV data:', tagData);
+                  if (tagData && typeof tagData.value === 'number') {
+                    return {
+                      value: tagData.value,
+                      timestamp: tagData.timestamp || Date.now()
+                    };
+                  }
+                  return null;
+                }).catch(error => {
+                  console.error('Error fetching target PV data:', error);
+                  return null;
+                });
+              }
+            }
+
+            // Wait for all promises to resolve
+            const [featureResults, targetResult] = await Promise.all([
+              Promise.all(featurePromises),
+              targetPromise
+            ]);
+
+            console.log('Real-time data results:', featureResults);
+            console.log('Target PV result:', targetResult);
             
             // Update parameters with real-time data
-            results.forEach(result => {
+            featureResults.forEach(result => {
               if (result) {
                 console.log(`Updating parameter ${result.featureName} with value ${result.value}`);
                 state.updateParameterFromRealData(result.featureName, result.value, result.timestamp);
               }
             });
+
+            // Update target PV and add to target data
+            if (targetResult) {
+              console.log(`Updating target PV with value ${targetResult.value}`);
+              
+              // Update current PV
+              set({ currentPV: targetResult.value });
+              
+              // Add to target data for trend line
+              set(state => ({
+                targetData: [
+                  ...state.targetData,
+                  {
+                    timestamp: targetResult.timestamp,
+                    value: targetResult.value,
+                    target: state.currentTarget || 0,
+                    pv: targetResult.value
+                  }
+                ].slice(-50) // Keep last 50 points for trend
+              }));
+            }
             
           } catch (error) {
             console.error('Error fetching real-time data:', error);

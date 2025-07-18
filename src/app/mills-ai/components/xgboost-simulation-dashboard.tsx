@@ -102,7 +102,8 @@ export function XgboostSimulationDashboard() {
 
   // Start real-time data updates when model features are available
   useEffect(() => {
-    if (modelFeatures && modelFeatures.length > 0 && !simulationActive) {
+    if (modelFeatures && modelFeatures.length > 0) {
+      console.log('Model features available, starting real-time updates:', modelFeatures);
       startRealTimeUpdates();
     }
     
@@ -112,7 +113,7 @@ export function XgboostSimulationDashboard() {
         stopRealTimeUpdates();
       }
     };
-  }, [modelFeatures, simulationActive, startRealTimeUpdates, stopRealTimeUpdates])
+  }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates])
 
   // Trigger prediction on parameter change if autoPredict is enabled
   useEffect(() => {
