@@ -4,7 +4,8 @@
     "WaterMill",
     "WaterZumpf",
     "MotorAmp",
-    "Shisti"
+    "DensityHC",
+    "PressureHC"
   ],
   "target_col": "PSI80",
   "model_params": {
@@ -18,23 +19,25 @@
   },
   "feature_importance": {
     "Feature": {
+      "4": "DensityHC",
       "2": "WaterZumpf",
       "0": "Ore",
       "3": "MotorAmp",
-      "4": "Shisti",
-      "1": "WaterMill"
+      "1": "WaterMill",
+      "5": "PressureHC"
     },
     "Importance": {
-      "2": 0.4104168117046356,
-      "0": 0.23865389823913574,
-      "3": 0.18108806014060974,
-      "4": 0.08538278192281723,
-      "1": 0.08445844799280167
+      "4": 0.3912045657634735,
+      "2": 0.21627089381217957,
+      "0": 0.1907525211572647,
+      "3": 0.0805220901966095,
+      "1": 0.06919955462217331,
+      "5": 0.0520503930747509
     }
   },
   "training_history": {
-    "best_iteration": 184,
-    "best_score": 0.5657541101876191
+    "best_iteration": 85,
+    "best_score": 0.6180191572802824
   },
-  "last_trained": "2025-07-16T09:42:04.592986"
+  "last_trained": "2025-07-18T10:29:36.921824"
 }

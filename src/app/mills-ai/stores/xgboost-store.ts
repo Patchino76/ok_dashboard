@@ -1,5 +1,7 @@
 import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
+import { millsTags } from "@/lib/tags/mills-tags"
+import { fetchTagValue } from "@/hooks/useTagValue"
 
 interface Parameter {
   id: string
@@ -22,6 +24,9 @@ type ParameterBounds = {
   [key: string]: [number, number] // [min, max]
 }
 
+// Type for mills tags keys
+type TagKey = keyof typeof millsTags
+
 interface XgboostState {
   // Parameters
   parameters: Parameter[]
@@ -40,6 +45,10 @@ interface XgboostState {
   modelTarget: string | null
   lastTrained: string | null
   
+  // Real-time data settings
+  currentMill: number
+  dataUpdateInterval: number | null
+  
   // Actions
   updateParameter: (id: string, value: number) => void
   setPredictedTarget: (target: number) => void
@@ -50,6 +59,13 @@ interface XgboostState {
   startSimulation: () => void
   stopSimulation: () => void
   updateSimulatedPV: () => void
+  
+  // Real-time data actions
+  setCurrentMill: (millNumber: number) => void
+  fetchRealTimeData: () => Promise<void>
+  startRealTimeUpdates: () => void
+  stopRealTimeUpdates: () => void
+  updateParameterFromRealData: (featureName: string, value: number, timestamp: number) => void
 }
 
 // Icons for parameters
@@ -110,6 +126,29 @@ const initialBounds: ParameterBounds = {
   PumpRPM: [800, 1200],   // Typical pump RPM range for industrial applications
   Grano: [0.5, 5.0],      // Granularity measurement in mm
   Class_12: [20, 60]      // Percentage range for Class_12
+}
+
+// Utility function to get tag ID from mills tags
+const getTagId = (targetKey: string, millNumber: number): number | null => {
+  // Check if the targetKey exists in millsTags
+  if (!millsTags || !(targetKey in millsTags)) {
+    console.error(`Target ${targetKey} not found in millsTags`)
+    return null
+  }
+
+  // Use type assertion to access the tags array
+  const tags = millsTags[targetKey as TagKey] as Array<{id: number, name: string}>
+  
+  // Find the entry for the specific mill number
+  const millName = `Mill${String(millNumber).padStart(2, '0')}`
+  const tagInfo = tags.find((tag) => tag.name === millName)
+  
+  if (!tagInfo) {
+    console.error(`Mill ${millNumber} (${millName}) not found for target ${targetKey}`)
+    return null
+  }
+
+  return tagInfo.id
 }
 
 export const useXgboostStore = create<XgboostState>()(
@@ -208,6 +247,10 @@ export const useXgboostStore = create<XgboostState>()(
         modelTarget: null,
         lastTrained: null,
         
+        // Real-time data settings
+        currentMill: 8,
+        dataUpdateInterval: null,
+        
         // Actions
         updateParameter: (id, value) => 
           set((state) => ({
@@ -219,7 +262,7 @@ export const useXgboostStore = create<XgboostState>()(
                     trend: [
                       ...param.trend, 
                       { timestamp: Date.now(), value }
-                    ].slice(-20) // Keep last 20 points
+                    ].slice(-50) // Keep last 50 points
                   } 
                 : param
             )
@@ -326,7 +369,131 @@ export const useXgboostStore = create<XgboostState>()(
               return {};
             });
           }
-        }
+        },
+        
+        setCurrentMill: (millNumber) => 
+          set({ currentMill: millNumber }),
+        
+        fetchRealTimeData: async () => {
+          const state = useXgboostStore.getState();
+          const { modelFeatures, currentMill } = state;
+          
+          if (!modelFeatures || modelFeatures.length === 0) {
+            console.warn('No model features available for real-time data fetch');
+            return;
+          }
+
+          console.log('Fetching real-time data for features:', modelFeatures);
+          console.log('Current mill:', currentMill);
+
+          try {
+            // Create a mapping from model feature names to mills tags keys
+            const featureMapping: Record<string, string> = {
+              'Ore': 'Ore',
+              'WaterMill': 'WaterMill', 
+              'WaterZumpf': 'WaterZumpf',
+              'ZumpfLevel': 'ZumpfLevel',
+              'DensityHC': 'DensityHC',
+              'PressureHC': 'PressureHC',
+              'MotorAmp': 'MotorAmp',
+              'PSI80': 'PSI80',
+              'PumpRPM': 'PumpRPM',
+              'Shisti': 'Shisti'
+            };
+
+            // Fetch real-time data for each feature
+            const promises = modelFeatures.map(async (featureName) => {
+              // Map the feature name to the correct mills tags key
+              const millsTagKey = featureMapping[featureName] || featureName;
+              
+              const tagId = getTagId(millsTagKey, currentMill);
+              if (!tagId) {
+                console.warn(`Could not find tag ID for feature ${featureName} (mapped to ${millsTagKey}) and mill ${currentMill}`);
+                return null;
+              }
+
+              console.log(`Fetching data for feature ${featureName} -> tag ID ${tagId}`);
+
+              try {
+                const tagData = await fetchTagValue(tagId);
+                console.log(`Received data for ${featureName}:`, tagData);
+                
+                if (tagData && typeof tagData.value === 'number') {
+                  return {
+                    featureName,
+                    value: tagData.value,
+                    timestamp: tagData.timestamp || Date.now()
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching data for feature ${featureName}:`, error);
+              }
+              return null;
+            });
+
+            const results = await Promise.all(promises);
+            console.log('Real-time data results:', results);
+            
+            // Update parameters with real-time data
+            results.forEach(result => {
+              if (result) {
+                console.log(`Updating parameter ${result.featureName} with value ${result.value}`);
+                state.updateParameterFromRealData(result.featureName, result.value, result.timestamp);
+              }
+            });
+            
+          } catch (error) {
+            console.error('Error fetching real-time data:', error);
+          }
+        },
+        
+        startRealTimeUpdates: () => {
+          const state = useXgboostStore.getState();
+          
+          // Stop any existing interval
+          if (state.dataUpdateInterval) {
+            clearInterval(state.dataUpdateInterval);
+          }
+          
+          // Start new interval for real-time updates (every 10 seconds)
+          const intervalId = setInterval(() => {
+            state.fetchRealTimeData();
+          }, 10000);
+          
+          set({ 
+            dataUpdateInterval: intervalId,
+            simulationActive: true 
+          });
+          
+          // Fetch initial data immediately
+          state.fetchRealTimeData();
+        },
+        
+        stopRealTimeUpdates: () => {
+          const state = useXgboostStore.getState();
+          
+          if (state.dataUpdateInterval) {
+            clearInterval(state.dataUpdateInterval);
+          }
+          
+          set({ 
+            dataUpdateInterval: null,
+            simulationActive: false 
+          });
+        },
+        
+        updateParameterFromRealData: (featureName, value, timestamp) => 
+          set(state => ({
+            parameters: state.parameters.map(param => 
+              param.id === featureName 
+                ? { 
+                    ...param, 
+                    value,
+                    trend: [...param.trend, { timestamp, value }].slice(-50) // Keep last 50 points
+                  } 
+                : param
+            )
+          })),
       }),
       {
         name: "xgboost-simulation-storage"

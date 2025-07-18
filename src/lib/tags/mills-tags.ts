@@ -79,7 +79,7 @@ export const millsTags = {
     {id: 3819, name: "Mill12", desc: "Общо смени: МА12", unit: "t", precision: 0, group: "Мелнично", icon: "weight"},
   ],
   // Ore consumption tags for each mill
-  ore: [
+  Ore: [
     {id: 485, name: "Mill01", desc: "Разход на руда МА01", unit: "t/h", precision: 0, group: "Мелнично", icon: "conveyer", maxValue: 240},
     {id: 488, name: "Mill02", desc: "Разход на руда МА02", unit: "t/h", precision: 0, group: "Мелнично", icon: "conveyer", maxValue: 240},
     {id: 491, name: "Mill03", desc: "Разход на руда МА03", unit: "t/h", precision: 0, group: "Мелнично", icon: "conveyer", maxValue: 240},
