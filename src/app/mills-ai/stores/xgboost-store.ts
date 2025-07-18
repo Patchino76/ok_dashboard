@@ -126,7 +126,7 @@ const initialBounds: ParameterBounds = {
   WaterMill: [5.0, 20.0],
   WaterZumpf: [160.0, 250.0],
   PressureHC: [0.3, 0.5],
-  DensityHC: [1600, 1800],
+  DensityHC: [1600, 1900],
   MotorAmp: [180, 220],
   Shisti: [0.05, 0.3],
   Daiki: [0.1, 0.4],

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
@@ -25,17 +25,23 @@ interface ParameterSimulationCardProps {
 }
 
 export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }: ParameterSimulationCardProps) {
+  // Separate state for input/slider value that doesn't affect the trend
   const [sliderValue, setSliderValue] = useState([parameter.value])
-  const [inputValue, setInputValue] = useState(parameter.value.toString())
+  const [inputValue, setInputValue] = useState(parameter.value.toFixed(2))
+  
+  // Update input/slider when parameter value changes from API
+  useEffect(() => {
+    setSliderValue([parameter.value])
+    setInputValue(parameter.value.toFixed(2))
+  }, [parameter.value])
   
   const isInRange = parameter.value >= bounds[0] && parameter.value <= bounds[1]
   
-  // Handle slider change
+  // Handle slider change - only updates local state and input box
   const handleSliderChange = (value: number[]) => {
     const newValue = value[0]
     setSliderValue(value)
     setInputValue(newValue.toFixed(2))
-    onParameterUpdate(parameter.id, newValue)
   }
   
   // Handle direct input change
@@ -54,7 +60,7 @@ export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }
       onParameterUpdate(parameter.id, clampedValue)
     } else {
       // Restore previous value if invalid input
-      setInputValue(parameter.value.toFixed(2))
+      setInputValue(sliderValue[0].toFixed(2))
     }
   }
   
