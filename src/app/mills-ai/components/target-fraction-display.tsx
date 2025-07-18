@@ -11,6 +11,7 @@ interface TargetData {
   value: number
   target: number
   pv: number
+  sp: number
 }
 
 interface TargetFractionDisplayProps {
@@ -156,7 +157,7 @@ export function TargetFractionDisplay({
                       />
                       <Line
                         type="monotone"
-                        dataKey="value"
+                        dataKey="sp"
                         name="Setpoint"
                         stroke="#3b82f6"
                         strokeWidth={2}

@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
 import { millsTags } from "@/lib/tags/mills-tags"
 import { fetchTagValue } from "@/hooks/useTagValue"
+import { mlApiClient } from "@/lib/api-client"
 
 interface Parameter {
   id: string
@@ -13,11 +14,17 @@ interface Parameter {
   icon: string
 }
 
+interface PredictionResponse {
+  prediction: number;
+  [key: string]: any;
+}
+
 interface TargetData {
   timestamp: number
   value: number
   target: number
   pv: number
+  sp?: number // Optional setpoint value from prediction
 }
 
 type ParameterBounds = {
@@ -478,6 +485,39 @@ export const useXgboostStore = create<XgboostState>()(
               }
             });
 
+            // Prepare feature data for prediction
+            const validFeatureResults = featureResults.filter(result => result !== null);
+            if (validFeatureResults.length > 0) {
+              try {
+                // Prepare data for prediction API call
+                const predictionData: Record<string, number> = {};
+                validFeatureResults.forEach(result => {
+                  if (result) {
+                    predictionData[result.featureName] = result.value;
+                  }
+                });
+
+                console.log('Calling prediction API with data:', predictionData);
+                
+                // Call the prediction API
+                const response = await mlApiClient.post<PredictionResponse>('/predict', {
+                  model_id: 'xgboost_PSI80_mill8', // Using the model for mill 8
+                  data: predictionData
+                });
+
+                console.log('Prediction API response:', response.data);
+                
+                // Extract the predicted SP value
+                const predictedSP = response.data.prediction;
+                console.log('Predicted SP value:', predictedSP);
+                
+                // Update current target with predicted SP
+                set({ currentTarget: predictedSP });
+              } catch (error) {
+                console.error('Error calling prediction API:', error);
+              }
+            }
+
             // Update target PV and add to target data
             if (targetResult) {
               console.log(`Updating target PV with value ${targetResult.value}`);
@@ -485,7 +525,7 @@ export const useXgboostStore = create<XgboostState>()(
               // Update current PV
               set({ currentPV: targetResult.value });
               
-              // Add to target data for trend line
+              // Add to target data for trend line with both PV and SP
               set(state => ({
                 targetData: [
                   ...state.targetData,
@@ -493,7 +533,8 @@ export const useXgboostStore = create<XgboostState>()(
                     timestamp: targetResult.timestamp,
                     value: targetResult.value,
                     target: state.currentTarget || 0,
-                    pv: targetResult.value
+                    pv: targetResult.value,
+                    sp: state.currentTarget // Add SP to the trend data
                   }
                 ].slice(-50) // Keep last 50 points for trend
               }));
