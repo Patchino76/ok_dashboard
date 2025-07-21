@@ -54,7 +54,7 @@ interface XgboostState {
   
   // Real-time data settings
   currentMill: number
-  dataUpdateInterval: number | null
+  dataUpdateInterval: NodeJS.Timeout | null
   
   // Actions
   updateParameter: (id: string, value: number) => void
@@ -73,7 +73,7 @@ interface XgboostState {
   fetchRealTimeData: () => Promise<void>
   startRealTimeUpdates: () => void
   stopRealTimeUpdates: () => void
-  updateParameterFromRealData: (featureName: string, value: number, timestamp: number) => void
+  updateParameterFromRealData: (featureName: string, value: number, timestamp: number, trend?: Array<{ timestamp: number; value: number }>) => void
 }
 
 // Icons for parameters
