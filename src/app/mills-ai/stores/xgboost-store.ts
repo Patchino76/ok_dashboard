@@ -587,7 +587,7 @@ export const useXgboostStore = create<XgboostState>()(
               param.id === featureName 
                 ? { 
                     ...param, 
-                    value,
+                    // Don't update the value, only add to trend
                     trend: [...param.trend, { timestamp, value }].slice(-50) // Keep last 50 points
                   } 
                 : param
