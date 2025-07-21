@@ -437,7 +437,7 @@ export const useXgboostStore = create<XgboostState>()(
                 
                 // Fetch trend data for this feature
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=1`, {
+                const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=8`, {
                   headers: { 'Accept': 'application/json' },
                   cache: 'no-store'
                 });
@@ -501,7 +501,7 @@ export const useXgboostStore = create<XgboostState>()(
                 
                 // Fetch target trend data
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=1`, {
+                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=8`, {
                   headers: { 'Accept': 'application/json' },
                   cache: 'no-store'
                 })
@@ -665,8 +665,11 @@ export const useXgboostStore = create<XgboostState>()(
               param.id === featureName 
                 ? { 
                     ...param, 
-                    // Don't update the value, only add to trend
-                    trend: [...param.trend, ...(Array.isArray(trend) && trend.length > 0 ? trend : [{ timestamp, value }])].slice(-50) // Keep last 50 points
+                    // Don't update the value, only update the trend
+                    // If we have trend data, use it entirely; otherwise add the current point to existing trend
+                    trend: Array.isArray(trend) && trend.length > 0 
+                      ? trend // Use the entire fetched trend data
+                      : [...param.trend, { timestamp, value }].slice(-50) // Only slice if we're just adding a single point
                   } 
                 : param
             )

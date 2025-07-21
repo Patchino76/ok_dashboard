@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { LineChart, Line, ResponsiveContainer } from "recharts"
+import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis } from "recharts"
 
 interface Parameter {
   id: string
@@ -71,6 +71,17 @@ export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }
     }
   }
 
+  // Format time for tooltip
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp)
+    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
+  }
+  
+  // Format value for tooltip
+  const formatValue = (value: number) => {
+    return value.toFixed(1)
+  }
+  
   // Determine color classes based on parameter.color
   const getBgColorClass = () => {
     switch (parameter.color) {
@@ -138,7 +149,14 @@ export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }
         {parameter.trend.length > 0 && (
           <div className="h-14 -mx-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={parameter.trend}>
+              <LineChart data={parameter.trend} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                <XAxis dataKey="timestamp" hide={true} />
+                <Tooltip
+                  formatter={(value: number) => [formatValue(value), parameter.name]}
+                  labelFormatter={(timestamp: number) => formatTime(timestamp)}
+                  contentStyle={{ background: "#1f2937", borderColor: "#374151", color: "#e5e7eb", fontSize: "12px" }}
+                  itemStyle={{ color: "#e5e7eb" }}
+                />
                 <Line
                   type="monotone"
                   dataKey="value"
