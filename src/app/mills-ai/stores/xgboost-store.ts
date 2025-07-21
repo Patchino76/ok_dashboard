@@ -431,14 +431,43 @@ export const useXgboostStore = create<XgboostState>()(
               console.log(`Fetching data for feature ${featureName} -> tag ID ${tagId}`);
 
               try {
+                // Fetch current tag value
                 const tagData = await fetchTagValue(tagId);
                 console.log(`Received data for ${featureName}:`, tagData);
+                
+                // Fetch trend data for this feature
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=1`, {
+                  headers: { 'Accept': 'application/json' },
+                  cache: 'no-store'
+                });
+                
+                let trendData = { timestamps: [], values: [] };
+                if (trendResponse.ok) {
+                  trendData = await trendResponse.json();
+                  console.log(`Received trend data for ${featureName}:`, trendData);
+                } else {
+                  console.warn(`Failed to fetch trend data for ${featureName}: ${trendResponse.statusText}`);
+                }
+                
+                // Process trend data into the format we need
+                const trend = [];
+                if (trendData.timestamps && trendData.values && 
+                    Array.isArray(trendData.timestamps) && Array.isArray(trendData.values)) {
+                  for (let i = 0; i < trendData.timestamps.length; i++) {
+                    trend.push({
+                      timestamp: new Date(trendData.timestamps[i]).getTime(),
+                      value: trendData.values[i]
+                    });
+                  }
+                }
                 
                 if (tagData && typeof tagData.value === 'number') {
                   return {
                     featureName,
                     value: tagData.value,
-                    timestamp: tagData.timestamp || Date.now()
+                    timestamp: tagData.timestamp || Date.now(),
+                    trend
                   };
                 }
               } catch (error) {
@@ -449,10 +478,13 @@ export const useXgboostStore = create<XgboostState>()(
 
             // Also fetch the target PV value (PSI80) if it's the model target
             let targetPromise = null;
+            let targetTrendPromise = null;
             if (modelTarget === 'PSI80') {
               const targetTagId = getTagId('PSI80', currentMill);
               if (targetTagId) {
                 console.log(`Fetching target PV data for PSI80 -> tag ID ${targetTagId}`);
+                
+                // Fetch current target value
                 targetPromise = fetchTagValue(targetTagId).then(tagData => {
                   console.log('Received target PV data:', tagData);
                   if (tagData && typeof tagData.value === 'number') {
@@ -466,23 +498,46 @@ export const useXgboostStore = create<XgboostState>()(
                   console.error('Error fetching target PV data:', error);
                   return null;
                 });
+                
+                // Fetch target trend data
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=1`, {
+                  headers: { 'Accept': 'application/json' },
+                  cache: 'no-store'
+                })
+                .then(async response => {
+                  if (response.ok) {
+                    const data = await response.json();
+                    console.log('Received target trend data:', data);
+                    return data;
+                  } else {
+                    console.warn(`Failed to fetch target trend data: ${response.statusText}`);
+                    return { timestamps: [], values: [] };
+                  }
+                })
+                .catch(error => {
+                  console.error('Error fetching target trend data:', error);
+                  return { timestamps: [], values: [] };
+                });
               }
             }
 
             // Wait for all promises to resolve
-            const [featureResults, targetResult] = await Promise.all([
+            const [featureResults, targetResult, targetTrendData] = await Promise.all([
               Promise.all(featurePromises),
-              targetPromise
+              targetPromise,
+              targetTrendPromise
             ]);
 
             console.log('Real-time data results:', featureResults);
             console.log('Target PV result:', targetResult);
+            console.log('Target trend data:', targetTrendData);
             
             // Update parameters with real-time data
             featureResults.forEach(result => {
               if (result) {
-                console.log(`Updating parameter ${result.featureName} with value ${result.value}`);
-                state.updateParameterFromRealData(result.featureName, result.value, result.timestamp);
+                console.log(`Updating parameter ${result.featureName} with value ${result.value} and trend data`);
+                state.updateParameterFromRealData(result.featureName, result.value, result.timestamp, result.trend);
               }
             });
 
@@ -526,17 +581,40 @@ export const useXgboostStore = create<XgboostState>()(
               // Update current PV
               set({ currentPV: targetResult.value });
               
-              // Add to target data for trend line with both PV and SP
+              // Process target trend data if available
+              let targetTrendPoints: TargetData[] = [];
+              if (targetTrendData && targetTrendData.timestamps && targetTrendData.values &&
+                  Array.isArray(targetTrendData.timestamps) && Array.isArray(targetTrendData.values)) {
+                
+                // Get the current target (SP) value
+                const currentTarget = state.currentTarget || 0;
+                
+                // Convert API trend data to our format
+                targetTrendPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => ({
+                  timestamp: new Date(timestamp).getTime(),
+                  value: targetTrendData.values[index],
+                  target: currentTarget,
+                  pv: targetTrendData.values[index],
+                  sp: currentTarget
+                }));
+                
+                console.log('Processed target trend points:', targetTrendPoints);
+              }
+              
+              // Add current point to target data
+              const newDataPoint = {
+                timestamp: targetResult.timestamp,
+                value: targetResult.value,
+                target: state.currentTarget || 0,
+                pv: targetResult.value,
+                sp: state.currentTarget // Add SP to the trend data
+              };
+              
+              // Combine trend data with current point and keep last 50 points
               set(state => ({
                 targetData: [
-                  ...state.targetData,
-                  {
-                    timestamp: targetResult.timestamp,
-                    value: targetResult.value,
-                    target: state.currentTarget || 0,
-                    pv: targetResult.value,
-                    sp: state.currentTarget // Add SP to the trend data
-                  }
+                  ...targetTrendPoints,
+                  newDataPoint
                 ].slice(-50) // Keep last 50 points for trend
               }));
             }
@@ -581,14 +659,14 @@ export const useXgboostStore = create<XgboostState>()(
           });
         },
         
-        updateParameterFromRealData: (featureName, value, timestamp) => 
+        updateParameterFromRealData: (featureName, value, timestamp, trend = []) => 
           set(state => ({
             parameters: state.parameters.map(param => 
               param.id === featureName 
                 ? { 
                     ...param, 
                     // Don't update the value, only add to trend
-                    trend: [...param.trend, { timestamp, value }].slice(-50) // Keep last 50 points
+                    trend: [...param.trend, ...(Array.isArray(trend) && trend.length > 0 ? trend : [{ timestamp, value }])].slice(-50) // Keep last 50 points
                   } 
                 : param
             )
