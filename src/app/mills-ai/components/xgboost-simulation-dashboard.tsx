@@ -59,9 +59,11 @@ export function XgboostSimulationDashboard() {
     setModelMetadata,
     startRealTimeUpdates,
     stopRealTimeUpdates,
-    fetchRealTimeData
+    fetchRealTimeData,
+    resetFeatures
   } = useXgboostStore()
   
+  const [predictionMode, setPredictionMode] = useState('auto')
   const [autoPredict, setAutoPredict] = useState(false)
   const { predictTarget, isPredicting } = usePredictTarget()
   const { models, isLoading: isLoadingModels, error: modelsError, refetch } = useGetModels()
@@ -115,12 +117,12 @@ export function XgboostSimulationDashboard() {
     };
   }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates])
 
-  // Trigger prediction on parameter change if autoPredict is enabled
+  // Trigger prediction on parameter change if in manual mode
   useEffect(() => {
-    if (autoPredict && modelFeatures && modelFeatures.length > 0) {
+    if (predictionMode === 'manual' && modelFeatures && modelFeatures.length > 0) {
       handlePrediction();
     }
-  }, [parameters, autoPredict, modelFeatures]);
+  }, [parameters, predictionMode, modelFeatures]);
 
   /**
    * Get tag ID for a specific feature/target and mill number from millsTags
@@ -153,6 +155,7 @@ export function XgboostSimulationDashboard() {
   }
   
   const handlePrediction = async () => {
+    // In manual mode, use slider values; in auto mode, use current parameter values
     const paramValues = Object.fromEntries(
       parameters.map(param => [param.id, param.value])
     )
@@ -286,23 +289,25 @@ export function XgboostSimulationDashboard() {
               
               <div className="flex items-center space-x-2">
                 <Switch
-                  id="auto-predict"
-                  checked={autoPredict}
-                  onCheckedChange={setAutoPredict}
+                  id="prediction-mode"
+                  checked={predictionMode === 'auto'}
+                  onCheckedChange={(checked) => setPredictionMode(checked ? 'auto' : 'manual')}
                 />
-                <Label htmlFor="auto-predict">Auto Predict</Label>
+                <Label htmlFor="prediction-mode">
+                  {predictionMode === 'auto' ? 'Auto Predict (PV)' : 'Manual Predict (Sliders)'}
+                </Label>
               </div>
             </div>
             
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => fetchRealTimeData()}
+                onClick={() => resetFeatures()}
                 disabled={!modelFeatures || modelFeatures.length === 0}
                 className="flex items-center gap-1"
               >
                 <Activity className="h-4 w-4" />
-                Refresh Data
+                Reset Features SP
               </Button>
               <Button 
                 onClick={handlePrediction}

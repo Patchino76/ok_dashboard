@@ -66,6 +66,7 @@ interface XgboostState {
   startSimulation: () => void
   stopSimulation: () => void
   updateSimulatedPV: () => void
+  resetFeatures: () => void
   
   // Real-time data actions
   setCurrentMill: (millNumber: number) => void
@@ -592,6 +593,30 @@ export const useXgboostStore = create<XgboostState>()(
                 : param
             )
           })),
+        
+        // Reset features to their default values (middle of their range)
+        resetFeatures: () => 
+          set((state) => {
+            const updatedParameters = state.parameters.map(param => {
+              // Get the bounds for this parameter
+              const bounds = state.parameterBounds[param.id];
+              
+              // If bounds exist, set value to middle of range, otherwise keep current value
+              const defaultValue = bounds ? (bounds[0] + bounds[1]) / 2 : param.value;
+              
+              return {
+                ...param,
+                value: defaultValue,
+                // Add the new value to the trend
+                trend: [
+                  ...param.trend,
+                  { timestamp: Date.now(), value: defaultValue }
+                ].slice(-50) // Keep last 50 points
+              };
+            });
+            
+            return { parameters: updatedParameters };
+          }),
       }),
       {
         name: "xgboost-simulation-storage"

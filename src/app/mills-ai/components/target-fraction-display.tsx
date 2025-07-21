@@ -30,10 +30,11 @@ export function TargetFractionDisplay({
   
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
-    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}:${date
-      .getSeconds()
-      .toString()
-      .padStart(2, "0")}`
+    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
+  }
+
+  const formatTooltipValue = (value: number) => {
+    return value?.toFixed(2) || 'N/A'
   }
 
   return (
@@ -143,26 +144,27 @@ export function TargetFractionDisplay({
                       />
                       <Tooltip
                         labelFormatter={formatTime}
+                        formatter={(value: number, name: string) => [formatTooltipValue(value), name]}
                         contentStyle={{ background: "#1f2937", borderColor: "#374151", color: "#e5e7eb" }}
                         itemStyle={{ color: "#e5e7eb" }}
                       />
                       <Line
-                        type="monotone"
+                        type="monotoneX"
                         dataKey="pv"
                         name="Process Variable"
                         stroke="#10b981"
                         strokeWidth={2}
-                        dot={true}
-                        animationDuration={300}
+                        dot={false}
+                        connectNulls={true}
                       />
                       <Line
-                        type="monotone"
+                        type="monotoneX"
                         dataKey="sp"
                         name="Setpoint"
                         stroke="#3b82f6"
                         strokeWidth={2}
-                        dot={true}
-                        animationDuration={300}
+                        dot={false}
+                        connectNulls={true}
                       />
                     </LineChart>
                   </ResponsiveContainer>
