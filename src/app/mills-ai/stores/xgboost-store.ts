@@ -24,7 +24,7 @@ interface TargetData {
   value: number
   target: number
   pv: number
-  sp?: number // Optional setpoint value from prediction
+  sp?: number | null // Optional setpoint value from prediction
 }
 
 type ParameterBounds = {

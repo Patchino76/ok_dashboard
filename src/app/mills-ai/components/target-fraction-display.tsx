@@ -11,7 +11,7 @@ interface TargetData {
   value: number
   target: number
   pv: number
-  sp: number
+  sp?: number | null
 }
 
 interface TargetFractionDisplayProps {
