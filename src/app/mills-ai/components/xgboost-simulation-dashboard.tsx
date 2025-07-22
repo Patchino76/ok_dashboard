@@ -38,36 +38,45 @@ interface ParameterData {
   pv: number
 }
 
-export function XgboostSimulationDashboard() {
-  const { 
-    parameters, 
-    parameterBounds, 
+export default function XgboostSimulationDashboard() {
+  const {
+    parameters,
+    parameterBounds,
     currentTarget,
     currentPV,
-    targetData, 
-    modelName,
+    targetData,
     simulationActive,
+    modelName,
     availableModels,
     modelFeatures,
     modelTarget,
     lastTrained,
-    setPredictedTarget, 
-    updateParameter, 
+    currentMill,
+    sliderValues,
+    isSimulationMode,
+    updateParameter,
+    updateSliderValue,
+    setSimulationMode,
+    setPredictedTarget,
     addTargetDataPoint,
     setModelName,
     setAvailableModels,
     setModelMetadata,
+    startSimulation,
+    stopSimulation,
+    setCurrentMill,
+    fetchRealTimeData,
     startRealTimeUpdates,
     stopRealTimeUpdates,
-    fetchRealTimeData,
-    resetFeatures
+    resetFeatures,
+    predictWithCurrentValues
   } = useXgboostStore()
-  
+
   const [predictionMode, setPredictionMode] = useState('auto')
   const [autoPredict, setAutoPredict] = useState(false)
   const { predictTarget, isPredicting } = usePredictTarget()
   const { models, isLoading: isLoadingModels, error: modelsError, refetch } = useGetModels()
-  
+
   // Load available models on component mount (only once)
   useEffect(() => {
     if (models) {
@@ -117,12 +126,16 @@ export function XgboostSimulationDashboard() {
     };
   }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates])
 
-  // Trigger prediction on parameter change if in manual mode
+  // Debounced prediction effect for simulation mode
   useEffect(() => {
-    if (predictionMode === 'manual' && modelFeatures && modelFeatures.length > 0) {
-      handlePrediction();
+    if (isSimulationMode && modelFeatures && modelFeatures.length > 0) {
+      const timeoutId = setTimeout(() => {
+        predictWithCurrentValues();
+      }, 500); // 500ms debounce
+      
+      return () => clearTimeout(timeoutId);
     }
-  }, [parameters, predictionMode, modelFeatures]);
+  }, [sliderValues, isSimulationMode, modelFeatures, predictWithCurrentValues]);
 
   /**
    * Get tag ID for a specific feature/target and mill number from millsTags
@@ -155,31 +168,8 @@ export function XgboostSimulationDashboard() {
   }
   
   const handlePrediction = async () => {
-    // In manual mode, use slider values; in auto mode, use current parameter values
-    const paramValues = Object.fromEntries(
-      parameters.map(param => [param.id, param.value])
-    )
-    
-    try {
-      const result = await predictTarget({
-        modelName,
-        data: paramValues
-      })
-      
-      if (result?.prediction) {
-        setPredictedTarget(result.prediction)
-        
-        // Add data point to chart
-        const now = Date.now()
-        addTargetDataPoint({
-          timestamp: now,
-          value: result.prediction,
-          target: result.prediction
-        })
-      }
-    } catch (error) {
-      console.error("Prediction failed:", error)
-    }
+    // Use the new clean dual data source approach
+    await predictWithCurrentValues()
   }
 
   // Number of parameters in range
@@ -289,12 +279,22 @@ export function XgboostSimulationDashboard() {
               
               <div className="flex items-center space-x-2">
                 <Switch
-                  id="prediction-mode"
-                  checked={predictionMode === 'auto'}
-                  onCheckedChange={(checked) => setPredictionMode(checked ? 'auto' : 'manual')}
+                  id="simulation-mode"
+                  checked={isSimulationMode}
+                  onCheckedChange={setSimulationMode}
                 />
-                <Label htmlFor="prediction-mode">
-                  {predictionMode === 'auto' ? 'Auto Predict (PV)' : 'Manual Predict (Sliders)'}
+                <Label htmlFor="simulation-mode" className="flex items-center gap-1">
+                  {isSimulationMode ? (
+                    <>
+                      <span className="text-red-500">🎯</span>
+                      Simulation Mode (Sliders)
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-blue-500">📊</span>
+                      Real-time Mode (PV)
+                    </>
+                  )}
                 </Label>
               </div>
             </div>
@@ -328,6 +328,7 @@ export function XgboostSimulationDashboard() {
         currentPV={currentPV}
         targetData={targetData}
         isOptimizing={isPredicting}
+        isSimulationMode={isSimulationMode}
       />
 
       {/* Parameter Control Cards Grid */}
@@ -344,7 +345,17 @@ export function XgboostSimulationDashboard() {
               key={`${modelName}-${parameter.id}`} // Include modelName in key to force re-render
               parameter={parameter}
               bounds={parameterBounds[parameter.id] || [0, 100]}
-              onParameterUpdate={(id: string, value: number) => updateParameter(id, value)}
+              onParameterUpdate={(id: string, value: number) => {
+                if (isSimulationMode) {
+                  // Update slider values in simulation mode
+                  updateSliderValue(id, value)
+                  // Trigger prediction with slider values
+                  predictWithCurrentValues()
+                } else {
+                  // Update parameter values in real-time mode
+                  updateParameter(id, value)
+                }
+              }}
             />
         ))}
       </div>

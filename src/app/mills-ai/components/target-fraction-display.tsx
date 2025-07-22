@@ -19,6 +19,7 @@ interface TargetFractionDisplayProps {
   currentPV: number | null
   targetData: TargetData[]
   isOptimizing: boolean
+  isSimulationMode?: boolean
 }
 
 export function TargetFractionDisplay({
@@ -26,6 +27,7 @@ export function TargetFractionDisplay({
   currentPV,
   targetData,
   isOptimizing,
+  isSimulationMode = false,
 }: TargetFractionDisplayProps) {
   
   const formatTime = (timestamp: number) => {
@@ -81,11 +83,13 @@ export function TargetFractionDisplay({
                 <div>
                   <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Setpoint Target (SP)</div>
                   <div className="mt-1 flex items-end">
-                    <span className="text-4xl font-bold text-blue-600">{currentTarget?.toFixed(1) || 'N/A'}</span>
+                    <span className={`text-4xl font-bold ${isSimulationMode ? 'text-red-600' : 'text-blue-600'}`}>
+                      {currentTarget?.toFixed(1) || 'N/A'}
+                    </span>
                     <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
                   </div>
                   <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                    AI-predicted optimal target value
+                    {isSimulationMode ? 'Simulation-predicted target value' : 'AI-predicted optimal target value'}
                   </div>
                 </div>
               </div>
@@ -117,8 +121,8 @@ export function TargetFractionDisplay({
                     <span>Process Variable (PV)</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span>Setpoint (SP)</span>
+                    <div className={`w-3 h-3 rounded-full ${isSimulationMode ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                    <span>Setpoint (SP) {isSimulationMode ? '(Simulation)' : '(Real-time)'}</span>
                   </div>
                 </div>
               </div>
@@ -161,7 +165,7 @@ export function TargetFractionDisplay({
                         type="monotoneX"
                         dataKey="sp"
                         name="Setpoint"
-                        stroke="#3b82f6"
+                        stroke={isSimulationMode ? "#dc2626" : "#3b82f6"}
                         strokeWidth={2}
                         dot={false}
                         connectNulls={true}

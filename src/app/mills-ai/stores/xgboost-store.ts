@@ -39,6 +39,12 @@ interface XgboostState {
   parameters: Parameter[]
   parameterBounds: ParameterBounds
   
+  // Slider values (separate from PV values)
+  sliderValues: Record<string, number>
+  
+  // Simulation mode switch
+  isSimulationMode: boolean
+  
   // Target data
   currentTarget: number | null
   currentPV: number | null
@@ -58,6 +64,8 @@ interface XgboostState {
   
   // Actions
   updateParameter: (id: string, value: number) => void
+  updateSliderValue: (id: string, value: number) => void
+  setSimulationMode: (isSimulation: boolean) => void
   setPredictedTarget: (target: number) => void
   addTargetDataPoint: (dataPoint: Omit<TargetData, 'pv'>) => void
   setModelName: (name: string) => void
@@ -67,6 +75,7 @@ interface XgboostState {
   stopSimulation: () => void
   updateSimulatedPV: () => void
   resetFeatures: () => void
+  predictWithCurrentValues: () => Promise<void>
   
   // Real-time data actions
   setCurrentMill: (millNumber: number) => void
@@ -242,6 +251,21 @@ export const useXgboostStore = create<XgboostState>()(
         // Parameter bounds
         parameterBounds: initialBounds,
         
+        // Slider values (separate from PV values)
+        sliderValues: {
+          "Ore": 190,
+          "WaterMill": 15,
+          "WaterZumpf": 200,
+          "PressureHC": 0.4,
+          "DensityHC": 1700,
+          "MotorAmp": 200,
+          "Shisti": 0.2,
+          "Daiki": 0.3,
+        },
+        
+        // Simulation mode switch
+        isSimulationMode: false,
+        
         // Target data
         currentTarget: null,
         currentPV: 50, // Initial PV value around 50
@@ -275,6 +299,17 @@ export const useXgboostStore = create<XgboostState>()(
                 : param
             )
           })),
+          
+        updateSliderValue: (id, value) => 
+          set((state) => ({
+            sliderValues: {
+              ...state.sliderValues,
+              [id]: value
+            }
+          })),
+          
+        setSimulationMode: (isSimulation) => 
+          set({ isSimulationMode: isSimulation }),
           
         setPredictedTarget: (target) => 
           set({ currentTarget: target }),
@@ -674,30 +709,109 @@ export const useXgboostStore = create<XgboostState>()(
                 : param
             )
           })),
-        
-        // Reset features to their default values (middle of their range)
-        resetFeatures: () => 
-          set((state) => {
+          
+        resetFeatures: () => {
+          set(state => {
             const updatedParameters = state.parameters.map(param => {
-              // Get the bounds for this parameter
-              const bounds = state.parameterBounds[param.id];
-              
-              // If bounds exist, set value to middle of range, otherwise keep current value
-              const defaultValue = bounds ? (bounds[0] + bounds[1]) / 2 : param.value;
-              
-              return {
-                ...param,
-                value: defaultValue,
-                // Add the new value to the trend
-                trend: [
-                  ...param.trend,
-                  { timestamp: Date.now(), value: defaultValue }
-                ].slice(-50) // Keep last 50 points
-              };
+              const bounds = initialBounds[param.id];
+              if (bounds) {
+                const defaultValue = (bounds[0] + bounds[1]) / 2;
+                return {
+                  ...param,
+                  value: defaultValue,
+                  trend: [
+                    ...param.trend,
+                    { timestamp: Date.now(), value: defaultValue }
+                  ].slice(-50)
+                };
+              }
+              return param;
             });
             
-            return { parameters: updatedParameters };
-          }),
+            // Also reset slider values
+            const updatedSliderValues = { ...state.sliderValues };
+            state.parameters.forEach(param => {
+              const bounds = initialBounds[param.id];
+              if (bounds) {
+                updatedSliderValues[param.id] = (bounds[0] + bounds[1]) / 2;
+              }
+            });
+            
+            return { 
+              parameters: updatedParameters,
+              sliderValues: updatedSliderValues
+            };
+          });
+        },
+
+        predictWithCurrentValues: async () => {
+          const state = useXgboostStore.getState();
+          const { modelFeatures, modelName, isSimulationMode, parameters, sliderValues } = state;
+          
+          if (!modelFeatures || modelFeatures.length === 0) {
+            console.warn('No model features available for prediction');
+            return;
+          }
+          
+          try {
+            // Build prediction data from appropriate source
+            const predictionData: Record<string, number> = {};
+            
+            if (isSimulationMode) {
+              // Use slider values for prediction
+              console.log('🎯 Simulation mode: Using slider values for prediction');
+              modelFeatures.forEach(featureName => {
+                if (sliderValues[featureName] !== undefined) {
+                  predictionData[featureName] = sliderValues[featureName];
+                }
+              });
+            } else {
+              // Use PV values for prediction
+              console.log('📊 Real-time mode: Using PV values for prediction');
+              modelFeatures.forEach(featureName => {
+                const parameter = parameters.find(p => p.id === featureName);
+                if (parameter) {
+                  predictionData[featureName] = parameter.value;
+                }
+              });
+            }
+            
+            console.log('Prediction data:', predictionData);
+            
+            // Call prediction API
+            const response = await mlApiClient.post('/api/v1/ml/predict', {
+              model_id: modelName,
+              features: predictionData
+            });
+            
+            if (response.data && typeof response.data.prediction === 'number') {
+              const prediction = response.data.prediction;
+              console.log('✅ Prediction successful:', prediction);
+              
+              // Update target with prediction
+              set({ currentTarget: prediction });
+              
+              // Add to target data for trending
+              const timestamp = Date.now();
+              set(state => ({
+                targetData: [
+                  ...state.targetData,
+                  {
+                    timestamp,
+                    value: prediction,
+                    target: prediction,
+                    sp: prediction,
+                    pv: state.currentPV || 50
+                  }
+                ].slice(-50)
+              }));
+            } else {
+              console.error('Invalid prediction response:', response.data);
+            }
+          } catch (error) {
+            console.error('❌ Prediction failed:', error);
+          }
+        },
       }),
       {
         name: "xgboost-simulation-storage"
