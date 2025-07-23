@@ -61,19 +61,21 @@ The store implements a sophisticated dual data source pattern that enables seaml
 ```typescript
 // Simplified example of the dual data source pattern
 const getParameterValue = (parameter: Parameter, state: XgboostState) => {
-  return state.isSimulationMode 
+  return state.isSimulationMode
     ? state.sliderValues[parameter.id] ?? parameter.value
     : parameter.value;
 };
 ```
 
 **Real-time Mode**:
+
 - Connects to the mill's data acquisition system
 - Fetches live process values (PV) at regular intervals
 - Updates the UI in real-time with current process conditions
 - Used for monitoring and operational decision-making
 
 **Simulation Mode**:
+
 - Uses user-adjustable slider values for what-if analysis
 - Enables testing different scenarios without affecting live processes
 - Maintains separate state for slider values to preserve real-time data
@@ -86,15 +88,14 @@ The store leverages Zustand's powerful capabilities:
 ```typescript
 // Store creation with middleware
 const useXgboostStore = create<XgboostState>()(
-  devtools(
-    (set, get) => ({
-      // State and actions...
-    })
-  )
+  devtools((set, get) => ({
+    // State and actions...
+  }))
 );
 ```
 
 **Key Features**:
+
 - **Type Safety**: Full TypeScript support for all state and actions
 - **Middleware**: Extensible with devtools and persistence
 - **Reactivity**: Components only re-render when their subscribed state changes
@@ -109,29 +110,29 @@ The `XgboostState` interface defines the complete shape of the store's state. He
 ```typescript
 interface XgboostState {
   // Core Parameters
-  parameters: Parameter[];  // Array of all process parameters
-  parameterBounds: ParameterBounds;  // Min/max bounds for parameters
+  parameters: Parameter[]; // Array of all process parameters
+  parameterBounds: ParameterBounds; // Min/max bounds for parameters
 
   // Simulation State
-  sliderValues: Record<string, number>;  // User-adjusted values in simulation mode
-  isSimulationMode: boolean;  // Tracks the current mode
-  simulationActive: boolean;  // Whether simulation is actively running
+  sliderValues: Record<string, number>; // User-adjusted values in simulation mode
+  isSimulationMode: boolean; // Tracks the current mode
+  simulationActive: boolean; // Whether simulation is actively running
 
   // Process Values
-  currentTarget: number | null;  // Current target value (SP)
-  currentPV: number | null;      // Current process value (PV)
-  targetData: TargetData[];      // Historical data for trending
+  currentTarget: number | null; // Current target value (SP)
+  currentPV: number | null; // Current process value (PV)
+  targetData: TargetData[]; // Historical data for trending
 
   // Model Configuration
-  modelName: string;             // Currently selected model
-  availableModels: string[];     // List of available models
-  modelFeatures: string[] | null;  // Features used by current model
-  modelTarget: string | null;    // Target variable name
-  lastTrained: string | null;    // Timestamp of last model training
+  modelName: string; // Currently selected model
+  availableModels: string[]; // List of available models
+  modelFeatures: string[] | null; // Features used by current model
+  modelTarget: string | null; // Target variable name
+  lastTrained: string | null; // Timestamp of last model training
 
   // Real-time Data
-  currentMill: number;           // Currently selected mill (1-12)
-  dataUpdateInterval: NodeJS.Timeout | null;  // Interval for real-time updates
+  currentMill: number; // Currently selected mill (1-12)
+  dataUpdateInterval: NodeJS.Timeout | null; // Interval for real-time updates
 
   // Actions and Methods
   updateParameter: (id: string, value: number) => void;
@@ -149,13 +150,13 @@ The store's initial state is defined when the store is created:
 const initialState = {
   parameters: [
     {
-      id: 'Ore',
-      name: 'Ore Feed',
-      unit: 't/h',
+      id: "Ore",
+      name: "Ore Feed",
+      unit: "t/h",
       value: 0,
       trend: [],
-      color: '#3b82f6',  // blue-500
-      icon: '⛏️'
+      color: "#3b82f6", // blue-500
+      icon: "⛏️",
     },
     // ... other parameters
   ],
@@ -232,7 +233,7 @@ sequenceDiagram
     participant App as Application
     participant Store as XGBoost Store
     participant API as Backend API
-    
+
     App->>Store: useXgboostStore()
     Store->>Store: Initialize with default values
     Store->>API: fetch('/api/v1/ml/models')
@@ -248,6 +249,7 @@ sequenceDiagram
 The real-time data flow is the backbone of the application's live monitoring capabilities:
 
 1. **Initialization**:
+
    ```typescript
    // In a React component:
    useEffect(() => {
@@ -273,18 +275,18 @@ sequenceDiagram
     participant UI as UI Component
     participant Store as XGBoost Store
     participant API as ML API
-    
+
     User->>UI: Adjusts slider/submits form
     UI->>Store: updateSliderValue(paramId, value)
     UI->>Store: predictWithCurrentValues()
-    
+
     Store->>Store: Collect feature values
     alt Simulation Mode
         Store->>Store: Use sliderValues
     else Real-time Mode
         Store->>Store: Use parameter values
     end
-    
+
     Store->>API: POST /api/v1/ml/predict
     API-->>Store: Prediction result
     Store->>Store: Update targetData
@@ -314,10 +316,10 @@ const fetchRealTimeData = async () => {
         try {
           // Fetch current value
           const value = await fetchTagValue(tagId);
-          
+
           // Fetch trend data (last hour)
-          const trend = await fetchTagTrend(tagId, '1h');
-          
+          const trend = await fetchTagTrend(tagId, "1h");
+
           // Update parameter with new data
           updateParameterFromRealData(param.id, value, timestamp, trend);
         } catch (error) {
@@ -331,7 +333,7 @@ const fetchRealTimeData = async () => {
       await predictWithCurrentValues();
     }
   } catch (error) {
-    console.error('Error in fetchRealTimeData:', error);
+    console.error("Error in fetchRealTimeData:", error);
   }
 };
 ```
@@ -343,30 +345,25 @@ Handles the prediction logic for both simulation and real-time modes:
 ```typescript
 const predictWithCurrentValues = async () => {
   const state = get();
-  const { 
-    parameters, 
-    isSimulationMode, 
-    sliderValues,
-    modelName,
-    currentMill 
-  } = state;
+  const { parameters, isSimulationMode, sliderValues, modelName, currentMill } =
+    state;
 
   try {
     // Prepare feature data based on current mode
     const features: Record<string, number> = {};
-    parameters.forEach(param => {
-      features[param.id] = isSimulationMode 
-        ? sliderValues[param.id] ?? param.value 
+    parameters.forEach((param) => {
+      features[param.id] = isSimulationMode
+        ? sliderValues[param.id] ?? param.value
         : param.value;
     });
 
     // Make prediction API call
     const response = await mlApiClient.post<PredictionResponse>(
-      '/api/v1/ml/predict',
+      "/api/v1/ml/predict",
       {
         model_id: modelName,
         mill_id: currentMill,
-        features
+        features,
       }
     );
 
@@ -376,7 +373,7 @@ const predictWithCurrentValues = async () => {
       const timestamp = Date.now();
 
       // Update state with new prediction
-      set(prev => ({
+      set((prev) => ({
         currentTarget: prediction,
         targetData: [
           ...prev.targetData,
@@ -385,13 +382,13 @@ const predictWithCurrentValues = async () => {
             value: prediction,
             target: prediction,
             sp: prediction,
-            pv: prev.currentPV || 0
-          }
-        ].slice(-50)  // Keep last 50 data points
+            pv: prev.currentPV || 0,
+          },
+        ].slice(-50), // Keep last 50 data points
       }));
     }
   } catch (error) {
-    console.error('Prediction failed:', error);
+    console.error("Prediction failed:", error);
   }
 };
 ```
@@ -402,27 +399,26 @@ Updates parameter values while respecting simulation mode:
 
 ```typescript
 const updateParameterFromRealData = (
-  featureName: string, 
-  value: number, 
+  featureName: string,
+  value: number,
   timestamp: number,
   trend: Array<{ timestamp: number; value: number }> = []
 ) => {
   set((state) => {
     // Find the parameter to update
-    const paramIndex = state.parameters.findIndex(p => p.id === featureName);
+    const paramIndex = state.parameters.findIndex((p) => p.id === featureName);
     if (paramIndex === -1) return state;
 
     const param = state.parameters[paramIndex];
-    
+
     // Create updated parameter with new trend data
     const updatedParam: Parameter = {
       ...param,
       trend: [
-        ...(trend.length > 0 ? trend : [
-          ...param.trend,
-          { timestamp, value }
-        ].slice(-50))  // Keep last 50 data points
-      ]
+        ...(trend.length > 0
+          ? trend
+          : [...param.trend, { timestamp, value }].slice(-50)), // Keep last 50 data points
+      ],
     };
 
     // Only update the value if not in simulation mode
@@ -447,29 +443,30 @@ Resets all parameters to their default values while preserving the current mode:
 const resetFeatures = () => {
   set((state) => {
     // Reset parameters to their default values (middle of min/max range)
-    const updatedParameters = state.parameters.map(param => {
+    const updatedParameters = state.parameters.map((param) => {
       const bounds = state.parameterBounds[param.id];
       const defaultValue = bounds ? (bounds.min + bounds.max) / 2 : 0;
-      
+
       return {
         ...param,
         value: defaultValue,
         // Preserve trend data
-        trend: param.trend.length > 0 
-          ? [...param.trend] 
-          : [{ timestamp: Date.now(), value: defaultValue }]
+        trend:
+          param.trend.length > 0
+            ? [...param.trend]
+            : [{ timestamp: Date.now(), value: defaultValue }],
       };
     });
 
     // Reset slider values to match new parameter values
     const updatedSliderValues = { ...state.sliderValues };
-    updatedParameters.forEach(param => {
+    updatedParameters.forEach((param) => {
       updatedSliderValues[param.id] = param.value;
     });
 
     return {
       parameters: updatedParameters,
-      sliderValues: updatedSliderValues
+      sliderValues: updatedSliderValues,
     };
   });
 };
@@ -530,6 +527,7 @@ export const useXgboostStore = create<XgboostState>()(
 ### Middleware Usage
 
 1. **DevTools Middleware**
+
    - Enables Redux DevTools integration for debugging
    - Provides time-travel debugging capabilities
    - Logs all state changes for inspection
@@ -542,16 +540,18 @@ export const useXgboostStore = create<XgboostState>()(
 ### State Management Patterns
 
 1. **Immutable Updates**
+
    ```typescript
    // Using immer-like syntax with set
-   set(state => ({
-     parameters: state.parameters.map(p => 
+   set((state) => ({
+     parameters: state.parameters.map((p) =>
        p.id === id ? { ...p, value } : p
-     )
+     ),
    }));
    ```
 
 2. **Batched Updates**
+
    ```typescript
    // Multiple state updates in a single set
    set({
@@ -562,16 +562,16 @@ export const useXgboostStore = create<XgboostState>()(
    ```
 
 3. **Selectors for Performance**
+
    ```typescript
    // In component:
-   const currentMill = useXgboostStore(state => state.currentMill);
-   
+   const currentMill = useXgboostStore((state) => state.currentMill);
+
    // Memoized selector
-   const getParameter = (id: string) => 
-     useXgboostStore(useCallback(
-       state => state.parameters.find(p => p.id === id),
-       [id]
-     ));
+   const getParameter = (id: string) =>
+     useXgboostStore(
+       useCallback((state) => state.parameters.find((p) => p.id === id), [id])
+     );
    ```
 
 ## Real-time Data Flow
@@ -644,25 +644,6 @@ sequenceDiagram
 - Automatic cleanup of intervals
 - Limited history size for trend data
 - Efficient data structures for state
-
-## Best Practices
-
-1. **State Updates**
-
-   - Use the `set` function for all state updates
-   - Batch related updates together
-   - Keep state updates pure
-
-2. **Data Fetching**
-
-   - Handle loading and error states
-   - Clean up async operations
-   - Debounce rapid updates
-
-3. **Testing**
-   - Test state transitions
-   - Mock API responses
-   - Verify error handling
 
 ## Troubleshooting
 
