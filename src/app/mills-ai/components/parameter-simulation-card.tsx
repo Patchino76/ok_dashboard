@@ -6,7 +6,7 @@ import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis } from "recharts"
+import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 
 interface Parameter {
   id: string
@@ -151,6 +151,7 @@ export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={parameter.trend} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                 <XAxis dataKey="timestamp" hide={true} />
+                <YAxis domain={[bounds[0], bounds[1]]} hide={true} />
                 <Tooltip
                   formatter={(value: number) => [formatValue(value), parameter.name]}
                   labelFormatter={(timestamp: number) => formatTime(timestamp)}
