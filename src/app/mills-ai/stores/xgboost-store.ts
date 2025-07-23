@@ -83,6 +83,7 @@ interface XgboostState {
   startRealTimeUpdates: () => void
   stopRealTimeUpdates: () => void
   updateParameterFromRealData: (featureName: string, value: number, timestamp: number, trend?: Array<{ timestamp: number; value: number }>) => void
+  clearCache: () => void
 }
 
 // Icons for parameters
@@ -170,7 +171,7 @@ const getTagId = (targetKey: string, millNumber: number): number | null => {
 
 export const useXgboostStore = create<XgboostState>()(
   devtools(
-    persist(
+    // persist(
       (set) => ({
         // Initialize parameters with default values (middle of the range)
         parameters: [
@@ -660,12 +661,12 @@ export const useXgboostStore = create<XgboostState>()(
             clearInterval(state.dataUpdateInterval);
           }
           
-          // Start new interval for real-time updates (every 10 seconds)
-          console.log('⏰ Setting up 10-second interval for real-time updates');
+          // Start new interval for real-time updates (every 30 seconds)
+          console.log('⏰ Setting up 30-second interval for real-time updates');
           const intervalId = setInterval(() => {
             console.log('⏰ Interval triggered, calling fetchRealTimeData');
             state.fetchRealTimeData();
-          }, 10000);
+          }, 30000);
           
           set({ 
             dataUpdateInterval: intervalId,
@@ -759,6 +760,15 @@ export const useXgboostStore = create<XgboostState>()(
             return;
           }
           
+          // DEBUG: Log current model state
+          console.log('🔍 PREDICTION DEBUG:');
+          console.log('Model name:', modelName);
+          console.log('Model features from store:', modelFeatures);
+          console.log('Model features length:', modelFeatures.length);
+          console.log('Is simulation mode:', isSimulationMode);
+          console.log('Available parameters:', parameters.map(p => p.id));
+          console.log('Slider values:', sliderValues);
+          
           try {
             // Build prediction data from appropriate source
             const predictionData: Record<string, number> = {};
@@ -782,12 +792,12 @@ export const useXgboostStore = create<XgboostState>()(
               });
             }
             
-            console.log('Prediction data:', predictionData);
+            console.log('Prediction data (only model features):', predictionData);
             
-            // Call prediction API
+            // Call prediction API with correct payload structure
             const response = await mlApiClient.post('/api/v1/ml/predict', {
               model_id: modelName,
-              features: predictionData
+              data: predictionData  // API expects 'data' field, not 'features'
             });
             
             if (response.data && typeof response.data.prediction === 'number') {
@@ -818,10 +828,25 @@ export const useXgboostStore = create<XgboostState>()(
             console.error('❌ Prediction failed:', error);
           }
         },
-      }),
-      {
-        name: "xgboost-simulation-storage"
-      }
-    )
+        
+        // Clear cache function
+        clearCache: () => {
+          console.log('🗑️ Clearing localStorage cache...');
+          // Clear specific localStorage keys
+          localStorage.removeItem('xgboost-simulation-storage');
+          // Force refresh by resetting model metadata
+          set((state) => ({
+            modelFeatures: null,
+            modelTarget: null,
+            lastTrained: null,
+            availableModels: []
+          }));
+          console.log('✅ Cache cleared successfully');
+        },
+      })
+      // {
+      //   name: "xgboost-simulation-storage"
+      // }
+    // )
   )
 )

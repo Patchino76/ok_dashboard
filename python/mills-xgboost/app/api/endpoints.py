@@ -299,6 +299,11 @@ async def train_model(request: TrainingRequest):
 async def predict(request: PredictionRequest):
     """Make predictions using a trained model"""
     try:
+        # Force reload of model to pick up code changes (temporary fix)
+        if request.model_id in models_store:
+            logger.info(f"Clearing cached model {request.model_id} to force reload")
+            del models_store[request.model_id]
+        
         # Check if model exists in memory
         if request.model_id not in models_store:
             # Try to load from disk

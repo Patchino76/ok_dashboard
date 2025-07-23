@@ -22,13 +22,11 @@ class MillsXGBoostModel:
         Initialize the XGBoost model
         
         Args:
-            features: List of feature column names (default: None, will use standard features)
+            features: List of feature column names (default: None, will be loaded from metadata)
             target_col: Target column name (default: 'PSI80')
         """
-        self.features = features or [
-            'Ore', 'WaterMill', 'WaterZumpf', 'PressureHC', 
-            'DensityHC', 'MotorAmp', 'Shisti', 'Daiki'
-        ]
+        # Only set features if explicitly provided, otherwise leave None to be loaded from metadata
+        self.features = features
         self.target_col = target_col
         self.model = None
         self.scaler = None
@@ -136,6 +134,9 @@ class MillsXGBoostModel:
         """
         if self.model is None:
             raise ValueError("Model not trained yet")
+        
+        if self.features is None:
+            raise ValueError("Model features not initialized. Load model from metadata first.")
         
         try:
             # Convert dictionary to DataFrame if necessary
@@ -251,7 +252,11 @@ class MillsXGBoostModel:
                 with open(metadata_path, 'r') as f:
                     metadata = json.load(f)
                 
-                self.features = metadata.get('features', self.features)
+                # Always use features from metadata, with fallback to default if not found
+                self.features = metadata.get('features', [
+                    'Ore', 'WaterMill', 'WaterZumpf', 'PressureHC', 
+                    'DensityHC', 'MotorAmp', 'Shisti', 'Daiki'
+                ])
                 self.target_col = metadata.get('target_col', self.target_col)
                 self.model_params = metadata.get('model_params', {})
                 self.training_history = metadata.get('training_history', {})

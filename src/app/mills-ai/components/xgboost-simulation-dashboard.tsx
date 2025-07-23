@@ -69,7 +69,8 @@ export default function XgboostSimulationDashboard() {
     startRealTimeUpdates,
     stopRealTimeUpdates,
     resetFeatures,
-    predictWithCurrentValues
+    predictWithCurrentValues,
+    clearCache
   } = useXgboostStore()
 
   const [predictionMode, setPredictionMode] = useState('auto')
@@ -179,16 +180,10 @@ export default function XgboostSimulationDashboard() {
     };
   }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates, simulationActive, modelName, models, setModelMetadata])
 
-  // Debounced prediction effect for simulation mode
-  useEffect(() => {
-    if (isSimulationMode && modelFeatures && modelFeatures.length > 0) {
-      const timeoutId = setTimeout(() => {
-        predictWithCurrentValues();
-      }, 500); // 500ms debounce
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [sliderValues, isSimulationMode, modelFeatures, predictWithCurrentValues]);
+  // Removed automatic prediction on slider changes to prevent duplicate API calls
+  // Predictions now only trigger from:
+  // 1. Real-time data updates (every 30 seconds)
+  // 2. Manual "Predict Target" button click
 
   /**
    * Get tag ID for a specific feature/target and mill number from millsTags
@@ -355,6 +350,17 @@ export default function XgboostSimulationDashboard() {
             <div className="flex gap-2">
               <Button
                 variant="outline"
+                onClick={() => {
+                  clearCache();
+                  refetch(); // Refetch models after clearing cache
+                }}
+                className="flex items-center gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
+              >
+                <AlertCircle className="h-4 w-4" />
+                Clear Cache
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => resetFeatures()}
                 disabled={!modelFeatures || modelFeatures.length === 0}
                 className="flex items-center gap-1"
@@ -400,10 +406,8 @@ export default function XgboostSimulationDashboard() {
               bounds={parameterBounds[parameter.id] || [0, 100]}
               onParameterUpdate={(id: string, value: number) => {
                 if (isSimulationMode) {
-                  // Update slider values in simulation mode
+                  // Update slider values in simulation mode (no auto-predict to prevent duplicates)
                   updateSliderValue(id, value)
-                  // Trigger prediction with slider values
-                  predictWithCurrentValues()
                 } else {
                   // Update parameter values in real-time mode
                   updateParameter(id, value)
