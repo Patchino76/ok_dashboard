@@ -719,33 +719,20 @@ export const useXgboostStore = create<XgboostState>()(
           
         resetFeatures: () => {
           set(state => {
-            const updatedParameters = state.parameters.map(param => {
-              const bounds = initialBounds[param.id];
-              if (bounds) {
-                const defaultValue = (bounds[0] + bounds[1]) / 2;
-                return {
-                  ...param,
-                  value: defaultValue,
-                  trend: [
-                    ...param.trend,
-                    { timestamp: Date.now(), value: defaultValue }
-                  ].slice(-50)
-                };
-              }
-              return param;
+            // Create a copy of the current slider values
+            const updatedSliderValues = { ...state.sliderValues };
+            
+            // Assign the current real-time PV values to the slider values
+            state.parameters.forEach(param => {
+              // Use the current parameter value (PV) for the slider
+              updatedSliderValues[param.id] = param.value;
             });
             
-            // Also reset slider values
-            const updatedSliderValues = { ...state.sliderValues };
-            state.parameters.forEach(param => {
-              const bounds = initialBounds[param.id];
-              if (bounds) {
-                updatedSliderValues[param.id] = (bounds[0] + bounds[1]) / 2;
-              }
-            });
+            console.log('Reset Features: Assigned current PV values to slider values', updatedSliderValues);
             
             return { 
-              parameters: updatedParameters,
+              // Keep parameters unchanged as we want to preserve the real-time PV values
+              // Only update the slider values to match the current PV values
               sliderValues: updatedSliderValues
             };
           });
