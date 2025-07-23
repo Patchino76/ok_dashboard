@@ -79,16 +79,36 @@ export default function XgboostSimulationDashboard() {
 
   // Load available models on component mount (only once)
   useEffect(() => {
+    console.log('🔍 Model loading effect triggered');
+    console.log('Models:', models);
+    console.log('IsLoading:', isLoadingModels);
+    console.log('Error:', modelsError);
+    
     if (models) {
       const modelIds = Object.keys(models)
+      console.log('📋 Available model IDs:', modelIds);
       setAvailableModels(modelIds)
       
       const defaultModelId = "xgboost_PSI80_mill8";
       
+      // Always prefer mill 8 over mill 6 when both are available
+      // This ensures mill 8 is selected even if persistence has mill 6 saved
+      if (models[defaultModelId] && modelName !== defaultModelId) {
+        console.log('🎯 Forcing default model (mill 8 preferred):', defaultModelId);
+        setModelName(defaultModelId);
+        const model = models[defaultModelId];
+        setModelMetadata(
+          model.features,
+          model.target_col,
+          model.last_trained
+        );
+      }
       // Only update model and metadata on initial load or if current model doesn't exist
-      if (!modelName || !models[modelName]) {
+      else if (!modelName || !models[modelName]) {
+        console.log('🎯 Setting up default model:', defaultModelId);
         // Try to use default model first
         if (models[defaultModelId]) {
+          console.log('✅ Found default model, setting up:', models[defaultModelId]);
           setModelName(defaultModelId);
           const model = models[defaultModelId];
           setModelMetadata(
@@ -99,6 +119,7 @@ export default function XgboostSimulationDashboard() {
         } 
         // If default doesn't exist, use the first available
         else if (modelIds.length > 0) {
+          console.log('⚠️ Default model not found, using first available:', modelIds[0]);
           const firstModel = models[modelIds[0]];
           setModelName(modelIds[0]);
           setModelMetadata(
@@ -106,25 +127,38 @@ export default function XgboostSimulationDashboard() {
             firstModel.target_col,
             firstModel.last_trained
           );
+        } else {
+          console.log('❌ No models available at all');
         }
+      } else {
+        console.log('✅ Model already set:', modelName);
       }
+    } else {
+      console.log('⏳ Models not loaded yet or failed to load');
     }
-  }, [models, modelName, setModelName, setAvailableModels, setModelMetadata])
+  }, [models, modelName, setModelName, setAvailableModels, setModelMetadata, isLoadingModels, modelsError])
 
   // Start real-time data updates when model features are available
   useEffect(() => {
+    console.log('🔍 Real-time updates effect triggered');
+    console.log('Model features:', modelFeatures);
+    console.log('Simulation active:', simulationActive);
+    
     if (modelFeatures && modelFeatures.length > 0) {
-      console.log('Model features available, starting real-time updates:', modelFeatures);
+      console.log('✅ Model features available, starting real-time updates:', modelFeatures);
       startRealTimeUpdates();
+    } else {
+      console.log('⚠️ Model features not available yet or empty');
     }
     
     // Cleanup on unmount
     return () => {
       if (simulationActive) {
+        console.log('🗑️ Stopping real-time updates on cleanup');
         stopRealTimeUpdates();
       }
     };
-  }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates])
+  }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates, simulationActive])
 
   // Debounced prediction effect for simulation mode
   useEffect(() => {

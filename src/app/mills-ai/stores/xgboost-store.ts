@@ -418,15 +418,25 @@ export const useXgboostStore = create<XgboostState>()(
           set({ currentMill: millNumber }),
         
         fetchRealTimeData: async () => {
+          console.log('📊 fetchRealTimeData called');
           const state = useXgboostStore.getState();
           const { modelFeatures, modelTarget, currentMill } = state;
           
+          console.log('State check:', {
+            modelFeatures,
+            modelTarget,
+            currentMill,
+            hasMillsTags: !!millsTags,
+            millsTagsKeys: Object.keys(millsTags || {})
+          });
+          
           if (!modelFeatures || modelFeatures.length === 0) {
-            console.warn('No model features available for real-time data fetch');
+            console.warn('❌ No model features available for real-time data fetch');
+            console.warn('Current modelFeatures:', modelFeatures);
             return;
           }
 
-          console.log('Fetching real-time data for features:', modelFeatures);
+          console.log('✅ Fetching real-time data for features:', modelFeatures);
           console.log('Model target:', modelTarget);
           console.log('Current mill:', currentMill);
           console.log('Available millsTags keys:', Object.keys(millsTags));
@@ -576,37 +586,12 @@ export const useXgboostStore = create<XgboostState>()(
               }
             });
 
-            // Prepare feature data for prediction
+            // Use our new clean dual data source prediction logic
             const validFeatureResults = featureResults.filter(result => result !== null);
             if (validFeatureResults.length > 0) {
-              try {
-                // Prepare data for prediction API call
-                const predictionData: Record<string, number> = {};
-                validFeatureResults.forEach(result => {
-                  if (result) {
-                    predictionData[result.featureName] = result.value;
-                  }
-                });
-
-                console.log('Calling prediction API with data:', predictionData);
-                
-                // Call the prediction API
-                const response = await mlApiClient.post<PredictionResponse>('/api/v1/ml/predict', {
-                  model_id: 'xgboost_PSI80_mill8', // Using the model for mill 8
-                  data: predictionData
-                });
-
-                console.log('Prediction API response:', response.data);
-                
-                // Extract the predicted SP value
-                const predictedSP = response.data.prediction;
-                console.log('Predicted SP value:', predictedSP);
-                
-                // Update current target with predicted SP
-                set({ currentTarget: predictedSP });
-              } catch (error) {
-                console.error('Error calling prediction API:', error);
-              }
+              console.log('Real-time data updated, triggering prediction with current values');
+              // Use the new predictWithCurrentValues function which handles dual data source logic
+              await state.predictWithCurrentValues();
             }
 
             // Update target PV and add to target data
@@ -660,15 +645,25 @@ export const useXgboostStore = create<XgboostState>()(
         },
         
         startRealTimeUpdates: () => {
+          console.log('🚀 startRealTimeUpdates called');
           const state = useXgboostStore.getState();
+          console.log('Current state:', {
+            modelFeatures: state.modelFeatures,
+            modelName: state.modelName,
+            currentMill: state.currentMill,
+            simulationActive: state.simulationActive
+          });
           
           // Stop any existing interval
           if (state.dataUpdateInterval) {
+            console.log('🗑️ Clearing existing interval');
             clearInterval(state.dataUpdateInterval);
           }
           
           // Start new interval for real-time updates (every 10 seconds)
+          console.log('⏰ Setting up 10-second interval for real-time updates');
           const intervalId = setInterval(() => {
+            console.log('⏰ Interval triggered, calling fetchRealTimeData');
             state.fetchRealTimeData();
           }, 10000);
           
@@ -678,6 +673,7 @@ export const useXgboostStore = create<XgboostState>()(
           });
           
           // Fetch initial data immediately
+          console.log('📊 Fetching initial real-time data immediately');
           state.fetchRealTimeData();
         },
         
@@ -695,20 +691,30 @@ export const useXgboostStore = create<XgboostState>()(
         },
         
         updateParameterFromRealData: (featureName, value, timestamp, trend = []) => 
-          set(state => ({
-            parameters: state.parameters.map(param => 
-              param.id === featureName 
-                ? { 
-                    ...param, 
-                    // Don't update the value, only update the trend
-                    // If we have trend data, use it entirely; otherwise add the current point to existing trend
-                    trend: Array.isArray(trend) && trend.length > 0 
-                      ? trend // Use the entire fetched trend data
-                      : [...param.trend, { timestamp, value }].slice(-50) // Only slice if we're just adding a single point
-                  } 
-                : param
-            )
-          })),
+          set(state => {
+            // Update slider values in real-time mode to keep them in sync
+            const updatedSliderValues = state.isSimulationMode 
+              ? state.sliderValues // Preserve slider values in simulation mode
+              : { ...state.sliderValues, [featureName]: value }; // Update slider values in real-time mode
+              
+            return {
+              parameters: state.parameters.map(param => 
+                param.id === featureName 
+                  ? { 
+                      ...param, 
+                      // In real-time mode: update both value and trend
+                      // In simulation mode: only update trend (preserve user slider values)
+                      value: state.isSimulationMode ? param.value : value,
+                      // Update trend data
+                      trend: Array.isArray(trend) && trend.length > 0 
+                        ? trend // Use the entire fetched trend data
+                        : [...param.trend, { timestamp, value }].slice(-50) // Add current point to existing trend
+                    } 
+                  : param
+              ),
+              sliderValues: updatedSliderValues
+            };
+          }),
           
         resetFeatures: () => {
           set(state => {
