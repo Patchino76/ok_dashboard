@@ -142,13 +142,32 @@ export default function XgboostSimulationDashboard() {
   useEffect(() => {
     console.log('🔍 Real-time updates effect triggered');
     console.log('Model features:', modelFeatures);
+    console.log('Model features type:', typeof modelFeatures);
+    console.log('Model features length:', modelFeatures?.length);
     console.log('Simulation active:', simulationActive);
+    console.log('Model name:', modelName);
+    console.log('Available models:', availableModels);
+    console.log('Browser:', navigator.userAgent);
     
     if (modelFeatures && modelFeatures.length > 0) {
       console.log('✅ Model features available, starting real-time updates:', modelFeatures);
+      console.log('🚀 About to call startRealTimeUpdates()');
       startRealTimeUpdates();
+      console.log('✅ startRealTimeUpdates() called successfully');
     } else {
       console.log('⚠️ Model features not available yet or empty');
+      console.log('Debug info:');
+      console.log('- modelFeatures is null/undefined:', !modelFeatures);
+      console.log('- modelFeatures is empty array:', modelFeatures?.length === 0);
+      console.log('- modelName:', modelName);
+      console.log('- models loaded:', !!models);
+      
+      // Force trigger if we have a model name but no features
+      if (modelName && models && models[modelName] && !modelFeatures) {
+        console.log('🔧 Forcing model metadata update for:', modelName);
+        const model = models[modelName];
+        setModelMetadata(model.features, model.target_col, model.last_trained);
+      }
     }
     
     // Cleanup on unmount
@@ -158,7 +177,7 @@ export default function XgboostSimulationDashboard() {
         stopRealTimeUpdates();
       }
     };
-  }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates, simulationActive])
+  }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates, simulationActive, modelName, models, setModelMetadata])
 
   // Debounced prediction effect for simulation mode
   useEffect(() => {
