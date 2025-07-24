@@ -610,6 +610,57 @@ sequenceDiagram
   - Process values (PVs) are used for predictions
   - Sliders are updated to reflect current PVs
 
+### Architecture Overview
+
+```mermaid
+graph TD
+    A[Data Source] --> B{Simulation Mode?}
+    B -->|No| C[Use Real-time PV Values]
+    B -->|Yes| D[Use Slider Values]
+    C --> E[Prediction API]
+    D --> E
+    E --> F[Update UI]
+```
+
+### Key Components
+
+1. **State Management**
+   ```typescript
+   interface XgboostState {
+     // Core state
+     isSimulationMode: boolean;
+     sliderValues: Record<string, number>;
+     parameters: Parameter[];
+     
+     // Actions
+     setSimulationMode: (isSimulation: boolean) => void;
+     updateSliderValue: (id: string, value: number) => void;
+     // ... other actions
+   }
+   ```
+
+2. **Mode Switching**
+   ```typescript
+   // Toggle between real-time and simulation modes
+   const toggleSimulationMode = () => {
+     useXgboostStore.setState(prev => ({
+       isSimulationMode: !prev.isSimulationMode
+     }));   
+   };
+   ```
+
+### Data Flow
+
+1. **Real-time Mode**
+   - Fetches live process values from OPC UA server
+   - Updates parameter trends with real-time data
+   - Uses actual PV values for predictions
+
+2. **Simulation Mode**
+   - Uses user-adjustable slider values
+   - Preserves real-time data in read-only format
+   - Enables what-if analysis without affecting live process
+
 ### Implementation Details
 
 - `isSimulationMode` state controls data source
@@ -618,32 +669,561 @@ sequenceDiagram
 
 ## Error Handling
 
-### API Errors
+Robust error handling is crucial for maintaining application stability and providing a good user experience. The XGBoost store implements a comprehensive error handling strategy that covers various scenarios.
 
-- Failed API calls are caught and logged
-- State remains consistent on errors
-- User receives feedback via console warnings
+### Error Types
 
-### Data Validation
+1. **API Errors**
+   - Failed network requests
+   - Invalid responses
+   - Authentication/authorization issues
 
-- Validates model features before prediction
-- Handles missing or invalid data gracefully
+2. **Data Validation Errors**
+   - Invalid parameter values
+   - Missing required fields
+   - Type mismatches
+
+3. **State Errors**
+   - Inconsistent state
+   - Race conditions
+   - Invalid state transitions
+
+### Error Handling Implementation
+
+#### 1. API Error Handling
+
+```typescript
+// In xgboost-store.ts
+const fetchRealTimeData = async () => {
+  const state = get();
+  
+  try {
+    // Set loading state
+    set({ isLoading: true, error: null });
+    
+    // Fetch data
+    const response = await fetchWithRetry(
+      () => fetchDataFromAPI(),
+      3, // max retries
+      1000 // delay between retries
+    );
+    
+    // Process successful response
+    set({
+      data: processResponse(response),
+      lastUpdated: Date.now(),
+      isLoading: false
+    });
+    
+  } catch (error) {
+    // Handle error
+    console.error('Failed to fetch real-time data:', error);
+    set({
+      error: {
+        message: 'Failed to load data. Please try again.',
+        timestamp: Date.now(),
+        details: error.message
+      },
+      isLoading: false
+    });
+    
+    // Notify monitoring service
+    logErrorToService(error, {
+      context: 'fetchRealTimeData',
+      state: getRelevantState()
+    });
+  }
+};
+```
+
+#### 2. Error Boundary Component
+
+```tsx
+// ErrorBoundary.tsx
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    logErrorToService(error, { errorInfo });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-boundary">
+          <h2>Something went wrong</h2>
+          <pre>{this.state.error?.toString()}</pre>
+          <button onClick={() => window.location.reload()}>
+            Reload Application
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+// Usage
+<ErrorBoundary>
+  <XgboostSimulationDashboard />
+</ErrorBoundary>
+```
+
+### Error Recovery Strategies
+
+1. **Automatic Retries**
+   ```typescript
+   const fetchWithRetry = async <T>(
+     fn: () => Promise<T>,
+     maxRetries = 3,
+     delay = 1000
+   ): Promise<T> => {
+     let lastError: Error;
+     
+     for (let i = 0; i < maxRetries; i++) {
+       try {
+         return await fn();
+       } catch (error) {
+         lastError = error;
+         if (i < maxRetries - 1) {
+           await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+         }
+       }
+     }
+     
+     throw lastError!;
+   };
+   ```
+
+2. **Fallback Values**
+   ```typescript
+   const getParameterValue = (id: string): number => {
+     try {
+       const param = get().parameters.find(p => p.id === id);
+       if (!param) throw new Error(`Parameter ${id} not found`);
+       return param.value;
+     } catch (error) {
+       console.error('Error getting parameter value:', error);
+       return getDefaultParameterValue(id);
+     }
+   };
+   ```
+
+### Error Logging
+
+1. **Client-Side Logging**
+   ```typescript
+   const logErrorToService = (
+     error: Error,
+     context: Record<string, any> = {}
+   ) => {
+     const errorInfo = {
+       timestamp: new Date().toISOString(),
+       message: error.message,
+       stack: error.stack,
+       context: {
+         ...context,
+         userAgent: navigator.userAgent,
+         url: window.location.href,
+         state: getRelevantState()
+       }
+     };
+     
+     // Send to error tracking service
+     fetch('/api/log-error', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify(errorInfo)
+     }).catch(console.error);
+     
+     console.error('Logged error:', errorInfo);
+   };
+   ```
+
+2. **Error Boundaries with Context**
+   ```tsx
+   const ErrorBoundaryWithContext: React.FC<ErrorBoundaryProps> = ({
+     children,
+     context = {}
+   }) => {
+     return (
+       <ErrorBoundary
+         onError={(error, errorInfo) => {
+           logErrorToService(error, { ...context, errorInfo });
+         }}
+       >
+         {children}
+       </ErrorBoundary>
+     );
+   };
+   ```
+
+### User Feedback
+
+1. **Error Toast Notifications**
+   ```tsx
+   const showErrorToast = (message: string, options = {}) => {
+     toast.error(message, {
+       position: 'top-right',
+       autoClose: 5000,
+       hideProgressBar: false,
+       closeOnClick: true,
+       pauseOnHover: true,
+       draggable: true,
+       ...options
+     });
+   };
+   
+   // Usage
+   try {
+     await someAsyncOperation();
+   } catch (error) {
+     showErrorToast('Operation failed. Please try again.');
+     throw error; // Re-throw for error boundaries
+   }
+   ```
+
+2. **Error Recovery UI**
+   ```tsx
+   const DataDisplay = () => {
+     const { data, error, isLoading, retry } = useData();
+     
+     if (isLoading) return <LoadingSpinner />;
+     if (error) {
+       return (
+         <div className="error-state">
+           <Alert variant="error">
+             Failed to load data: {error.message}
+           </Alert>
+           <Button onClick={retry}>
+             Retry
+           </Button>
+         </div>
+       );
+     }
+     
+     return <DataVisualization data={data} />;
+   };
+   ```
+
+### Best Practices
+
+1. **Error Boundaries**
+   - Wrap component trees with error boundaries
+   - Provide helpful error UIs
+   - Log errors to monitoring services
+
+2. **Graceful Degradation**
+   - Show fallback UIs when features fail
+   - Disable non-critical features that depend on failed operations
+   - Provide clear recovery paths
+
+3. **Monitoring and Alerting**
+   - Track error rates and patterns
+   - Set up alerts for critical errors
+   - Monitor user impact
+
+4. **Testing**
+   - Test error scenarios
+   - Verify error boundaries
+   - Check error recovery flows
 - TypeScript ensures type safety
 
 ## Performance Considerations
 
-### Optimization Techniques
+Optimizing performance is critical for a responsive user experience, especially when dealing with real-time data and complex state management. This section covers the key performance optimizations implemented in the XGBoost store.
 
-- Batched state updates
-- Debounced predictions in simulation mode
-- Limited trend history (last 50 points)
-- Selective re-renders with Zustand selectors
+### State Management Optimizations
+
+1. **Selective State Subscriptions**
+   ```typescript
+   // Good: Component only re-renders when specific state changes
+   const parameter = useXgboostStore(state => 
+     state.parameters.find(p => p.id === 'Ore')
+   );
+   
+   // Better: Memoize selector for complex computations
+   const getFilteredParameters = useCallback(
+     (filter) => useXgboostStore(
+       state => state.parameters.filter(p => p.status === filter)
+     ),
+     [filter]
+   );
+   ```
+
+2. **Batched Updates**
+   ```typescript
+   // Instead of multiple set calls
+   set({ loading: true });
+   set({ data: newData });
+   set({ loading: false });
+   
+   // Batch updates in a single set
+   set({
+     loading: true,
+     data: newData,
+     loading: false
+   });
+   ```
+
+3. **Throttling and Debouncing**
+   ```typescript
+   // Debounce rapid slider updates
+   const updateParameterDebounced = useMemo(
+     () => debounce((id: string, value: number) => {
+       set(state => ({
+         parameters: state.parameters.map(p => 
+           p.id === id ? { ...p, value } : p
+         )
+       }));
+     }, 300),
+     []
+   );
+   ```
+
+### Data Management
+
+1. **Trend Data Limitation**
+   ```typescript
+   // Keep only the last 50 data points
+   const addDataPoint = (newPoint) => {
+     set(state => ({
+       trendData: [...state.trendData.slice(-49), newPoint]
+     }));
+   };
+   ```
+
+2. **Efficient Data Structures**
+   ```typescript
+   // Use Maps for fast lookups
+   const parameterMap = useMemo(
+     () => new Map(parameters.map(p => [p.id, p])),
+     [parameters]
+   );
+   
+   // Use Sets for membership checks
+   const activeParameterIds = useMemo(
+     () => new Set(parameters.filter(p => p.isActive).map(p => p.id)),
+     [parameters]
+   );
+   ```
+
+### Rendering Optimizations
+
+1. **Memoization**
+   ```tsx
+   // Memoize expensive calculations
+   const processedData = useMemo(() => {
+     return parameters.map(processParameter);
+   }, [parameters]);
+   
+   // Memoize components
+   const ParameterList = React.memo(({ parameters }) => (
+     <div>
+       {parameters.map(param => (
+         <ParameterItem key={param.id} parameter={param} />
+       ))}
+     </div>
+   ));
+   ```
+
+2. **Virtualized Lists**
+   ```tsx
+   // For long lists, use virtualization
+   import { FixedSizeList as List } from 'react-window';
+   
+   const VirtualizedList = ({ items }) => (
+     <List
+       height={400}
+       itemCount={items.length}
+       itemSize={50}
+       width="100%"
+     >
+       {({ index, style }) => (
+         <div style={style}>
+           {items[index].name}
+         </div>
+       )}
+     </List>
+   );
+   ```
+
+### Network Optimizations
+
+1. **Request Deduplication**
+   ```typescript
+   // Cache in-flight requests
+   const requestCache = new Map();
+   
+   async function fetchWithCache(url) {
+     if (requestCache.has(url)) {
+       return requestCache.get(url);
+     }
+     
+     const promise = fetch(url).then(res => res.json());
+     requestCache.set(url, promise);
+     
+     try {
+       return await promise;
+     } finally {
+       requestCache.delete(url);
+     }
+   }
+   ```
+
+2. **Request Prioritization**
+   ```typescript
+   // Critical data first
+   const fetchCriticalData = async () => {
+     const [userPrefs, initialData] = await Promise.all([
+       fetchUserPreferences(),
+       fetchInitialData(),
+     ]);
+     
+     // Load non-critical data after initial render
+     requestIdleCallback(() => {
+       fetchSecondaryData();
+     });
+     
+     return { userPrefs, initialData };
+   };
+   ```
 
 ### Memory Management
 
-- Automatic cleanup of intervals
-- Limited history size for trend data
-- Efficient data structures for state
+1. **Cleanup Effects**
+   ```typescript
+   useEffect(() => {
+     const interval = setInterval(updateData, 30000);
+     
+     // Cleanup function
+     return () => {
+       clearInterval(interval);
+     };
+   }, []);
+   ```
+
+2. **Event Listener Optimization**
+   ```typescript
+   useEffect(() => {
+     const handleResize = debounce(() => {
+       setDimensions({
+         width: window.innerWidth,
+         height: window.innerHeight,
+       });
+     }, 250);
+     
+     window.addEventListener('resize', handleResize);
+     return () => window.removeEventListener('resize', handleResize);
+   }, []);
+   ```
+
+### Performance Monitoring
+
+1. **React DevTools Profiler**
+   ```tsx
+   import { Profiler } from 'react';
+   
+   const onRender = (id, phase, actualDuration) => {
+     if (actualDuration > 100) {
+       console.warn(`Slow render (${actualDuration}ms) in ${id}`);
+     }
+   };
+   
+   <Profiler id="Dashboard" onRender={onRender}>
+     <Dashboard />
+   </Profiler>
+   ```
+
+2. **Performance Metrics**
+   ```typescript
+   // Measure critical operations
+   const measure = (label, fn) => {
+     performance.mark(`${label}-start`);
+     const result = fn();
+     performance.mark(`${label}-end`);
+     
+     performance.measure(
+       label,
+       `${label}-start`,
+       `${label}-end`
+     );
+     
+     const measures = performance.getEntriesByName(label);
+     console.log(`${label} took ${measures[0].duration}ms`);
+     
+     return result;
+   };
+   ```
+
+### Best Practices
+
+1. **Code Splitting**
+   ```tsx
+   // Lazy load non-critical components
+   const HeavyComponent = React.lazy(() => import('./HeavyComponent'));
+   
+   function App() {
+     return (
+       <Suspense fallback={<div>Loading...</div>}>
+         <HeavyComponent />
+       </Suspense>
+     );
+   }
+   ```
+
+2. **Web Workers**
+   ```typescript
+   // Offload heavy computations to a web worker
+   const worker = new Worker('worker.js');
+   
+   worker.postMessage({ type: 'COMPUTE', data: largeDataSet });
+   
+   worker.onmessage = (event) => {
+     if (event.data.type === 'RESULT') {
+       setResult(event.data.result);
+     }
+   };
+   ```
+
+3. **React.memo and useMemo**
+   ```tsx
+   // Only re-render when props change
+   const ExpensiveComponent = React.memo(({ data }) => {
+     // Component implementation
+   }, (prevProps, nextProps) => {
+     // Custom comparison function
+     return prevProps.data.id === nextProps.data.id;
+   });
+   
+   // Memoize expensive calculations
+   const processedData = useMemo(() => {
+     return processLargeDataset(data);
+   }, [data]);
+   ```
+
+4. **Avoid Inline Functions**
+   ```tsx
+   // Bad: Creates new function on every render
+   <button onClick={() => handleClick(id)}>Click me</button>
+   
+   // Good: Memoize callback
+   const handleClick = useCallback((id) => {
+     // Handle click
+   }, []);
+   
+   <button onClick={handleClick}>Click me</button>
+   ```
+
+These performance optimizations ensure that the XGBoost dashboard remains responsive and efficient, even when dealing with large datasets and frequent updates.
 
 ## Troubleshooting
 
