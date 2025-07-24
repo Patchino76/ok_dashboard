@@ -45,7 +45,6 @@ export default function XgboostSimulationDashboard() {
     currentTarget,
     currentPV,
     targetData,
-    simulationActive,
     modelName,
     availableModels,
     modelFeatures,
@@ -67,7 +66,6 @@ export default function XgboostSimulationDashboard() {
     setCurrentMill,
     fetchRealTimeData,
     startRealTimeUpdates,
-    stopRealTimeUpdates,
     resetFeatures,
     predictWithCurrentValues
   } = useXgboostStore()
@@ -144,7 +142,6 @@ export default function XgboostSimulationDashboard() {
     console.log('Model features:', modelFeatures);
     console.log('Model features type:', typeof modelFeatures);
     console.log('Model features length:', modelFeatures?.length);
-    console.log('Simulation active:', simulationActive);
     console.log('Model name:', modelName);
     console.log('Available models:', availableModels);
     console.log('Browser:', navigator.userAgent);
@@ -169,15 +166,7 @@ export default function XgboostSimulationDashboard() {
         setModelMetadata(model.features, model.target_col, model.last_trained);
       }
     }
-    
-    // Cleanup on unmount
-    return () => {
-      if (simulationActive) {
-        console.log(' Stopping real-time updates on cleanup');
-        stopRealTimeUpdates();
-      }
-    };
-  }, [modelFeatures, startRealTimeUpdates, stopRealTimeUpdates, simulationActive, modelName, models, setModelMetadata])
+  }, [modelFeatures, startRealTimeUpdates, modelName, models, setModelMetadata])
 
   // Removed automatic prediction on slider changes to prevent duplicate API calls
   // Predictions now only trigger from:
@@ -303,8 +292,8 @@ export default function XgboostSimulationDashboard() {
               <div className="text-sm text-muted-foreground">Fraction Target</div>
             </div>
             <div>
-              <div className="text-4xl font-bold text-orange-500">
-                {simulationActive ? "ACTIVE" : "INACTIVE"}
+              <div className="text-4xl font-bold text-green-500">
+                ACTIVE
               </div>
               <div className="text-sm text-muted-foreground">Real-time Data</div>
             </div>
@@ -312,18 +301,6 @@ export default function XgboostSimulationDashboard() {
           
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="real-time-toggle"
-                  checked={simulationActive}
-                  onCheckedChange={simulationActive ? stopRealTimeUpdates : startRealTimeUpdates}
-                />
-                <Label htmlFor="real-time-toggle" className="flex items-center gap-1">
-                  <Activity className="h-4 w-4" />
-                  Real-time Data
-                </Label>
-              </div>
-              
               <div className="flex items-center space-x-2">
                 <Switch
                   id="simulation-mode"

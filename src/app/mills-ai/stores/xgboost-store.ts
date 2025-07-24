@@ -49,7 +49,6 @@ interface XgboostState {
   currentTarget: number | null
   currentPV: number | null
   targetData: TargetData[]
-  simulationActive: boolean
   
   // Model settings
   modelName: string
@@ -270,7 +269,6 @@ export const useXgboostStore = create<XgboostState>()(
         currentTarget: null,
         currentPV: 50, // Initial PV value around 50
         targetData: [],
-        simulationActive: false,
         
         // Model settings
         modelName: "xgboost_PSI80_mill8",
@@ -330,9 +328,7 @@ export const useXgboostStore = create<XgboostState>()(
         
         updateSimulatedPV: () =>
           set((state) => {
-            if (!state.simulationActive) return {}
-            
-            // Only update if simulation is active
+            // Generate simulated PV value (real-time updates are always active)
             // Generate a simulated PV value around 50 (with random variation)
             const basePV = state.currentPV || 50
             const variation = (Math.random() * 2 - 1) * 1 // Random variation between -1 and +1
@@ -353,11 +349,13 @@ export const useXgboostStore = create<XgboostState>()(
             }
           }),
         
-        startSimulation: () =>
-          set({ simulationActive: true }),
+        startSimulation: () => {
+          // Real-time updates are now always active, no state change needed
+        },
           
-        stopSimulation: () =>
-          set({ simulationActive: false }),
+        stopSimulation: () => {
+          // Real-time updates are now always active, no state change needed
+        },
           
         setModelName: (modelName) => 
           set({ modelName }),
@@ -650,8 +648,7 @@ export const useXgboostStore = create<XgboostState>()(
           console.log('Current state:', {
             modelFeatures: state.modelFeatures,
             modelName: state.modelName,
-            currentMill: state.currentMill,
-            simulationActive: state.simulationActive
+            currentMill: state.currentMill
           });
           
           // Stop any existing interval
@@ -668,8 +665,7 @@ export const useXgboostStore = create<XgboostState>()(
           }, 30000);
           
           set({ 
-            dataUpdateInterval: intervalId,
-            simulationActive: true 
+            dataUpdateInterval: intervalId
           });
           
           // Fetch initial data immediately
@@ -685,8 +681,7 @@ export const useXgboostStore = create<XgboostState>()(
           }
           
           set({ 
-            dataUpdateInterval: null,
-            simulationActive: false 
+            dataUpdateInterval: null
           });
         },
         
