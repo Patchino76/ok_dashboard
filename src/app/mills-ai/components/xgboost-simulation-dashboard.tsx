@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ParameterSimulationCard } from "./parameter-simulation-card"
 import { TargetFractionDisplay } from "./target-fraction-display"
-import { Zap, Activity, Play, Pause, BarChart2, AlertCircle } from "lucide-react"
+import { Zap, Activity, Play, Pause, BarChart2, AlertCircle, RotateCcw } from "lucide-react"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
 import { millsTags } from "@/lib/tags/mills-tags"
 
@@ -69,8 +69,7 @@ export default function XgboostSimulationDashboard() {
     startRealTimeUpdates,
     stopRealTimeUpdates,
     resetFeatures,
-    predictWithCurrentValues,
-    clearCache
+    predictWithCurrentValues
   } = useXgboostStore()
 
   const [predictionMode, setPredictionMode] = useState('auto')
@@ -80,14 +79,14 @@ export default function XgboostSimulationDashboard() {
 
   // Load available models on component mount (only once)
   useEffect(() => {
-    console.log('🔍 Model loading effect triggered');
+    console.log(' Model loading effect triggered');
     console.log('Models:', models);
     console.log('IsLoading:', isLoadingModels);
     console.log('Error:', modelsError);
     
     if (models) {
       const modelIds = Object.keys(models)
-      console.log('📋 Available model IDs:', modelIds);
+      console.log(' Available model IDs:', modelIds);
       setAvailableModels(modelIds)
       
       const defaultModelId = "xgboost_PSI80_mill8";
@@ -95,7 +94,7 @@ export default function XgboostSimulationDashboard() {
       // Always prefer mill 8 over mill 6 when both are available
       // This ensures mill 8 is selected even if persistence has mill 6 saved
       if (models[defaultModelId] && modelName !== defaultModelId) {
-        console.log('🎯 Forcing default model (mill 8 preferred):', defaultModelId);
+        console.log(' Forcing default model (mill 8 preferred):', defaultModelId);
         setModelName(defaultModelId);
         const model = models[defaultModelId];
         setModelMetadata(
@@ -106,10 +105,10 @@ export default function XgboostSimulationDashboard() {
       }
       // Only update model and metadata on initial load or if current model doesn't exist
       else if (!modelName || !models[modelName]) {
-        console.log('🎯 Setting up default model:', defaultModelId);
+        console.log(' Setting up default model:', defaultModelId);
         // Try to use default model first
         if (models[defaultModelId]) {
-          console.log('✅ Found default model, setting up:', models[defaultModelId]);
+          console.log(' Found default model, setting up:', models[defaultModelId]);
           setModelName(defaultModelId);
           const model = models[defaultModelId];
           setModelMetadata(
@@ -120,7 +119,7 @@ export default function XgboostSimulationDashboard() {
         } 
         // If default doesn't exist, use the first available
         else if (modelIds.length > 0) {
-          console.log('⚠️ Default model not found, using first available:', modelIds[0]);
+          console.log(' Default model not found, using first available:', modelIds[0]);
           const firstModel = models[modelIds[0]];
           setModelName(modelIds[0]);
           setModelMetadata(
@@ -129,19 +128,19 @@ export default function XgboostSimulationDashboard() {
             firstModel.last_trained
           );
         } else {
-          console.log('❌ No models available at all');
+          console.log(' No models available at all');
         }
       } else {
-        console.log('✅ Model already set:', modelName);
+        console.log(' Model already set:', modelName);
       }
     } else {
-      console.log('⏳ Models not loaded yet or failed to load');
+      console.log(' Models not loaded yet or failed to load');
     }
   }, [models, modelName, setModelName, setAvailableModels, setModelMetadata, isLoadingModels, modelsError])
 
   // Start real-time data updates when model features are available
   useEffect(() => {
-    console.log('🔍 Real-time updates effect triggered');
+    console.log(' Real-time updates effect triggered');
     console.log('Model features:', modelFeatures);
     console.log('Model features type:', typeof modelFeatures);
     console.log('Model features length:', modelFeatures?.length);
@@ -151,12 +150,12 @@ export default function XgboostSimulationDashboard() {
     console.log('Browser:', navigator.userAgent);
     
     if (modelFeatures && modelFeatures.length > 0) {
-      console.log('✅ Model features available, starting real-time updates:', modelFeatures);
-      console.log('🚀 About to call startRealTimeUpdates()');
+      console.log(' Model features available, starting real-time updates:', modelFeatures);
+      console.log(' About to call startRealTimeUpdates()');
       startRealTimeUpdates();
-      console.log('✅ startRealTimeUpdates() called successfully');
+      console.log(' startRealTimeUpdates() called successfully');
     } else {
-      console.log('⚠️ Model features not available yet or empty');
+      console.log(' Model features not available yet or empty');
       console.log('Debug info:');
       console.log('- modelFeatures is null/undefined:', !modelFeatures);
       console.log('- modelFeatures is empty array:', modelFeatures?.length === 0);
@@ -165,7 +164,7 @@ export default function XgboostSimulationDashboard() {
       
       // Force trigger if we have a model name but no features
       if (modelName && models && models[modelName] && !modelFeatures) {
-        console.log('🔧 Forcing model metadata update for:', modelName);
+        console.log(' Forcing model metadata update for:', modelName);
         const model = models[modelName];
         setModelMetadata(model.features, model.target_col, model.last_trained);
       }
@@ -174,7 +173,7 @@ export default function XgboostSimulationDashboard() {
     // Cleanup on unmount
     return () => {
       if (simulationActive) {
-        console.log('🗑️ Stopping real-time updates on cleanup');
+        console.log(' Stopping real-time updates on cleanup');
         stopRealTimeUpdates();
       }
     };
@@ -350,22 +349,11 @@ export default function XgboostSimulationDashboard() {
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => {
-                  clearCache();
-                  refetch(); // Refetch models after clearing cache
-                }}
-                className="flex items-center gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
-              >
-                <AlertCircle className="h-4 w-4" />
-                Clear Cache
-              </Button>
-              <Button
-                variant="outline"
                 onClick={() => resetFeatures()}
                 disabled={!modelFeatures || modelFeatures.length === 0}
-                className="flex items-center gap-1"
+                className="flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
               >
-                <Activity className="h-4 w-4" />
+                <RotateCcw className="h-4 w-4" />
                 Reset Features SP
               </Button>
               <Button 

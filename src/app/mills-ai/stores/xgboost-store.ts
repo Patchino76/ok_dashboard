@@ -83,7 +83,6 @@ interface XgboostState {
   startRealTimeUpdates: () => void
   stopRealTimeUpdates: () => void
   updateParameterFromRealData: (featureName: string, value: number, timestamp: number, trend?: Array<{ timestamp: number; value: number }>) => void
-  clearCache: () => void
 }
 
 // Icons for parameters
@@ -814,21 +813,6 @@ export const useXgboostStore = create<XgboostState>()(
           } catch (error) {
             console.error('❌ Prediction failed:', error);
           }
-        },
-        
-        // Clear cache function
-        clearCache: () => {
-          console.log('🗑️ Clearing localStorage cache...');
-          // Clear specific localStorage keys
-          localStorage.removeItem('xgboost-simulation-storage');
-          // Force refresh by resetting model metadata
-          set((state) => ({
-            modelFeatures: null,
-            modelTarget: null,
-            lastTrained: null,
-            availableModels: []
-          }));
-          console.log('✅ Cache cleared successfully');
         },
       })
       // {
