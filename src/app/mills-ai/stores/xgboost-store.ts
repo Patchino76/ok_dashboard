@@ -38,30 +38,19 @@ interface XgboostState {
   // Parameters
   parameters: Parameter[]
   parameterBounds: ParameterBounds
-  
-  // Slider values (separate from PV values)
   sliderValues: Record<string, number>
-  
-  // Simulation mode switch
   isSimulationMode: boolean
-  
-  // Target data
   currentTarget: number | null
   currentPV: number | null
   targetData: TargetData[]
-  
-  // Model settings
   modelName: string
   availableModels: string[]
   modelFeatures: string[] | null
   modelTarget: string | null
   lastTrained: string | null
-  
-  // Real-time data settings
   currentMill: number
   dataUpdateInterval: NodeJS.Timeout | null
-  
-  // Actions
+  resetSliders: boolean
   updateParameter: (id: string, value: number) => void
   updateSliderValue: (id: string, value: number) => void
   setSimulationMode: (isSimulation: boolean) => void
@@ -75,8 +64,6 @@ interface XgboostState {
   updateSimulatedPV: () => void
   resetFeatures: () => void
   predictWithCurrentValues: () => Promise<void>
-  
-  // Real-time data actions
   setCurrentMill: (millNumber: number) => void
   fetchRealTimeData: () => Promise<void>
   startRealTimeUpdates: () => void
@@ -96,7 +83,8 @@ const parameterIcons: Record<string, string> = {
   Daiki: "🧬",
   PumpRPM: "🔄",
   Grano: "📏",
-  Class_12: "🔢"
+  Class_12: "🔢",
+  Class_15: "🔢"
 }
 
 // Colors for parameters
@@ -111,7 +99,8 @@ const parameterColors: Record<string, string> = {
   Daiki: "orange",
   PumpRPM: "indigo",
   Grano: "slate",
-  Class_12: "rose"
+  Class_12: "rose",
+  Class_15: "rose"
 }
 
 // Units for parameters
@@ -126,7 +115,8 @@ const parameterUnits: Record<string, string> = {
   Daiki: "%",
   PumpRPM: "rpm",
   Grano: "mm",
-  Class_12: "%"
+  Class_12: "%",
+  Class_15: "%"
 }
 
 // Parameter bounds from the requirements
@@ -141,7 +131,8 @@ const initialBounds: ParameterBounds = {
   Daiki: [0.1, 0.4],
   PumpRPM: [800, 1200],   // Typical pump RPM range for industrial applications
   Grano: [0.5, 5.0],      // Granularity measurement in mm
-  Class_12: [20, 60]      // Percentage range for Class_12
+  Class_12: [20, 60],     // Percentage range for Class_12
+  Class_15: [20, 60]      // Percentage range for Class_15 (same as Class_12)
 }
 
 // Utility function to get tag ID from mills tags
@@ -662,7 +653,7 @@ export const useXgboostStore = create<XgboostState>()(
           const intervalId = setInterval(() => {
             console.log('⏰ Interval triggered, calling fetchRealTimeData');
             state.fetchRealTimeData();
-          }, 30000);
+          }, 120000);
           
           set({ 
             dataUpdateInterval: intervalId
@@ -713,21 +704,18 @@ export const useXgboostStore = create<XgboostState>()(
           
         resetFeatures: () => {
           set(state => {
-            // Create a copy of the current slider values
             const updatedSliderValues = { ...state.sliderValues };
             
             // Assign the current real-time PV values to the slider values
             state.parameters.forEach(param => {
-              // Use the current parameter value (PV) for the slider
               updatedSliderValues[param.id] = param.value;
             });
             
             console.log('Reset Features: Assigned current PV values to slider values', updatedSliderValues);
             
             return { 
-              // Keep parameters unchanged as we want to preserve the real-time PV values
-              // Only update the slider values to match the current PV values
-              sliderValues: updatedSliderValues
+              sliderValues: updatedSliderValues,
+              resetSliders: !state.resetSliders  // Toggle the reset flag
             };
           });
         },

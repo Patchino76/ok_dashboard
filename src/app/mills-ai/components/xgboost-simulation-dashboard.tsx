@@ -67,6 +67,7 @@ export default function XgboostSimulationDashboard() {
     fetchRealTimeData,
     startRealTimeUpdates,
     resetFeatures,
+    resetSliders,
     predictWithCurrentValues
   } = useXgboostStore()
 
@@ -369,6 +370,8 @@ export default function XgboostSimulationDashboard() {
               key={`${modelName}-${parameter.id}`} // Include modelName in key to force re-render
               parameter={parameter}
               bounds={parameterBounds[parameter.id] || [0, 100]}
+              sliderValue={sliderValues[parameter.id] ?? parameter.value}
+              resetSliders={resetSliders}
               onParameterUpdate={(id: string, value: number) => {
                 if (isSimulationMode) {
                   // Update slider values in simulation mode (no auto-predict to prevent duplicates)

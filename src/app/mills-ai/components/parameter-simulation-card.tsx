@@ -21,26 +21,40 @@ interface Parameter {
 interface ParameterSimulationCardProps {
   parameter: Parameter
   bounds: [number, number]
+  sliderValue: number
+  resetSliders: boolean
   onParameterUpdate: (id: string, value: number) => void
 }
 
-export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }: ParameterSimulationCardProps) {
+export function ParameterSimulationCard({ 
+  parameter, 
+  bounds, 
+  sliderValue: propSliderValue, 
+  resetSliders,
+  onParameterUpdate 
+}: ParameterSimulationCardProps) {
   // Separate state for input/slider value that doesn't affect the trend
-  const [sliderValue, setSliderValue] = useState([parameter.value])
+  const [sliderValue, setSliderValue] = useState(propSliderValue)
   const [inputValue, setInputValue] = useState(parameter.value.toFixed(2))
   
-  // Update input/slider when parameter value changes from API
+  // Update input/slider when parameter value changes from API or reset is triggered
   useEffect(() => {
-    setSliderValue([parameter.value])
-    setInputValue(parameter.value.toFixed(2))
-  }, [parameter.value])
+    setSliderValue(propSliderValue);
+    setInputValue(parameter.value.toFixed(2));
+    console.log("Slider value updated", { 
+      parameter: parameter.id,
+      propSliderValue,
+      parameterValue: parameter.value,
+      resetTriggered: resetSliders
+    });
+  }, [propSliderValue, resetSliders, parameter.value])
   
   const isInRange = parameter.value >= bounds[0] && parameter.value <= bounds[1]
   
   // Handle slider change - only updates local state and input box
   const handleSliderChange = (value: number[]) => {
     const newValue = value[0]
-    setSliderValue(value)
+    setSliderValue(newValue)
     setInputValue(newValue.toFixed(2))
   }
   
@@ -55,12 +69,12 @@ export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }
     if (!isNaN(newValue)) {
       // Clamp value within bounds
       const clampedValue = Math.max(bounds[0], Math.min(bounds[1], newValue))
-      setSliderValue([clampedValue])
+      setSliderValue(clampedValue)
       setInputValue(clampedValue.toFixed(2))
       onParameterUpdate(parameter.id, clampedValue)
     } else {
       // Restore previous value if invalid input
-      setInputValue(sliderValue[0].toFixed(2))
+      setInputValue(sliderValue.toFixed(2))
     }
   }
   
@@ -191,7 +205,7 @@ export function ParameterSimulationCard({ parameter, bounds, onParameterUpdate }
             <div className="text-xs text-slate-500">{bounds[1].toFixed(2)}</div>
           </div>
           <Slider
-            value={sliderValue}
+            value={[sliderValue]}
             onValueChange={handleSliderChange}
             min={bounds[0]}
             max={bounds[1]}
