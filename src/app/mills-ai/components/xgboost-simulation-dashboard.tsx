@@ -391,6 +391,7 @@ export default function XgboostSimulationDashboard() {
               bounds={parameterBounds[parameter.id] || [0, 100]}
               sliderValue={sliderValues[parameter.id] ?? parameter.value}
               resetSliders={resetSliders}
+              isSimulationMode={isSimulationMode}
               onParameterUpdate={(id: string, value: number) => {
                 if (isSimulationMode) {
                   // Update slider values in simulation mode (no auto-predict to prevent duplicates)

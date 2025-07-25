@@ -23,6 +23,7 @@ interface ParameterSimulationCardProps {
   bounds: [number, number]
   sliderValue: number
   resetSliders: boolean
+  isSimulationMode: boolean
   onParameterUpdate: (id: string, value: number) => void
 }
 
@@ -31,6 +32,7 @@ export function ParameterSimulationCard({
   bounds, 
   sliderValue: propSliderValue, 
   resetSliders,
+  isSimulationMode,
   onParameterUpdate 
 }: ParameterSimulationCardProps) {
   // Separate state for input/slider value that doesn't affect the trend
@@ -45,17 +47,21 @@ export function ParameterSimulationCard({
       parameter: parameter.id,
       propSliderValue,
       parameterValue: parameter.value,
-      resetTriggered: resetSliders
+      resetTriggered: resetSliders,
+      isSimulationMode
     });
-  }, [resetSliders])
+  }, [resetSliders, isSimulationMode])
   
   const isInRange = parameter.value >= bounds[0] && parameter.value <= bounds[1]
   
-  // Handle slider change - only updates local state and input box
+  // Handle slider change - updates local state, input box, and triggers update
   const handleSliderChange = (value: number[]) => {
     const newValue = value[0]
     setSliderValue(newValue)
     setInputValue(newValue.toFixed(2))
+    if (isSimulationMode) {
+      onParameterUpdate(parameter.id, newValue)
+    }
   }
   
   // Handle direct input change
@@ -144,9 +150,11 @@ export function ParameterSimulationCard({
         {/* Values and Trend */}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <div className="text-sm text-slate-500 dark:text-slate-400">Current Value</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">
+              {isSimulationMode ? 'Simulation Value' : 'Current Value'}
+            </div>
             <div className="text-2xl font-bold flex items-center gap-1">
-              {parameter.value.toFixed(2)}
+              {isSimulationMode ? sliderValue.toFixed(2) : parameter.value.toFixed(2)}
               <span className="text-xs text-slate-500">{parameter.unit}</span>
             </div>
           </div>
@@ -200,6 +208,7 @@ export function ParameterSimulationCard({
                 min={bounds[0]}
                 max={bounds[1]}
                 className="h-8 text-center"
+                disabled={!isSimulationMode}
               />
             </div>
             <div className="text-xs text-slate-500">{bounds[1].toFixed(2)}</div>
@@ -210,7 +219,8 @@ export function ParameterSimulationCard({
             min={bounds[0]}
             max={bounds[1]}
             step={(bounds[1] - bounds[0]) / 100}
-            className="mt-1"
+            className={`mt-1 ${!isSimulationMode ? 'opacity-50' : ''}`}
+            disabled={!isSimulationMode}
           />
         </div>
       </CardContent>

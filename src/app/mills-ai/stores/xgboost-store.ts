@@ -243,14 +243,14 @@ export const useXgboostStore = create<XgboostState>()(
         
         // Slider values (separate from PV values)
         sliderValues: {
-          "Ore": 190,
-          "WaterMill": 15,
-          "WaterZumpf": 200,
-          "PressureHC": 0.4,
-          "DensityHC": 1700,
-          "MotorAmp": 200,
-          "Shisti": 0.2,
-          "Daiki": 0.3,
+          // "Ore": 190,
+          // "WaterMill": 15,
+          // "WaterZumpf": 200,
+          // "PressureHC": 0.4,
+          // "DensityHC": 1700,
+          // "MotorAmp": 200,
+          // "Shisti": 0.2,
+          // "Daiki": 0.3,
         },
         
         // Simulation mode switch
