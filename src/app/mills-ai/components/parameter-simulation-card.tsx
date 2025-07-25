@@ -47,7 +47,7 @@ export function ParameterSimulationCard({
       parameterValue: parameter.value,
       resetTriggered: resetSliders
     });
-  }, [propSliderValue, resetSliders, parameter.value])
+  }, [resetSliders])
   
   const isInRange = parameter.value >= bounds[0] && parameter.value <= bounds[1]
   

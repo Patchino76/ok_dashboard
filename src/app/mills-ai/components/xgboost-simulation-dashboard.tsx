@@ -66,7 +66,7 @@ export default function XgboostSimulationDashboard() {
     setCurrentMill,
     fetchRealTimeData,
     startRealTimeUpdates,
-    resetFeatures,
+    resetSlidersToPVs,
     resetSliders,
     predictWithCurrentValues
   } = useXgboostStore()
@@ -140,33 +140,52 @@ export default function XgboostSimulationDashboard() {
   // Start real-time data updates when model features are available
   useEffect(() => {
     console.log(' Real-time updates effect triggered');
-    console.log('Model features:', modelFeatures);
-    console.log('Model features type:', typeof modelFeatures);
-    console.log('Model features length:', modelFeatures?.length);
-    console.log('Model name:', modelName);
-    console.log('Available models:', availableModels);
-    console.log('Browser:', navigator.userAgent);
+    let cleanup: (() => void) | undefined;
     
-    if (modelFeatures && modelFeatures.length > 0) {
-      console.log(' Model features available, starting real-time updates:', modelFeatures);
-      console.log(' About to call startRealTimeUpdates()');
-      startRealTimeUpdates();
-      console.log(' startRealTimeUpdates() called successfully');
-    } else {
-      console.log(' Model features not available yet or empty');
-      console.log('Debug info:');
-      console.log('- modelFeatures is null/undefined:', !modelFeatures);
-      console.log('- modelFeatures is empty array:', modelFeatures?.length === 0);
-      console.log('- modelName:', modelName);
-      console.log('- models loaded:', !!models);
-      
-      // Force trigger if we have a model name but no features
-      if (modelName && models && models[modelName] && !modelFeatures) {
-        console.log(' Forcing model metadata update for:', modelName);
-        const model = models[modelName];
-        setModelMetadata(model.features, model.target_col, model.last_trained);
+    const setupRealTimeUpdates = () => {
+      // Check if modelFeatures exists and has items
+      if (modelFeatures && modelFeatures.length > 0) {
+        console.log(' Model features available, starting real-time updates:', modelFeatures);
+        console.log(' About to call startRealTimeUpdates()');
+        
+        try {
+          // Call startRealTimeUpdates and store the cleanup function
+          const cleanupFn = startRealTimeUpdates();
+          if (typeof cleanupFn === 'function') {
+            cleanup = cleanupFn;
+          }
+          console.log(' startRealTimeUpdates() called successfully');
+        } catch (error) {
+          console.error('Error starting real-time updates:', error);
+        }
+      } else {
+        console.log(' Model features not available yet or empty');
+        console.log('Debug info:');
+        console.log('- modelFeatures is null/undefined:', !modelFeatures);
+        console.log('- modelFeatures is empty array:', modelFeatures?.length === 0);
+        console.log('- modelName:', modelName);
+        console.log('- models loaded:', !!models);
+        
+        // Force trigger if we have a model name but no features
+        if (modelName && models && models[modelName] && !modelFeatures) {
+          console.log(' Forcing model metadata update for:', modelName);
+          const model = models[modelName];
+          setModelMetadata(model.features, model.target_col, model.last_trained);
+        }
       }
-    }
+    };
+    
+    setupRealTimeUpdates();
+    
+    // Cleanup function that will be called when the component unmounts or dependencies change
+    return () => {
+      console.log('🧹 Cleaning up real-time updates in useEffect');
+      if (cleanup) {
+        cleanup();
+      }
+      // Always call stopRealTimeUpdates to ensure cleanup
+      useXgboostStore.getState().stopRealTimeUpdates();
+    };
   }, [modelFeatures, startRealTimeUpdates, modelName, models, setModelMetadata])
 
   // Removed automatic prediction on slider changes to prevent duplicate API calls
@@ -327,12 +346,12 @@ export default function XgboostSimulationDashboard() {
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => resetFeatures()}
+                onClick={() => resetSlidersToPVs()}
                 disabled={!modelFeatures || modelFeatures.length === 0}
                 className="flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
               >
                 <RotateCcw className="h-4 w-4" />
-                Reset Features SP
+                Reset Simulated SP
               </Button>
               <Button 
                 onClick={handlePrediction}

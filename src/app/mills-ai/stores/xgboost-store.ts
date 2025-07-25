@@ -62,7 +62,7 @@ interface XgboostState {
   startSimulation: () => void
   stopSimulation: () => void
   updateSimulatedPV: () => void
-  resetFeatures: () => void
+  resetSlidersToPVs: () => void
   predictWithCurrentValues: () => Promise<void>
   setCurrentMill: (millNumber: number) => void
   fetchRealTimeData: () => Promise<void>
@@ -648,32 +648,44 @@ export const useXgboostStore = create<XgboostState>()(
             clearInterval(state.dataUpdateInterval);
           }
           
-          // Start new interval for real-time updates (every 30 seconds)
-          console.log('⏰ Setting up 30-second interval for real-time updates');
+          // Start new interval for real-time updates (every 1 minute)
+          console.log('⏰ Setting up 1-minute interval for real-time updates');
           const intervalId = setInterval(() => {
             console.log('⏰ Interval triggered, calling fetchRealTimeData');
-            state.fetchRealTimeData();
-          }, 120000);
+            state.fetchRealTimeData().catch(error => {
+              console.error('Error in scheduled fetchRealTimeData:', error);
+            });
+          }, 60000); // 1 minute = 60000ms
           
+          // Update the state with the new interval ID
           set({ 
             dataUpdateInterval: intervalId
-          });
+          }, false, 'setRealTimeUpdateInterval');
           
           // Fetch initial data immediately
           console.log('📊 Fetching initial real-time data immediately');
-          state.fetchRealTimeData();
+          state.fetchRealTimeData().catch(error => {
+            console.error('Error in initial fetchRealTimeData:', error);
+          });
+          
+          // Return cleanup function
+          return () => {
+            console.log('🧹 Cleanup: Clearing interval in startRealTimeUpdates');
+            clearInterval(intervalId);
+          };
         },
         
         stopRealTimeUpdates: () => {
           const state = useXgboostStore.getState();
           
           if (state.dataUpdateInterval) {
+            console.log('🛑 Stopping real-time updates');
             clearInterval(state.dataUpdateInterval);
           }
           
           set({ 
             dataUpdateInterval: null
-          });
+          }, false, 'stopRealTimeUpdates');
         },
         
         updateParameterFromRealData: (featureName, value, timestamp, trend = []) => 
@@ -702,7 +714,7 @@ export const useXgboostStore = create<XgboostState>()(
             };
           }),
           
-        resetFeatures: () => {
+        resetSlidersToPVs: () => {
           set(state => {
             const updatedSliderValues = { ...state.sliderValues };
             
@@ -711,7 +723,7 @@ export const useXgboostStore = create<XgboostState>()(
               updatedSliderValues[param.id] = param.value;
             });
             
-            console.log('Reset Features: Assigned current PV values to slider values', updatedSliderValues);
+            console.log('Reset sliders to current PV values', updatedSliderValues);
             
             return { 
               sliderValues: updatedSliderValues,

@@ -45,7 +45,7 @@ export function useTagValue(tagId?: number, options: UseQueryOptions<any, Error>
     queryKey: ['tag-value', tagId],
     queryFn: () => tagId ? fetchTagValue(tagId) : null,
     enabled: !!tagId,
-    staleTime: 10000, // Consider data fresh for 10 seconds
+    staleTime: 120000, // Consider data fresh for 10 seconds
     ...options
   });
 
