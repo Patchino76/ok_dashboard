@@ -254,8 +254,16 @@ class MillsDataConnector:
                 logger.error(f"Joined dataframe has {joined_df.index.duplicated().sum()} duplicate timestamps!")
                 raise ValueError("Join operation resulted in duplicate timestamps")
             
+            # Log combined dataframe information
             logger.info(f"Successfully joined dataframes: {len(joined_df)} rows, {len(joined_df.columns)} columns")
             logger.info(f"Joined dataframe columns: {list(joined_df.columns)}")
+            
+            # Log head and tail of the combined dataframe
+            logger.info("\n=== Combined Dataframe Head (first 3 rows) ===")
+            logger.info(joined_df.head(3).to_string())
+            logger.info("\n=== Combined Dataframe Tail (last 3 rows) ===")
+            logger.info(joined_df.tail(3).to_string())
+            logger.info("=" * 50)  # Separator for better readability
             
             return joined_df
             

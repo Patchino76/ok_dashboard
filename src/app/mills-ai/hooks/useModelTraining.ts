@@ -82,7 +82,7 @@ export function useModelTraining() {
     parameters: ModelParameter[],
     millNumber: number = 8, 
     startDate: string = "2025-06-10T06:00:00",
-    endDate: string = "2025-07-11T22:00:00"
+    endDate: string = "2025-07-27T22:00:00"
   ): TrainModelRequest => {
     // Extract enabled features and target
     const enabledFeatures = parameters.filter(p => p.type === 'feature' && p.enabled);

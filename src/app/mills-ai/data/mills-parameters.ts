@@ -85,6 +85,18 @@ export const millsParameters: ModelParameter[] = [
     description: "Разход на вода в зумпф",
   },
   {
+    id: "PulpHC",
+    name: "Пулп в ХЦ",
+    type: "feature",
+    enabled: true,
+    min: 400,
+    max: 600,
+    currentMin: 450,
+    currentMax: 550,
+    unit: "m³/h",
+    description: "Разход на пулп в ХЦ",
+  },
+  {
     id: "MotorAmp",
     name: "Ток на елетродвигателя",
     type: "feature",
