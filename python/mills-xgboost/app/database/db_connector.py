@@ -126,6 +126,18 @@ class MillsDataConnector:
             if 'TimeStamp' in df_processed.columns:
                 df_processed.set_index('TimeStamp', inplace=True)
         
+        # CRITICAL FIX: Handle duplicate timestamps before any processing
+        if df_processed.index.duplicated().any():
+            logger.warning(f"Found {df_processed.index.duplicated().sum()} duplicate timestamps, removing duplicates")
+            # Keep the first occurrence of each duplicate timestamp
+            df_processed = df_processed[~df_processed.index.duplicated(keep='first')]
+            logger.info(f"After removing duplicates: {len(df_processed)} rows remaining")
+        
+        # Ensure index is sorted
+        if not df_processed.index.is_monotonic_increasing:
+            logger.info("Sorting index to ensure chronological order")
+            df_processed = df_processed.sort_index()
+        
         # Apply date range filtering if provided
         if start_date or end_date:
             start = pd.to_datetime(start_date).tz_localize(None) if start_date else None
@@ -158,12 +170,13 @@ class MillsDataConnector:
                 # Forward fill to keep values constant - this ensures same value throughout the period
                 df_processed = df_resampled.fillna(method='ffill')
                 
-                # # Handle any remaining NAs at the start with backward fill
+                # Handle any remaining NAs at the start with backward fill
                 df_processed = df_processed.fillna(method='bfill')
                 logger.info(f"Applied resampling with constant values (no interpolation or smoothing)")
             else:
                 # Original behavior - resample and interpolate
-                df_processed = df_processed[numeric_cols].resample(resample_freq).mean().interpolate(method='linear')
+                df_resampled = df_processed[numeric_cols].resample(resample_freq).mean()
+                df_processed = df_resampled.interpolate(method='linear')
                 
                 # Fill remaining NAs
                 df_processed = df_processed.interpolate().ffill().bfill()
@@ -177,36 +190,78 @@ class MillsDataConnector:
             # Log the resampling method used
             logger.info(f"Resampled data to {resample_freq} frequency")
             
+            # FINAL CHECK: Ensure no duplicate timestamps after processing
+            if df_processed.index.duplicated().any():
+                logger.error(f"Still have {df_processed.index.duplicated().sum()} duplicate timestamps after processing!")
+                df_processed = df_processed[~df_processed.index.duplicated(keep='first')]
+                logger.info(f"Final cleanup: {len(df_processed)} rows remaining")
             
         return df_processed
     
     def join_dataframes_on_timestamp(self, df1, df2):
         """
-        Join two dataframes on their timestamp indices
+        Join two dataframes on their timestamp indices with robust error handling
         
         Args:
-            df1: First DataFrame
-            df2: Second DataFrame
+            df1: First DataFrame (usually mill data)
+            df2: Second DataFrame (usually ore quality data)
             
         Returns:
             Joined DataFrame
         """
-        # Make sure both dataframes have datetime indices
-        for df in [df1, df2]:
-            if not isinstance(df.index, pd.DatetimeIndex):
-                if 'TimeStamp' in df.columns:
-                    df.set_index('TimeStamp', inplace=True)
-        
-        # Align indices by time
-        common_index = df1.index.intersection(df2.index)
-        df1_aligned = df1.loc[common_index]
-        df2_aligned = df2.loc[common_index]
-        
-        # Join the dataframes
-        joined_df = df1_aligned.join(df2_aligned)
-        logger.info(f"Joined dataframes with {len(joined_df)} rows")
-        
-        return joined_df
+        try:
+            # Make sure both dataframes have datetime indices
+            for i, df in enumerate([df1, df2], 1):
+                if not isinstance(df.index, pd.DatetimeIndex):
+                    if 'TimeStamp' in df.columns:
+                        df.set_index('TimeStamp', inplace=True)
+                        logger.info(f"Set TimeStamp as index for dataframe {i}")
+            
+            # Check for duplicate indices before joining
+            for i, df in enumerate([df1, df2], 1):
+                if df.index.duplicated().any():
+                    logger.error(f"Dataframe {i} still has {df.index.duplicated().sum()} duplicate timestamps!")
+                    raise ValueError(f"Cannot join dataframes with duplicate timestamps in dataframe {i}")
+            
+            # Log dataframe info before joining
+            logger.info(f"DF1 (mill): {len(df1)} rows, index range: {df1.index.min()} to {df1.index.max()}")
+            logger.info(f"DF2 (ore): {len(df2)} rows, index range: {df2.index.min()} to {df2.index.max()}")
+            
+            # Find common timestamps
+            common_index = df1.index.intersection(df2.index)
+            logger.info(f"Found {len(common_index)} common timestamps")
+            
+            if len(common_index) == 0:
+                logger.error("No common timestamps found between dataframes")
+                logger.info(f"DF1 sample timestamps: {df1.index[:5].tolist()}")
+                logger.info(f"DF2 sample timestamps: {df2.index[:5].tolist()}")
+                raise ValueError("No overlapping timestamps between mill and ore quality data")
+            
+            # Align dataframes to common timestamps
+            df1_aligned = df1.loc[common_index]
+            df2_aligned = df2.loc[common_index]
+            
+            # Verify alignment
+            if not df1_aligned.index.equals(df2_aligned.index):
+                logger.error("Index alignment failed after intersection")
+                raise ValueError("Failed to align dataframe indices")
+            
+            # Perform the join using pandas concat for better control
+            joined_df = pd.concat([df1_aligned, df2_aligned], axis=1)
+            
+            # Final validation
+            if joined_df.index.duplicated().any():
+                logger.error(f"Joined dataframe has {joined_df.index.duplicated().sum()} duplicate timestamps!")
+                raise ValueError("Join operation resulted in duplicate timestamps")
+            
+            logger.info(f"Successfully joined dataframes: {len(joined_df)} rows, {len(joined_df.columns)} columns")
+            logger.info(f"Joined dataframe columns: {list(joined_df.columns)}")
+            
+            return joined_df
+            
+        except Exception as e:
+            logger.error(f"Error in join_dataframes_on_timestamp: {e}")
+            raise
     
     def get_combined_data(self, mill_number, start_date=None, end_date=None, resample_freq='1min', save_to_logs=True, no_interpolation=False):
         """
