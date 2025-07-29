@@ -5,12 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { FeatureTargetConfiguration } from "./feature-target-configuration"
+import { TrainingControls } from "./training-controls"
 import { ModelTrainingResults } from "./model-training-results"
 import { ModelPredictionResults } from "./model-prediction-results"
 import { Brain, Play, Settings, BarChart3, AlertCircle, Activity } from "lucide-react"
 import { useModelTraining } from "../hooks/useModelTraining"
 import { useModelPrediction } from "../hooks/useModelPrediction"
 import { ModelParameter, defaultModelParameters } from "../utils/model-parameters"
+import { addDays } from "date-fns"
 
 export interface TrainingResults {
   mae: number
@@ -25,6 +27,13 @@ export interface TrainingResults {
 
 export function ModelTrainingDashboard() {
   const [parameters, setParameters] = useState<ModelParameter[]>(defaultModelParameters)
+  const [selectedMill, setSelectedMill] = useState(8) // Default to Mill 8
+  const [startDate, setStartDate] = useState<Date | undefined>(() => {
+    const date = new Date()
+    date.setDate(date.getDate() - 30) // Default to 30 days ago
+    return date
+  })
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date()) // Default to today
 
   const [isTraining, setIsTraining] = useState(false)
   const [isPredicting, setIsPredicting] = useState(false)
@@ -76,11 +85,24 @@ export function ModelTrainingDashboard() {
             <CardHeader className="pb-4">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <Settings className="h-5 w-5 text-blue-600" />
-                Features & Targets Configuration
+                Настройки на модела
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <FeatureTargetConfiguration parameters={parameters} onParameterUpdate={handleParameterUpdate} />
+              <TrainingControls 
+                selectedMill={selectedMill}
+                onMillChange={setSelectedMill}
+                startDate={startDate}
+                onStartDateChange={setStartDate}
+                endDate={endDate}
+                onEndDateChange={setEndDate}
+              />
+              <div className="mb-4">
+                <h3 className="text-md font-medium mb-3 text-slate-900 dark:text-slate-100">
+                  Конфигурация на характеристики и целеви стойности
+                </h3>
+                <FeatureTargetConfiguration parameters={parameters} onParameterUpdate={handleParameterUpdate} />
+              </div>
             </CardContent>
           </Card>
         </div>
