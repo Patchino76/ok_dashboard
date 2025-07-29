@@ -3,10 +3,10 @@
     "Ore",
     "WaterMill",
     "WaterZumpf",
-    "PressureHC",
-    "DensityHC",
+    "PulpHC",
     "MotorAmp",
-    "Shisti",
+    "DensityHC",
+    "PressureHC",
     "Daiki"
   ],
   "target_col": "PSI80",
@@ -21,29 +21,29 @@
   },
   "feature_importance": {
     "Feature": {
-      "4": "DensityHC",
+      "5": "DensityHC",
       "0": "Ore",
       "2": "WaterZumpf",
-      "3": "PressureHC",
-      "6": "Shisti",
-      "1": "WaterMill",
       "7": "Daiki",
-      "5": "MotorAmp"
+      "3": "PulpHC",
+      "1": "WaterMill",
+      "6": "PressureHC",
+      "4": "MotorAmp"
     },
     "Importance": {
-      "4": 0.5452534556388855,
-      "0": 0.1932757943868637,
-      "2": 0.0869961753487587,
-      "3": 0.04430084675550461,
-      "6": 0.035976238548755646,
-      "1": 0.035374801605939865,
-      "7": 0.034220073372125626,
-      "5": 0.02460254542529583
+      "5": 0.5658313632011414,
+      "0": 0.12954120337963104,
+      "2": 0.072850801050663,
+      "7": 0.06771291792392731,
+      "3": 0.05691108852624893,
+      "1": 0.04519697278738022,
+      "6": 0.034907031804323196,
+      "4": 0.027048638090491295
     }
   },
   "training_history": {
-    "best_iteration": 180,
-    "best_score": 0.7448189991546396
+    "best_iteration": 144,
+    "best_score": 0.6168796036115181
   },
-  "last_trained": "2025-07-11T11:11:11.074408"
+  "last_trained": "2025-07-29T11:09:56.486245"
 }

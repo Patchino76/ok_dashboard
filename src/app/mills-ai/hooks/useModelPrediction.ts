@@ -9,12 +9,12 @@ export interface PredictionRequest {
 
 export interface PredictionResponse {
   prediction: number;
-  confidence: number;
+  confidence?: number;
 }
 
 export interface PredictionResult {
   predictedValue: number;
-  processValue: number; // Dummy PV value for comparison
+  processValue: number; 
   difference: number;
   percentDifference: number;
   confidence: number;
@@ -25,108 +25,108 @@ export function useModelPrediction() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PredictionResult | null>(null);
 
-  // Generate feature values for prediction based on active parameters
-  const generateDummyFeatureValues = (parameters: ModelParameter[]) => {
+  /**
+   * Generates feature values for prediction based on active parameters
+   * Uses currentValue if available, otherwise calculates average of min/max
+   */
+  const generateFeatureValues = (parameters: ModelParameter[]): Record<string, number> => {
     const activeFeatures = parameters.filter(p => p.type === 'feature' && p.enabled);
     
     return activeFeatures.reduce((acc, feature) => {
-      // Use average of currentMin and currentMax as the feature value
-      const averageValue = (feature.currentMin + feature.currentMax) / 2;
-      acc[feature.id] = averageValue;
+      // Use current value if available, otherwise use average of min/max
+      const value = 'currentValue' in feature && feature.currentValue !== undefined
+        ? feature.currentValue
+        : (feature.currentMin + feature.currentMax) / 2;
+      
+      acc[feature.id] = value;
       return acc;
     }, {} as Record<string, number>);
   };
 
-  // Generate a dummy process value (PV) for comparison
-  const generateDummyProcessValue = (parameters: ModelParameter[]) => {
-    const targetParam = parameters.find(p => p.type === 'target' && p.enabled);
-    if (!targetParam) return 50; // Default if no target found
-    
-    // Use a value slightly different from the average to show comparison
-    const averageValue = (targetParam.currentMin + targetParam.currentMax) / 2;
-    // Add +/- 5-15% random variation
-    const variation = averageValue * (0.05 + Math.random() * 0.1) * (Math.random() > 0.5 ? 1 : -1);
-    
-    return averageValue + variation;
+  /**
+   * Makes a prediction using the trained model
+   * @param parameters - Array of model parameters
+   * @param modelId - ID of the model to use for prediction (defaults to 'latest')
+   */
+  /**
+   * Generates the model ID based on the mill number
+   * Format: xgboost_PSI80_mill{millNumber}
+   */
+  const getModelId = (millNumber: number): string => {
+    return `xgboost_PSI80_mill${millNumber}`;
   };
 
   const predictWithModel = async (
     parameters: ModelParameter[],
-    modelId: string = "latest" // Use "latest" as default or specific model ID
-  ) => {
+    millNumber: number = 8 // Default to mill 8 for backward compatibility
+  ): Promise<PredictionResult> => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Generate feature values for prediction (average of min/max)
-      const featureValues = generateDummyFeatureValues(parameters);
+      // Generate feature values for prediction
+      const featureValues = generateFeatureValues(parameters);
+      
+      // Generate model ID based on mill number
+      const modelId = getModelId(millNumber);
       
       // Prepare the prediction request
-      const predictionRequest: PredictionRequest = {
+      const predictionRequest = {
         model_id: modelId,
-        features: featureValues
+        data: featureValues  // Changed from 'features' to 'data' to match the expected format
       };
       
-      // For demonstration/testing, simulate API call with mock data
-      // In real implementation, uncomment the API call below
-      // const response = await apiClient.post<PredictionResponse>('/predict', predictionRequest);
+      console.log('Making prediction request:', predictionRequest);
       
-      // Mock response for now
-      const mockPrediction = await mockPredictAPI(parameters);
+      // Make the API call to the prediction endpoint
+      const response = await apiClient.post<PredictionResponse>('/predict', predictionRequest);
       
-      // Generate dummy process value for comparison
-      const processValue = generateDummyProcessValue(parameters);
+      console.log('Prediction response:', response.data);
+      
+      // Get the current target value for comparison
+      const targetParam = parameters.find(p => p.type === 'target' && p.enabled);
+      const currentValue = targetParam 
+        ? ('currentValue' in targetParam && targetParam.currentValue !== undefined
+            ? targetParam.currentValue
+            : (targetParam.currentMin + targetParam.currentMax) / 2)
+        : 0;
       
       // Calculate difference metrics
-      const difference = mockPrediction.prediction - processValue;
-      const percentDifference = (difference / processValue) * 100;
+      const predictedValue = response.data.prediction;
+      const difference = predictedValue - currentValue;
+      const percentDifference = currentValue !== 0 ? (difference / currentValue) * 100 : 0;
       
       const predictionResult: PredictionResult = {
-        predictedValue: mockPrediction.prediction,
-        processValue,
+        predictedValue,
+        processValue: currentValue,
         difference,
         percentDifference,
-        confidence: mockPrediction.confidence
+        confidence: response.data.confidence || 0.9 
       };
       
       setResult(predictionResult);
       return predictionResult;
       
     } catch (err: any) {
-      setError(err.message || 'Failed to get prediction');
-      console.error('Prediction error:', err);
-      throw err;
+      const errorMessage = err.response?.data?.detail || err.message || 'Failed to get prediction';
+      setError(errorMessage);
+      console.error('Prediction error:', errorMessage, err);
+      
+      // Re-throw the error for the caller to handle
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  };
-  
-  // Mock API function for demonstration
-  const mockPredictAPI = async (parameters: ModelParameter[]): Promise<PredictionResponse> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // Find the target parameter
-    const targetParam = parameters.find(p => p.type === 'target' && p.enabled);
-    if (!targetParam) {
-      throw new Error('No target parameter found for prediction');
-    }
-    
-    // Generate a prediction close to the target parameter's average value
-    const avgTargetValue = (targetParam.currentMin + targetParam.currentMax) / 2;
-    // Add small random variation to make it realistic
-    const prediction = avgTargetValue * (0.95 + Math.random() * 0.1);
-    
-    return {
-      prediction,
-      confidence: 0.85 + Math.random() * 0.1 // Random confidence between 85-95%
-    };
   };
 
   return {
     predictWithModel,
     isLoading,
     result,
-    error
+    error,
+    reset: () => {
+      setResult(null);
+      setError(null);
+    }
   };
 }

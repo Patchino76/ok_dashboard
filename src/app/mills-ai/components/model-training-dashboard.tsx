@@ -68,7 +68,8 @@ export function ModelTrainingDashboard() {
   const handlePredictWithModel = async () => {
     try {
       setIsPredicting(true)
-      const predictionData = await predictWithModel(parameters, trainingResults?.modelId || 'latest')
+      // Pass the selected mill number to predictWithModel
+      const predictionData = await predictWithModel(parameters, selectedMill)
       console.log('Prediction result:', predictionData)
       setPredictionResult(predictionData)
     } catch (error) {
