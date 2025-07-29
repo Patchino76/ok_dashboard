@@ -49,11 +49,16 @@ export function useModelPrediction() {
    * @param modelId - ID of the model to use for prediction (defaults to 'latest')
    */
   /**
-   * Generates the model ID based on the mill number
-   * Format: xgboost_PSI80_mill{millNumber}
+   * Generates the model ID based on the mill number and target parameter
+   * @param millNumber - The mill number (1-12)
+   * @param parameters - Array of model parameters to find the target parameter
+   * @returns Formatted model ID string (e.g., 'xgboost_PSI80_mill8')
    */
-  const getModelId = (millNumber: number): string => {
-    return `xgboost_PSI80_mill${millNumber}`;
+  const getModelId = (millNumber: number, parameters: ModelParameter[] = []): string => {
+    // Find the target parameter (type: 'target')
+    const targetParam = parameters.find(p => p.type === 'target' && p.enabled);
+    const targetId = targetParam?.id || 'PSI80'; // Default to 'PSI80' if no target found
+    return `xgboost_${targetId}_mill${millNumber}`;
   };
 
   const predictWithModel = async (
@@ -67,8 +72,8 @@ export function useModelPrediction() {
       // Generate feature values for prediction
       const featureValues = generateFeatureValues(parameters);
       
-      // Generate model ID based on mill number
-      const modelId = getModelId(millNumber);
+      // Generate model ID based on mill number and target parameter
+      const modelId = getModelId(millNumber, parameters);
       
       // Prepare the prediction request
       const predictionRequest = {
