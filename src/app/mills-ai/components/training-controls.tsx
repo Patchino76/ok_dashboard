@@ -22,7 +22,7 @@ export function TrainingControls({
   endDate,
   onEndDateChange,
 }: TrainingControlsProps) {
-  const mills = [6, 7, 8, 9]
+  const mills = [6, 7, 8]
   const today = new Date()
   const defaultStartDate = new Date()
   defaultStartDate.setDate(today.getDate() - 30) // Default to 30 days ago

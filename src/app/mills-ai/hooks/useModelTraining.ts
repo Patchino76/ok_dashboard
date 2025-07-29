@@ -80,10 +80,18 @@ export function useModelTraining() {
   // Function to convert UI parameters to API request format
   const prepareTrainingRequest = (
     parameters: ModelParameter[],
-    millNumber: number = 8, 
-    startDate: string = "2025-06-10T06:00:00",
-    endDate: string = "2025-07-27T22:00:00"
+    millNumber: number,
+    startDate: Date | undefined,
+    endDate: Date | undefined
   ): TrainModelRequest => {
+    if (!startDate || !endDate) {
+      throw new Error('Both start date and end date must be provided');
+    }
+    
+    // Format dates to ISO strings for the API
+    const formatDateForApi = (date: Date): string => {
+      return date.toISOString();
+    };
     // Extract enabled features and target
     const enabledFeatures = parameters.filter(p => p.type === 'feature' && p.enabled);
     const enabledTargets = parameters.filter(p => p.type === 'target' && p.enabled);
@@ -108,8 +116,8 @@ export function useModelTraining() {
     return {
       db_config: DEFAULT_DB_CONFIG,
       mill_number: millNumber,
-      start_date: startDate,
-      end_date: endDate,
+      start_date: formatDateForApi(startDate),
+      end_date: formatDateForApi(endDate),
       features: featureNames,
       target_col: targetName,
       test_size: 0.2,
@@ -151,7 +159,12 @@ export function useModelTraining() {
     };
   };
 
-  const trainModel = async (parameters: ModelParameter[]) => {
+  const trainModel = async (
+    parameters: ModelParameter[],
+    millNumber: number,
+    startDate: Date | undefined,
+    endDate: Date | undefined
+  ) => {
     let progressInterval: NodeJS.Timeout | undefined;
     try {
       setIsLoading(true);
@@ -159,8 +172,13 @@ export function useModelTraining() {
       setError(null);
       setResults(null);
       
-      // Prepare the training request
-      const trainingRequest = prepareTrainingRequest(parameters);
+      // Prepare the training request with the provided parameters
+      const trainingRequest = prepareTrainingRequest(
+        parameters,
+        millNumber,
+        startDate,
+        endDate
+      );
       
       // Set up progress tracking (simulated since the API doesn't provide real-time progress)
       progressInterval = setInterval(() => {

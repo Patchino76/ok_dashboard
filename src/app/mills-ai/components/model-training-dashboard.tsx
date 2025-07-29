@@ -29,11 +29,13 @@ export function ModelTrainingDashboard() {
   const [parameters, setParameters] = useState<ModelParameter[]>(defaultModelParameters)
   const [selectedMill, setSelectedMill] = useState(8) // Default to Mill 8
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
-    const date = new Date()
-    date.setDate(date.getDate() - 30) // Default to 30 days ago
-    return date
+    // Default to June 15, 2025 06:00
+    return new Date(2025, 5, 15, 6, 0, 0) // Note: months are 0-indexed (5 = June)
   })
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date()) // Default to today
+  const [endDate, setEndDate] = useState<Date | undefined>(() => {
+    // Default to July 15, 2025 22:00
+    return new Date(2025, 6, 15, 22, 0, 0) // Note: months are 0-indexed (6 = July)
+  })
 
   const [isTraining, setIsTraining] = useState(false)
   const [isPredicting, setIsPredicting] = useState(false)
@@ -49,7 +51,12 @@ export function ModelTrainingDashboard() {
   const handleTrainModel = async () => {
     try {
       setIsTraining(true)
-      const results = await trainModel(parameters)
+      const results = await trainModel(
+        parameters,
+        selectedMill,
+        startDate,
+        endDate
+      )
       setTrainingResults(results)
     } catch (error) {
       console.error('Error training model:', error)
