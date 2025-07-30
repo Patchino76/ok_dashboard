@@ -11,7 +11,8 @@ import { ModelPredictionResults } from "./model-prediction-results"
 import { Brain, Play, Settings, BarChart3, AlertCircle, Activity } from "lucide-react"
 import { useModelTraining } from "../hooks/useModelTraining"
 import { useModelPrediction } from "../hooks/useModelPrediction"
-import { ModelParameter, defaultModelParameters } from "../utils/model-parameters"
+import { ModelParameter } from "../types/parameters"
+import { millsParameters as defaultModelParameters } from "../data/mills-parameters"
 import { addDays } from "date-fns"
 
 export interface TrainingResults {

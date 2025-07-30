@@ -338,7 +338,7 @@ class MillsDataConnector:
                     
                     # Generate filename with timestamp
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                    filename = f"combined_data_mill{mill_number}_{timestamp}.csv"
+                    filename = f"combined_data_mill{mill_number}.csv"
                     filepath = os.path.join(logs_dir, filename)
                     
                     # Save to CSV

@@ -1,18 +1,10 @@
-// mills-parameters.ts - Unified parameter definitions for Mills-AI components
+// mills-parameters.ts - Unified parameter definitions and utilities for Mills-AI components
 import { create } from "zustand"
+import { ModelParameter } from "../types/parameters"
 
-export interface ModelParameter {
-  id: string
-  name: string
-  type: "feature" | "target"
-  enabled: boolean
-  min: number
-  max: number
-  currentMin: number
-  currentMax: number
-  unit: string
-  description: string
-}
+/**
+ * Default list of model parameters with Bulgarian names and descriptions
+ */
 
 // Icons for parameters
 export const parameterIcons: Record<string, string> = {
@@ -193,6 +185,18 @@ export const millsParameters: ModelParameter[] = [
     description: "Процент материал в клас +12 милиметра",
   },
   {
+    id: "Class_15",
+    name: "Клас 15",
+    type: "feature",
+    enabled: false,
+    min: 0.0,
+    max: 100.0,
+    currentMin: 2.0,
+    currentMax: 20.0,
+    unit: "%",
+    description: "Процент материал в клас +15 милиметра",
+  },
+  {
     id: "PSI80",
     name: "Фракция -80 μk",
     type: "target",
@@ -203,6 +207,18 @@ export const millsParameters: ModelParameter[] = [
     currentMax: 56,
     unit: "μk",
     description: "Основна целева стойност - финност на смилане -80 микрона",
+  },
+  {
+    id: "PSI200",
+    name: "Фракция +200 μk",
+    type: "target",
+    enabled: false,
+    min: 10,
+    max: 40,
+    currentMin: 15,
+    currentMax: 35,
+    unit: "μk",
+    description: "Основна целева стойност - финност на смилане +200 микрона",
   },
 ]
 
