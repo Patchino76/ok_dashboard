@@ -161,23 +161,22 @@ export default function Home() {
           </Card>
           </Link>
           
-          <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-amber-500">
-            <Flex direction="column" p="5" height="100%">
-              <Flex justify="between" align="center" mb="3">
-                <Box className="p-2 bg-amber-50 rounded-md text-amber-600">
-                  <AreaChart className="h-5 w-5" />
-                </Box>
-                <Box className="size-8 flex items-center justify-center rounded-full bg-amber-50 group-hover:bg-amber-100 transition-colors">
-                  <ArrowRight className="h-4 w-4 text-amber-600" />
-                </Box>
+          <Link href="/tendences" className="no-underline">
+            <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-amber-500">
+              <Flex direction="column" p="5" height="100%">
+                <Flex justify="between" align="center" mb="3">
+                  <Box className="p-2 bg-amber-50 rounded-md text-amber-600">
+                    <AreaChart className="h-5 w-5" />
+                  </Box>
+                  <Box className="size-8 flex items-center justify-center rounded-full bg-amber-50 group-hover:bg-amber-100 transition-colors">
+                    <ArrowRight className="h-4 w-4 text-amber-600" />
+                  </Box>
+                </Flex>
+                <Heading size="4" mb="2">Тенденции в данните</Heading>
+                <Text className="text-gray-500 mb-2">Анализирайте исторически данни и идентифицирайте тенденции</Text>
               </Flex>
-              <Heading size="4" mb="2">Тенденции в данните</Heading>
-              <Text className="text-gray-500 mb-2">Анализирайте исторически данни и идентифицирайте тенденции</Text>
-              <Box className="mt-auto">
-                <Badge size="1" variant="soft" color="gray">Очаквайте скоро</Badge>
-              </Box>
-            </Flex>
-          </Card>
+            </Card>
+          </Link>
         </Grid>
       </Box>
       
