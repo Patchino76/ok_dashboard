@@ -591,13 +591,16 @@ export const useXgboostStore = create<XgboostState>()(
 
             // Use our new clean dual data source prediction logic
             const validFeatureResults = featureResults.filter(result => result !== null);
-            if (validFeatureResults.length > 0) {
-              console.log('Real-time data updated, triggering prediction with current values');
-              // Use the new predictWithCurrentValues function which handles dual data source logic
+            if (validFeatureResults.length > 0 && !state.isSimulationMode) {
+              console.log('Real-time data updated, triggering prediction with current values (real-time mode)');
+              // Only trigger automatic predictions in real-time mode
+              // In simulation mode, predictions are triggered manually by user
               await state.predictWithCurrentValues();
+            } else if (state.isSimulationMode) {
+              console.log('Real-time data updated, but skipping automatic prediction (simulation mode)');
             }
 
-            // Update target PV and add to target data
+              // Update target PV and add to target data
             if (targetResult) {
               console.log(`Updating target PV with value ${targetResult.value}`);
               
@@ -617,27 +620,54 @@ export const useXgboostStore = create<XgboostState>()(
                   timestamp: new Date(timestamp).getTime(),
                   value: targetTrendData.values[index],
                   target: currentTarget,
-                  pv: targetTrendData.values[index],
-                  sp: currentTarget
+                  pv: targetTrendData.values[index], // PV is the actual measured historical value
+                  sp: currentTarget // SP is the target setpoint (should be consistent)
                 }));
                 
                 console.log('Processed target trend points:', targetTrendPoints);
               }
               
-              // Add current point to target data
-              const newDataPoint = {
-                timestamp: targetResult.timestamp,
+              // For real-time updates: Add new data point with updated PV and preserved SP
+              
+              console.log('🕐 REAL-TIME UPDATE:');
+              console.log('Target result timestamp (raw):', targetResult.timestamp);
+              
+              // Ensure timestamp is a JavaScript number (milliseconds since epoch)
+              let normalizedTimestamp: number;
+              if (typeof targetResult.timestamp === 'string') {
+                normalizedTimestamp = new Date(targetResult.timestamp).getTime();
+                console.log('Converted string timestamp to number:', normalizedTimestamp);
+              } else {
+                normalizedTimestamp = targetResult.timestamp;
+              }
+              
+              console.log('Normalized timestamp:', normalizedTimestamp, '→', new Date(normalizedTimestamp).toLocaleString());
+              console.log('Target result value (PV):', targetResult.value);
+              console.log('Current target (for SP):', state.currentTarget);
+              
+              // Get the last SP value from existing data or use current target
+              const lastDataPoint = state.targetData[state.targetData.length - 1];
+              const preservedSP = lastDataPoint?.sp || state.currentTarget || 0;
+              
+              console.log('Preserved SP value:', preservedSP);
+              
+              // Create new data point with updated PV and preserved SP
+              const newRealTimePoint = {
+                timestamp: normalizedTimestamp,
                 value: targetResult.value,
                 target: state.currentTarget || 0,
-                pv: targetResult.value,
-                sp: state.currentTarget // Add SP to the trend data
+                pv: targetResult.value, // Updated PV from real-time data
+                sp: preservedSP // Preserved SP from last prediction
               };
               
-              // Combine trend data with current point and keep last 50 points
+              console.log('Adding real-time data point:', newRealTimePoint);
+              
+              // Add to timeline maintaining proper chronological order
               set(state => ({
                 targetData: [
-                  ...targetTrendPoints,
-                  newDataPoint
+                  ...targetTrendPoints, // Historical trend data
+                  ...state.targetData, // Existing data points
+                  newRealTimePoint // New real-time point
                 ].slice(-50) // Keep last 50 points for trend
               }));
             }
@@ -859,16 +889,25 @@ export const useXgboostStore = create<XgboostState>()(
               
               // Add to target data for trending
               const timestamp = Date.now();
+              console.log('🕐 PREDICTION TIMESTAMP DEBUG:');
+              console.log('Current time (Date.now()):', timestamp, '→', new Date(timestamp).toLocaleString());
+              console.log('Current PV:', state.currentPV);
+              console.log('Prediction value:', prediction);
+              
+              const newPredictionPoint = {
+                timestamp,
+                value: prediction,
+                target: prediction,
+                sp: prediction, // SP represents the new predicted setpoint
+                pv: state.currentPV || prediction // PV is the actual measured value
+              };
+              
+              console.log('Adding prediction data point:', newPredictionPoint);
+              
               set(state => ({
                 targetData: [
                   ...state.targetData,
-                  {
-                    timestamp,
-                    value: prediction,
-                    target: prediction,
-                    sp: prediction,
-                    pv: state.currentPV || 50
-                  }
+                  newPredictionPoint
                 ].slice(-50)
               }));
             } else {
