@@ -50,6 +50,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 170,
     currentMax: 200,
     unit: "t/h",
+    isLab: false,
     description: "Разход на входяща руда към мелницата",
   },
   {
@@ -62,6 +63,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 7,
     currentMax: 20,
     unit: "m³/h",
+    isLab: false,
     description: "Разход на вода в мелницата",
   },
   {
@@ -74,6 +76,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 180,
     currentMax: 230,
     unit: "m³/h",
+    isLab: false,
     description: "Разход на вода в зумпф",
   },
   {
@@ -86,6 +89,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 420,
     currentMax: 580,
     unit: "m³/h",
+    isLab: false,
     description: "Разход на пулп в ХЦ",
   },
   {
@@ -98,6 +102,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 180,
     currentMax: 220,
     unit: "A",
+    isLab: false,
     description: "Консумация на ток от електродвигателя на мелницата",
   },
   {
@@ -110,6 +115,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 1700,
     currentMax: 1900,
     unit: "g/L",
+    isLab: false,
     description: "Плътност на пулп в хидроциклона",
   },
   {
@@ -122,6 +128,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 0.3,
     currentMax: 0.5,
     unit: "bar",
+    isLab: false,
     description: "Работно налягане в хидроциклона",
   },
   {
@@ -134,6 +141,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 650,
     currentMax: 780,
     unit: "rev/min",
+    isLab: false,
     description: "Обороти на работната помпа",
   },
   {
@@ -146,6 +154,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 5.0,
     currentMax: 50.0,
     unit: "%",
+    isLab: true,
     description: "Процентно съдържание на шисти в рудата",
   },
   {
@@ -158,6 +167,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 5.0,
     currentMax: 50.0,
     unit: "%",
+    isLab: true,
     description: "Процентно съдържание на дайки в рудата",
   },
   {
@@ -170,6 +180,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 5.0,
     currentMax: 80.0,
     unit: "%",
+    isLab: true,
     description: "Процентно съдържание на гранодиорити в рудата",
   },
   {
@@ -182,6 +193,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 2.0,
     currentMax: 20.0,
     unit: "%",
+    isLab: true,
     description: "Процент материал в клас +12 милиметра",
   },
   {
@@ -194,19 +206,21 @@ export const millsParameters: ModelParameter[] = [
     currentMin: 2.0,
     currentMax: 20.0,
     unit: "%",
+    isLab: true,
     description: "Процент материал в клас +15 милиметра",
   },
   {
     id: "PSI80",
-    name: "Фракция -80 μk",
+    name: "PSI80",
     type: "target",
     enabled: true,
-    min: 40,
-    max: 65,
-    currentMin: 45,
-    currentMax: 56,
-    unit: "μk",
-    description: "Основна целева стойност - финност на смилане -80 микрона",
+    min: 0.0,
+    max: 100.0,
+    currentMin: 30.0,
+    currentMax: 70.0,
+    unit: "%",
+    isLab: false,
+    description: "Класификация на размерите на частиците при 80 микрона",
   },
   {
     id: "PSI200",
