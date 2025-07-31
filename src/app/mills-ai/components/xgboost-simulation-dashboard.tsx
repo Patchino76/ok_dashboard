@@ -67,6 +67,7 @@ export default function XgboostSimulationDashboard() {
     fetchRealTimeData,
     startRealTimeUpdates,
     resetSlidersToPVs,
+    resetFeatures,
     resetSliders,
     predictWithCurrentValues
   } = useXgboostStore()
@@ -75,6 +76,18 @@ export default function XgboostSimulationDashboard() {
   const [autoPredict, setAutoPredict] = useState(false)
   const { predictTarget, isPredicting } = usePredictTarget()
   const { models, isLoading: isLoadingModels, error: modelsError, refetch } = useGetModels()
+  
+  // Debounced prediction effect for slider changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      // Trigger prediction when slider values change (with 500ms debounce)
+      if (Object.keys(sliderValues).length > 0) {
+        predictWithCurrentValues();
+      }
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [sliderValues, predictWithCurrentValues]);
 
   // Load available models on component mount (only once)
   useEffect(() => {
@@ -346,12 +359,12 @@ export default function XgboostSimulationDashboard() {
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                onClick={() => resetSlidersToPVs()}
+                onClick={() => resetFeatures()}
                 disabled={!modelFeatures || modelFeatures.length === 0}
                 className="flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
               >
                 <RotateCcw className="h-4 w-4" />
-                Reset Simulated SP
+                Reset Features SP
               </Button>
               <Button 
                 onClick={handlePrediction}
@@ -393,13 +406,8 @@ export default function XgboostSimulationDashboard() {
               resetSliders={resetSliders}
               isSimulationMode={isSimulationMode}
               onParameterUpdate={(id: string, value: number) => {
-                if (isSimulationMode) {
-                  // Update slider values in simulation mode (no auto-predict to prevent duplicates)
-                  updateSliderValue(id, value)
-                } else {
-                  // Update parameter values in real-time mode
-                  updateParameter(id, value)
-                }
+                // Always update slider values for all parameters
+                updateSliderValue(id, value)
               }}
             />
         ))}

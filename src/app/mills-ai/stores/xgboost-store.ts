@@ -3,6 +3,7 @@ import { devtools, persist } from "zustand/middleware"
 import { millsTags } from "@/lib/tags/mills-tags"
 import { fetchTagValue } from "@/hooks/useTagValue"
 import { mlApiClient } from "@/lib/api-client"
+import { millsParameters } from "../data/mills-parameters"
 
 interface Parameter {
   id: string
@@ -455,6 +456,15 @@ export const useXgboostStore = create<XgboostState>()(
             const featurePromises = modelFeatures.map(async (featureName) => {
               console.log(`Processing feature: "${featureName}"`);
               
+              // Check if this is a lab parameter - skip real-time data fetching for lab parameters
+              const parameterConfig = millsParameters.find(p => p.id === featureName);
+              const isLabParameter = parameterConfig?.isLab || false;
+              
+              if (isLabParameter) {
+                console.log(`⚗️ Skipping real-time data fetch for lab parameter: ${featureName}`);
+                return null;
+              }
+              
               // Map the feature name to the correct mills tags key
               const millsTagKey = featureMapping[featureName] || featureName;
               console.log(`Feature "${featureName}" mapped to millsTagKey: "${millsTagKey}"`);
@@ -741,8 +751,28 @@ export const useXgboostStore = create<XgboostState>()(
           const { modelFeatures, modelName, isSimulationMode, parameters, sliderValues } = state;
           
           if (!modelFeatures || modelFeatures.length === 0) {
-            console.warn('No model features available for prediction');
+            console.error('❌ No model features available for prediction');
             return;
+          }
+          
+          // CRITICAL FIX: Ensure all model features have slider values initialized
+          const updatedSliderValues = { ...sliderValues };
+          let needsUpdate = false;
+          
+          modelFeatures.forEach(featureName => {
+            if (!(featureName in updatedSliderValues) || updatedSliderValues[featureName] === undefined) {
+              const defaultValue = initialBounds[featureName] ? 
+                (initialBounds[featureName][0] + initialBounds[featureName][1]) / 2 : 0;
+              updatedSliderValues[featureName] = defaultValue;
+              needsUpdate = true;
+              console.log(`🔄 CRITICAL FIX: Initializing missing/undefined slider value for ${featureName}: ${defaultValue}`);
+            }
+          });
+          
+          // Update the store if we added missing slider values
+          if (needsUpdate) {
+            set({ sliderValues: updatedSliderValues });
+            console.log('🔄 Updated slider values in store:', updatedSliderValues);
           }
           
           // DEBUG: Log current model state
@@ -752,32 +782,67 @@ export const useXgboostStore = create<XgboostState>()(
           console.log('Model features length:', modelFeatures.length);
           console.log('Is simulation mode:', isSimulationMode);
           console.log('Available parameters:', parameters.map(p => p.id));
-          console.log('Slider values:', sliderValues);
+          console.log('Slider values (after fix):', updatedSliderValues);
           
           try {
-            // Build prediction data from appropriate source
+            // Build prediction data using hybrid logic
             const predictionData: Record<string, number> = {};
             
-            if (isSimulationMode) {
-              // Use slider values for prediction
-              console.log('🎯 Simulation mode: Using slider values for prediction');
-              modelFeatures.forEach(featureName => {
-                if (sliderValues[featureName] !== undefined) {
-                  predictionData[featureName] = sliderValues[featureName];
+            modelFeatures.forEach(featureName => {
+              const parameterConfig = millsParameters.find(p => p.id === featureName);
+              const isLabParameter = parameterConfig?.isLab || false;
+              
+              if (isLabParameter) {
+                // Lab parameters: Always use slider values
+                if (updatedSliderValues[featureName] !== undefined) {
+                  predictionData[featureName] = updatedSliderValues[featureName];
+                  console.log(`🧪 ${featureName} (Lab): ${updatedSliderValues[featureName]} ✅ ADDED`);
+                } else {
+                  console.warn(`⚠️ Missing slider value for lab parameter: ${featureName}`);
                 }
-              });
-            } else {
-              // Use PV values for prediction
-              console.log('📊 Real-time mode: Using PV values for prediction');
-              modelFeatures.forEach(featureName => {
-                const parameter = parameters.find(p => p.id === featureName);
-                if (parameter) {
-                  predictionData[featureName] = parameter.value;
+              } else {
+                // Process parameters: Use slider values in simulation mode, PV values in real-time mode
+                if (isSimulationMode) {
+                  if (updatedSliderValues[featureName] !== undefined) {
+                    predictionData[featureName] = updatedSliderValues[featureName];
+                    console.log(`📊 ${featureName} (Process-Slider): ${updatedSliderValues[featureName]} ✅ ADDED`);
+                  } else {
+                    console.warn(`⚠️ Missing slider value for process parameter in simulation mode: ${featureName}`);
+                  }
+                } else {
+                  // Real-time mode: use PV values
+                  const parameter = parameters.find(p => p.id === featureName);
+                  if (parameter) {
+                    predictionData[featureName] = parameter.value;
+                    console.log(`📊 ${featureName} (Process-PV): ${parameter.value} ✅ ADDED`);
+                  } else {
+                    console.warn(`⚠️ Missing parameter for: ${featureName} ❌ NOT ADDED`);
+                  }
                 }
-              });
+              }
+            });
+            
+            console.log('Prediction data (hybrid logic):', predictionData);
+            
+            // Validation: Check for missing features
+            const missingFeatures = modelFeatures.filter(feature => !(feature in predictionData));
+            if (missingFeatures.length > 0) {
+              console.error('❌ Missing features for prediction:', missingFeatures);
+              console.error('Required features:', modelFeatures);
+              console.error('Available data:', Object.keys(predictionData));
+              return;
             }
             
-            console.log('Prediction data (only model features):', predictionData);
+            // Validation: Check for invalid values
+            const invalidValues = Object.entries(predictionData).filter(([key, value]) => 
+              typeof value !== 'number' || isNaN(value)
+            );
+            if (invalidValues.length > 0) {
+              console.error('❌ Invalid values for prediction:', invalidValues);
+              return;
+            }
+            
+            console.log('✅ Validation passed. Calling prediction API...');
             
             // Call prediction API with correct payload structure
             const response = await mlApiClient.post('/api/v1/ml/predict', {

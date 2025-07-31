@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { millsParameters } from "../data/mills-parameters"
 
 interface Parameter {
   id: string
@@ -16,6 +17,7 @@ interface Parameter {
   trend: Array<{ timestamp: number; value: number }>
   color: string
   icon: string
+  isLab?: boolean // Lab parameters don't have trending
 }
 
 interface ParameterSimulationCardProps {
@@ -35,6 +37,10 @@ export function ParameterSimulationCard({
   isSimulationMode,
   onParameterUpdate 
 }: ParameterSimulationCardProps) {
+  // Check if this is a lab parameter
+  const parameterConfig = millsParameters.find(p => p.id === parameter.id);
+  const isLabParameter = parameterConfig?.isLab || false;
+  
   // Separate state for input/slider value that doesn't affect the trend
   const [sliderValue, setSliderValue] = useState(propSliderValue)
   const [inputValue, setInputValue] = useState(parameter.value.toFixed(2))
@@ -59,7 +65,8 @@ export function ParameterSimulationCard({
     const newValue = value[0]
     setSliderValue(newValue)
     setInputValue(newValue.toFixed(2))
-    if (isSimulationMode) {
+    // Lab parameters always update, process parameters only in simulation mode
+    if (isLabParameter || isSimulationMode) {
       onParameterUpdate(parameter.id, newValue)
     }
   }
@@ -77,7 +84,10 @@ export function ParameterSimulationCard({
       const clampedValue = Math.max(bounds[0], Math.min(bounds[1], newValue))
       setSliderValue(clampedValue)
       setInputValue(clampedValue.toFixed(2))
-      onParameterUpdate(parameter.id, clampedValue)
+      // Lab parameters always update, process parameters only in simulation mode
+      if (isLabParameter || isSimulationMode) {
+        onParameterUpdate(parameter.id, clampedValue)
+      }
     } else {
       // Restore previous value if invalid input
       setInputValue(sliderValue.toFixed(2))
@@ -151,10 +161,10 @@ export function ParameterSimulationCard({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              {isSimulationMode ? 'Simulation Value' : 'Current Value'}
+              {isLabParameter ? 'Lab Value' : (isSimulationMode ? 'Simulation Value' : 'Current Value')}
             </div>
             <div className="text-2xl font-bold flex items-center gap-1">
-              {isSimulationMode ? sliderValue.toFixed(2) : parameter.value.toFixed(2)}
+              {isLabParameter ? sliderValue.toFixed(2) : (isSimulationMode ? sliderValue.toFixed(2) : parameter.value.toFixed(2))}
               <span className="text-xs text-slate-500">{parameter.unit}</span>
             </div>
           </div>
@@ -167,8 +177,8 @@ export function ParameterSimulationCard({
           </div>
         </div>
 
-        {/* Trend Chart */}
-        {parameter.trend.length > 0 && (
+        {/* Trend Chart - Only show for process parameters */}
+        {!isLabParameter && parameter.trend.length > 0 && (
           <div className="h-14 -mx-2">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={parameter.trend} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -192,6 +202,16 @@ export function ParameterSimulationCard({
             </ResponsiveContainer>
           </div>
         )}
+        
+        {/* Lab parameter info */}
+        {isLabParameter && (
+          <div className="h-14 -mx-2 flex items-center justify-center">
+            <div className="text-sm text-slate-500 dark:text-slate-400 text-center">
+              🧪 Lab Parameter<br/>
+              <span className="text-xs">No historical trending</span>
+            </div>
+          </div>
+        )}
 
         {/* Slider and Input Control */}
         <div className="pt-2 space-y-3">
@@ -208,7 +228,7 @@ export function ParameterSimulationCard({
                 min={bounds[0]}
                 max={bounds[1]}
                 className="h-8 text-center"
-                disabled={!isSimulationMode}
+                disabled={!isLabParameter && !isSimulationMode}
               />
             </div>
             <div className="text-xs text-slate-500">{bounds[1].toFixed(2)}</div>
@@ -219,8 +239,8 @@ export function ParameterSimulationCard({
             min={bounds[0]}
             max={bounds[1]}
             step={(bounds[1] - bounds[0]) / 100}
-            className={`mt-1 ${!isSimulationMode ? 'opacity-50' : ''}`}
-            disabled={!isSimulationMode}
+            className={`mt-1 ${!isLabParameter && !isSimulationMode ? 'opacity-50' : ''}`}
+            disabled={!isLabParameter && !isSimulationMode}
           />
         </div>
       </CardContent>
