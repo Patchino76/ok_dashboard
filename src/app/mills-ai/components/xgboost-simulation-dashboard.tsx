@@ -270,7 +270,33 @@ export default function XgboostSimulationDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="flex flex-col">
+              <Label className="mb-1">Mill Selection</Label>
+              <Select
+                value={`Mill${currentMill.toString().padStart(2, '0')}`}
+                onValueChange={(value) => {
+                  const millNumber = parseInt(value.replace('Mill', ''));
+                  setCurrentMill(millNumber);
+                  
+                  // Update model name based on mill selection
+                  const newModelName = `xgboost_PSI80_mill${millNumber}`;
+                  if (availableModels.includes(newModelName)) {
+                    setModelName(newModelName);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select mill" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Mill06">Mill 06</SelectItem>
+                  <SelectItem value="Mill07">Mill 07</SelectItem>
+                  <SelectItem value="Mill08">Mill 08</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
             <div className="flex flex-col">
               <Label className="mb-1">Select Model</Label>
               <Select
@@ -278,15 +304,17 @@ export default function XgboostSimulationDashboard() {
                 onValueChange={(value) => setModelName(value)}
                 disabled={isLoadingModels}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger>
                   <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableModels.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
+                  {availableModels
+                    .filter(model => model.includes(`mill${currentMill}`))
+                    .map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               

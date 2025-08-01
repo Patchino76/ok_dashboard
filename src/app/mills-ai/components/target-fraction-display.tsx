@@ -145,12 +145,45 @@ export function TargetFractionDisplay({
                           (dataMin: number) => Math.floor(dataMin - 2),
                           (dataMax: number) => Math.ceil(dataMax + 2),
                         ]}
+                        tickFormatter={(value) => `${value}%`}
+                        label={{ 
+                          value: 'PSI80 (%)', 
+                          angle: -90, 
+                          position: 'insideLeft',
+                          fill: '#6b7280',
+                          style: { fontSize: '12px' }
+                        }}
                       />
                       <Tooltip
-                        labelFormatter={formatTime}
-                        formatter={(value: number, name: string) => [formatTooltipValue(value), name]}
-                        contentStyle={{ background: "#1f2937", borderColor: "#374151", color: "#e5e7eb" }}
-                        itemStyle={{ color: "#e5e7eb" }}
+                        labelFormatter={(value) => `Време: ${formatTime(value)}`}
+                        formatter={(value: number, name: string, props: any) => {
+                          const isPV = name === 'Process Variable';
+                          const displayValue = isPV ? props.payload.pv : value;
+                          const color = isPV ? '#10b981' : (isSimulationMode ? '#dc2626' : '#3b82f6');
+                          return [
+                            <span key="value" style={{ color }}>{`${isPV ? 'PV' : 'SP'}: ${formatTooltipValue(displayValue)}%`}</span>,
+                            <span key="name" style={{ color, opacity: 0.7, fontSize: '0.9em' }}>(PSI80)</span>
+                          ];
+                        }}
+                        contentStyle={{
+                          background: '#1f2937',
+                          borderColor: '#374151',
+                          borderRadius: '0.375rem',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                        }}
+                        itemStyle={{ 
+                          color: '#e5e7eb',
+                          padding: '0.25rem 0',
+                          textTransform: 'none',
+                          letterSpacing: '0.025em'
+                        }}
+                        labelStyle={{
+                          color: '#e5e7eb',
+                          fontWeight: 500,
+                          marginBottom: '0.5rem',
+                          borderBottom: '1px solid #374151',
+                          paddingBottom: '0.5rem'
+                        }}
                       />
                       <Line
                         type="monotoneX"
@@ -160,6 +193,7 @@ export function TargetFractionDisplay({
                         strokeWidth={2}
                         dot={false}
                         connectNulls={true}
+                        isAnimationActive={false}
                       />
                       <Line
                         type="monotoneX"
@@ -169,6 +203,7 @@ export function TargetFractionDisplay({
                         strokeWidth={2}
                         dot={false}
                         connectNulls={true}
+                        isAnimationActive={false}
                       />
                     </LineChart>
                   </ResponsiveContainer>

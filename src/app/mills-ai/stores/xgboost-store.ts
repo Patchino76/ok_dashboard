@@ -128,16 +128,16 @@ const initialBounds: ParameterBounds = {
   Ore: [160.0, 200.0],
   WaterMill: [5.0, 20.0],
   WaterZumpf: [160.0, 250.0],
-  PulpHC: [400, 600],
-  PressureHC: [0.3, 0.5],
-  DensityHC: [1600, 1900],
-  MotorAmp: [180, 220],
+  PulpHC: [300, 600],
+  PressureHC: [0.25, 0.55],
+  DensityHC: [1500, 1900],
+  MotorAmp: [160, 240],
   Shisti: [0.05, 0.3],
   Daiki: [0.1, 0.4],
   PumpRPM: [800, 1200],   // Typical pump RPM range for industrial applications
   Grano: [0.5, 5.0],      // Granularity measurement in mm
-  Class_12: [20, 60],     // Percentage range for Class_12
-  Class_15: [20, 60]      // Percentage range for Class_15 (same as Class_12)
+  Class_12: [1, 20],     // Percentage range for Class_12
+  Class_15: [1, 20]      // Percentage range for Class_15 (same as Class_12)
 }
 
 // Utility function to get tag ID from mills tags
