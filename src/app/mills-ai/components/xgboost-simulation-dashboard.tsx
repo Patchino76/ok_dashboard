@@ -3,11 +3,17 @@
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ParameterSimulationCard } from "./parameter-simulation-card"
 import { TargetFractionDisplay } from "./target-fraction-display"
 import { Zap, Activity, Play, Pause, BarChart2, AlertCircle, RotateCcw } from "lucide-react"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
 import { millsTags } from "@/lib/tags/mills-tags"
+import { toast } from "sonner"
+import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
 
 // Define tag interface to match the structure in mills-tags.ts
 interface TagInfo {
@@ -24,13 +30,6 @@ interface TagInfo {
 type MillsTagsType = typeof millsTags
 type TagKey = keyof MillsTagsType
 
-import { usePredictTarget } from "@/app/mills-ai/hooks/use-predict-target"
-import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
 interface ParameterData {
   timestamp: number
   value: number
@@ -39,6 +38,10 @@ interface ParameterData {
 }
 
 export default function XgboostSimulationDashboard() {
+  // Get the store instance
+  const store = useXgboostStore();
+  
+  // Destructure store values with proper types
   const {
     parameters,
     parameterBounds,
@@ -63,6 +66,7 @@ export default function XgboostSimulationDashboard() {
     setModelMetadata,
     startSimulation,
     stopSimulation,
+    stopRealTimeUpdates,
     setCurrentMill,
     fetchRealTimeData,
     startRealTimeUpdates,
@@ -70,12 +74,24 @@ export default function XgboostSimulationDashboard() {
     resetFeatures,
     resetSliders,
     predictWithCurrentValues
-  } = useXgboostStore()
+  } = store;
 
   const [predictionMode, setPredictionMode] = useState('auto')
   const [autoPredict, setAutoPredict] = useState(false)
-  const { predictTarget, isPredicting } = usePredictTarget()
-  const { models, isLoading: isLoadingModels, error: modelsError, refetch } = useGetModels()
+  const [isPredicting, setIsPredicting] = useState(false);
+  // Use the useGetModels hook to fetch models
+  const { models, isLoading: isLoadingModels, error: modelsError } = useGetModels();
+  
+  // Get the selected model from the models object
+  const selectedModel = modelName && models ? models[modelName] : null;
+  
+  // Update available models in store when models are loaded
+  useEffect(() => {
+    if (models && Object.keys(models).length > 0) {
+      console.log('Updating available models in store:', Object.keys(models));
+      setAvailableModels(Object.keys(models));
+    }
+  }, [models, setAvailableModels]);
   
   // Debounced prediction effect for slider changes
   useEffect(() => {
@@ -89,88 +105,68 @@ export default function XgboostSimulationDashboard() {
     return () => clearTimeout(timeoutId);
   }, [sliderValues, predictWithCurrentValues]);
 
-  // Load available models on component mount (only once)
+  // Handle model selection and metadata updates when models or current mill changes
   useEffect(() => {
-    console.log('Model loading effect triggered');
-    console.log('Models:', models);
-    console.log('IsLoading:', isLoadingModels);
-    console.log('Error:', modelsError);
-    
-    if (models) {
-      const modelIds = Object.keys(models);
-      console.log('Setting available models:', modelIds);
-      setAvailableModels(modelIds);
-      
-      // If current model is not in the available models, select the first one for the current mill
-      if (modelIds.length > 0) {
-        const modelsForCurrentMill = modelIds.filter(m => m.endsWith(`_mill${currentMill}`));
-        if (modelsForCurrentMill.length > 0 && !modelsForCurrentMill.includes(modelName)) {
-          const defaultModel = modelsForCurrentMill[0];
-          console.log('Setting default model:', defaultModel);
-          setModelName(defaultModel);
-          
-          // Update model metadata
-          const selectedModel = models[defaultModel];
-          if (selectedModel) {
-            setModelMetadata(
-              selectedModel.features,
-              selectedModel.target_col,
-              selectedModel.last_trained
-            );
-          }
-        }
+    if (!models || Object.keys(models).length === 0) {
+      console.log('No models loaded yet');
+      return;
+    }
+
+    const modelIds = Object.keys(models);
+    console.log('Available models:', modelIds);
+    console.log('Current model:', modelName);
+    console.log('Current mill:', currentMill);
+
+    // Find a suitable model for the current mill
+    const findSuitableModel = () => {
+      // First try to find a model for the current mill
+      const modelsForCurrentMill = modelIds.filter(m => m.endsWith(`_mill${currentMill}`));
+      if (modelsForCurrentMill.length > 0) {
+        return modelsForCurrentMill[0];
       }
-      console.log(' Available model IDs:', modelIds);
-      setAvailableModels(modelIds)
       
+      // If no model for current mill, try the default model
       const defaultModelId = "xgboost_PSI80_mill8";
-      
-      // Always prefer mill 8 over mill 6 when both are available
-      // This ensures mill 8 is selected even if persistence has mill 6 saved
-      if (models[defaultModelId] && modelName !== defaultModelId) {
-        console.log(' Forcing default model (mill 8 preferred):', defaultModelId);
-        setModelName(defaultModelId);
-        const model = models[defaultModelId];
-        setModelMetadata(
-          model.features,
-          model.target_col,
-          model.last_trained
-        );
+      if (modelIds.includes(defaultModelId)) {
+        return defaultModelId;
       }
-      // Only update model and metadata on initial load or if current model doesn't exist
-      else if (!modelName || !models[modelName]) {
-        console.log(' Setting up default model:', defaultModelId);
-        // Try to use default model first
-        if (models[defaultModelId]) {
-          console.log(' Found default model, setting up:', models[defaultModelId]);
-          setModelName(defaultModelId);
-          const model = models[defaultModelId];
+      
+      // Fall back to the first available model
+      return modelIds.length > 0 ? modelIds[0] : null;
+    };
+
+    // If we don't have a model selected or the current model is not in the available models
+    if (!modelName || !models[modelName]) {
+      const modelToUse = findSuitableModel();
+      
+      if (modelToUse) {
+        console.log('Setting initial model:', modelToUse);
+        setModelName(modelToUse);
+        
+        // Update model metadata
+        const selectedModel = models[modelToUse];
+        if (selectedModel) {
+          console.log('Updating model metadata for:', modelToUse);
           setModelMetadata(
-            model.features,
-            model.target_col,
-            model.last_trained
+            selectedModel.features,
+            selectedModel.target_col,
+            selectedModel.last_trained
           );
-        } 
-        // If default doesn't exist, use the first available
-        else if (modelIds.length > 0) {
-          console.log(' Default model not found, using first available:', modelIds[0]);
-          const firstModel = models[modelIds[0]];
-          setModelName(modelIds[0]);
-          setModelMetadata(
-            firstModel.features,
-            firstModel.target_col,
-            firstModel.last_trained
-          );
-        } else {
-          console.log(' No models available at all');
         }
       } else {
-        console.log(' Model already set:', modelName);
+        console.warn('No valid models found');
       }
-    } else {
-      console.log(' Models not loaded yet or failed to load');
+    } else if (models[modelName]) {
+      // If we have a valid model name, ensure its metadata is up to date
+      const currentModel = models[modelName];
+      console.log('Updating metadata for existing model:', modelName);
+      setModelMetadata(
+        currentModel.features,
+        currentModel.target_col,
+        currentModel.last_trained
+      );
     }
-  }, [models, modelName, setModelName, setAvailableModels, setModelMetadata, isLoadingModels, modelsError])
+  }, [models, modelName, currentMill, setModelName, setModelMetadata]);
 
   // Start real-time data updates when model features are available
   useEffect(() => {
@@ -259,8 +255,17 @@ export default function XgboostSimulationDashboard() {
   }
   
   const handlePrediction = async () => {
-    // Use the new clean dual data source approach
-    await predictWithCurrentValues()
+    if (isPredicting) return;
+    setIsPredicting(true);
+    try {
+      await predictWithCurrentValues();
+      toast.success('Prediction completed successfully');
+    } catch (error) {
+      console.error('Error during prediction:', error);
+      toast.error('Failed to make prediction');
+    } finally {
+      setIsPredicting(false);
+    }
   }
 
   // Number of parameters in range
@@ -340,42 +345,82 @@ export default function XgboostSimulationDashboard() {
                   
                   console.log('Model selection changed from', modelName, 'to', value);
                   
-                  // Update the model name in the store
-                  setModelName(value);
+                  // Show loading state
+                  const loadingToast = toast.loading('Switching models...');
                   
-                  // Get the selected model's metadata from the models object
-                  const selectedModel = models?.[value];
-                  if (selectedModel) {
+                  try {
+                    // Stop any ongoing real-time updates
+                    await stopRealTimeUpdates();
+                    
+                    // Clear existing data
+                    setPredictedTarget(0);
+                    
+                    // Update the model name in the store
+                    setModelName(value);
+                    
+                    if (!models || !models[value]) {
+                      throw new Error(`Model not found: ${value}`);
+                    }
+                    
+                    const selectedModel = models[value];
                     console.log('Updating model metadata for:', value, selectedModel);
                     
-                    // Update model metadata in the store
+                    // Update model metadata with the new model's features and target
                     setModelMetadata(
                       selectedModel.features,
                       selectedModel.target_col,
                       selectedModel.last_trained
                     );
                     
-                    // Force a prediction with the new model
-                    try {
-                      await predictWithCurrentValues();
-                    } catch (error) {
-                      console.error('Error predicting with new model:', error);
+                    // Restart real-time updates with the new model
+                    await startRealTimeUpdates();
+                    
+                    // Trigger a prediction with the current values
+                    await predictWithCurrentValues();
+                    
+                    toast.success(`Successfully switched to model: ${value}`, { id: loadingToast });
+                  } catch (error) {
+                    console.error('Error during model switch:', error);
+                    toast.error(`Failed to switch to model: ${value}`, { id: loadingToast });
+                    
+                    // Try to revert to the previous model if available
+                    if (modelName && models?.[modelName]) {
+                      console.log('Reverting to previous model:', modelName);
+                      setModelName(modelName);
+                      setModelMetadata(
+                        models[modelName].features,
+                        models[modelName].target_col,
+                        models[modelName].last_trained
+                      );
                     }
+                  } finally {
+                    toast.dismiss(loadingToast);
                   }
                 }}
-                disabled={isLoadingModels}
+                disabled={isLoadingModels || !availableModels?.length}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a model" />
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={isLoadingModels ? "Loading models..." : availableModels?.length ? "Select a model" : "No models available"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableModels
-                    .filter(model => model.endsWith(`_mill${currentMill}`))
-                    .map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
+                  {availableModels && availableModels.length > 0 ? (
+                    availableModels
+                      .filter(model => {
+                        // Extract mill number from model name (e.g., 'xgboost_PSI80_mill8' -> '8')
+                        const millMatch = model.match(/_mill(\d+)$/);
+                        const modelMill = millMatch ? parseInt(millMatch[1], 10) : null;
+                        return modelMill === currentMill;
+                      })
+                      .map((model) => (
+                        <SelectItem key={model} value={model}>
+                          {model.replace(`_mill${currentMill}`, '')}
+                        </SelectItem>
+                      ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      {isLoadingModels ? 'Loading models...' : 'No models available'}
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
               

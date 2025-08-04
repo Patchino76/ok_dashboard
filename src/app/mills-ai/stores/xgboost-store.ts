@@ -368,14 +368,17 @@ export const useXgboostStore = create<XgboostState>()(
         setModelMetadata: (features, target, lastTrained) => {
           console.log('Updating model metadata:', { features, target, lastTrained });
           
-          // First update the basic metadata
+          // Clear existing target data and update metadata
           set({ 
             modelFeatures: features,
             modelTarget: target,
-            lastTrained
+            lastTrained,
+            targetData: [], // Clear existing trend data
+            currentTarget: null, // Reset current target
+            currentPV: null // Reset current PV
           });
           
-          // Then ensure parameters array includes all necessary features
+          // Ensure parameters array includes all necessary features
           if (features && features.length > 0) {
             set(state => {
               // Keep track of existing parameter IDs
