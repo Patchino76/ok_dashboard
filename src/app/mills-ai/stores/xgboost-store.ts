@@ -70,6 +70,7 @@ interface XgboostState {
   startRealTimeUpdates: () => void
   stopRealTimeUpdates: () => void
   updateParameterFromRealData: (featureName: string, value: number, timestamp: number, trend?: Array<{ timestamp: number; value: number }>) => void
+  resetFeatures: () => void
 }
 
 // Icons for parameters
@@ -353,13 +354,20 @@ export const useXgboostStore = create<XgboostState>()(
           // Real-time updates are now always active, no state change needed
         },
           
-        setModelName: (modelName) => 
-          set({ modelName }),
+        setModelName: (modelName) => {
+          const currentState = useXgboostStore.getState();
+          if (currentState.modelName !== modelName) {
+            console.log('Setting model name to:', modelName);
+            set({ modelName });
+          }
+        },
           
         setAvailableModels: (models) =>
           set({ availableModels: models }),
           
         setModelMetadata: (features, target, lastTrained) => {
+          console.log('Updating model metadata:', { features, target, lastTrained });
+          
           // First update the basic metadata
           set({ 
             modelFeatures: features,

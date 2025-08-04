@@ -91,13 +91,35 @@ export default function XgboostSimulationDashboard() {
 
   // Load available models on component mount (only once)
   useEffect(() => {
-    console.log(' Model loading effect triggered');
+    console.log('Model loading effect triggered');
     console.log('Models:', models);
     console.log('IsLoading:', isLoadingModels);
     console.log('Error:', modelsError);
     
     if (models) {
-      const modelIds = Object.keys(models)
+      const modelIds = Object.keys(models);
+      console.log('Setting available models:', modelIds);
+      setAvailableModels(modelIds);
+      
+      // If current model is not in the available models, select the first one for the current mill
+      if (modelIds.length > 0) {
+        const modelsForCurrentMill = modelIds.filter(m => m.endsWith(`_mill${currentMill}`));
+        if (modelsForCurrentMill.length > 0 && !modelsForCurrentMill.includes(modelName)) {
+          const defaultModel = modelsForCurrentMill[0];
+          console.log('Setting default model:', defaultModel);
+          setModelName(defaultModel);
+          
+          // Update model metadata
+          const selectedModel = models[defaultModel];
+          if (selectedModel) {
+            setModelMetadata(
+              selectedModel.features,
+              selectedModel.target_col,
+              selectedModel.last_trained
+            );
+          }
+        }
+      }
       console.log(' Available model IDs:', modelIds);
       setAvailableModels(modelIds)
       
@@ -275,14 +297,25 @@ export default function XgboostSimulationDashboard() {
               <Label className="mb-1">Mill Selection</Label>
               <Select
                 value={`Mill${currentMill.toString().padStart(2, '0')}`}
+                key={`mill-select-${currentMill}`}
                 onValueChange={(value) => {
                   const millNumber = parseInt(value.replace('Mill', ''));
                   setCurrentMill(millNumber);
                   
-                  // Update model name based on mill selection
-                  const newModelName = `xgboost_PSI80_mill${millNumber}`;
-                  if (availableModels.includes(newModelName)) {
-                    setModelName(newModelName);
+                  // Find the first model for the selected mill
+                  const modelForMill = availableModels.find(m => m.endsWith(`_mill${millNumber}`));
+                  if (modelForMill) {
+                    setModelName(modelForMill);
+                    
+                    // Update model metadata if models are loaded
+                    const selectedModel = models?.[modelForMill];
+                    if (selectedModel) {
+                      setModelMetadata(
+                        selectedModel.features,
+                        selectedModel.target_col,
+                        selectedModel.last_trained
+                      );
+                    }
                   }
                 }}
               >
@@ -301,7 +334,35 @@ export default function XgboostSimulationDashboard() {
               <Label className="mb-1">Select Model</Label>
               <Select
                 value={modelName}
-                onValueChange={(value) => setModelName(value)}
+                key={`model-select-${modelName}`}
+                onValueChange={async (value) => {
+                  if (value === modelName) return; // Skip if no change
+                  
+                  console.log('Model selection changed from', modelName, 'to', value);
+                  
+                  // Update the model name in the store
+                  setModelName(value);
+                  
+                  // Get the selected model's metadata from the models object
+                  const selectedModel = models?.[value];
+                  if (selectedModel) {
+                    console.log('Updating model metadata for:', value, selectedModel);
+                    
+                    // Update model metadata in the store
+                    setModelMetadata(
+                      selectedModel.features,
+                      selectedModel.target_col,
+                      selectedModel.last_trained
+                    );
+                    
+                    // Force a prediction with the new model
+                    try {
+                      await predictWithCurrentValues();
+                    } catch (error) {
+                      console.error('Error predicting with new model:', error);
+                    }
+                  }
+                }}
                 disabled={isLoadingModels}
               >
                 <SelectTrigger>
@@ -309,7 +370,7 @@ export default function XgboostSimulationDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   {availableModels
-                    .filter(model => model.includes(`mill${currentMill}`))
+                    .filter(model => model.endsWith(`_mill${currentMill}`))
                     .map((model) => (
                       <SelectItem key={model} value={model}>
                         {model}
