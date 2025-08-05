@@ -39,6 +39,15 @@ export function TargetFractionDisplay({
     return value?.toFixed(2) || 'N/A'
   }
 
+  // Format data for chart
+  const chartData = targetData.map((item) => ({
+    time: item.timestamp,
+    value: item.value,
+    target: item.target,
+    pv: item.pv,
+    sp: item.sp !== undefined ? item.sp : null
+  })).sort((a, b) => a.time - b.time) // Ensure data is sorted by time
+
   return (
     <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
@@ -128,12 +137,12 @@ export function TargetFractionDisplay({
               </div>
 
               <div className="h-[240px]">
-                {targetData.length > 0 ? (
+                {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={targetData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.2} />
                       <XAxis
-                        dataKey="timestamp"
+                        dataKey="time"
                         tickFormatter={formatTime}
                         stroke="#6b7280"
                         tick={{ fill: "#6b7280", fontSize: 12 }}
@@ -157,7 +166,7 @@ export function TargetFractionDisplay({
                       <Tooltip
                         labelFormatter={(value) => `Време: ${formatTime(value)}`}
                         formatter={(value: number, name: string, props: any) => {
-                          const isPV = name === 'Process Variable';
+                          const isPV = name === 'Process Variable (PV)';
                           const displayValue = isPV ? props.payload.pv : value;
                           const color = isPV ? '#10b981' : (isSimulationMode ? '#dc2626' : '#3b82f6');
                           return [
@@ -185,25 +194,26 @@ export function TargetFractionDisplay({
                           paddingBottom: '0.5rem'
                         }}
                       />
-                      <Line
-                        type="monotoneX"
-                        dataKey="pv"
-                        name="Process Variable"
-                        stroke="#10b981"
-                        strokeWidth={2}
+                      <Line 
+                        type="monotone" 
+                        dataKey="pv" 
+                        name="Process Variable (PV)" 
+                        stroke="#10b981" 
+                        strokeWidth={2} 
                         dot={false}
-                        connectNulls={true}
-                        isAnimationActive={false}
+                        activeDot={{ r: 4 }}
+                        isAnimationActive={false} // Disable animation to ensure line is always visible
                       />
-                      <Line
-                        type="monotoneX"
-                        dataKey="sp"
-                        name="Setpoint"
-                        stroke={isSimulationMode ? "#dc2626" : "#3b82f6"}
-                        strokeWidth={2}
+                      <Line 
+                        type="monotone" 
+                        dataKey="sp" 
+                        name={isSimulationMode ? 'Setpoint (SP) (Simulation)' : 'Setpoint (SP) (Real-time)'} 
+                        stroke={isSimulationMode ? "#dc2626" : "#3b82f6"} 
+                        strokeWidth={2} 
+                        strokeDasharray="5 5" 
                         dot={false}
-                        connectNulls={true}
-                        isAnimationActive={false}
+                        activeDot={{ r: 4 }}
+                        isAnimationActive={false} // Disable animation to ensure line is always visible
                       />
                     </LineChart>
                   </ResponsiveContainer>

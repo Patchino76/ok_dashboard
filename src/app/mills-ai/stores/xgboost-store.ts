@@ -368,54 +368,71 @@ export const useXgboostStore = create<XgboostState>()(
         setModelMetadata: (features, target, lastTrained) => {
           console.log('Updating model metadata:', { features, target, lastTrained });
           
-          // Clear existing target data and update metadata
-          set({ 
-            modelFeatures: features,
-            modelTarget: target,
-            lastTrained,
-            targetData: [], // Clear existing trend data
-            currentTarget: null, // Reset current target
-            currentPV: null // Reset current PV
+          // Get current timestamp for initial data points
+          const now = Date.now();
+          
+          // First, update the model metadata and parameters
+          set(state => {
+            // Keep track of existing parameter IDs
+            const existingParamIds = state.parameters.map(p => p.id);
+            
+            // Create array for new parameters that need to be added
+            const newParameters: Parameter[] = [];
+            
+            // For each feature in the model, check if we need to add it
+            features?.forEach(featureId => {
+              if (!existingParamIds.includes(featureId)) {
+                // This feature doesn't exist in parameters yet, add it with sensible defaults
+                const defaultValue = initialBounds[featureId] ? 
+                  (initialBounds[featureId][0] + initialBounds[featureId][1]) / 2 : 0;
+                  
+                newParameters.push({
+                  id: featureId,
+                  name: featureId,
+                  unit: parameterUnits[featureId] || '',
+                  value: defaultValue,
+                  trend: [],
+                  color: parameterColors[featureId] || 'gray',
+                  icon: parameterIcons[featureId] || '📊'
+                });
+              }
+            });
+            
+            // Create updated parameters array
+            const updatedParameters = [...state.parameters];
+            if (newParameters.length > 0) {
+              console.log('Adding new parameters for model:', newParameters);
+              updatedParameters.push(...newParameters);
+            }
+            
+            // Return the initial state update
+            return {
+              modelFeatures: features,
+              modelTarget: target,
+              lastTrained,
+              parameters: updatedParameters,
+              // We'll set these to null initially and let the real-time update handle them
+              currentTarget: null,
+              currentPV: null,
+              // Initialize slider values with current parameter values
+              sliderValues: {
+                ...state.sliderValues,
+                ...Object.fromEntries(
+                  updatedParameters.map(p => [p.id, p.value])
+                )
+              }
+            };
           });
           
-          // Ensure parameters array includes all necessary features
-          if (features && features.length > 0) {
-            set(state => {
-              // Keep track of existing parameter IDs
-              const existingParamIds = state.parameters.map(p => p.id);
-              
-              // Create array for new parameters that need to be added
-              const newParameters: Parameter[] = [];
-              
-              // For each feature in the model, check if we need to add it
-              features.forEach(featureId => {
-                if (!existingParamIds.includes(featureId)) {
-                  // This feature doesn't exist in parameters yet, add it
-                  // with sensible defaults
-                  newParameters.push({
-                    id: featureId,
-                    name: featureId, // Use ID as name if no better name available
-                    unit: parameterUnits[featureId] || '',
-                    value: initialBounds[featureId] ? 
-                      (initialBounds[featureId][0] + initialBounds[featureId][1]) / 2 : 0,
-                    trend: [],
-                    color: parameterColors[featureId] || 'gray',
-                    icon: parameterIcons[featureId] || '📊'
-                  });
-                }
-              });
-              
-              // If we have new parameters, add them to the state
-              if (newParameters.length > 0) {
-                console.log('Adding new parameters for model:', newParameters);
-                return {
-                  parameters: [...state.parameters, ...newParameters]
-                };
-              }
-              
-              // No changes needed
-              return {};
-            });
+          // Trigger a real-time data fetch which will update the PV and SP values
+          // This will be handled by the existing real-time update mechanism
+          // which will automatically update the PV and SP values
+          // and trigger a prediction if needed
+          
+          // Start real-time updates if they're not already running
+          const state = useXgboostStore.getState();
+          if (!state.dataUpdateInterval) {
+            state.startRealTimeUpdates();
           }
         },
         
@@ -615,28 +632,33 @@ export const useXgboostStore = create<XgboostState>()(
             if (targetResult) {
               console.log(`Updating target PV with value ${targetResult.value}`);
               
-              // Update current PV
-              set({ currentPV: targetResult.value });
-              
               // Process target trend data if available
               let targetTrendPoints: TargetData[] = [];
               if (targetTrendData && targetTrendData.timestamps && targetTrendData.values &&
                   Array.isArray(targetTrendData.timestamps) && Array.isArray(targetTrendData.values)) {
                 
-                // Get the current target (SP) value
+                // Get the current target (SP) value - use the most recent prediction or current target
                 const currentTarget = state.currentTarget || 0;
+                const lastSP = state.targetData.length > 0 ? state.targetData[state.targetData.length - 1]?.sp : currentTarget;
+                const effectiveSP = (lastSP !== undefined && lastSP !== null) ? lastSP : (currentTarget || 0);
                 
                 // Convert API trend data to our format
-                targetTrendPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => ({
-                  timestamp: new Date(timestamp).getTime(),
-                  value: targetTrendData.values[index],
-                  target: currentTarget,
-                  pv: targetTrendData.values[index], // PV is the actual measured historical value
-                  sp: currentTarget // SP is the target setpoint (should be consistent)
-                }));
+                targetTrendPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => {
+                  const value = targetTrendData.values[index];
+                  return {
+                    timestamp: new Date(timestamp).getTime(),
+                    value: value,
+                    target: effectiveSP,  // This is the target we're trying to reach
+                    pv: value,            // PV is the actual measured historical value
+                    sp: effectiveSP       // SP is the predicted/desired value
+                  } as TargetData;        // Explicitly type as TargetData
+                });
                 
-                console.log('Processed target trend points:', targetTrendPoints);
+                console.log('Processed target trend points with SP:', effectiveSP, targetTrendPoints);
               }
+              
+              // Update current PV with the latest value
+              set({ currentPV: targetResult.value });
               
               // For real-time updates: Add new data point with updated PV and preserved SP
               
@@ -656,19 +678,23 @@ export const useXgboostStore = create<XgboostState>()(
               console.log('Target result value (PV):', targetResult.value);
               console.log('Current target (for SP):', state.currentTarget);
               
-              // Get the last SP value from existing data or use current target
+              // Get the most recent SP value or use current target as fallback
               const lastDataPoint = state.targetData[state.targetData.length - 1];
-              const preservedSP = lastDataPoint?.sp || state.currentTarget || 0;
+              const lastSP = lastDataPoint?.sp;
+              const currentSP = state.currentTarget || 0;
               
-              console.log('Preserved SP value:', preservedSP);
+              // Use last SP if available, otherwise use current target (ensure it's a number)
+              const effectiveSP = (lastSP !== undefined && lastSP !== null) ? lastSP : (currentSP || 0);
+              
+              console.log('Current PV:', targetResult.value, 'Effective SP:', effectiveSP);
               
               // Create new data point with updated PV and preserved SP
-              const newRealTimePoint = {
+              const newRealTimePoint: TargetData = {
                 timestamp: normalizedTimestamp,
-                value: targetResult.value,
-                target: state.currentTarget || 0,
-                pv: targetResult.value, // Updated PV from real-time data
-                sp: preservedSP // Preserved SP from last prediction
+                value: targetResult.value, // This is the actual PV value
+                target: effectiveSP,       // This is the target we're trying to reach (ensured to be a number)
+                pv: targetResult.value,    // PV is the actual measured value
+                sp: effectiveSP            // SP is the predicted/desired value
               };
               
               console.log('Adding real-time data point:', newRealTimePoint);
