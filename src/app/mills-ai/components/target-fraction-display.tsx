@@ -20,6 +20,8 @@ interface TargetFractionDisplayProps {
   targetData: TargetData[]
   isOptimizing: boolean
   isSimulationMode?: boolean
+  modelName?: string
+  targetVariable?: string
 }
 
 export function TargetFractionDisplay({
@@ -28,6 +30,8 @@ export function TargetFractionDisplay({
   targetData,
   isOptimizing,
   isSimulationMode = false,
+  modelName,
+  targetVariable,
 }: TargetFractionDisplayProps) {
   
   const formatTime = (timestamp: number) => {
@@ -103,14 +107,14 @@ export function TargetFractionDisplay({
                 </div>
               </div>
 
-              {/* Model Information */}
+
               <div>
                 <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Model</div>
                 <div className="mt-1 flex items-end">
-                  <span className="text-lg font-medium text-green-600">xgboost_PSI80_mill8</span>
+                  <span className="text-lg font-medium text-green-600">{modelName || 'N/A'}</span>
                 </div>
                 <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                  Target variable: PSI80
+                  Target variable: {targetVariable || 'N/A'}
                 </div>
               </div>
             </div>

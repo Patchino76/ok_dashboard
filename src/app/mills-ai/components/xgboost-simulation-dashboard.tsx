@@ -520,6 +520,8 @@ export default function XgboostSimulationDashboard() {
         targetData={targetData}
         isOptimizing={isPredicting}
         isSimulationMode={isSimulationMode}
+        modelName={selectedModel?.name}
+        targetVariable={selectedModel?.target_col}
       />
 
       {/* Parameter Control Cards Grid */}
