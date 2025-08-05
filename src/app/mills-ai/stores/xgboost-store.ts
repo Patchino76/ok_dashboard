@@ -553,50 +553,53 @@ export const useXgboostStore = create<XgboostState>()(
             });
 
             // Also fetch the target PV value (PSI80) if it's the model target
-            let targetPromise = null;
-            let targetTrendPromise = null;
-            if (modelTarget === 'PSI80') {
-              const targetTagId = getTagId('PSI80', currentMill);
-              if (targetTagId) {
-                console.log(`Fetching target PV data for PSI80 -> tag ID ${targetTagId}`);
-                
-                // Fetch current target value
-                targetPromise = fetchTagValue(targetTagId).then(tagData => {
-                  console.log('Received target PV data:', tagData);
-                  if (tagData && typeof tagData.value === 'number') {
-                    return {
-                      value: tagData.value,
-                      timestamp: tagData.timestamp || Date.now()
-                    };
-                  }
-                  return null;
-                }).catch(error => {
-                  console.error('Error fetching target PV data:', error);
-                  return null;
-                });
-                
-                // Fetch target trend data
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=8`, {
-                  headers: { 'Accept': 'application/json' },
-                  cache: 'no-store'
-                })
-                .then(async response => {
-                  if (response.ok) {
-                    const data = await response.json();
-                    console.log('Received target trend data:', data);
-                    return data;
-                  } else {
-                    console.warn(`Failed to fetch target trend data: ${response.statusText}`);
-                    return { timestamps: [], values: [] };
-                  }
-                })
-                .catch(error => {
-                  console.error('Error fetching target trend data:', error);
+            // Fetch the target PV value for the current model target
+          let targetPromise = null;
+          let targetTrendPromise = null;
+          if (modelTarget) {  // Changed from modelTarget === 'PSI80'
+            const targetTagId = getTagId(modelTarget, currentMill);  // Use modelTarget instead of hardcoded 'PSI80'
+            if (targetTagId) {
+              console.log(`Fetching target PV data for ${modelTarget} -> tag ID ${targetTagId}`);
+              
+              // Fetch current target value
+              targetPromise = fetchTagValue(targetTagId).then(tagData => {
+                console.log(`Received target PV data for ${modelTarget}:`, tagData);
+                if (tagData && typeof tagData.value === 'number') {
+                  return {
+                    value: tagData.value,
+                    timestamp: tagData.timestamp || Date.now()
+                  };
+                }
+                return null;
+              }).catch(error => {
+                console.error(`Error fetching target PV data for ${modelTarget}:`, error);
+                return null;
+              });
+              
+              // Fetch target trend data
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+              targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=8`, {
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-store'
+              })
+              .then(async response => {
+                if (response.ok) {
+                  const data = await response.json();
+                  console.log(`Received target trend data for ${modelTarget}:`, data);
+                  return data;
+                } else {
+                  console.warn(`Failed to fetch target trend data for ${modelTarget}: ${response.statusText}`);
                   return { timestamps: [], values: [] };
-                });
-              }
+                }
+              })
+              .catch(error => {
+                console.error(`Error fetching target trend data for ${modelTarget}:`, error);
+                return { timestamps: [], values: [] };
+              });
+            } else {
+              console.warn(`Could not find tag ID for target ${modelTarget} and mill ${currentMill}`);
             }
+          }
 
             // Wait for all promises to resolve
             const [featureResults, targetResult, targetTrendData] = await Promise.all([
