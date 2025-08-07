@@ -43,14 +43,20 @@ export function TargetFractionDisplay({
     return value?.toFixed(2) || 'N/A'
   }
 
-  // Format data for chart
-  const chartData = targetData.map((item) => ({
-    time: item.timestamp,
-    value: item.value,
-    target: item.target,
-    pv: item.pv,
-    sp: item.sp !== undefined ? item.sp : null
-  })).sort((a, b) => a.time - b.time) // Ensure data is sorted by time
+  // Format data for chart - show only last hour of data
+  const oneHourAgo = Date.now() - 60 * 60 * 1000; // 1 hour in milliseconds
+  
+  const chartData = targetData
+    .filter(item => item.timestamp >= oneHourAgo) // Only keep data from the last hour
+    .map((item) => ({
+      time: item.timestamp,
+      value: item.value,
+      target: item.target,
+      pv: item.pv,
+      // For the first data point, ensure SP overlaps with PV if SP is not set
+      sp: item.sp !== undefined ? item.sp : (targetData.length === 1 ? item.pv : null)
+    }))
+    .sort((a, b) => a.time - b.time); // Ensure data is sorted by time
 
   return (
     <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm overflow-hidden">

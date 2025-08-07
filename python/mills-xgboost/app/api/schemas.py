@@ -18,6 +18,8 @@ class TrainingParameters(BaseModel):
     subsample: float = 0.8
     colsample_bytree: float = 0.8
     early_stopping_rounds: int = 30
+    reg_alpha: float = 0.1
+    reg_lambda: float = 1.0
     objective: str = "reg:squarederror"
 
 class TrainingRequest(BaseModel):

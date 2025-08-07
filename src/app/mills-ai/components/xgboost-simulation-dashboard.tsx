@@ -93,6 +93,20 @@ export default function XgboostSimulationDashboard() {
     }
   }, [models, setAvailableModels]);
   
+  // Fetch real-time data when component mounts or model changes
+  useEffect(() => {
+    // Initial data fetch
+    fetchRealTimeData();
+    
+    // Set up real-time updates
+    startRealTimeUpdates();
+    
+    // Clean up on unmount
+    return () => {
+      stopRealTimeUpdates();
+    };
+  }, [modelName]); // Re-run when model changes
+
   // Debounced prediction effect for slider changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {

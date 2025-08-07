@@ -57,7 +57,7 @@ interface XgboostState {
   setSimulationMode: (isSimulation: boolean) => void
   setPredictedTarget: (target: number) => void
   addTargetDataPoint: (dataPoint: Omit<TargetData, 'pv'>) => void
-  setModelName: (name: string) => void
+  setModelName: (name: string) => Promise<void>
   setAvailableModels: (models: string[]) => void
   setModelMetadata: (features: string[], target: string, lastTrained: string | null) => void
   startSimulation: () => void
@@ -133,12 +133,12 @@ const initialBounds: ParameterBounds = {
   PressureHC: [0.25, 0.55],
   DensityHC: [1500, 1900],
   MotorAmp: [160, 240],
-  Shisti: [0.05, 0.3],
-  Daiki: [0.1, 0.4],
-  PumpRPM: [800, 1200],   // Typical pump RPM range for industrial applications
-  Grano: [0.5, 5.0],      // Granularity measurement in mm
-  Class_12: [1, 20],     // Percentage range for Class_12
-  Class_15: [1, 20]      // Percentage range for Class_15 (same as Class_12)
+  Shisti: [0, 35],
+  Daiki: [10, 60],
+  PumpRPM: [700, 1200],   // Typical pump RPM range for industrial applications
+  Grano: [30, 80],      // Granularity measurement in mm
+  Class_12: [4, 15],     // Percentage range for Class_12
+  Class_15: [0.5, 2.5]      // Percentage range for Class_15 (same as Class_12)
 }
 
 // Utility function to get tag ID from mills tags
@@ -228,7 +228,7 @@ export const useXgboostStore = create<XgboostState>()(
             id: "Shisti",
             name: "Shisti",
             unit: "%",
-            value: 0.2,
+            value: 5,
             trend: [],
             color: parameterColors.Shisti,
             icon: parameterIcons.Shisti,
@@ -237,7 +237,7 @@ export const useXgboostStore = create<XgboostState>()(
             id: "Daiki",
             name: "Daiki",
             unit: "%",
-            value: 0.3,
+            value: 30,
             trend: [],
             color: parameterColors.Daiki,
             icon: parameterIcons.Daiki,
@@ -278,6 +278,11 @@ export const useXgboostStore = create<XgboostState>()(
         currentMill: 8,
         dataUpdateInterval: null,
         
+        // Clear target data
+        clearTargetData: () => {
+          set({ targetData: [] });
+        },
+
         // Actions
         updateParameter: (id, value) => 
           set((state) => ({
@@ -325,15 +330,12 @@ export const useXgboostStore = create<XgboostState>()(
         
         updateSimulatedPV: () =>
           set((state) => {
-            // Generate simulated PV value (real-time updates are always active)
-            // Generate a simulated PV value around 50 (with random variation)
-            const basePV = state.currentPV || 50
-            const variation = (Math.random() * 2 - 1) * 1 // Random variation between -1 and +1
-            const pv = Math.max(45, Math.min(55, basePV + variation)) // Keep between 45-55
+            // Use the current PV or default to 50
+            const pv = state.currentPV || 50;
             
             // Add to trend data
-            const timestamp = Date.now()
-            const targetValue = state.currentTarget || 50 // Use current target or default to 50
+            const timestamp = Date.now();
+            const targetValue = state.currentTarget || 50; // Use current target or default to 50
             
             return {
               currentPV: pv,
@@ -354,11 +356,57 @@ export const useXgboostStore = create<XgboostState>()(
           // Real-time updates are now always active, no state change needed
         },
           
-        setModelName: (modelName) => {
+        setModelName: async (modelName) => {
           const currentState = useXgboostStore.getState();
           if (currentState.modelName !== modelName) {
             console.log('Setting model name to:', modelName);
-            set({ modelName });
+            
+            // Completely reset the state for a clean start
+            set({ 
+              modelName,
+              targetData: [],
+              currentTarget: null,
+              currentPV: null
+            });
+            
+            try {
+              // Fetch fresh real-time data which will include historical data
+              await currentState.fetchRealTimeData();
+              
+              // After fetching data, ensure SP matches PV for initial point
+              set(state => {
+                if (state.currentPV !== null) {
+                  return { 
+                    currentTarget: state.currentPV,
+                    // Initialize targetData with the first point if it's still empty
+                    targetData: state.targetData.length === 0 ? [{
+                      timestamp: Date.now(),
+                      value: state.currentPV,
+                      target: state.currentPV,
+                      pv: state.currentPV,
+                      sp: state.currentPV
+                    }] : state.targetData
+                  };
+                }
+                return {};
+              });
+              
+            } catch (error) {
+              console.error('Error fetching real-time data after model change:', error);
+              
+              // If there's an error, set default values to prevent UI issues
+              set({
+                currentPV: 0,
+                currentTarget: 0,
+                targetData: [{
+                  timestamp: Date.now(),
+                  value: 0,
+                  target: 0,
+                  pv: 0,
+                  sp: 0
+                }]
+              });
+            }
           }
         },
           
@@ -528,15 +576,24 @@ export const useXgboostStore = create<XgboostState>()(
                 
                 // Process trend data into the format we need
                 const trend = [];
+                const oneHourAgo = Date.now() - 60 * 60 * 1000; // 1 hour in milliseconds
+                
                 if (trendData.timestamps && trendData.values && 
                     Array.isArray(trendData.timestamps) && Array.isArray(trendData.values)) {
                   for (let i = 0; i < trendData.timestamps.length; i++) {
-                    trend.push({
-                      timestamp: new Date(trendData.timestamps[i]).getTime(),
-                      value: trendData.values[i]
-                    });
+                    const timestamp = new Date(trendData.timestamps[i]).getTime();
+                    // Only include data from the last hour
+                    if (timestamp >= oneHourAgo) {
+                      trend.push({
+                        timestamp,
+                        value: trendData.values[i]
+                      });
+                    }
                   }
                 }
+                
+                // Sort trend data by timestamp to ensure proper ordering
+                trend.sort((a, b) => a.timestamp - b.timestamp);
                 
                 if (tagData && typeof tagData.value === 'number') {
                   return {
@@ -552,21 +609,20 @@ export const useXgboostStore = create<XgboostState>()(
               return null;
             });
 
-            // Also fetch the target PV value (PSI80) if it's the model target
-            // Fetch the target PV value for the current model target
-          let targetPromise = null;
-          let targetTrendPromise = null;
-          if (modelTarget) {  // Changed from modelTarget === 'PSI80'
-            const targetTagId = getTagId(modelTarget, currentMill);  // Use modelTarget instead of hardcoded 'PSI80'
-            if (targetTagId) {
-              console.log(`Fetching target PV data for ${modelTarget} -> tag ID ${targetTagId}`);
-              
-              // Fetch current target value
-              targetPromise = fetchTagValue(targetTagId).then(tagData => {
-                console.log(`Received target PV data for ${modelTarget}:`, tagData);
-                if (tagData && typeof tagData.value === 'number') {
-                  return {
-                    value: tagData.value,
+            // Also fetch the target PV value for the current model target
+            let targetPromise = null;
+            let targetTrendPromise = null;
+            if (modelTarget) {
+              const targetTagId = getTagId(modelTarget, currentMill);
+              if (targetTagId) {
+                console.log(`Fetching target PV data for ${modelTarget} -> tag ID ${targetTagId}`);
+                
+                // Fetch current target value
+                targetPromise = fetchTagValue(targetTagId).then(tagData => {
+                  console.log(`Received target PV data for ${modelTarget}:`, tagData);
+                  if (tagData && typeof tagData.value === 'number') {
+                    return {
+                      value: tagData.value,
                     timestamp: tagData.timestamp || Date.now()
                   };
                 }
@@ -576,7 +632,7 @@ export const useXgboostStore = create<XgboostState>()(
                 return null;
               });
               
-              // Fetch target trend data
+              // Fetch target trend data (only last hour)
               const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
               targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=8`, {
                 headers: { 'Accept': 'application/json' },
@@ -640,22 +696,48 @@ export const useXgboostStore = create<XgboostState>()(
               if (targetTrendData && targetTrendData.timestamps && targetTrendData.values &&
                   Array.isArray(targetTrendData.timestamps) && Array.isArray(targetTrendData.values)) {
                 
-                // Get the current target (SP) value - use the most recent prediction or current target
-                const currentTarget = state.currentTarget || 0;
-                const lastSP = state.targetData.length > 0 ? state.targetData[state.targetData.length - 1]?.sp : currentTarget;
-                const effectiveSP = (lastSP !== undefined && lastSP !== null) ? lastSP : (currentTarget || 0);
+                // For initial load, use the most recent PV value as the target
+                const initialPV = targetTrendData.values.length > 0 
+                  ? targetTrendData.values[targetTrendData.values.length - 1] 
+                  : 0;
+                  
+                // If this is the first load, set both PV and target to the same value
+                const effectiveSP = state.currentTarget !== null ? state.currentTarget : initialPV;
                 
-                // Convert API trend data to our format
-                targetTrendPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => {
+                // Convert API trend data to our format - using 8 hour window to match API call
+                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+                
+                // Process all trend points first
+                const allPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => {
+                  const ts = new Date(timestamp).getTime();
                   const value = targetTrendData.values[index];
                   return {
-                    timestamp: new Date(timestamp).getTime(),
+                    timestamp: ts,
                     value: value,
                     target: effectiveSP,  // This is the target we're trying to reach
                     pv: value,            // PV is the actual measured historical value
                     sp: effectiveSP       // SP is the predicted/desired value
-                  } as TargetData;        // Explicitly type as TargetData
+                  } as TargetData;
                 });
+                
+                // Sort all points by timestamp to ensure proper order
+                allPoints.sort((a: TargetData, b: TargetData) => a.timestamp - b.timestamp);
+                
+                // Filter to only include points from the last 8 hours
+                targetTrendPoints = allPoints.filter((point: TargetData) => point.timestamp >= eightHoursAgo);
+                
+                // If we have points but none in the 8-hour window, keep the most recent points
+                if (allPoints.length > 0 && targetTrendPoints.length === 0) {
+                  // Take the last 10 points to show some context
+                  const recentPoints = allPoints.slice(-10);
+                  // Adjust timestamps to be within the last 8 hours
+                  const timeNow = Date.now();
+                  targetTrendPoints = recentPoints.map((point: TargetData, index: number) => ({
+                    ...point,
+                    // Distribute points over the last 8 hours
+                    timestamp: timeNow - (8 * 60 - (index * 30)) * 60 * 1000
+                  }));
+                }
                 
                 console.log('Processed target trend points with SP:', effectiveSP, targetTrendPoints);
               }
@@ -702,14 +784,11 @@ export const useXgboostStore = create<XgboostState>()(
               
               console.log('Adding real-time data point:', newRealTimePoint);
               
-              // Add to timeline maintaining proper chronological order
-              set(state => ({
-                targetData: [
-                  ...targetTrendPoints, // Historical trend data
-                  ...state.targetData, // Existing data points
-                  newRealTimePoint // New real-time point
-                ].slice(-50) // Keep last 50 points for trend
-              }));
+              // Replace the entire targetData with the new historical points
+              // Don't keep old points to prevent mixing different time ranges
+              set({
+                targetData: targetTrendPoints
+              });
             }
             
           } catch (error) {
@@ -863,10 +942,11 @@ export const useXgboostStore = create<XgboostState>()(
               const isLabParameter = parameterConfig?.isLab || false;
               
               if (isLabParameter) {
-                // Lab parameters: Always use slider values
+                // Lab parameters: Always use slider values and divide by 100 for the API
                 if (updatedSliderValues[featureName] !== undefined) {
-                  predictionData[featureName] = updatedSliderValues[featureName];
-                  console.log(`🧪 ${featureName} (Lab): ${updatedSliderValues[featureName]} ✅ ADDED`);
+                  // Convert percentage to decimal for the API (e.g., 35% -> 0.35)
+                  predictionData[featureName] = updatedSliderValues[featureName] / 100;
+                  console.log(`🧪 ${featureName} (Lab): ${updatedSliderValues[featureName]}% -> ${predictionData[featureName]} (converted to decimal) ✅ ADDED`);
                 } else {
                   console.warn(`⚠️ Missing slider value for lab parameter: ${featureName}`);
                 }

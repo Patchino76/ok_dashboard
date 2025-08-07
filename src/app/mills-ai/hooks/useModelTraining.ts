@@ -22,6 +22,8 @@ export interface TrainModelRequest {
     max_depth: number;
     subsample: number;
     colsample_bytree: number;
+    reg_alpha: number;
+    reg_lambda: number;
     early_stopping_rounds: number;
     objective: string;
   };
@@ -60,11 +62,13 @@ const DEFAULT_DB_CONFIG = {
 };
 
 const DEFAULT_PARAMS = {
-  n_estimators: 300,
+  n_estimators: 50,
   learning_rate: 0.05,
-  max_depth: 6,
+  max_depth: 3,
   subsample: 0.8,
   colsample_bytree: 0.8,
+  reg_alpha: 0.1,            // Add L1 regularization
+  reg_lambda: 1.0,           // Add L2 regularization
   early_stopping_rounds: 30,
   objective: "reg:squarederror"
 };
