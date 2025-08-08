@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -61,33 +61,92 @@ export function TargetFractionDisplay({
     }))
     .sort((a, b) => a.time - b.time); // Ensure data is sorted by time
 
-  // Compute adaptive gauge bounds from visible data to make differences more distinguishable
-  const visibleValues: number[] = [];
-  for (const d of chartData) {
-    if (typeof d.pv === 'number') visibleValues.push(d.pv);
-    if (typeof d.sp === 'number') visibleValues.push(d.sp as number);
-  }
-  // Also include current single values if chart window is empty
-  if (typeof currentPV === 'number') visibleValues.push(currentPV);
-  if (typeof currentTarget === 'number') visibleValues.push(currentTarget);
+  // Robust, dynamic gauge bounds with hysteresis
+  // Do not clamp to 0–100; allow the scale to expand beyond if data requires it
+  const domainMin = -Infinity;
+  const domainMax = Infinity;
+  const minSpanAbs = 2; // enforce at least 2 percentage points of span
+  const changeThreshold = 0.25; // >25% change in range triggers rescale
+  const edgeMarginFrac = 0.1; // if values are within 10% of edges, expand
 
-  const rawMin = visibleValues.length ? Math.min(...visibleValues) : 0;
-  const rawMax = visibleValues.length ? Math.max(...visibleValues) : 100;
-  const baseRange = Math.max(rawMax - rawMin, 1); // avoid zero-range
-  const pad = Math.max(0.5, baseRange * 0.1); // 10% padding or at least 0.5%
-  let lowerBound = Math.max(0, rawMin - pad);
-  let upperBound = Math.min(100, rawMax + pad);
-  if (upperBound - lowerBound < 3) {
-    // enforce a minimum span to avoid identical bars
-    const center = (rawMin + rawMax) / 2;
-    lowerBound = Math.max(0, center - 1.5);
-    upperBound = Math.min(100, center + 1.5);
-  }
+  const windowValues = useMemo(() => {
+    // Use retained historical data (store already prunes to retention window)
+    const vals: number[] = [];
+    for (const d of targetData) {
+      if (typeof d.pv === 'number' && isFinite(d.pv)) vals.push(d.pv);
+      if (typeof d.sp === 'number' && isFinite(d.sp as number)) vals.push(d.sp as number);
+    }
+    if (typeof currentPV === 'number' && isFinite(currentPV)) vals.push(currentPV);
+    if (typeof currentTarget === 'number' && isFinite(currentTarget)) vals.push(currentTarget);
+    return vals;
+  }, [targetData, currentPV, currentTarget]);
+
+  const quantile = (sorted: number[], q: number) => {
+    if (!sorted.length) return NaN;
+    const pos = (sorted.length - 1) * q;
+    const base = Math.floor(pos);
+    const rest = pos - base;
+    if (sorted[base + 1] !== undefined) {
+      return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+    } else {
+      return sorted[base];
+    }
+  };
+
+  const boundsRef = useRef<{ min: number; max: number }>({ min: 0, max: 100 });
+  const [scaleMin, setScaleMin] = useState<number>(0);
+  const [scaleMax, setScaleMax] = useState<number>(100);
+
+  useEffect(() => {
+    const vals = windowValues.slice().sort((a, b) => a - b);
+    let baselineMin = vals.length ? quantile(vals, 0.05) : domainMin;
+    let baselineMax = vals.length ? quantile(vals, 0.95) : domainMax;
+
+    // Ensure current values are included in the range
+    if (typeof currentPV === 'number') {
+      baselineMin = Math.min(baselineMin, currentPV);
+      baselineMax = Math.max(baselineMax, currentPV);
+    }
+    if (typeof currentTarget === 'number') {
+      baselineMin = Math.min(baselineMin, currentTarget);
+      baselineMax = Math.max(baselineMax, currentTarget);
+    }
+
+    const range = Math.max(baselineMax - baselineMin, 0.001);
+    const pad = Math.max(0.5, range * 0.1);
+    let proposedMin = baselineMin - pad;
+    let proposedMax = baselineMax + pad;
+
+    // Enforce a minimum span
+    if (proposedMax - proposedMin < minSpanAbs) {
+      const center = (baselineMin + baselineMax) / 2;
+      proposedMin = center - minSpanAbs / 2;
+      proposedMax = center + minSpanAbs / 2;
+    }
+
+    // Hysteresis: only update if necessary
+    const curr = boundsRef.current;
+    const currRange = Math.max(curr.max - curr.min, 0.001);
+    const propRange = Math.max(proposedMax - proposedMin, 0.001);
+    const outOfRange = [currentPV, currentTarget].some(
+      (v) => typeof v === 'number' && (v < curr.min || v > curr.max)
+    );
+    const nearEdge = [currentPV, currentTarget].some(
+      (v) => typeof v === 'number' && (v - curr.min < currRange * edgeMarginFrac || curr.max - v < currRange * edgeMarginFrac)
+    );
+    const rangeChanged = propRange > currRange * (1 + changeThreshold) || propRange < currRange * (1 - changeThreshold);
+
+    if (outOfRange || nearEdge || rangeChanged || (curr.min === domainMin && curr.max === domainMax)) {
+      boundsRef.current = { min: proposedMin, max: proposedMax };
+      setScaleMin(proposedMin);
+      setScaleMax(proposedMax);
+    }
+  }, [windowValues, currentPV, currentTarget, hours]);
 
   const toPercent = (v?: number | null) => {
     if (typeof v !== 'number') return 0;
-    if (upperBound === lowerBound) return 0;
-    const pct = ((v - lowerBound) / (upperBound - lowerBound)) * 100;
+    if (!Number.isFinite(scaleMin) || !Number.isFinite(scaleMax) || scaleMax <= scaleMin) return 0;
+    const pct = ((v - scaleMin) / (scaleMax - scaleMin)) * 100;
     return Math.max(0, Math.min(100, pct));
   };
 
@@ -141,8 +200,8 @@ export function TargetFractionDisplay({
                       />
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
-                      <span>{lowerBound.toFixed(1)}%</span>
-                      <span>{upperBound.toFixed(1)}%</span>
+                      <span>{Number.isFinite(scaleMin) ? scaleMin.toFixed(1) : '—'}%</span>
+                      <span>{Number.isFinite(scaleMax) ? scaleMax.toFixed(1) : '—'}%</span>
                     </div>
                   </div>
                 </div>
@@ -168,8 +227,8 @@ export function TargetFractionDisplay({
                       />
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
-                      <span>{lowerBound.toFixed(1)}%</span>
-                      <span>{upperBound.toFixed(1)}%</span>
+                      <span>{Number.isFinite(scaleMin) ? scaleMin.toFixed(1) : '—'}%</span>
+                      <span>{Number.isFinite(scaleMax) ? scaleMax.toFixed(1) : '—'}%</span>
                     </div>
                   </div>
                 </div>
