@@ -581,7 +581,7 @@ export const useXgboostStore = create<XgboostState>()(
                 }
                 
                 // Process trend data into the format we need
-                const trend = [];
+                const trend: Array<{ timestamp: number; value: number }> = [];
                 const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
                 
                 if (trendData.timestamps && trendData.values && 
@@ -763,6 +763,11 @@ export const useXgboostStore = create<XgboostState>()(
                 }
                 
                 console.log('Processed target trend points with SP:', effectiveSP, targetTrendPoints);
+              }
+
+              // Seed targetData with 8h historical series so the chart shows history immediately
+              if (shouldFetchTrends && targetTrendPoints.length > 0) {
+                set({ targetData: targetTrendPoints });
               }
               
               // Update current PV with the latest value
