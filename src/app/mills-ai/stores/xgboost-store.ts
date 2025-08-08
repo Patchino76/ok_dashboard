@@ -142,6 +142,10 @@ const initialBounds: ParameterBounds = {
   Class_15: [0.5, 2.5]      // Percentage range for Class_15 (same as Class_12)
 }
 
+// Retain up to this many hours of history in memory for trends/targetData.
+// UI components can display any window within this retention (e.g., 2h, 8h, 24h, 72h)
+const TREND_RETENTION_HOURS = 72;
+
 // Utility function to get tag ID from mills tags
 const getTagId = (targetKey: string, millNumber: number): number | null => {
   // Check if the targetKey exists in millsTags
@@ -326,11 +330,11 @@ export const useXgboostStore = create<XgboostState>()(
             // Update current PV
             return {
               currentPV: pv,
-              // Keep only points from the last 8 hours
+              // Keep only points from the last TREND_RETENTION_HOURS
               targetData: (() => {
-                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000;
                 const next = [...state.targetData, { ...dataPoint, pv }];
-                return next.filter(p => p.timestamp >= eightHoursAgo);
+                return next.filter(p => p.timestamp >= retentionAgo);
               })()
             }
           }),
@@ -346,16 +350,16 @@ export const useXgboostStore = create<XgboostState>()(
             
             return {
               currentPV: pv,
-              // Keep only points from the last 8 hours
+              // Keep only points from the last TREND_RETENTION_HOURS
               targetData: (() => {
-                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000;
                 const next = [...state.targetData, {
                   timestamp,
                   value: targetValue,
                   target: targetValue,
                   pv
                 }];
-                return next.filter(p => p.timestamp >= eightHoursAgo);
+                return next.filter(p => p.timestamp >= retentionAgo);
               })()
             }
           }),
@@ -564,11 +568,11 @@ export const useXgboostStore = create<XgboostState>()(
                 const tagData = await fetchTagValue(tagId);
                 console.log(`Received data for ${featureName}:`, tagData);
                 
-                // Optionally fetch 8h trend data on first load only
+                // Optionally fetch trend data on first load only (retention window)
                 let trendData = { timestamps: [], values: [] } as any;
                 if (shouldFetchTrends) {
                   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                  const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=8`, {
+                  const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=${TREND_RETENTION_HOURS}` , {
                     headers: { 'Accept': 'application/json' },
                     cache: 'no-store'
                   });
@@ -582,14 +586,14 @@ export const useXgboostStore = create<XgboostState>()(
                 
                 // Process trend data into the format we need
                 const trend: Array<{ timestamp: number; value: number }> = [];
-                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000; // retention window in ms
                 
                 if (trendData.timestamps && trendData.values && 
                     Array.isArray(trendData.timestamps) && Array.isArray(trendData.values)) {
                   for (let i = 0; i < trendData.timestamps.length; i++) {
                     const timestamp = new Date(trendData.timestamps[i]).getTime();
-                    // Only include data from the last 8 hours
-                    if (timestamp >= eightHoursAgo) {
+                    // Only include data from the retention window
+                    if (timestamp >= retentionAgo) {
                       trend.push({
                         timestamp,
                         value: trendData.values[i]
@@ -642,10 +646,10 @@ export const useXgboostStore = create<XgboostState>()(
                 return null;
               });
               
-              // Fetch target trend data (8 hours) only if needed
+              // Fetch target trend data (retention window) only if needed
               if (shouldFetchTrends) {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=8`, {
+                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=${TREND_RETENTION_HOURS}`, {
                   headers: { 'Accept': 'application/json' },
                   cache: 'no-store'
                 })
@@ -727,38 +731,40 @@ export const useXgboostStore = create<XgboostState>()(
                 // If this is the first load, set both PV and target to the same value
                 const effectiveSP = state.currentTarget !== null ? state.currentTarget : initialPV;
                 
-                // Convert API trend data to our format - using 8 hour window to match API call
-                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+                // Convert API trend data to our format - using retention window to match API call
+                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000; // in milliseconds
                 
                 // Process all trend points first
                 const allPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => {
                   const ts = new Date(timestamp).getTime();
                   const value = targetTrendData.values[index];
+                  // Initialize SP trend equal to PV trend so both lines overlap initially
                   return {
                     timestamp: ts,
                     value: value,
-                    target: effectiveSP,  // This is the target we're trying to reach
-                    pv: value,            // PV is the actual measured historical value
-                    sp: effectiveSP       // SP is the predicted/desired value
+                    target: value,  // initialize same as PV for historical window
+                    pv: value,      // PV is the actual measured historical value
+                    sp: value       // SP initialized to PV; predictions will diverge it later
                   } as TargetData;
                 });
                 
                 // Sort all points by timestamp to ensure proper order
                 allPoints.sort((a: TargetData, b: TargetData) => a.timestamp - b.timestamp);
                 
-                // Filter to only include points from the last 8 hours
-                targetTrendPoints = allPoints.filter((point: TargetData) => point.timestamp >= eightHoursAgo);
+                // Filter to only include points from the retention window
+                targetTrendPoints = allPoints.filter((point: TargetData) => point.timestamp >= retentionAgo);
                 
-                // If we have points but none in the 8-hour window, keep the most recent points
+                // If we have points but none in the retention window, keep the most recent points
                 if (allPoints.length > 0 && targetTrendPoints.length === 0) {
                   // Take the last 10 points to show some context
                   const recentPoints = allPoints.slice(-10);
-                  // Adjust timestamps to be within the last 8 hours
+                  // Adjust timestamps to be within the retention window
                   const timeNow = Date.now();
+                  const spacingMinutes = (TREND_RETENTION_HOURS * 60) / Math.max(recentPoints.length, 1);
                   targetTrendPoints = recentPoints.map((point: TargetData, index: number) => ({
                     ...point,
-                    // Distribute points over the last 8 hours
-                    timestamp: timeNow - (8 * 60 - (index * 30)) * 60 * 1000
+                    // Distribute points evenly over the retention window
+                    timestamp: timeNow - Math.round((TREND_RETENTION_HOURS * 60 - index * spacingMinutes) * 60 * 1000)
                   }));
                 }
                 
@@ -793,14 +799,19 @@ export const useXgboostStore = create<XgboostState>()(
               console.log('Normalized timestamp:', normalizedTimestamp, '→', new Date(normalizedTimestamp).toLocaleString());
               console.log('Target result value (PV):', targetResult.value);
               console.log('Current target (for SP):', state.currentTarget);
-              
-              // Get the most recent SP value or use current target as fallback
-              const lastDataPoint = state.targetData[state.targetData.length - 1];
-              const lastSP = lastDataPoint?.sp;
-              const currentSP = state.currentTarget || 0;
-              
-              // Use last SP if available, otherwise use current target (ensure it's a number)
-              const effectiveSP = (lastSP !== undefined && lastSP !== null) ? lastSP : (currentSP || 0);
+
+              // Re-read latest state after seeding to avoid stale reference
+              const currentStateForRT = useXgboostStore.getState();
+              // Get the most recent SP value or sensible fallback to avoid spikes
+              const lastDataPoint = currentStateForRT.targetData[currentStateForRT.targetData.length - 1];
+              const lastSP = (lastDataPoint?.sp ?? lastDataPoint?.pv);
+              const currentSP = currentStateForRT.currentTarget;
+
+              // Prefer last seeded SP, then current target, then current PV
+              const effectiveSP =
+                (typeof lastSP === 'number' && Number.isFinite(lastSP)) ? lastSP :
+                (typeof currentSP === 'number' && Number.isFinite(currentSP)) ? currentSP :
+                targetResult.value;
               
               console.log('Current PV:', targetResult.value, 'Effective SP:', effectiveSP);
               
@@ -816,9 +827,9 @@ export const useXgboostStore = create<XgboostState>()(
               console.log('Adding real-time data point:', newRealTimePoint);
               
               // Merge: initialize with historical points only once, then append new real-time point
-              // Always prune to last 8 hours to keep a consistent time window
+              // Always prune to last TREND_RETENTION_HOURS to keep a consistent retention window
               set(state => {
-                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000;
                 // If targetData is empty and we have historical points, seed with them
                 let next = state.targetData.length === 0 && targetTrendPoints.length > 0
                   ? targetTrendPoints
@@ -837,8 +848,8 @@ export const useXgboostStore = create<XgboostState>()(
                     deduped.push(p);
                   }
                 }
-                // Prune to last 8 hours
-                const pruned = deduped.filter(p => p.timestamp >= eightHoursAgo);
+                // Prune to retention window
+                const pruned = deduped.filter(p => p.timestamp >= retentionAgo);
                 return { targetData: pruned };
               });
             }
@@ -1079,12 +1090,12 @@ export const useXgboostStore = create<XgboostState>()(
               console.log('Adding prediction data point:', newPredictionPoint);
               
               set(state => {
-                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000;
                 const merged = [
                   ...state.targetData,
                   newPredictionPoint
                 ];
-                const pruned = merged.filter(p => p.timestamp >= eightHoursAgo);
+                const pruned = merged.filter(p => p.timestamp >= retentionAgo);
                 return { targetData: pruned };
               });
             } else {

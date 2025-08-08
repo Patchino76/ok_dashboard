@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { CheckCircle, AlertTriangle, Target, TrendingUp } from "lucide-react"
 
@@ -30,10 +31,12 @@ export function TargetFractionDisplay({
   targetData,
   isOptimizing,
   isSimulationMode = false,
-  modelName,
-  targetVariable,
+  // modelName and targetVariable are intentionally not destructured to avoid unused vars
 }: TargetFractionDisplayProps) {
   
+  // Time range selection (in hours). Default: 8h
+  const [hours, setHours] = useState<number>(8)
+
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
     return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
@@ -43,11 +46,11 @@ export function TargetFractionDisplay({
     return value?.toFixed(2) || 'N/A'
   }
 
-  // Format data for chart - show only last 8 hours of data
-  const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+  // Format data for chart - show only last selected hours of data
+  const hoursAgo = Date.now() - hours * 60 * 60 * 1000; // adjustable window
   
   const chartData = targetData
-    .filter(item => item.timestamp >= eightHoursAgo) // Only keep data from the last 8 hours
+    .filter(item => item.timestamp >= hoursAgo) // Only keep data from the selected window
     .map((item) => ({
       time: item.timestamp,
       value: item.value,
@@ -57,6 +60,39 @@ export function TargetFractionDisplay({
       sp: item.sp !== undefined ? item.sp : (targetData.length === 1 ? item.pv : null)
     }))
     .sort((a, b) => a.time - b.time); // Ensure data is sorted by time
+
+  // Compute adaptive gauge bounds from visible data to make differences more distinguishable
+  const visibleValues: number[] = [];
+  for (const d of chartData) {
+    if (typeof d.pv === 'number') visibleValues.push(d.pv);
+    if (typeof d.sp === 'number') visibleValues.push(d.sp as number);
+  }
+  // Also include current single values if chart window is empty
+  if (typeof currentPV === 'number') visibleValues.push(currentPV);
+  if (typeof currentTarget === 'number') visibleValues.push(currentTarget);
+
+  const rawMin = visibleValues.length ? Math.min(...visibleValues) : 0;
+  const rawMax = visibleValues.length ? Math.max(...visibleValues) : 100;
+  const baseRange = Math.max(rawMax - rawMin, 1); // avoid zero-range
+  const pad = Math.max(0.5, baseRange * 0.1); // 10% padding or at least 0.5%
+  let lowerBound = Math.max(0, rawMin - pad);
+  let upperBound = Math.min(100, rawMax + pad);
+  if (upperBound - lowerBound < 3) {
+    // enforce a minimum span to avoid identical bars
+    const center = (rawMin + rawMax) / 2;
+    lowerBound = Math.max(0, center - 1.5);
+    upperBound = Math.min(100, center + 1.5);
+  }
+
+  const toPercent = (v?: number | null) => {
+    if (typeof v !== 'number') return 0;
+    if (upperBound === lowerBound) return 0;
+    const pct = ((v - lowerBound) / (upperBound - lowerBound)) * 100;
+    return Math.max(0, Math.min(100, pct));
+  };
+
+  const pvPercent = toPercent(currentPV);
+  const spPercent = toPercent(currentTarget);
 
   return (
     <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm overflow-hidden">
@@ -96,6 +132,19 @@ export function TargetFractionDisplay({
                   <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                     Current measured PSI80 value
                   </div>
+                  {/* PV horizontal gauge */}
+                  <div className="mt-2">
+                    <div className="relative h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700">
+                      <div
+                        className="absolute left-0 top-0 h-full rounded-full bg-emerald-500"
+                        style={{ width: `${pvPercent}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>{lowerBound.toFixed(1)}%</span>
+                      <span>{upperBound.toFixed(1)}%</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Current Target/Setpoint (SP) */}
@@ -110,19 +159,23 @@ export function TargetFractionDisplay({
                   <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                     {isSimulationMode ? 'Simulation-predicted target value' : 'AI-predicted optimal target value'}
                   </div>
+                  {/* SP horizontal gauge */}
+                  <div className="mt-2">
+                    <div className="relative h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700">
+                      <div
+                        className={`absolute left-0 top-0 h-full rounded-full ${isSimulationMode ? 'bg-red-500' : 'bg-blue-500'}`}
+                        style={{ width: `${spPercent}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>{lowerBound.toFixed(1)}%</span>
+                      <span>{upperBound.toFixed(1)}%</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-
-              <div>
-                <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Model</div>
-                <div className="mt-1 flex items-end">
-                  <span className="text-lg font-medium text-green-600">{modelName || 'N/A'}</span>
-                </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                  Target variable: {targetVariable || 'N/A'}
-                </div>
-              </div>
+              {/* Removed model and target variable section for a cleaner comparison layout */}
             </div>
           </div>
 
@@ -142,6 +195,42 @@ export function TargetFractionDisplay({
                   <div className="flex items-center gap-1">
                     <div className={`w-3 h-3 rounded-full ${isSimulationMode ? 'bg-red-500' : 'bg-blue-500'}`}></div>
                     <span>Setpoint (SP) {isSimulationMode ? '(Simulation)' : '(Real-time)'}</span>
+                  </div>
+                  {/* Time range selector */}
+                  <div className="hidden sm:flex items-center gap-1 ml-4">
+                    <span className="text-slate-500 mr-1">Last:</span>
+                    <Button
+                      size="sm"
+                      variant={hours === 2 ? "default" : "outline"}
+                      className="px-2"
+                      onClick={() => setHours(2)}
+                    >
+                      2h
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={hours === 8 ? "default" : "outline"}
+                      className="px-2"
+                      onClick={() => setHours(8)}
+                    >
+                      8h
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={hours === 24 ? "default" : "outline"}
+                      className="px-2"
+                      onClick={() => setHours(24)}
+                    >
+                      24h
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={hours === 72 ? "default" : "outline"}
+                      className="px-2"
+                      onClick={() => setHours(72)}
+                    >
+                      72h
+                    </Button>
                   </div>
                 </div>
               </div>
