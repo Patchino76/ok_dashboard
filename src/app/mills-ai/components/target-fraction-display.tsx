@@ -43,11 +43,11 @@ export function TargetFractionDisplay({
     return value?.toFixed(2) || 'N/A'
   }
 
-  // Format data for chart - show only last hour of data
-  const oneHourAgo = Date.now() - 60 * 60 * 1000; // 1 hour in milliseconds
+  // Format data for chart - show only last 8 hours of data
+  const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
   
   const chartData = targetData
-    .filter(item => item.timestamp >= oneHourAgo) // Only keep data from the last hour
+    .filter(item => item.timestamp >= eightHoursAgo) // Only keep data from the last 8 hours
     .map((item) => ({
       time: item.timestamp,
       value: item.value,

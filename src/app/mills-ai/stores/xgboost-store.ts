@@ -51,6 +51,7 @@ interface XgboostState {
   lastTrained: string | null
   currentMill: number
   dataUpdateInterval: NodeJS.Timeout | null
+  isFetching: boolean
   resetSliders: boolean
   updateParameter: (id: string, value: number) => void
   updateSliderValue: (id: string, value: number) => void
@@ -277,6 +278,7 @@ export const useXgboostStore = create<XgboostState>()(
         // Real-time data settings
         currentMill: 8,
         dataUpdateInterval: null,
+        isFetching: false,
         
         // Clear target data
         clearTargetData: () => {
@@ -324,7 +326,12 @@ export const useXgboostStore = create<XgboostState>()(
             // Update current PV
             return {
               currentPV: pv,
-              targetData: [...state.targetData, { ...dataPoint, pv }].slice(-50) // Keep last 50 points
+              // Keep only points from the last 8 hours
+              targetData: (() => {
+                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                const next = [...state.targetData, { ...dataPoint, pv }];
+                return next.filter(p => p.timestamp >= eightHoursAgo);
+              })()
             }
           }),
         
@@ -339,12 +346,17 @@ export const useXgboostStore = create<XgboostState>()(
             
             return {
               currentPV: pv,
-              targetData: [...state.targetData, { 
-                timestamp, 
-                value: targetValue, 
-                target: targetValue,
-                pv
-              }].slice(-50) // Keep last 50 points
+              // Keep only points from the last 8 hours
+              targetData: (() => {
+                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                const next = [...state.targetData, {
+                  timestamp,
+                  value: targetValue,
+                  target: targetValue,
+                  pv
+                }];
+                return next.filter(p => p.timestamp >= eightHoursAgo);
+              })()
             }
           }),
         
@@ -361,52 +373,26 @@ export const useXgboostStore = create<XgboostState>()(
           if (currentState.modelName !== modelName) {
             console.log('Setting model name to:', modelName);
             
-            // Completely reset the state for a clean start
+            // Stop any existing real-time update interval to prevent stale fetches
+            try {
+              currentState.stopRealTimeUpdates();
+            } catch (e) {
+              console.warn('stopRealTimeUpdates raised an error (safe to ignore):', e);
+            }
+
+            // Reset state and clear metadata so no fetch will run with stale model info
             set({ 
               modelName,
               targetData: [],
               currentTarget: null,
-              currentPV: null
+              currentPV: null,
+              modelFeatures: null,
+              modelTarget: null,
+              lastTrained: null
             });
-            
-            try {
-              // Fetch fresh real-time data which will include historical data
-              await currentState.fetchRealTimeData();
-              
-              // After fetching data, ensure SP matches PV for initial point
-              set(state => {
-                if (state.currentPV !== null) {
-                  return { 
-                    currentTarget: state.currentPV,
-                    // Initialize targetData with the first point if it's still empty
-                    targetData: state.targetData.length === 0 ? [{
-                      timestamp: Date.now(),
-                      value: state.currentPV,
-                      target: state.currentPV,
-                      pv: state.currentPV,
-                      sp: state.currentPV
-                    }] : state.targetData
-                  };
-                }
-                return {};
-              });
-              
-            } catch (error) {
-              console.error('Error fetching real-time data after model change:', error);
-              
-              // If there's an error, set default values to prevent UI issues
-              set({
-                currentPV: 0,
-                currentTarget: 0,
-                targetData: [{
-                  timestamp: Date.now(),
-                  value: 0,
-                  target: 0,
-                  pv: 0,
-                  sp: 0
-                }]
-              });
-            }
+
+            // Do NOT fetch here. Dashboard will call setModelMetadata() and then
+            // startRealTimeUpdates(), which performs an immediate fetch with correct metadata.
           }
         },
           
@@ -489,8 +475,15 @@ export const useXgboostStore = create<XgboostState>()(
         
         fetchRealTimeData: async () => {
           console.log('📊 fetchRealTimeData called');
-          const state = useXgboostStore.getState();
-          const { modelFeatures, modelTarget, currentMill } = state;
+          const stateAtStart = useXgboostStore.getState();
+          // Prevent concurrent fetches to avoid duplicate API calls
+          if (stateAtStart.isFetching) {
+            console.log('⏭️ Skipping fetchRealTimeData: already fetching');
+            return;
+          }
+          set({ isFetching: true });
+          const requestModelName = stateAtStart.modelName;
+          const { modelFeatures, modelTarget, currentMill } = stateAtStart;
           
           console.log('State check:', {
             modelFeatures,
@@ -505,6 +498,10 @@ export const useXgboostStore = create<XgboostState>()(
             console.warn('Current modelFeatures:', modelFeatures);
             return;
           }
+          if (!modelTarget) {
+            console.warn('❌ No model target available for real-time data fetch');
+            return;
+          }
 
           console.log('✅ Fetching real-time data for features:', modelFeatures);
           console.log('Model target:', modelTarget);
@@ -512,6 +509,14 @@ export const useXgboostStore = create<XgboostState>()(
           console.log('Available millsTags keys:', Object.keys(millsTags));
 
           try {
+            // Decide whether to fetch historical trends (only on initial load or after model change)
+            const shouldFetchTrends = (() => {
+              const s = useXgboostStore.getState();
+              const anyParamMissingTrend = s.parameters.some(p => p.trend.length === 0);
+              const noTargetTrend = s.targetData.length === 0;
+              return anyParamMissingTrend || noTargetTrend;
+            })();
+            console.log('shouldFetchTrends:', shouldFetchTrends);
             // Create a mapping from model feature names to mills tags keys
             // Handle both uppercase and lowercase variations
             const featureMapping: Record<string, string> = {
@@ -559,31 +564,32 @@ export const useXgboostStore = create<XgboostState>()(
                 const tagData = await fetchTagValue(tagId);
                 console.log(`Received data for ${featureName}:`, tagData);
                 
-                // Fetch trend data for this feature
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=8`, {
-                  headers: { 'Accept': 'application/json' },
-                  cache: 'no-store'
-                });
-                
-                let trendData = { timestamps: [], values: [] };
-                if (trendResponse.ok) {
-                  trendData = await trendResponse.json();
-                  console.log(`Received trend data for ${featureName}:`, trendData);
-                } else {
-                  console.warn(`Failed to fetch trend data for ${featureName}: ${trendResponse.statusText}`);
+                // Optionally fetch 8h trend data on first load only
+                let trendData = { timestamps: [], values: [] } as any;
+                if (shouldFetchTrends) {
+                  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                  const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=8`, {
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                  });
+                  if (trendResponse.ok) {
+                    trendData = await trendResponse.json();
+                    console.log(`Received trend data for ${featureName}:`, trendData);
+                  } else {
+                    console.warn(`Failed to fetch trend data for ${featureName}: ${trendResponse.statusText}`);
+                  }
                 }
                 
                 // Process trend data into the format we need
                 const trend = [];
-                const oneHourAgo = Date.now() - 60 * 60 * 1000; // 1 hour in milliseconds
+                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000; // 8 hours in milliseconds
                 
                 if (trendData.timestamps && trendData.values && 
                     Array.isArray(trendData.timestamps) && Array.isArray(trendData.values)) {
                   for (let i = 0; i < trendData.timestamps.length; i++) {
                     const timestamp = new Date(trendData.timestamps[i]).getTime();
-                    // Only include data from the last hour
-                    if (timestamp >= oneHourAgo) {
+                    // Only include data from the last 8 hours
+                    if (timestamp >= eightHoursAgo) {
                       trend.push({
                         timestamp,
                         value: trendData.values[i]
@@ -596,10 +602,12 @@ export const useXgboostStore = create<XgboostState>()(
                 trend.sort((a, b) => a.timestamp - b.timestamp);
                 
                 if (tagData && typeof tagData.value === 'number') {
+                  // Use polling time for real-time points to avoid identical timestamps
+                  let normalizedTimestamp: number = Date.now();
                   return {
                     featureName,
                     value: tagData.value,
-                    timestamp: tagData.timestamp || Date.now(),
+                    timestamp: normalizedTimestamp,
                     trend
                   };
                 }
@@ -621,37 +629,43 @@ export const useXgboostStore = create<XgboostState>()(
                 targetPromise = fetchTagValue(targetTagId).then(tagData => {
                   console.log(`Received target PV data for ${modelTarget}:`, tagData);
                   if (tagData && typeof tagData.value === 'number') {
+                    // Use polling time for consistency and uniqueness
+                    let ts: number = Date.now();
                     return {
                       value: tagData.value,
-                    timestamp: tagData.timestamp || Date.now()
-                  };
-                }
+                      timestamp: ts
+                    };
+                  }
                 return null;
               }).catch(error => {
                 console.error(`Error fetching target PV data for ${modelTarget}:`, error);
                 return null;
               });
               
-              // Fetch target trend data (only last hour)
-              const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-              targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=8`, {
-                headers: { 'Accept': 'application/json' },
-                cache: 'no-store'
-              })
-              .then(async response => {
-                if (response.ok) {
-                  const data = await response.json();
-                  console.log(`Received target trend data for ${modelTarget}:`, data);
-                  return data;
-                } else {
-                  console.warn(`Failed to fetch target trend data for ${modelTarget}: ${response.statusText}`);
+              // Fetch target trend data (8 hours) only if needed
+              if (shouldFetchTrends) {
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=8`, {
+                  headers: { 'Accept': 'application/json' },
+                  cache: 'no-store'
+                })
+                .then(async response => {
+                  if (response.ok) {
+                    const data = await response.json();
+                    console.log(`Received target trend data for ${modelTarget}:`, data);
+                    return data;
+                  } else {
+                    console.warn(`Failed to fetch target trend data for ${modelTarget}: ${response.statusText}`);
+                    return { timestamps: [], values: [] };
+                  }
+                })
+                .catch(error => {
+                  console.error(`Error fetching target trend data for ${modelTarget}:`, error);
                   return { timestamps: [], values: [] };
-                }
-              })
-              .catch(error => {
-                console.error(`Error fetching target trend data for ${modelTarget}:`, error);
-                return { timestamps: [], values: [] };
-              });
+                });
+              } else {
+                targetTrendPromise = Promise.resolve({ timestamps: [], values: [] });
+              }
             } else {
               console.warn(`Could not find tag ID for target ${modelTarget} and mill ${currentMill}`);
             }
@@ -663,6 +677,15 @@ export const useXgboostStore = create<XgboostState>()(
               targetPromise,
               targetTrendPromise
             ]);
+
+            // Drop results if model changed while awaiting
+            if (useXgboostStore.getState().modelName !== requestModelName) {
+              console.warn('🛑 Dropping stale fetchRealTimeData results due to model change');
+              return;
+            }
+
+            // Use a fresh snapshot of the state for updates below
+            const state = useXgboostStore.getState();
 
             console.log('Real-time data results:', featureResults);
             console.log('Target PV result:', targetResult);
@@ -758,6 +781,9 @@ export const useXgboostStore = create<XgboostState>()(
               } else {
                 normalizedTimestamp = targetResult.timestamp;
               }
+              if (!Number.isFinite(normalizedTimestamp)) {
+                normalizedTimestamp = Date.now();
+              }
               
               console.log('Normalized timestamp:', normalizedTimestamp, '→', new Date(normalizedTimestamp).toLocaleString());
               console.log('Target result value (PV):', targetResult.value);
@@ -784,15 +810,38 @@ export const useXgboostStore = create<XgboostState>()(
               
               console.log('Adding real-time data point:', newRealTimePoint);
               
-              // Replace the entire targetData with the new historical points
-              // Don't keep old points to prevent mixing different time ranges
-              set({
-                targetData: targetTrendPoints
+              // Merge: initialize with historical points only once, then append new real-time point
+              // Always prune to last 8 hours to keep a consistent time window
+              set(state => {
+                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                // If targetData is empty and we have historical points, seed with them
+                let next = state.targetData.length === 0 && targetTrendPoints.length > 0
+                  ? targetTrendPoints
+                  : state.targetData;
+                // Append the latest real-time point
+                next = [...next, newRealTimePoint];
+                // Sort by timestamp to stabilize order
+                next.sort((a, b) => a.timestamp - b.timestamp);
+                // Deduplicate by timestamp (keep the latest value for identical ts)
+                const deduped: typeof next = [] as any;
+                for (const p of next) {
+                  const last = deduped[deduped.length - 1];
+                  if (last && last.timestamp === p.timestamp) {
+                    deduped[deduped.length - 1] = p; // replace with latest
+                  } else {
+                    deduped.push(p);
+                  }
+                }
+                // Prune to last 8 hours
+                const pruned = deduped.filter(p => p.timestamp >= eightHoursAgo);
+                return { targetData: pruned };
               });
             }
             
           } catch (error) {
             console.error('Error fetching real-time data:', error);
+          } finally {
+            set({ isFetching: false });
           }
         },
         
@@ -1024,12 +1073,15 @@ export const useXgboostStore = create<XgboostState>()(
               
               console.log('Adding prediction data point:', newPredictionPoint);
               
-              set(state => ({
-                targetData: [
+              set(state => {
+                const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+                const merged = [
                   ...state.targetData,
                   newPredictionPoint
-                ].slice(-50)
-              }));
+                ];
+                const pruned = merged.filter(p => p.timestamp >= eightHoursAgo);
+                return { targetData: pruned };
+              });
             } else {
               console.error('Invalid prediction response:', response.data);
             }

@@ -93,19 +93,8 @@ export default function XgboostSimulationDashboard() {
     }
   }, [models, setAvailableModels]);
   
-  // Fetch real-time data when component mounts or model changes
-  useEffect(() => {
-    // Initial data fetch
-    fetchRealTimeData();
-    
-    // Set up real-time updates
-    startRealTimeUpdates();
-    
-    // Clean up on unmount
-    return () => {
-      stopRealTimeUpdates();
-    };
-  }, [modelName]); // Re-run when model changes
+  // Removed duplicated real-time setup on model change.
+  // Real-time updates are now started exclusively by the modelFeatures-driven effect below.
 
   // Debounced prediction effect for slider changes
   useEffect(() => {
@@ -386,11 +375,9 @@ export default function XgboostSimulationDashboard() {
                       selectedModel.last_trained
                     );
                     
-                    // Restart real-time updates with the new model
-                    await startRealTimeUpdates();
-                    
-                    // Trigger a prediction with the current values
-                    await predictWithCurrentValues();
+                    // Do not start updates or trigger prediction here.
+                    // The modelFeatures-driven effect will start updates and the store
+                    // will trigger prediction after the first real-time fetch.
                     
                     toast.success(`Successfully switched to model: ${value}`, { id: loadingToast });
                   } catch (error) {
