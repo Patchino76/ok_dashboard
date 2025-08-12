@@ -53,6 +53,8 @@ interface XgboostState {
   dataUpdateInterval: NodeJS.Timeout | null
   isFetching: boolean
   resetSliders: boolean
+  displayHours: number
+  lastFetchedHours: number
   updateParameter: (id: string, value: number) => void
   updateSliderValue: (id: string, value: number) => void
   setSimulationMode: (isSimulation: boolean) => void
@@ -72,6 +74,7 @@ interface XgboostState {
   stopRealTimeUpdates: () => void
   updateParameterFromRealData: (featureName: string, value: number, timestamp: number, trend?: Array<{ timestamp: number; value: number }>) => void
   resetFeatures: () => void
+  setDisplayHours: (hours: number) => void
 }
 
 // Icons for parameters
@@ -173,6 +176,10 @@ export const useXgboostStore = create<XgboostState>()(
   devtools(
     // persist(
       (set) => ({
+        // Display hours for trend data (default: 4 hours)
+        displayHours: 4,
+        // Track the hours value used in the last fetch
+        lastFetchedHours: 0,
         // Initialize parameters with default values (middle of the range)
         parameters: [
           {
@@ -513,12 +520,15 @@ export const useXgboostStore = create<XgboostState>()(
           console.log('Available millsTags keys:', Object.keys(millsTags));
 
           try {
-            // Decide whether to fetch historical trends (only on initial load or after model change)
+            // Decide whether to fetch historical trends (on initial load, after model change, or when displayHours changes)
             const shouldFetchTrends = (() => {
               const s = useXgboostStore.getState();
               const anyParamMissingTrend = s.parameters.some(p => p.trend.length === 0);
               const noTargetTrend = s.targetData.length === 0;
-              return anyParamMissingTrend || noTargetTrend;
+              // Always fetch trends when displayHours changes from previous fetch
+              const displayHoursChanged = s.displayHours !== stateAtStart.lastFetchedHours;
+              console.log('Display hours check:', { current: s.displayHours, lastFetched: stateAtStart.lastFetchedHours, changed: displayHoursChanged });
+              return anyParamMissingTrend || noTargetTrend || displayHoursChanged;
             })();
             console.log('shouldFetchTrends:', shouldFetchTrends);
             // Create a mapping from model feature names to mills tags keys
@@ -572,7 +582,10 @@ export const useXgboostStore = create<XgboostState>()(
                 let trendData = { timestamps: [], values: [] } as any;
                 if (shouldFetchTrends) {
                   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                  const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=${TREND_RETENTION_HOURS}` , {
+                  // Use displayHours for API calls, but fall back to TREND_RETENTION_HOURS if needed
+                  const fetchHours = stateAtStart.displayHours || TREND_RETENTION_HOURS;
+                  console.log(`Fetching trend data for ${featureName} with ${fetchHours} hours window`);
+                  const trendResponse = await fetch(`${apiUrl}/api/tag-trend/${tagId}?hours=${fetchHours}` , {
                     headers: { 'Accept': 'application/json' },
                     cache: 'no-store'
                   });
@@ -586,7 +599,9 @@ export const useXgboostStore = create<XgboostState>()(
                 
                 // Process trend data into the format we need
                 const trend: Array<{ timestamp: number; value: number }> = [];
-                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000; // retention window in ms
+                // Use displayHours for filtering, but fall back to TREND_RETENTION_HOURS if needed
+                const displayHours = stateAtStart.displayHours || TREND_RETENTION_HOURS;
+                const retentionAgo = Date.now() - displayHours * 60 * 60 * 1000; // retention window in ms
                 
                 if (trendData.timestamps && trendData.values && 
                     Array.isArray(trendData.timestamps) && Array.isArray(trendData.values)) {
@@ -649,7 +664,10 @@ export const useXgboostStore = create<XgboostState>()(
               // Fetch target trend data (retention window) only if needed
               if (shouldFetchTrends) {
                 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=${TREND_RETENTION_HOURS}`, {
+                // Use displayHours for API calls, but fall back to TREND_RETENTION_HOURS if needed
+                const fetchHours = stateAtStart.displayHours || TREND_RETENTION_HOURS;
+                console.log(`Fetching target trend data for ${modelTarget} with ${fetchHours} hours window`);
+                targetTrendPromise = fetch(`${apiUrl}/api/tag-trend/${targetTagId}?hours=${fetchHours}`, {
                   headers: { 'Accept': 'application/json' },
                   cache: 'no-store'
                 })
@@ -732,7 +750,9 @@ export const useXgboostStore = create<XgboostState>()(
                 const effectiveSP = state.currentTarget !== null ? state.currentTarget : initialPV;
                 
                 // Convert API trend data to our format - using retention window to match API call
-                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000; // in milliseconds
+                // Use displayHours for filtering, but fall back to TREND_RETENTION_HOURS if needed
+                const displayHours = stateAtStart.displayHours || TREND_RETENTION_HOURS;
+                const retentionAgo = Date.now() - displayHours * 60 * 60 * 1000; // in milliseconds
                 
                 // Process all trend points first
                 const allPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => {
@@ -760,11 +780,13 @@ export const useXgboostStore = create<XgboostState>()(
                   const recentPoints = allPoints.slice(-10);
                   // Adjust timestamps to be within the retention window
                   const timeNow = Date.now();
-                  const spacingMinutes = (TREND_RETENTION_HOURS * 60) / Math.max(recentPoints.length, 1);
+                  // Use displayHours for spacing calculation, but fall back to TREND_RETENTION_HOURS if needed
+                  const displayHours = stateAtStart.displayHours || TREND_RETENTION_HOURS;
+                  const spacingMinutes = (displayHours * 60) / Math.max(recentPoints.length, 1);
                   targetTrendPoints = recentPoints.map((point: TargetData, index: number) => ({
                     ...point,
                     // Distribute points evenly over the retention window
-                    timestamp: timeNow - Math.round((TREND_RETENTION_HOURS * 60 - index * spacingMinutes) * 60 * 1000)
+                    timestamp: timeNow - Math.round((displayHours * 60 - index * spacingMinutes) * 60 * 1000)
                   }));
                 }
                 
@@ -857,7 +879,13 @@ export const useXgboostStore = create<XgboostState>()(
           } catch (error) {
             console.error('Error fetching real-time data:', error);
           } finally {
-            set({ isFetching: false });
+            // Update lastFetchedHours to track which hours value was used for this fetch
+            const currentDisplayHours = useXgboostStore.getState().displayHours;
+            set({ 
+              isFetching: false,
+              lastFetchedHours: currentDisplayHours
+            });
+            console.log(`Updated lastFetchedHours to ${currentDisplayHours}`);
           }
         },
         
@@ -958,6 +986,45 @@ export const useXgboostStore = create<XgboostState>()(
               resetSliders: !state.resetSliders  // Toggle the reset flag
             };
           });
+        },
+
+        resetFeatures: () => {
+          // Get current state
+          const state = useXgboostStore.getState();
+          
+          // Reset all parameters to default values (middle of the range)
+          set(state => {
+            const updatedParameters = state.parameters.map(p => {
+              const bounds = state.parameterBounds[p.id] || initialBounds[p.id] || [0, 100];
+              const defaultValue = (bounds[0] + bounds[1]) / 2;
+              return {
+                ...p,
+                value: defaultValue
+              };
+            });
+            
+            // Also reset slider values to match
+            const updatedSliderValues = { ...state.sliderValues };
+            updatedParameters.forEach(p => {
+              updatedSliderValues[p.id] = p.value;
+            });
+            
+            return {
+              parameters: updatedParameters,
+              sliderValues: updatedSliderValues
+            };
+          });
+          
+          // Trigger a prediction with the reset values
+          setTimeout(() => {
+            const updatedState = useXgboostStore.getState();
+            updatedState.predictWithCurrentValues();
+          }, 100);
+        },
+        
+        setDisplayHours: (hours) => {
+          console.log(`Setting display hours to ${hours}`);
+          set({ displayHours: hours });
         },
 
         predictWithCurrentValues: async () => {

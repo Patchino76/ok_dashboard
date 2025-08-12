@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { CheckCircle, AlertTriangle, Target, TrendingUp } from "lucide-react"
+import { useXgboostStore } from "../stores/xgboost-store"
 
 interface TargetData {
   timestamp: number
@@ -34,8 +35,19 @@ export function TargetFractionDisplay({
   // modelName and targetVariable are intentionally not destructured to avoid unused vars
 }: TargetFractionDisplayProps) {
   
-  // Time range selection (in hours). Default: 8h
-  const [hours, setHours] = useState<number>(8)
+  // Get display hours and data fetching functions from store
+  const displayHours = useXgboostStore(state => state.displayHours)
+  const setDisplayHours = useXgboostStore(state => state.setDisplayHours)
+  const fetchRealTimeData = useXgboostStore(state => state.fetchRealTimeData)
+  
+  // Refresh data when display hours changes
+  useEffect(() => {
+    // Only trigger a refresh if we have some data already
+    if (targetData.length > 0) {
+      console.log(`Hours changed to ${displayHours}, refreshing trend data...`);
+      fetchRealTimeData();
+    }
+  }, [displayHours, fetchRealTimeData]);
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
@@ -47,7 +59,7 @@ export function TargetFractionDisplay({
   }
 
   // Format data for chart - show only last selected hours of data
-  const hoursAgo = Date.now() - hours * 60 * 60 * 1000; // adjustable window
+  const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000; // adjustable window
   
   const chartData = targetData
     .filter(item => item.timestamp >= hoursAgo) // Only keep data from the selected window
@@ -141,7 +153,7 @@ export function TargetFractionDisplay({
       setScaleMin(proposedMin);
       setScaleMax(proposedMax);
     }
-  }, [windowValues, currentPV, currentTarget, hours]);
+  }, [windowValues, currentPV, currentTarget, displayHours]);
 
   const toPercent = (v?: number | null) => {
     if (typeof v !== 'number') return 0;
@@ -260,33 +272,33 @@ export function TargetFractionDisplay({
                     <span className="text-slate-500 mr-1">Last:</span>
                     <Button
                       size="sm"
-                      variant={hours === 2 ? "default" : "outline"}
+                      variant={displayHours === 4 ? "default" : "outline"}
                       className="px-2"
-                      onClick={() => setHours(2)}
+                      onClick={() => setDisplayHours(4)}
                     >
-                      2h
+                      4h
                     </Button>
                     <Button
                       size="sm"
-                      variant={hours === 8 ? "default" : "outline"}
+                      variant={displayHours === 8 ? "default" : "outline"}
                       className="px-2"
-                      onClick={() => setHours(8)}
+                      onClick={() => setDisplayHours(8)}
                     >
                       8h
                     </Button>
                     <Button
                       size="sm"
-                      variant={hours === 24 ? "default" : "outline"}
+                      variant={displayHours === 24 ? "default" : "outline"}
                       className="px-2"
-                      onClick={() => setHours(24)}
+                      onClick={() => setDisplayHours(24)}
                     >
                       24h
                     </Button>
                     <Button
                       size="sm"
-                      variant={hours === 72 ? "default" : "outline"}
+                      variant={displayHours === 72 ? "default" : "outline"}
                       className="px-2"
-                      onClick={() => setHours(72)}
+                      onClick={() => setDisplayHours(72)}
                     >
                       72h
                     </Button>

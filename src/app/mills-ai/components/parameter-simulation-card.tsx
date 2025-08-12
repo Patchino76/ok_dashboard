@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { millsParameters } from "../data/mills-parameters"
+import { useXgboostStore } from "../stores/xgboost-store"
 
 interface Parameter {
   id: string
@@ -37,6 +38,8 @@ export function ParameterSimulationCard({
   isSimulationMode,
   onParameterUpdate 
 }: ParameterSimulationCardProps) {
+  // Get displayHours from the store to filter trend data
+  const displayHours = useXgboostStore(state => state.displayHours);
   // Check if this is a lab parameter
   const parameterConfig = millsParameters.find(p => p.id === parameter.id);
   const isLabParameter = parameterConfig?.isLab || false;
@@ -223,37 +226,54 @@ export function ParameterSimulationCard({
         </div>
 
         {/* Trend Chart - Only show for process parameters */}
-        {!isLabParameter && parameter.trend.length > 0 && (
-          <div className="h-24 -mx-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={parameter.trend} margin={{ top: 5, right: 10, bottom: 5, left: 25 }}>
-                <XAxis dataKey="timestamp" hide={true} />
-                <YAxis 
-                  domain={calculateYAxisDomain(parameter.trend, bounds)}
-                  hide={false}
-                  width={20}
-                  tick={{ fontSize: 10 }}
-                  tickFormatter={(value) => value.toFixed(0)}
-                  tickCount={3}
-                />
-                <Tooltip
-                  formatter={(value: number) => [formatValue(value), parameter.name]}
-                  labelFormatter={(timestamp: number) => formatTime(timestamp)}
-                  contentStyle={{ background: "#1f2937", borderColor: "#374151", color: "#e5e7eb", fontSize: "12px" }}
-                  itemStyle={{ color: "#e5e7eb" }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke={getStrokeColor()}
-                  strokeWidth={1.5}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
+        {!isLabParameter && parameter.trend.length > 0 && (() => {
+          // Filter trend data based on current displayHours
+          const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
+          const filteredTrend = parameter.trend.filter(item => item.timestamp >= hoursAgo);
+          
+          // Debug logging
+          console.log(`Parameter ${parameter.id}: Filtering trend data with ${displayHours}h window`);
+          console.log(`- Original trend points: ${parameter.trend.length}`);
+          console.log(`- Filtered trend points: ${filteredTrend.length}`);
+          
+          return (
+            <div className="h-24 -mx-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={filteredTrend} margin={{ top: 5, right: 10, bottom: 5, left: 40 }}>
+                  <XAxis dataKey="timestamp" hide={true} />
+                  <YAxis 
+                    domain={[bounds[0], bounds[1]]}
+                    hide={false}
+                    width={40}
+                    tick={{ fontSize: 10 }}
+                    tickFormatter={(value) => value.toFixed(2)}
+                    ticks={[bounds[0], bounds[1]]}
+                    interval={0}
+                    allowDataOverflow={false}
+                    axisLine={true}
+                    tickLine={true}
+                    tickMargin={3}
+                    orientation="left"
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [formatValue(value), parameter.name]}
+                    labelFormatter={(timestamp: number) => formatTime(timestamp)}
+                    contentStyle={{ background: "#1f2937", borderColor: "#374151", color: "#e5e7eb", fontSize: "12px" }}
+                    itemStyle={{ color: "#e5e7eb" }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke={getStrokeColor()}
+                    strokeWidth={1.5}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
         
         {/* Lab parameter info */}
         {isLabParameter && (
