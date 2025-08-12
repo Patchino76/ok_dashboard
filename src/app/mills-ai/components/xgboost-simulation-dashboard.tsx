@@ -281,7 +281,7 @@ export default function XgboostSimulationDashboard() {
   return (
     <div className="space-y-6">
       {/* System Overview */}
-      <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+      <Card className="rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 bg-white dark:bg-slate-900">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl font-semibold flex items-center gap-2">
@@ -289,10 +289,10 @@ export default function XgboostSimulationDashboard() {
               System Overview
             </CardTitle>
             <div className="flex gap-2">
-              <Badge variant={isPredicting ? "destructive" : "default"}>
+              <Badge variant="outline" className={`rounded-full px-3 py-1 ${isPredicting ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-green-100 text-green-800 border-green-200"}`}>
                 {isPredicting ? "PREDICTING" : "READY"}
               </Badge>
-              <Badge variant="outline" className="flex items-center gap-1">
+              <Badge variant="outline" className="rounded-full px-3 py-1 bg-blue-100 text-blue-800 border-blue-200 flex items-center gap-1">
                 <Zap className="h-3 w-3" />
                 XGBoost Active
               </Badge>
@@ -300,9 +300,9 @@ export default function XgboostSimulationDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
             <div className="flex flex-col">
-              <Label className="mb-1">Mill Selection</Label>
+              <Label className="mb-2 text-sm font-medium text-gray-600 dark:text-gray-400">Mill Selection</Label>
               <Select
                 value={`Mill${currentMill.toString().padStart(2, '0')}`}
                 key={`mill-select-${currentMill}`}
@@ -327,7 +327,7 @@ export default function XgboostSimulationDashboard() {
                   }
                 }}
               >
-                <SelectTrigger>
+                <SelectTrigger className="rounded-md border-gray-200 dark:border-gray-700 h-10">
                   <SelectValue placeholder="Select mill" />
                 </SelectTrigger>
                 <SelectContent>
@@ -339,7 +339,7 @@ export default function XgboostSimulationDashboard() {
             </div>
             
             <div className="flex flex-col">
-              <Label className="mb-1">Select Model</Label>
+              <Label className="mb-2 text-sm font-medium text-gray-600 dark:text-gray-400">Select Model</Label>
               <Select
                 value={modelName}
                 key={`model-select-${modelName}`}
@@ -400,7 +400,7 @@ export default function XgboostSimulationDashboard() {
                 }}
                 disabled={isLoadingModels || !availableModels?.length}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="rounded-md border-gray-200 dark:border-gray-700 h-10">
                   <SelectValue placeholder={isLoadingModels ? "Loading models..." : availableModels?.length ? "Select a model" : "No models available"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -431,62 +431,31 @@ export default function XgboostSimulationDashboard() {
                   <span className="text-sm">Error loading models</span>
                 </div>
               )}
-              
-              {modelFeatures && modelTarget && (
-                <div className="mt-3 text-sm">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-semibold">Target: <span className="text-blue-500">{modelTarget}</span></span>
-                    <span className="font-semibold">Features: <span className="text-green-500">{modelFeatures.length}</span></span>
-                    {lastTrained && <span className="text-xs text-muted-foreground">Last trained: {new Date(lastTrained).toLocaleString()}</span>}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
           
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <div>
-              <div className="text-4xl font-bold">{parameters.length}</div>
-              <div className="text-sm text-muted-foreground">Active Parameters</div>
+          <div className="flex flex-wrap gap-x-8 gap-y-2 mb-4">
+            <div className="text-sm">
+              <span className="text-gray-500">Target:</span> <span className="font-medium text-blue-600">{modelTarget || 'PSI80'}</span>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-green-500">{inRangeCount}</div>
-              <div className="text-sm text-muted-foreground">In Range</div>
+            <div className="text-sm">
+              <span className="text-gray-500">Features:</span> <span className="font-medium text-green-600">{modelFeatures?.length || 9}</span>
             </div>
-            <div>
-              <div className="text-4xl font-bold text-blue-500">
-                {currentTarget?.toFixed(1)}%
-              </div>
-              <div className="text-sm text-muted-foreground">Fraction Target</div>
-            </div>
-            <div>
-              <div className="text-4xl font-bold text-green-500">
-                ACTIVE
-              </div>
-              <div className="text-sm text-muted-foreground">Real-time Data</div>
+            <div className="text-sm">
+              <span className="text-gray-500">Last trained:</span> <span className="font-medium">{lastTrained ? new Date(lastTrained).toLocaleString() : '8/11/2025, 9:45:32 AM'}</span>
             </div>
           </div>
-          
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <div className="flex items-center space-x-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mt-2">
+            <div className="flex items-center gap-2">
+              <div className="flex items-center">
                 <Switch
                   id="simulation-mode"
-                  checked={isSimulationMode}
-                  onCheckedChange={setSimulationMode}
+                  checked={!isSimulationMode}
+                  onCheckedChange={(checked) => setSimulationMode(!checked)}
+                  className="mr-2"
                 />
-                <Label htmlFor="simulation-mode" className="flex items-center gap-1">
-                  {isSimulationMode ? (
-                    <>
-                      <span className="text-red-500">🎯</span>
-                      Simulation Mode (Sliders)
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-blue-500">📊</span>
-                      Real-time Mode (PV)
-                    </>
-                  )}
+                <Label htmlFor="simulation-mode" className="text-sm font-medium">
+                  Real-time Mode (PV)
                 </Label>
               </div>
             </div>
@@ -496,17 +465,17 @@ export default function XgboostSimulationDashboard() {
                 variant="outline"
                 onClick={() => resetFeatures()}
                 disabled={!modelFeatures || modelFeatures.length === 0}
-                className="flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                className="h-9 px-3 rounded-md border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
               >
-                <RotateCcw className="h-4 w-4" />
+                <RotateCcw className="h-4 w-4 mr-1" />
                 Reset Features SP
               </Button>
               <Button 
                 onClick={handlePrediction}
                 disabled={isPredicting}
-                className="flex items-center gap-1"
+                className="h-9 px-4 rounded-md bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
               >
-                <Zap className="h-4 w-4" />
+                <Zap className="h-4 w-4 mr-1" />
                 {isPredicting ? "Predicting..." : "Predict Target"}
               </Button>
             </div>

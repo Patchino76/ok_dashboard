@@ -104,12 +104,42 @@ export function ParameterSimulationCard({
   // Format time for tooltip
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
-    return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
+    const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, "0")}-${date.getDate().toString().padStart(2, "0")}`
+    const formattedTime = `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
+    return `${formattedDate} ${formattedTime}`
   }
   
   // Format value for tooltip
   const formatValue = (value: number) => {
     return value.toFixed(1)
+  }
+  
+  // Calculate optimal y-axis domain based on data values and bounds
+  const calculateYAxisDomain = (trend: Array<{ timestamp: number; value: number }>, bounds: [number, number]) => {
+    if (trend.length === 0) return bounds;
+    
+    // Get min and max values from trend data
+    const values = trend.map(point => point.value);
+    const dataMin = Math.min(...values);
+    const dataMax = Math.max(...values);
+    
+    // Add padding (10% of data range)
+    const dataRange = dataMax - dataMin;
+    const padding = Math.max(dataRange * 0.1, 0.01); // At least some minimal padding
+    
+    // Calculate new min/max with padding, but respect bounds
+    let yMin = Math.max(dataMin - padding, bounds[0]);
+    let yMax = Math.min(dataMax + padding, bounds[1]);
+    
+    // If the range is too small, center it and expand
+    if (yMax - yMin < dataRange * 1.3) {
+      const center = (yMin + yMax) / 2;
+      const halfRange = dataRange * 0.65;
+      yMin = Math.max(center - halfRange, bounds[0]);
+      yMax = Math.min(center + halfRange, bounds[1]);
+    }
+    
+    return [yMin, yMax];
   }
   
   // Determine color classes based on parameter.color
@@ -138,6 +168,21 @@ export function ParameterSimulationCard({
       case "cyan": return "text-cyan-600"
       case "orange": return "text-orange-600"
       default: return "text-slate-600"
+    }
+  }
+  
+  // Get stroke color for trend line based on parameter.color
+  const getStrokeColor = () => {
+    switch (parameter.color) {
+      case "blue": return "#2563eb"    // blue-600
+      case "green": return "#16a34a"  // green-600
+      case "red": return "#dc2626"    // red-600
+      case "amber": return "#d97706"  // amber-600
+      case "yellow": return "#ca8a04" // yellow-600
+      case "purple": return "#9333ea" // purple-600
+      case "cyan": return "#0891b2"   // cyan-600
+      case "orange": return "#ea580c" // orange-600
+      default: return "#475569"       // slate-600
     }
   }
 
@@ -179,11 +224,18 @@ export function ParameterSimulationCard({
 
         {/* Trend Chart - Only show for process parameters */}
         {!isLabParameter && parameter.trend.length > 0 && (
-          <div className="h-14 -mx-2">
+          <div className="h-24 -mx-2">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={parameter.trend} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+              <LineChart data={parameter.trend} margin={{ top: 5, right: 10, bottom: 5, left: 25 }}>
                 <XAxis dataKey="timestamp" hide={true} />
-                <YAxis domain={[bounds[0], bounds[1]]} hide={true} />
+                <YAxis 
+                  domain={calculateYAxisDomain(parameter.trend, bounds)}
+                  hide={false}
+                  width={20}
+                  tick={{ fontSize: 10 }}
+                  tickFormatter={(value) => value.toFixed(0)}
+                  tickCount={3}
+                />
                 <Tooltip
                   formatter={(value: number) => [formatValue(value), parameter.name]}
                   labelFormatter={(timestamp: number) => formatTime(timestamp)}
@@ -193,7 +245,7 @@ export function ParameterSimulationCard({
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="#3b82f6"
+                  stroke={getStrokeColor()}
                   strokeWidth={1.5}
                   dot={false}
                   isAnimationActive={false}
