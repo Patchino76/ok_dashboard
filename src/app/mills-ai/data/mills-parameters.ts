@@ -114,7 +114,7 @@ export const millsParameters: ModelParameter[] = [
     max: 2000,
     currentMin: 1700,
     currentMax: 1900,
-    unit: "g/L",
+    unit: "kg/m³",
     isLab: false,
     description: "Плътност на пулп в хидроциклона",
   },

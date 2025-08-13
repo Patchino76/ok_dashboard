@@ -118,7 +118,7 @@ const parameterUnits: Record<string, string> = {
   WaterZumpf: "m³/h",
   PulpHC: "m³/h",
   PressureHC: "bar",
-  DensityHC: "g/L",
+  DensityHC: "kg/m³",
   MotorAmp: "A",
   Shisti: "%",
   Daiki: "%",
@@ -221,7 +221,7 @@ export const useXgboostStore = create<XgboostState>()(
           {
             id: "DensityHC",
             name: "HC Density",
-            unit: "g/L",
+            unit: "kg/m³",
             value: 1700,
             trend: [],
             color: parameterColors.DensityHC,

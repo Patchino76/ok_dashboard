@@ -84,7 +84,7 @@ export function MultiParameterControlDashboard() {
     {
       id: "density",
       name: "Pulp Density",
-      unit: "g/L",
+      unit: "kg/m³",
       pv: 1650,
       sp: 1680,
       aiSp: 1680,
