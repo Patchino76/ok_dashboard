@@ -24,6 +24,7 @@ interface TargetFractionDisplayProps {
   isSimulationMode?: boolean
   modelName?: string
   targetVariable?: string
+  targetUnit?: string
 }
 
 export function TargetFractionDisplay({
@@ -32,7 +33,9 @@ export function TargetFractionDisplay({
   targetData,
   isOptimizing,
   isSimulationMode = false,
-  // modelName and targetVariable are intentionally not destructured to avoid unused vars
+  targetVariable,
+  targetUnit = "%", // Default to % if no unit is provided
+  // modelName is intentionally not destructured to avoid unused vars
 }: TargetFractionDisplayProps) {
   
   // Get display hours and data fetching functions from store
@@ -155,6 +158,11 @@ export function TargetFractionDisplay({
     }
   }, [windowValues, currentPV, currentTarget, displayHours]);
 
+  const formatValue = (v?: number | null) => {
+    if (v === undefined || v === null) return "--"
+    return `${v.toFixed(1)}${targetUnit}`
+  }
+
   const toPercent = (v?: number | null) => {
     if (typeof v !== 'number') return 0;
     if (!Number.isFinite(scaleMin) || !Number.isFinite(scaleMax) || scaleMax <= scaleMin) return 0;
@@ -170,9 +178,10 @@ export function TargetFractionDisplay({
       <div className="absolute top-0 left-0 right-0 h-1 bg-blue-500" />
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-xl font-semibold flex items-center gap-2">
-            <Target className="h-5 w-5 text-blue-600" />
+          <CardTitle className="text-xl font-bold flex items-center gap-2">
+            <Target className="h-5 w-5" />
             Mill Recovery Fraction
+            {targetVariable && <span className="text-sm font-normal ml-2">({targetVariable})</span>}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant={!isOptimizing ? "default" : "destructive"} className="px-3 py-1">
@@ -198,10 +207,7 @@ export function TargetFractionDisplay({
                   <div className="text-sm font-medium text-slate-600 dark:text-slate-400">Process Variable (PV)</div>
                   <div className="mt-1 flex items-end">
                     <span className="text-4xl font-bold text-emerald-600">{currentPV?.toFixed(1) || 'N/A'}</span>
-                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
-                  </div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                    Current measured PSI80 value
+                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">{targetUnit}</span>
                   </div>
                   {/* PV horizontal gauge */}
                   <div className="mt-2">
@@ -212,8 +218,8 @@ export function TargetFractionDisplay({
                       />
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
-                      <span>{Number.isFinite(scaleMin) ? scaleMin.toFixed(1) : '—'}%</span>
-                      <span>{Number.isFinite(scaleMax) ? scaleMax.toFixed(1) : '—'}%</span>
+                      <span>{Number.isFinite(scaleMin) ? scaleMin.toFixed(1) : '—'}{targetUnit}</span>
+                      <span>{Number.isFinite(scaleMax) ? scaleMax.toFixed(1) : '—'}{targetUnit}</span>
                     </div>
                   </div>
                 </div>
@@ -225,10 +231,7 @@ export function TargetFractionDisplay({
                     <span className={`text-4xl font-bold ${isSimulationMode ? 'text-red-600' : 'text-blue-600'}`}>
                       {currentTarget?.toFixed(1) || 'N/A'}
                     </span>
-                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
-                  </div>
-                  <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                    {isSimulationMode ? 'Simulation-predicted target value' : 'AI-predicted optimal target value'}
+                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">{targetUnit}</span>
                   </div>
                   {/* SP horizontal gauge */}
                   <div className="mt-2">
@@ -239,8 +242,8 @@ export function TargetFractionDisplay({
                       />
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
-                      <span>{Number.isFinite(scaleMin) ? scaleMin.toFixed(1) : '—'}%</span>
-                      <span>{Number.isFinite(scaleMax) ? scaleMax.toFixed(1) : '—'}%</span>
+                      <span>{Number.isFinite(scaleMin) ? scaleMin.toFixed(1) : '—'}{targetUnit}</span>
+                      <span>{Number.isFinite(scaleMax) ? scaleMax.toFixed(1) : '—'}{targetUnit}</span>
                     </div>
                   </div>
                 </div>
@@ -306,7 +309,7 @@ export function TargetFractionDisplay({
                 </div>
               </div>
 
-              <div className="h-[240px]">
+              <div className="h-[240px]" >
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -324,13 +327,23 @@ export function TargetFractionDisplay({
                           (dataMin: number) => Math.floor(dataMin - 2),
                           (dataMax: number) => Math.ceil(dataMax + 2),
                         ]}
-                        tickFormatter={(value) => `${value}%`}
+                        tickFormatter={(value) => value.toString()}
+                        width={60}
                         label={{ 
-                          value: 'PSI80 (%)', 
-                          angle: -90, 
+                          value: targetUnit, 
+                          angle: -90,
                           position: 'insideLeft',
-                          fill: '#6b7280',
-                          style: { fontSize: '12px' }
+                          fill: '#4b5563',
+                          style: { 
+                            fontSize: '12px',
+                            fontWeight: '500',
+                            textAnchor: 'middle',
+                            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid #e5e7eb'
+                          },
+                          offset: 10
                         }}
                       />
                       <Tooltip
@@ -340,8 +353,8 @@ export function TargetFractionDisplay({
                           const displayValue = isPV ? props.payload.pv : value;
                           const color = isPV ? '#10b981' : (isSimulationMode ? '#dc2626' : '#3b82f6');
                           return [
-                            <span key="value" style={{ color }}>{`${isPV ? 'PV' : 'SP'}: ${formatTooltipValue(displayValue)}%`}</span>,
-                            <span key="name" style={{ color, opacity: 0.7, fontSize: '0.9em' }}>(PSI80)</span>
+                            <span key="value" style={{ color }}>{`${isPV ? 'PV' : 'SP'}: ${formatTooltipValue(displayValue)}${targetUnit}`}</span>,
+                            <span key="name" style={{ color, opacity: 0.7, fontSize: '0.9em' }}>(${targetVariable || 'PSI80'})</span>
                           ];
                         }}
                         contentStyle={{

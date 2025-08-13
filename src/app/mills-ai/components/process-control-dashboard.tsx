@@ -20,7 +20,11 @@ interface ProcessData {
   aiSp: number
 }
 
-export function ProcessControlDashboard() {
+interface ProcessControlDashboardProps {
+  unit?: string
+}
+
+export function ProcessControlDashboard({ unit = "°C" }: ProcessControlDashboardProps = {}) {
   const [processData, setProcessData] = useState<ProcessData[]>([])
   const [currentPV, setCurrentPV] = useState(45.2)
   const [currentSP, setCurrentSP] = useState(50.0)
@@ -97,13 +101,13 @@ export function ProcessControlDashboard() {
           <div className="flex justify-around items-center h-80">
             <div className="text-center">
               <Label className="text-sm font-medium text-slate-600 dark:text-slate-400">PV (Current)</Label>
-              <VerticalGauge value={currentPV} min={0} max={100} label="PV" color="blue" unit="°C" />
-              <div className="mt-2 text-lg font-bold text-blue-600">{currentPV.toFixed(1)}°C</div>
+              <VerticalGauge value={currentPV} min={0} max={100} label="PV" color="blue" unit={unit} />
+              <div className="mt-2 text-lg font-bold text-blue-600">{currentPV.toFixed(1)}{unit}</div>
             </div>
             <div className="text-center">
               <Label className="text-sm font-medium text-slate-600 dark:text-slate-400">SP (Target)</Label>
-              <VerticalGauge value={currentSP} min={0} max={100} label="SP" color="green" unit="°C" />
-              <div className="mt-2 text-lg font-bold text-green-600">{currentSP.toFixed(1)}°C</div>
+              <VerticalGauge value={currentSP} min={0} max={100} label="SP" color="green" unit={unit} />
+              <div className="mt-2 text-lg font-bold text-green-600">{currentSP.toFixed(1)}{unit}</div>
             </div>
           </div>
         </CardContent>
@@ -148,11 +152,11 @@ export function ProcessControlDashboard() {
           {aiEnabled ? (
             <div className="space-y-4">
               <div>
-                <Label className="text-sm font-medium">SP Low Limit: {spLowLimit[0]}°C</Label>
+                <Label className="text-sm font-medium">SP Low Limit: {spLowLimit[0]}{unit}</Label>
                 <Slider value={spLowLimit} onValueChange={setSpLowLimit} max={100} min={0} step={1} className="mt-2" />
               </div>
               <div>
-                <Label className="text-sm font-medium">SP High Limit: {spHighLimit[0]}°C</Label>
+                <Label className="text-sm font-medium">SP High Limit: {spHighLimit[0]}{unit}</Label>
                 <Slider
                   value={spHighLimit}
                   onValueChange={setSpHighLimit}
@@ -195,7 +199,7 @@ export function ProcessControlDashboard() {
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center p-4 bg-slate-50 dark:bg-slate-700 rounded-lg">
               <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                {Math.abs(error).toFixed(1)}°C
+                {Math.abs(error).toFixed(1)}{unit}
               </div>
               <div className="text-sm text-slate-600 dark:text-slate-400">Absolute Error</div>
             </div>

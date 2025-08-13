@@ -21,6 +21,7 @@ interface FractionMainDisplayProps {
   fractionData: FractionData[]
   isOptimal: boolean
   onTargetChange: (value: number) => void
+  unit?: string
 }
 
 export function FractionMainDisplay({
@@ -29,6 +30,7 @@ export function FractionMainDisplay({
   fractionData,
   isOptimal,
   onTargetChange,
+  unit = "%", // Default to % if no unit is provided
 }: FractionMainDisplayProps) {
   const [editTarget, setEditTarget] = useState(false)
   const [tempTarget, setTempTarget] = useState(targetFraction.toString())
@@ -82,7 +84,7 @@ export function FractionMainDisplay({
                 <Label className="text-sm font-medium text-slate-600 dark:text-slate-400">Current Fraction</Label>
                 <div className="mt-1 flex items-end">
                   <span className="text-4xl font-bold text-blue-600">{currentFraction.toFixed(1)}</span>
-                  <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
+                  <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">{unit}</span>
                 </div>
                 <div className="text-sm text-slate-600 dark:text-slate-400 mt-1">
                   Recovery rate of valuable material
@@ -113,7 +115,7 @@ export function FractionMainDisplay({
                 ) : (
                   <div className="mt-1 flex items-end">
                     <span className="text-3xl font-bold text-green-600">{targetFraction.toFixed(1)}</span>
-                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">%</span>
+                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">{unit}</span>
                     <Button size="sm" variant="ghost" className="ml-2 p-1 h-auto" onClick={() => setEditTarget(true)}>
                       Edit
                     </Button>
@@ -130,7 +132,7 @@ export function FractionMainDisplay({
                       isOptimal ? "text-green-600" : "text-orange-600"
                     }`}
                   >
-                    {errorValue.toFixed(1)}%
+                    {errorValue.toFixed(1)}{unit}
                   </span>
                 </div>
                 <div className="relative h-2 w-full bg-slate-200 dark:bg-slate-700 mt-1 rounded-full overflow-hidden">
@@ -170,6 +172,13 @@ export function FractionMainDisplay({
                         (dataMin: number) => Math.floor(dataMin - 2),
                         (dataMax: number) => Math.ceil(dataMax + 2),
                       ]}
+                      tickFormatter={(value) => `${value}${unit}`}
+                      label={{ 
+                        value: `Fraction (${unit})`, 
+                        angle: -90, 
+                        position: 'insideLeft',
+                        style: { textAnchor: 'middle', fill: '#6b7280', fontSize: 12 }
+                      }}
                     />
                     <Tooltip
                       labelFormatter={formatTime}

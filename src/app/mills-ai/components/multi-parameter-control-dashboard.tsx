@@ -200,6 +200,7 @@ export function MultiParameterControlDashboard() {
         fractionData={fractionData}
         isOptimal={isSystemOptimal}
         onTargetChange={setTargetFraction}
+        unit="%" // Mill recovery fraction is measured in percentage
       />
 
       {/* System Overview */}

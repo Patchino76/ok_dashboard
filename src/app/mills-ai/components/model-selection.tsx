@@ -33,12 +33,20 @@ export function ModelSelection({
   // Get the selected model from the models object
   const selectedModel = modelName && models ? models[modelName] : null;
   
+  // Filter models for the current mill
+  const filteredModels = models ? 
+    Object.keys(models).filter(model => model.endsWith(`_mill${currentMill}`)) : 
+    [];
+  
   // Update available models when models are loaded
   useEffect(() => {
     if (models && Object.keys(models).length > 0) {
       console.log('Models loaded in ModelSelection component:', Object.keys(models));
     }
   }, [models]);
+  
+  // Use filtered models from the models object rather than passed availableModels
+  const displayModels = filteredModels.length > 0 ? filteredModels : availableModels;
 
   return (
     <Card className="mb-4">
@@ -79,7 +87,7 @@ export function ModelSelection({
                   <SelectValue placeholder="Select Model" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableModels.map((model) => (
+                  {displayModels.map((model) => (
                     <SelectItem key={model} value={model}>
                       {model}
                     </SelectItem>

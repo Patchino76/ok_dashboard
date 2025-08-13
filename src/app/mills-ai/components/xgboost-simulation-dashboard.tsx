@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
 import { millsTags } from "@/lib/tags/mills-tags"
 import { toast } from "sonner"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
+import { millsParameters } from "../data/mills-parameters"
 
 // Define tag interface to match the structure in mills-tags.ts
 interface TagInfo {
@@ -41,6 +42,14 @@ interface ParameterData {
 export default function XgboostSimulationDashboard() {
   // Get the store instance
   const store = useXgboostStore();
+  
+  // Set default mill to 8
+  useEffect(() => {
+    // Only set default mill on initial load
+    if (store.currentMill !== 8) {
+      store.setCurrentMill(8);
+    }
+  }, []);
   
   // Destructure store values with proper types
   const {
@@ -83,6 +92,14 @@ export default function XgboostSimulationDashboard() {
   
   // Get the selected model from the models object
   const selectedModel = modelName && models ? models[modelName] : null;
+  
+  // Find the target unit from millsParameters
+  const targetUnit = useMemo(() => {
+    if (!selectedModel?.target_col) return '%'; // Default to % if no target column
+    
+    const targetParam = millsParameters.find(param => param.id === selectedModel.target_col);
+    return targetParam?.unit || '%'; // Default to % if unit not found
+  }, [selectedModel?.target_col]);
   
   // Removed duplicated real-time setup on model change.
   // Real-time updates are now started exclusively by the modelFeatures-driven effect below.
@@ -393,6 +410,7 @@ export default function XgboostSimulationDashboard() {
         isSimulationMode={isSimulationMode}
         modelName={selectedModel?.name}
         targetVariable={selectedModel?.target_col}
+        targetUnit={targetUnit}
       />
 
       {/* Parameter Control Cards Grid */}
