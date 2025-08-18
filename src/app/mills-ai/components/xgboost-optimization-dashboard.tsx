@@ -50,6 +50,9 @@ export default function XgboostOptimizationDashboard() {
     }
   }, []);
   
+  // One-time guard to apply optimization-specific default model
+  const appliedOptimizationDefaultModel = useRef(false);
+  
   // Destructure store values with proper types
   const {
     parameters,
@@ -120,10 +123,23 @@ export default function XgboostOptimizationDashboard() {
     if (!models || Object.keys(models).length === 0) return;
 
     const modelIds = Object.keys(models);
+    const preferredDefault = "xgboost_psi200_mill8";
+
+    // On first load of optimization, prefer the specific default model if present
+    if (!appliedOptimizationDefaultModel.current) {
+      appliedOptimizationDefaultModel.current = true;
+      if (modelIds.includes(preferredDefault)) {
+        setModelName(preferredDefault);
+        const m = models[preferredDefault];
+        if (m) setModelMetadata(m.features, m.target_col, m.last_trained);
+        return; // done
+      }
+    }
+
     const findSuitableModel = () => {
       const modelsForCurrentMill = modelIds.filter(m => m.endsWith(`_mill${currentMill}`));
       if (modelsForCurrentMill.length > 0) return modelsForCurrentMill[0];
-      const defaultModelId = "xgboost_PSI80_mill8";
+      const defaultModelId = preferredDefault;
       if (modelIds.includes(defaultModelId)) return defaultModelId;
       return modelIds.length > 0 ? modelIds[0] : null;
     };
