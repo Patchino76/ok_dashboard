@@ -3,41 +3,15 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Activity, Zap, RotateCcw } from "lucide-react"
+import { Activity, Zap } from "lucide-react"
 import { ParameterOptimizationCard } from "./parameter-optimization-card"
 import { TargetFractionDisplay } from "./target-fraction-display"
 import { ModelSelection } from "./model-selection"
 import { ControlPanel } from "./control-panel"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
-import { millsTags } from "@/lib/tags/mills-tags"
 import { toast } from "sonner"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
 import { millsParameters } from "../data/mills-parameters"
-
-// Define tag interface to match the structure in mills-tags.ts
-interface TagInfo {
-  id: number
-  name: string
-  desc: string
-  unit: string
-  precision: number
-  group: string
-  icon: string
-}
-
-// Define type for millsTags structure
-type MillsTagsType = typeof millsTags
-type TagKey = keyof MillsTagsType
-
-interface ParameterData {
-  timestamp: number
-  value: number
-  target: number
-  pv: number
-}
 
 export default function XgboostOptimizationDashboard() {
   // Get the store instance
@@ -67,9 +41,7 @@ export default function XgboostOptimizationDashboard() {
     lastTrained,
     currentMill,
     sliderValues,
-    isSimulationMode,
     updateSliderValue,
-    setSimulationMode,
     setPredictedTarget,
     addTargetDataPoint,
     setModelName,
@@ -91,8 +63,15 @@ export default function XgboostOptimizationDashboard() {
     const initial: Record<string, [number, number]> = {};
     parameters.forEach(p => {
       const b = parameterBounds[p.id] || [0, 100];
-      // If existing range present keep it, else initialize to bounds
-      initial[p.id] = ranges[p.id] || [b[0], b[1]];
+      // If existing range present keep it, else initialize to 10% inside the bounds
+      if (ranges[p.id]) {
+        initial[p.id] = ranges[p.id] as [number, number];
+      } else {
+        const span = b[1] - b[0];
+        const lo = b[0] + 0.1 * span;
+        const hi = b[1] - 0.1 * span;
+        initial[p.id] = [lo, hi];
+      }
     });
     setRanges(initial);
   }, [parameters, parameterBounds]);
@@ -117,6 +96,16 @@ export default function XgboostOptimizationDashboard() {
     }, 500);
     return () => clearTimeout(timeoutId);
   }, [sliderValues, predictWithCurrentValues]);
+
+  // Force simulation mode ON for optimization page only
+  useEffect(() => {
+    try {
+      const setSimulationMode = useXgboostStore.getState().setSimulationMode;
+      setSimulationMode(true);
+    } catch (e) {
+      console.warn('Failed to set simulation mode on mount:', e);
+    }
+  }, []);
 
   // Handle model selection and metadata updates
   useEffect(() => {
@@ -261,11 +250,10 @@ export default function XgboostOptimizationDashboard() {
               />
             </div>
             <ControlPanel
-              isSimulationMode={isSimulationMode}
-              onSimulationModeChange={setSimulationMode}
               onResetFeatures={resetFeatures}
               onPredict={handlePrediction}
               modelFeatures={modelFeatures}
+              showRealtimeSwitch={false}
             />
           </div>
         </CardContent>
@@ -277,7 +265,7 @@ export default function XgboostOptimizationDashboard() {
         currentPV={currentPV}
         targetData={targetData}
         isOptimizing={isPredicting}
-        isSimulationMode={isSimulationMode}
+        isSimulationMode={true}
         modelName={selectedModel?.name}
         targetVariable={selectedModel?.target_col}
         targetUnit={targetUnit}
@@ -296,7 +284,7 @@ export default function XgboostOptimizationDashboard() {
                 parameter={parameter}
                 bounds={bounds as [number, number]}
                 rangeValue={rangeValue as [number, number]}
-                isSimulationMode={isSimulationMode}
+                isSimulationMode={true}
                 onRangeChange={(id: string, newRange: [number, number]) => {
                   setRanges(prev => ({ ...prev, [id]: newRange }));
                 }}

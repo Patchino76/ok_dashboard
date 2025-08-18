@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { millsParameters } from "../data/mills-parameters"
 import { useXgboostStore } from "../stores/xgboost-store"
@@ -25,7 +23,7 @@ interface ParameterOptimizationCardProps {
   parameter: Parameter
   bounds: [number, number]
   rangeValue: [number, number]
-  isSimulationMode: boolean
+  isSimulationMode?: boolean
   onRangeChange: (id: string, range: [number, number]) => void
 }
 
@@ -33,7 +31,7 @@ export function ParameterOptimizationCard({
   parameter, 
   bounds,
   rangeValue,
-  isSimulationMode,
+  isSimulationMode = true,
   onRangeChange 
 }: ParameterOptimizationCardProps) {
   // Get displayHours from the store to filter trend data
@@ -44,14 +42,10 @@ export function ParameterOptimizationCard({
   
   // Local state for range values
   const [range, setRange] = useState<[number, number]>(rangeValue);
-  const [minInput, setMinInput] = useState(rangeValue[0].toFixed(2));
-  const [maxInput, setMaxInput] = useState(rangeValue[1].toFixed(2));
   
   // Update local state when prop changes
   useEffect(() => {
     setRange(rangeValue);
-    setMinInput(rangeValue[0].toFixed(2));
-    setMaxInput(rangeValue[1].toFixed(2));
   }, [rangeValue]);
 
   const isInRange = parameter.value >= range[0] && parameter.value <= range[1];
@@ -60,31 +54,9 @@ export function ParameterOptimizationCard({
   const handleRangeChange = (newRange: [number, number]) => {
     // Always reflect local UI state
     setRange(newRange);
-    setMinInput(newRange[0].toFixed(2));
-    setMaxInput(newRange[1].toFixed(2));
     // Only propagate changes when interaction is allowed
     if (isSimulationMode) {
       onRangeChange(parameter.id, newRange);
-    }
-  };
-  
-  // Handle manual min input change
-  const handleMinInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setMinInput(value);
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue <= range[1] && numValue >= bounds[0]) {
-      handleRangeChange([numValue, range[1]]);
-    }
-  };
-  
-  // Handle manual max input change
-  const handleMaxInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setMaxInput(value);
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue) && numValue >= range[0] && numValue <= bounds[1]) {
-      handleRangeChange([range[0], numValue]);
     }
   };
   
@@ -264,47 +236,17 @@ export function ParameterOptimizationCard({
           </div>
         )}
 
-        {/* Range Inputs and Double Range Slider */}
-        <div className="pt-2 space-y-3">
-          <div className="flex justify-between items-center gap-2">
-            <div className="w-24">
-              <Input
-                type="number"
-                value={minInput}
-                onChange={handleMinInputChange}
-                step={0.01}
-                min={bounds[0]}
-                max={range[1] - 0.01}
-                className="h-8 text-center"
-                disabled={!isSimulationMode}
-              />
-            </div>
-            <div className={`flex-1 px-2 ${!isSimulationMode ? 'opacity-50 pointer-events-none' : ''}`}>
-              <DoubleRangeSlider
-                min={bounds[0]}
-                max={bounds[1]}
-                value={range}
-                onChange={handleRangeChange}
-                step={(bounds[1] - bounds[0]) / 100}
-                className={''}
-              />
-            </div>
-            <div className="w-24">
-              <Input
-                type="number"
-                value={maxInput}
-                onChange={handleMaxInputChange}
-                step={0.01}
-                min={range[0] + 0.01}
-                max={bounds[1]}
-                className="h-8 text-center"
-                disabled={!isSimulationMode}
-              />
-            </div>
-          </div>
-          <div className="flex justify-between text-xs text-slate-500">
-            <span>{bounds[0].toFixed(2)}</span>
-            <span>{bounds[1].toFixed(2)}</span>
+        {/* Double Range Slider (full width, no duplicate labels) */}
+        <div className="pt-2">
+          <div className={`${!isSimulationMode ? 'opacity-50 pointer-events-none' : ''}`}>
+            <DoubleRangeSlider
+              min={bounds[0]}
+              max={bounds[1]}
+              value={range}
+              onChange={handleRangeChange}
+              step={(bounds[1] - bounds[0]) / 100}
+              className={'w-full'}
+            />
           </div>
         </div>
       </CardContent>

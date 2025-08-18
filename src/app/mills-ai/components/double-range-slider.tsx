@@ -60,9 +60,9 @@ export function DoubleRangeSlider({ min, max, value, onChange, step = 0.1, class
 
   return (
     <div className={`relative ${className}`}>
-      <div className="flex gap-4 mb-2 text-xs text-gray-600">
-        <span>Lo: {value[0].toFixed(1)}</span>
-        <span>Hi: {value[1].toFixed(1)}</span>
+      <div className="flex justify-between mb-2 text-xs text-gray-600">
+        <span>Lo: {value[0].toFixed(2)}</span>
+        <span>Hi: {value[1].toFixed(2)}</span>
       </div>
 
       <div ref={sliderRef} className="relative h-2 bg-gray-200 rounded-full cursor-pointer">
@@ -90,8 +90,8 @@ export function DoubleRangeSlider({ min, max, value, onChange, step = 0.1, class
       </div>
 
       <div className="flex justify-between mt-2 text-xs text-gray-500">
-        <span>Min: {min}</span>
-        <span>Max: {max}</span>
+        <span>Min: {min.toFixed(2)}</span>
+        <span>Max: {max.toFixed(2)}</span>
       </div>
     </div>
   )
