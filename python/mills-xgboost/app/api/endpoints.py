@@ -206,10 +206,15 @@ models_store = {}
 async def train_model(request: TrainingRequest):
     """Train a new XGBoost model with the specified parameters"""
     try:
+        logger.info(f"=== TRAINING REQUEST RECEIVED ===")
+        logger.info(f"DEBUG: Full training request: {request.dict()}")
+        
         # Generate a unique ID for this model
         model_id = str(uuid.uuid4())
+        logger.info(f"DEBUG: Generated model_id: {model_id}")
         
         # Create database connector
+        logger.info(f"DEBUG: Creating database connector with host: {request.db_config.host}")
         db_connector = MillsDataConnector(
             host=request.db_config.host,
             port=request.db_config.port,
@@ -217,17 +222,38 @@ async def train_model(request: TrainingRequest):
             user=request.db_config.user,
             password=request.db_config.password
         )
+        logger.info(f"DEBUG: Database connector created successfully")
         
         # Get combined data
+        logger.info(f"=== STARTING DATA RETRIEVAL ===")
         logger.info(f"Fetching data for mill {request.mill_number} from {request.start_date} to {request.end_date}")
+        
+        # Handle Mill 8 data gap - extend end date to include post-gap data
+        end_date_adjusted = request.end_date
+        if request.mill_number == 8:
+            # Mill 8 has data gap from 2025-08-12 to 2025-08-18, extend to current time
+            from datetime import datetime
+            current_time = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.000Z')
+            end_date_adjusted = current_time
+            logger.info(f"DEBUG: Mill 8 detected - adjusting end_date from {request.end_date} to {end_date_adjusted}")
+        
         df = db_connector.get_combined_data(
             mill_number=request.mill_number,
             start_date=request.start_date,
-            end_date=request.end_date,
+            end_date=end_date_adjusted,
             resample_freq='1min'  # For 1-minute intervals as mentioned in the memory
         )
+        logger.info(f"=== DATA RETRIEVAL COMPLETED ===")
+        
+        if df is not None and not df.empty:
+            logger.info(f"DEBUG: Retrieved dataframe shape: {df.shape}")
+            logger.info(f"DEBUG: Retrieved dataframe columns: {list(df.columns)}")
+            logger.info(f"DEBUG: Retrieved dataframe date range: {df.index.min()} to {df.index.max()}")
+        else:
+            logger.error(f"DEBUG: No data retrieved - df is None or empty")
         
         if df is None or df.empty:
+            logger.error(f"DEBUG: No data found - raising 400 error")
             raise HTTPException(status_code=400, detail="No data found for the specified parameters")
         
         # Set features if not provided
@@ -235,10 +261,20 @@ async def train_model(request: TrainingRequest):
             'Ore', 'WaterMill', 'WaterZumpf', 'PressureHC', 
             'DensityHC', 'MotorAmp', 'Shisti', 'Daiki'
         ]
+        logger.info(f"DEBUG: Using features: {features}")
+        logger.info(f"DEBUG: Target column: {request.target_col}")
         
         # Process data
+        logger.info(f"=== STARTING DATA PROCESSING ===")
         data_processor = DataProcessor()
-        X_scaled, y, scaler = data_processor.preprocess(df, features, request.target_col)
+        try:
+            X_scaled, y, scaler = data_processor.preprocess(df, features, request.target_col)
+            logger.info(f"DEBUG: Data preprocessing completed - X_scaled shape: {X_scaled.shape}, y shape: {y.shape}")
+        except Exception as e:
+            logger.error(f"DEBUG: Data preprocessing failed: {e}")
+            import traceback
+            logger.error(f"DEBUG: Preprocessing traceback: {traceback.format_exc()}")
+            raise
         
         # Split data - use time-ordered split for time series (no shuffling)
         # Calculate the split point for time series data
@@ -292,7 +328,11 @@ async def train_model(request: TrainingRequest):
         return response
         
     except Exception as e:
-        logger.error(f"Error during model training: {str(e)}")
+        logger.error(f"=== TRAINING ERROR OCCURRED ===")
+        logger.error(f"ERROR: {str(e)}")
+        import traceback
+        logger.error(f"FULL TRACEBACK: {traceback.format_exc()}")
+        logger.error(f"=== END TRAINING ERROR ===")
         raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
 
 @router.post("/predict", response_model=PredictionResponse) 

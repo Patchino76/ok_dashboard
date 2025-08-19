@@ -48,22 +48,88 @@ class MillsDataConnector:
         try:
             mill_table = f"MILL_{mill_number:02d}"
             
+            # DEBUG: Log the date parameters
+            logger.info(f"DEBUG: get_mill_data called with mill_number={mill_number}, start_date={start_date}, end_date={end_date}")
+            logger.info(f"DEBUG: Current time: {datetime.now()}")
+            
+            # Parse and log the date range we're requesting
+            if start_date:
+                start_parsed = pd.to_datetime(start_date)
+                logger.info(f"DEBUG: Parsed start_date: {start_parsed} (timezone: {start_parsed.tz})")
+            if end_date:
+                end_parsed = pd.to_datetime(end_date)
+                logger.info(f"DEBUG: Parsed end_date: {end_parsed} (timezone: {end_parsed.tz})")
+                # Fix timezone issue by making both datetime objects timezone-aware or naive
+                now_utc = pd.to_datetime(datetime.now()).tz_localize('UTC')
+                logger.info(f"DEBUG: Days from now to end_date: {(end_parsed - now_utc).days}")
+            
             # Build query
             query = f"SELECT * FROM mills.\"{mill_table}\""
             
-            # Add date filters if provided
+            # Add date filters if provided - fix timezone handling
             conditions = []
             if start_date:
-                conditions.append(f"\"TimeStamp\" >= '{start_date}'")
+                # Convert UTC timezone to local timezone for PostgreSQL query
+                start_parsed = pd.to_datetime(start_date)
+                if start_parsed.tz:
+                    start_local = start_parsed.tz_convert(None)
+                else:
+                    start_local = start_parsed
+                conditions.append(f"\"TimeStamp\" >= '{start_local}'")
+                logger.info(f"DEBUG: Converted start_date {start_date} -> {start_local}")
             if end_date:
-                conditions.append(f"\"TimeStamp\" <= '{end_date}'")
+                # Convert UTC timezone to local timezone for PostgreSQL query
+                end_parsed = pd.to_datetime(end_date)
+                if end_parsed.tz:
+                    end_local = end_parsed.tz_convert(None)
+                else:
+                    end_local = end_parsed
+                conditions.append(f"\"TimeStamp\" <= '{end_local}'")
+                logger.info(f"DEBUG: Converted end_date {end_date} -> {end_local}")
                 
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
             
+            # DEBUG: Log the final query
+            logger.info(f"DEBUG: Executing query: {query}")
+            logger.info(f"DEBUG: Query will search table: mills.\"{mill_table}\"")
+            
+            # Test if table exists and get basic info
+            try:
+                test_query = f"SELECT COUNT(*) as total_count, MIN(\"TimeStamp\") as min_date, MAX(\"TimeStamp\") as max_date FROM mills.\"{mill_table}\""
+                test_df = pd.read_sql_query(test_query, self.engine)
+                logger.info(f"DEBUG: Table {mill_table} has {test_df.iloc[0]['total_count']} total records")
+                logger.info(f"DEBUG: Table {mill_table} date range: {test_df.iloc[0]['min_date']} to {test_df.iloc[0]['max_date']}")
+                
+                # Check records after our cutoff date
+                cutoff_check_query = f"SELECT COUNT(*) as count_after_cutoff FROM mills.\"{mill_table}\" WHERE \"TimeStamp\" > '2025-08-12 12:54:00'"
+                cutoff_df = pd.read_sql_query(cutoff_check_query, self.engine)
+                logger.info(f"DEBUG: Table {mill_table} has {cutoff_df.iloc[0]['count_after_cutoff']} records after 2025-08-12 12:54:00")
+                
+            except Exception as e:
+                logger.error(f"DEBUG: Error checking table info: {e}")
+            
             # Execute query
             df = pd.read_sql_query(query, self.engine, index_col='TimeStamp')
+            
+            # DEBUG: Log detailed info about retrieved data
             logger.info(f"Retrieved {len(df)} rows for Mill {mill_number}")
+            if not df.empty:
+                logger.info(f"DEBUG: Mill data date range: {df.index.min()} to {df.index.max()}")
+                logger.info(f"DEBUG: Last 5 timestamps in mill data: {df.index[-5:].tolist()}")
+                
+                # CRITICAL DEBUG: Check if we have data after 2025-08-12
+                cutoff_date = pd.to_datetime('2025-08-12 12:54:00')
+                after_cutoff = df[df.index > cutoff_date]
+                logger.info(f"DEBUG: Records after 2025-08-12 12:54:00: {len(after_cutoff)}")
+                if len(after_cutoff) > 0:
+                    logger.info(f"DEBUG: First timestamp after cutoff: {after_cutoff.index[0]}")
+                    logger.info(f"DEBUG: Last timestamp after cutoff: {after_cutoff.index[-1]}")
+                else:
+                    logger.warning(f"DEBUG: NO MILL DATA AFTER 2025-08-12 12:54:00 - This is the problem!")
+            else:
+                logger.warning(f"DEBUG: No mill data retrieved for Mill {mill_number}")
+            
             return df
             
         except Exception as e:
@@ -82,22 +148,88 @@ class MillsDataConnector:
             DataFrame with ore quality data
         """
         try:
+            # DEBUG: Log the date parameters
+            logger.info(f"DEBUG: get_ore_quality called with start_date={start_date}, end_date={end_date}")
+            
+            # Parse and log the date range we're requesting
+            if start_date:
+                start_parsed = pd.to_datetime(start_date)
+                logger.info(f"DEBUG: Ore quality parsed start_date: {start_parsed} (timezone: {start_parsed.tz})")
+            if end_date:
+                end_parsed = pd.to_datetime(end_date)
+                logger.info(f"DEBUG: Ore quality parsed end_date: {end_parsed} (timezone: {end_parsed.tz})")
+            
             # Build query
             query = "SELECT * FROM mills.ore_quality"
             
-            # Add date filters if provided
+            # Add date filters if provided - fix timezone handling
             conditions = []
             if start_date:
-                conditions.append(f"\"TimeStamp\" >= '{start_date}'")
+                # Convert UTC timezone to local timezone for PostgreSQL query
+                start_parsed = pd.to_datetime(start_date)
+                if start_parsed.tz:
+                    start_local = start_parsed.tz_convert(None)
+                else:
+                    start_local = start_parsed
+                conditions.append(f"\"TimeStamp\" >= '{start_local}'")
+                logger.info(f"DEBUG: Ore quality converted start_date {start_date} -> {start_local}")
             if end_date:
-                conditions.append(f"\"TimeStamp\" <= '{end_date}'")
+                # Convert UTC timezone to local timezone for PostgreSQL query
+                end_parsed = pd.to_datetime(end_date)
+                if end_parsed.tz:
+                    end_local = end_parsed.tz_convert(None)
+                else:
+                    end_local = end_parsed
+                conditions.append(f"\"TimeStamp\" <= '{end_local}'")
+                logger.info(f"DEBUG: Ore quality converted end_date {end_date} -> {end_local}")
                 
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
             
+            # DEBUG: Log the final query
+            logger.info(f"DEBUG: Executing ore quality query: {query}")
+            
+            # Test ore quality table info
+            try:
+                test_query = "SELECT COUNT(*) as total_count, MIN(\"TimeStamp\") as min_date, MAX(\"TimeStamp\") as max_date FROM mills.ore_quality"
+                test_df = pd.read_sql_query(test_query, self.engine)
+                logger.info(f"DEBUG: ore_quality table has {test_df.iloc[0]['total_count']} total records")
+                logger.info(f"DEBUG: ore_quality table date range: {test_df.iloc[0]['min_date']} to {test_df.iloc[0]['max_date']}")
+                
+                # Check records after our cutoff date
+                cutoff_check_query = "SELECT COUNT(*) as count_after_cutoff FROM mills.ore_quality WHERE \"TimeStamp\" > '2025-08-12 12:54:00'"
+                cutoff_df = pd.read_sql_query(cutoff_check_query, self.engine)
+                logger.info(f"DEBUG: ore_quality table has {cutoff_df.iloc[0]['count_after_cutoff']} records after 2025-08-12 12:54:00")
+                
+                # Check records in our requested date range
+                if start_date and end_date:
+                    range_query = f"SELECT COUNT(*) as count_in_range FROM mills.ore_quality WHERE \"TimeStamp\" >= '{start_date}' AND \"TimeStamp\" <= '{end_date}'"
+                    range_df = pd.read_sql_query(range_query, self.engine)
+                    logger.info(f"DEBUG: ore_quality has {range_df.iloc[0]['count_in_range']} records in requested range {start_date} to {end_date}")
+                
+            except Exception as e:
+                logger.error(f"DEBUG: Error checking ore_quality table info: {e}")
+            
             # Execute query
             df = pd.read_sql_query(query, self.engine)
+            
+            # DEBUG: Log detailed info about retrieved data
             logger.info(f"Retrieved {len(df)} rows of ore quality data")
+            if not df.empty and 'TimeStamp' in df.columns:
+                df_temp = df.copy()
+                df_temp['TimeStamp'] = pd.to_datetime(df_temp['TimeStamp'])
+                logger.info(f"DEBUG: Ore quality data date range: {df_temp['TimeStamp'].min()} to {df_temp['TimeStamp'].max()}")
+                logger.info(f"DEBUG: Last 5 timestamps in ore quality data: {df_temp['TimeStamp'].tail(5).tolist()}")
+                
+                # CRITICAL DEBUG: Check if ore quality data limits the date range
+                cutoff_date = pd.to_datetime('2025-08-12 12:54:00')
+                after_cutoff = df_temp[df_temp['TimeStamp'] > cutoff_date]
+                logger.info(f"DEBUG: Ore quality records after 2025-08-12 12:54:00: {len(after_cutoff)}")
+                if len(after_cutoff) == 0:
+                    logger.warning(f"DEBUG: ORE QUALITY DATA ENDS AT 2025-08-12 - This might be limiting the combined dataset!")
+            else:
+                logger.warning(f"DEBUG: No ore quality data retrieved or no TimeStamp column")
+            
             return df
             
         except Exception as e:
@@ -143,15 +275,29 @@ class MillsDataConnector:
             start = pd.to_datetime(start_date).tz_localize(None) if start_date else None
             end = pd.to_datetime(end_date).tz_localize(None) if end_date else None
             
+            # DEBUG: Log date filtering parameters
+            logger.info(f"DEBUG: process_dataframe date filtering - start={start}, end={end}")
+            logger.info(f"DEBUG: Before date filtering: {len(df_processed)} rows, date range: {df_processed.index.min()} to {df_processed.index.max()}")
+            
             # Remove timezone info if present
             if df_processed.index.tz is not None:
                 df_processed.index = df_processed.index.tz_localize(None)
             
             # Apply filters
             if start:
+                before_start_filter = len(df_processed)
                 df_processed = df_processed[df_processed.index >= start]
+                logger.info(f"DEBUG: After start date filter ({start}): {len(df_processed)} rows (removed {before_start_filter - len(df_processed)} rows)")
             if end:
+                before_end_filter = len(df_processed)
                 df_processed = df_processed[df_processed.index <= end]
+                logger.info(f"DEBUG: After end date filter ({end}): {len(df_processed)} rows (removed {before_end_filter - len(df_processed)} rows)")
+            
+            # DEBUG: Log final date range after filtering
+            if not df_processed.empty:
+                logger.info(f"DEBUG: After date filtering: {len(df_processed)} rows, date range: {df_processed.index.min()} to {df_processed.index.max()}")
+            else:
+                logger.warning(f"DEBUG: No data remaining after date filtering!")
             
         # Convert object columns to numeric
         for col in df_processed.columns:
@@ -258,6 +404,19 @@ class MillsDataConnector:
             logger.info(f"Successfully joined dataframes: {len(joined_df)} rows, {len(joined_df.columns)} columns")
             logger.info(f"Joined dataframe columns: {list(joined_df.columns)}")
             
+            # CRITICAL DEBUG: Check final date range after join
+            logger.info(f"DEBUG: Final combined data date range: {joined_df.index.min()} to {joined_df.index.max()}")
+            cutoff_date = pd.to_datetime('2025-08-12 12:54:00')
+            after_cutoff = joined_df[joined_df.index > cutoff_date]
+            logger.info(f"DEBUG: Combined data records after 2025-08-12 12:54:00: {len(after_cutoff)}")
+            
+            if len(after_cutoff) == 0:
+                logger.error(f"DEBUG: *** COMBINED DATA ENDS AT 2025-08-12 - JOIN OPERATION IS LIMITING THE DATASET! ***")
+                logger.error(f"DEBUG: *** This means ore quality data is the limiting factor ***")
+                logger.error(f"DEBUG: *** The join operation can only include timestamps where BOTH mill and ore data exist ***")
+            else:
+                logger.info(f"DEBUG: SUCCESS - Combined data extends beyond 2025-08-12 with {len(after_cutoff)} records")
+            
             # Log head and tail of the combined dataframe
             logger.info("\n=== Combined Dataframe Head (first 3 rows) ===")
             logger.info(joined_df.head(3).to_string())
@@ -288,6 +447,9 @@ class MillsDataConnector:
             Combined DataFrame with mill and ore quality data
         """
         try:
+            logger.info(f"=== STARTING get_combined_data for Mill {mill_number} ===")
+            logger.info(f"DEBUG: Request parameters - mill_number={mill_number}, start_date={start_date}, end_date={end_date}")
+            logger.info(f"DEBUG: Additional parameters - resample_freq={resample_freq}, save_to_logs={save_to_logs}, no_interpolation={no_interpolation}")
             logger.info(f"Retrieving mill data for mill {mill_number} from {start_date} to {end_date}")
             
             # Get mill data
@@ -347,8 +509,15 @@ class MillsDataConnector:
                 except Exception as e:
                     logger.error(f"Error saving combined data to logs: {e}")
             
+            logger.info(f"=== COMPLETED get_combined_data for Mill {mill_number} ===")
+            logger.info(f"DEBUG: Final result - {len(combined_data) if combined_data is not None else 0} total records")
+            if combined_data is not None and not combined_data.empty:
+                logger.info(f"DEBUG: Final date range: {combined_data.index.min()} to {combined_data.index.max()}")
+            
             return combined_data
                 
         except Exception as e:
             logger.error(f"Error combining data: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return None
