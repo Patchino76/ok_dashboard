@@ -3,15 +3,16 @@
 import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Activity, Zap } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Slider } from "@/components/ui/slider"
+import { Activity, Zap, Settings, Play } from "lucide-react"
 import { ParameterOptimizationCard } from "./parameter-optimization-card"
 import { TargetFractionDisplay } from "../../components/target-fraction-display"
 import { ModelSelection } from "../../components/model-selection"
-import { ControlPanel } from "../../components/control-panel"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
 import { toast } from "sonner"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
-import { millsParameters } from "../../data/mills-parameters"
+import { millsParameters, getTargets } from "../../data/mills-parameters"
 
 export default function XgboostOptimizationDashboard() {
   // Get the store instance
@@ -57,6 +58,16 @@ export default function XgboostOptimizationDashboard() {
 
   // Local optimization ranges per parameter id
   const [ranges, setRanges] = useState<Record<string, [number, number]>>({});
+  
+  // Target SP slider state
+  const [targetSP, setTargetSP] = useState<number>(50.0);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  
+  // Get target parameter bounds (PSI80)
+  const targetParameter = useMemo(() => {
+    const targets = getTargets();
+    return targets.find(t => t.id === 'PSI80') || targets[0];
+  }, []);
 
   // Initialize ranges from parameterBounds when parameters or bounds change
   useEffect(() => {
@@ -75,6 +86,13 @@ export default function XgboostOptimizationDashboard() {
     });
     setRanges(initial);
   }, [parameters, parameterBounds]);
+  
+  // Initialize target SP to middle of target parameter range
+  useEffect(() => {
+    if (targetParameter) {
+      setTargetSP((targetParameter.min + targetParameter.max) / 2);
+    }
+  }, [targetParameter]);
 
   const [isPredicting, setIsPredicting] = useState(false);
   const { models } = useGetModels();
@@ -213,6 +231,48 @@ export default function XgboostOptimizationDashboard() {
       if (modelForMill) handleModelChange(modelForMill);
     }
   };
+  
+  const handleStartOptimization = async () => {
+    if (isOptimizing) return;
+    
+    setIsOptimizing(true);
+    const loadingToast = toast.loading('Starting Bayesian optimization...');
+    
+    try {
+      // Prepare optimization request data
+      const optimizationData = {
+        model_id: modelName,
+        target_setpoint: targetSP,
+        parameter_bounds: ranges,
+        iterations: 50, // Default iterations
+        maximize: true // Assuming we want to maximize the target
+      };
+      
+      console.log('Starting optimization with data:', optimizationData);
+      
+      // TODO: Call the optimization API endpoint
+      // const response = await mlApiClient.post('/api/v1/ml/optimize', optimizationData);
+      
+      // For now, simulate optimization delay
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      toast.success('Optimization completed successfully!', { id: loadingToast });
+      
+      // TODO: Update parameters with optimized values
+      // if (response.data.best_parameters) {
+      //   Object.entries(response.data.best_parameters).forEach(([paramId, value]) => {
+      //     updateSliderValue(paramId, value as number);
+      //   });
+      // }
+      
+    } catch (error) {
+      console.error('Optimization failed:', error);
+      toast.error('Optimization failed. Please try again.', { id: loadingToast });
+    } finally {
+      setIsOptimizing(false);
+      toast.dismiss(loadingToast);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -249,12 +309,55 @@ export default function XgboostOptimizationDashboard() {
                 onMillChange={handleMillChange}
               />
             </div>
-            <ControlPanel
-              onResetFeatures={resetFeatures}
-              onPredict={handlePrediction}
-              modelFeatures={modelFeatures}
-              showRealtimeSwitch={false}
-            />
+            <div className="space-y-4">
+              {/* Target SP Slider */}
+              <Card className="p-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Target Setpoint ({targetParameter?.name || 'PSI80'})
+                    </h3>
+                    <Badge variant="outline" className="text-xs">
+                      {targetSP.toFixed(1)} {targetParameter?.unit || '%'}
+                    </Badge>
+                  </div>
+                  <div className="px-2">
+                    <Slider
+                      value={[targetSP]}
+                      onValueChange={(value) => setTargetSP(value[0])}
+                      min={targetParameter?.min || 0}
+                      max={targetParameter?.max || 100}
+                      step={0.1}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500 mt-1">
+                      <span>{targetParameter?.min || 0}</span>
+                      <span>{targetParameter?.max || 100}</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+              
+              {/* Optimization Controls */}
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleStartOptimization}
+                  disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  {isOptimizing ? 'Optimizing...' : 'Start Optimization'}
+                </Button>
+                <Button
+                  onClick={resetFeatures}
+                  variant="outline"
+                  className="px-4"
+                >
+                  Reset
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
