@@ -5,11 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { Activity, Zap, Settings, Play } from "lucide-react"
+import { Activity, Zap, Settings, Play, CheckCircle, AlertCircle } from "lucide-react"
 import { ParameterOptimizationCard } from "./parameter-optimization-card"
 import { TargetFractionDisplay } from "../../components/target-fraction-display"
 import { ModelSelection } from "../../components/model-selection"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
+import { useOptimizationStore } from "../../stores/optimization-store"
+import { useOptimization } from "../../hooks/useOptimization"
+import { useOptimizationResults } from "../../hooks/useOptimizationResults"
 import { toast } from "sonner"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
 import { millsParameters, getTargets } from "../../data/mills-parameters"
@@ -56,12 +59,26 @@ export default function XgboostOptimizationDashboard() {
     predictWithCurrentValues
   } = store;
 
-  // Local optimization ranges per parameter id
-  const [ranges, setRanges] = useState<Record<string, [number, number]>>({});
+  // Optimization store and hooks
+  const {
+    targetSetpoint,
+    parameterBounds: optimizationBounds,
+    iterations,
+    maximize,
+    setTargetSetpoint,
+    updateParameterBounds,
+    setParameterBounds,
+    getOptimizationConfig
+  } = useOptimizationStore()
   
-  // Target SP slider state
-  const [targetSP, setTargetSP] = useState<number>(50.0);
-  const [isOptimizing, setIsOptimizing] = useState(false);
+  const { startOptimization, isOptimizing, progress, error } = useOptimization()
+  const { 
+    currentResults, 
+    hasResults, 
+    isSuccessful, 
+    applyOptimizedParameters,
+    improvementScore 
+  } = useOptimizationResults()
   
   // Get target parameter bounds (PSI80)
   const targetParameter = useMemo(() => {
@@ -69,30 +86,37 @@ export default function XgboostOptimizationDashboard() {
     return targets.find(t => t.id === 'PSI80') || targets[0];
   }, []);
 
-  // Initialize ranges from parameterBounds when parameters or bounds change
+  // Initialize optimization bounds from parameterBounds when parameters or bounds change
   useEffect(() => {
     const initial: Record<string, [number, number]> = {};
+    let hasChanges = false;
+    
     parameters.forEach(p => {
       const b = parameterBounds[p.id] || [0, 100];
-      // If existing range present keep it, else initialize to 10% inside the bounds
-      if (ranges[p.id]) {
-        initial[p.id] = ranges[p.id] as [number, number];
+      // If existing bounds present keep them, else initialize to 10% inside the parameter bounds
+      if (optimizationBounds[p.id]) {
+        initial[p.id] = optimizationBounds[p.id] as [number, number];
       } else {
         const span = b[1] - b[0];
         const lo = b[0] + 0.1 * span;
         const hi = b[1] - 0.1 * span;
         initial[p.id] = [lo, hi];
+        hasChanges = true;
       }
     });
-    setRanges(initial);
-  }, [parameters, parameterBounds]);
-  
-  // Initialize target SP to middle of target parameter range
-  useEffect(() => {
-    if (targetParameter) {
-      setTargetSP((targetParameter.min + targetParameter.max) / 2);
+    
+    // Only update if there are actual changes
+    if (hasChanges) {
+      setParameterBounds(initial);
     }
-  }, [targetParameter]);
+  }, [parameters, parameterBounds]);  // Removed optimizationBounds and setParameterBounds from deps
+  
+  // Initialize target setpoint to middle of target parameter range
+  useEffect(() => {
+    if (targetParameter && targetSetpoint === 50.0) {
+      setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
+    }
+  }, [targetParameter]);  // Removed targetSetpoint and setTargetSetpoint from deps
 
   const [isPredicting, setIsPredicting] = useState(false);
   const { models } = useGetModels();
@@ -233,44 +257,39 @@ export default function XgboostOptimizationDashboard() {
   };
   
   const handleStartOptimization = async () => {
-    if (isOptimizing) return;
+    if (isOptimizing || !modelName) return;
     
-    setIsOptimizing(true);
     const loadingToast = toast.loading('Starting Bayesian optimization...');
     
     try {
-      // Prepare optimization request data
-      const optimizationData = {
-        model_id: modelName,
-        target_setpoint: targetSP,
-        parameter_bounds: ranges,
-        iterations: 50, // Default iterations
-        maximize: true // Assuming we want to maximize the target
-      };
+      // Get optimization config from store
+      const config = getOptimizationConfig(modelName);
       
-      console.log('Starting optimization with data:', optimizationData);
+      console.log('Starting optimization with config:', config);
       
-      // TODO: Call the optimization API endpoint
-      // const response = await mlApiClient.post('/api/v1/ml/optimize', optimizationData);
+      // Start optimization using the hook
+      const result = await startOptimization(config);
       
-      // For now, simulate optimization delay
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      toast.success('Optimization completed successfully!', { id: loadingToast });
-      
-      // TODO: Update parameters with optimized values
-      // if (response.data.best_parameters) {
-      //   Object.entries(response.data.best_parameters).forEach(([paramId, value]) => {
-      //     updateSliderValue(paramId, value as number);
-      //   });
-      // }
+      if (result && result.status === 'completed') {
+        toast.success(
+          `Optimization completed! Best score: ${result.best_score.toFixed(3)}`,
+          { id: loadingToast }
+        );
+      } else {
+        toast.error('Optimization failed. Please try again.', { id: loadingToast });
+      }
       
     } catch (error) {
       console.error('Optimization failed:', error);
       toast.error('Optimization failed. Please try again.', { id: loadingToast });
     } finally {
-      setIsOptimizing(false);
       toast.dismiss(loadingToast);
+    }
+  };
+  
+  const handleApplyResults = () => {
+    if (currentResults?.best_parameters) {
+      applyOptimizedParameters();
     }
   };
 
@@ -319,17 +338,18 @@ export default function XgboostOptimizationDashboard() {
                       Target Setpoint ({targetParameter?.name || 'PSI80'})
                     </h3>
                     <Badge variant="outline" className="text-xs">
-                      {targetSP.toFixed(1)} {targetParameter?.unit || '%'}
+                      {targetSetpoint.toFixed(1)} {targetParameter?.unit || '%'}
                     </Badge>
                   </div>
                   <div className="px-2">
                     <Slider
-                      value={[targetSP]}
-                      onValueChange={(value) => setTargetSP(value[0])}
+                      value={[targetSetpoint]}
+                      onValueChange={(value) => setTargetSetpoint(value[0])}
                       min={targetParameter?.min || 0}
                       max={targetParameter?.max || 100}
                       step={0.1}
                       className="w-full"
+                      disabled={isOptimizing}
                     />
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
                       <span>{targetParameter?.min || 0}</span>
@@ -340,22 +360,58 @@ export default function XgboostOptimizationDashboard() {
               </Card>
               
               {/* Optimization Controls */}
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleStartOptimization}
-                  disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  {isOptimizing ? 'Optimizing...' : 'Start Optimization'}
-                </Button>
-                <Button
-                  onClick={resetFeatures}
-                  variant="outline"
-                  className="px-4"
-                >
-                  Reset
-                </Button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleStartOptimization}
+                    disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    {isOptimizing ? `Optimizing... ${progress.toFixed(0)}%` : 'Start Optimization'}
+                  </Button>
+                  <Button
+                    onClick={resetFeatures}
+                    variant="outline"
+                    className="px-4"
+                    disabled={isOptimizing}
+                  >
+                    Reset
+                  </Button>
+                </div>
+                
+                {/* Results Actions */}
+                {hasResults && isSuccessful && (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleApplyResults}
+                      variant="outline"
+                      className="flex-1 border-green-200 text-green-700 hover:bg-green-50"
+                      disabled={isOptimizing}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Apply Optimized Parameters
+                    </Button>
+                  </div>
+                )}
+                
+                {/* Error Display */}
+                {error && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-2 rounded">
+                    <AlertCircle className="h-4 w-4" />
+                    {error}
+                  </div>
+                )}
+                
+                {/* Results Summary */}
+                {hasResults && isSuccessful && improvementScore !== null && (
+                  <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4" />
+                      Optimization completed with {improvementScore > 0 ? '+' : ''}{improvementScore.toFixed(1)}% improvement
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -380,7 +436,7 @@ export default function XgboostOptimizationDashboard() {
           .filter(parameter => !modelFeatures || modelFeatures.includes(parameter.id))
           .map((parameter) => {
             const bounds = parameterBounds[parameter.id] || [0, 100];
-            const rangeValue = ranges[parameter.id] || [bounds[0], bounds[1]];
+            const rangeValue = optimizationBounds[parameter.id] || [bounds[0], bounds[1]];
             return (
               <ParameterOptimizationCard
                 key={`${modelName}-${parameter.id}`}
@@ -389,7 +445,7 @@ export default function XgboostOptimizationDashboard() {
                 rangeValue={rangeValue as [number, number]}
                 isSimulationMode={true}
                 onRangeChange={(id: string, newRange: [number, number]) => {
-                  setRanges(prev => ({ ...prev, [id]: newRange }));
+                  updateParameterBounds(id, newRange);
                 }}
               />
             );
