@@ -35,24 +35,33 @@ export function useOptimization(): UseOptimizationReturn {
       console.log('Starting optimization with config:', config)
       
       // Call the optimization API
-      const response = await mlApiClient.post('/api/v1/ml/optimize', config)
+      const response = await mlApiClient.post('/optimize', config)
       
       if (!response.data) {
         throw new Error('No data received from optimization API')
       }
 
-      // Create optimization result object
+      // Create optimization result object based on actual API response
       const optimizationResult: OptimizationResult = {
         id: `opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: Date.now(),
         config,
-        best_parameters: response.data.best_parameters || {},
-        best_score: response.data.best_score || 0,
-        optimization_history: response.data.optimization_history || [],
-        convergence_data: response.data.convergence_data || [],
-        feature_importance: response.data.feature_importance,
-        recommendations: response.data.recommendations,
-        duration_seconds: response.data.duration_seconds || 0,
+        best_parameters: response.data.best_params || {},
+        best_score: response.data.best_target || 0,
+        optimization_history: response.data.recommendations?.map((rec: any, index: number) => ({
+          iteration: index + 1,
+          parameters: rec.params,
+          score: rec.predicted_value
+        })) || [],
+        convergence_data: response.data.recommendations?.map((rec: any, index: number) => ({
+          iteration: index + 1,
+          best_score: rec.predicted_value
+        })) || [],
+        feature_importance: undefined, // Not provided in current API response
+        recommendations: response.data.recommendations?.map((rec: any) => 
+          `Predicted value: ${rec.predicted_value.toFixed(3)} with optimized parameters`
+        ) || [],
+        duration_seconds: 0, // Not provided in current API response
         status: 'completed',
       }
 

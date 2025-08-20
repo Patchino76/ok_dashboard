@@ -6,7 +6,7 @@ export interface OptimizationConfig {
   model_id: string
   target_setpoint: number
   parameter_bounds: Record<string, [number, number]>
-  iterations: number
+  n_iter: number
   maximize: boolean
 }
 
@@ -231,7 +231,7 @@ export const useOptimizationStore = create<OptimizationState>()(
           model_id: modelId,
           target_setpoint: state.targetSetpoint,
           parameter_bounds: state.parameterBounds,
-          iterations: state.iterations,
+          n_iter: state.iterations,
           maximize: state.maximize,
         }
       },
