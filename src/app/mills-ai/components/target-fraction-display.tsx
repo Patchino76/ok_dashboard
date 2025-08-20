@@ -25,6 +25,8 @@ interface TargetFractionDisplayProps {
   modelName?: string
   targetVariable?: string
   targetUnit?: string
+  spOptimize?: number | null
+  showOptimizationTarget?: boolean
 }
 
 export function TargetFractionDisplay({
@@ -35,6 +37,8 @@ export function TargetFractionDisplay({
   isSimulationMode = false,
   targetVariable,
   targetUnit = "%", // Default to % if no unit is provided
+  spOptimize = null,
+  showOptimizationTarget = false,
   // modelName is intentionally not destructured to avoid unused vars
 }: TargetFractionDisplayProps) {
   
@@ -126,6 +130,10 @@ export function TargetFractionDisplay({
       baselineMin = Math.min(baselineMin, currentTarget);
       baselineMax = Math.max(baselineMax, currentTarget);
     }
+    if (typeof spOptimize === 'number' && showOptimizationTarget) {
+      baselineMin = Math.min(baselineMin, spOptimize);
+      baselineMax = Math.max(baselineMax, spOptimize);
+    }
 
     const range = Math.max(baselineMax - baselineMin, 0.001);
     const pad = Math.max(0.5, range * 0.1);
@@ -143,10 +151,14 @@ export function TargetFractionDisplay({
     const curr = boundsRef.current;
     const currRange = Math.max(curr.max - curr.min, 0.001);
     const propRange = Math.max(proposedMax - proposedMin, 0.001);
-    const outOfRange = [currentPV, currentTarget].some(
+    const valuesToCheck = [currentPV, currentTarget];
+    if (typeof spOptimize === 'number' && showOptimizationTarget) {
+      valuesToCheck.push(spOptimize);
+    }
+    const outOfRange = valuesToCheck.some(
       (v) => typeof v === 'number' && (v < curr.min || v > curr.max)
     );
-    const nearEdge = [currentPV, currentTarget].some(
+    const nearEdge = valuesToCheck.some(
       (v) => typeof v === 'number' && (v - curr.min < currRange * edgeMarginFrac || curr.max - v < currRange * edgeMarginFrac)
     );
     const rangeChanged = propRange > currRange * (1 + changeThreshold) || propRange < currRange * (1 - changeThreshold);
@@ -156,7 +168,7 @@ export function TargetFractionDisplay({
       setScaleMin(proposedMin);
       setScaleMax(proposedMax);
     }
-  }, [windowValues, currentPV, currentTarget, displayHours]);
+  }, [windowValues, currentPV, currentTarget, spOptimize, showOptimizationTarget, displayHours]);
 
   const formatValue = (v?: number | null) => {
     if (v === undefined || v === null) return "--"
@@ -270,6 +282,12 @@ export function TargetFractionDisplay({
                     <div className={`w-3 h-3 rounded-full ${isSimulationMode ? 'bg-red-500' : 'bg-blue-500'}`}></div>
                     <span>Setpoint (SP) {isSimulationMode ? '(Simulation)' : '(Real-time)'}</span>
                   </div>
+                  {showOptimizationTarget && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-1 bg-orange-500"></div>
+                      <span>Optimization Target</span>
+                    </div>
+                  )}
                   {/* Time range selector */}
                   <div className="hidden sm:flex items-center gap-1 ml-4">
                     <span className="text-slate-500 mr-1">Last:</span>
@@ -398,6 +416,19 @@ export function TargetFractionDisplay({
                         activeDot={{ r: 4 }}
                         isAnimationActive={false} // Disable animation to ensure line is always visible
                       />
+                      {/* Optimization Target Horizontal Line */}
+                      {showOptimizationTarget && typeof spOptimize === 'number' && (
+                        <Line 
+                          type="monotone" 
+                          dataKey={() => spOptimize}
+                          name="Optimization Target"
+                          stroke="#f97316" 
+                          strokeWidth={3}
+                          strokeDasharray="10 5"
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (

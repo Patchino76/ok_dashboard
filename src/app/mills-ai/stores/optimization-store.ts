@@ -32,12 +32,17 @@ export interface OptimizationResult {
   error_message?: string
 }
 
+export type OptimizationMode = 'training' | 'runtime'
+
 export interface OptimizationState {
   // Configuration
   targetSetpoint: number
   parameterBounds: Record<string, [number, number]>
   iterations: number
   maximize: boolean
+  
+  // Mode
+  optimizationMode: OptimizationMode
   
   // Status
   isOptimizing: boolean
@@ -48,6 +53,7 @@ export interface OptimizationState {
   currentResults: OptimizationResult | null
   optimizationHistory: OptimizationResult[]
   bestParameters: Record<string, number> | null
+  proposedSetpoints: Record<string, number> | null
   
   // Actions
   setTargetSetpoint: (value: number) => void
@@ -55,6 +61,7 @@ export interface OptimizationState {
   setParameterBounds: (bounds: Record<string, [number, number]>) => void
   setIterations: (iterations: number) => void
   setMaximize: (maximize: boolean) => void
+  setOptimizationMode: (mode: OptimizationMode) => void
   
   // Optimization control
   startOptimization: (config: OptimizationConfig) => void
@@ -68,9 +75,15 @@ export interface OptimizationState {
   clearResults: () => void
   clearHistory: () => void
   
+  // Proposed setpoints management
+  setProposedSetpoints: (setpoints: Record<string, number>) => void
+  clearProposedSetpoints: () => void
+  
   // Utility
   getOptimizationConfig: (modelId: string) => OptimizationConfig
   resetToDefaults: () => void
+  isTrainingMode: () => boolean
+  isRuntimeMode: () => boolean
 }
 
 const initialState = {
@@ -78,12 +91,14 @@ const initialState = {
   parameterBounds: {},
   iterations: 50,
   maximize: true,
+  optimizationMode: 'training' as OptimizationMode,
   isOptimizing: false,
   optimizationProgress: 0,
   currentOptimizationId: null,
   currentResults: null,
   optimizationHistory: [],
   bestParameters: null,
+  proposedSetpoints: null,
 }
 
 export const useOptimizationStore = create<OptimizationState>()(
@@ -119,6 +134,10 @@ export const useOptimizationStore = create<OptimizationState>()(
 
       setMaximize: (maximize: boolean) => {
         set({ maximize }, false, 'setMaximize')
+      },
+
+      setOptimizationMode: (mode: OptimizationMode) => {
+        set({ optimizationMode: mode }, false, 'setOptimizationMode')
       },
 
       // Optimization control
@@ -196,6 +215,15 @@ export const useOptimizationStore = create<OptimizationState>()(
         set({ optimizationHistory: [] }, false, 'clearHistory')
       },
 
+      // Proposed setpoints management
+      setProposedSetpoints: (setpoints: Record<string, number>) => {
+        set({ proposedSetpoints: setpoints }, false, 'setProposedSetpoints')
+      },
+
+      clearProposedSetpoints: () => {
+        set({ proposedSetpoints: null }, false, 'clearProposedSetpoints')
+      },
+
       // Utility functions
       getOptimizationConfig: (modelId: string): OptimizationConfig => {
         const state = get()
@@ -220,6 +248,9 @@ export const useOptimizationStore = create<OptimizationState>()(
           'resetToDefaults'
         )
       },
+
+      isTrainingMode: () => get().optimizationMode === 'training',
+      isRuntimeMode: () => get().optimizationMode === 'runtime',
     }),
     {
       name: 'optimization-store',

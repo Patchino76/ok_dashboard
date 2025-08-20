@@ -7,6 +7,7 @@ import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import { millsParameters } from "../../data/mills-parameters"
 import { useXgboostStore } from "../../stores/xgboost-store"
 import { DoubleRangeSlider } from "../../components/double-range-slider"
+import { OptimizationMode } from "../../stores/optimization-store"
 
 interface Parameter {
   id: string
@@ -24,6 +25,8 @@ interface ParameterOptimizationCardProps {
   bounds: [number, number]
   rangeValue: [number, number]
   isSimulationMode?: boolean
+  optimizationMode?: OptimizationMode
+  proposedSetpoint?: number
   onRangeChange: (id: string, range: [number, number]) => void
 }
 
@@ -32,6 +35,8 @@ export function ParameterOptimizationCard({
   bounds,
   rangeValue,
   isSimulationMode = true,
+  optimizationMode = 'training',
+  proposedSetpoint,
   onRangeChange 
 }: ParameterOptimizationCardProps) {
   // Get displayHours from the store to filter trend data
@@ -163,6 +168,7 @@ export function ParameterOptimizationCard({
 
         {/* Trend Chart - Only show for process parameters */}
         {!isLabParameter && parameter.trend.length > 0 && (() => {
+          const isRuntimeMode = optimizationMode === 'runtime';
           // Filter trend data based on current displayHours
           const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
           const filteredTrend = parameter.trend.filter(item => item.timestamp >= hoursAgo);
@@ -208,6 +214,27 @@ export function ParameterOptimizationCard({
                     dot={false}
                     isAnimationActive={false}
                   />
+                  {/* Proposed Setpoint Horizontal Line in Runtime Mode */}
+                  {isRuntimeMode && typeof proposedSetpoint === 'number' && (
+                    <Line 
+                      type="monotone" 
+                      dataKey={() => {
+                        // Get Y-axis domain from filtered trend data
+                        if (filteredTrend.length === 0) return proposedSetpoint;
+                        const values = filteredTrend.map(d => d.value);
+                        const minVal = Math.min(...values);
+                        const maxVal = Math.max(...values);
+                        // Position the line at the center of the Y-axis range
+                        return (minVal + maxVal) / 2;
+                      }}
+                      name="Proposed Setpoint"
+                      stroke="#f97316" 
+                      strokeWidth={2}
+                      strokeDasharray="8 4"
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -226,7 +253,7 @@ export function ParameterOptimizationCard({
 
         {/* Double Range Slider (full width, no duplicate labels) */}
         <div className="pt-2">
-          <div className={`${!isSimulationMode ? 'opacity-50 pointer-events-none' : ''}`}>
+          <div className={`${!isSimulationMode || optimizationMode === 'runtime' ? 'opacity-50 pointer-events-none' : ''}`}>
             <DoubleRangeSlider
               min={bounds[0]}
               max={bounds[1]}
@@ -236,6 +263,13 @@ export function ParameterOptimizationCard({
               className={'w-full'}
             />
           </div>
+          {/* Proposed Setpoint Indicator in Runtime Mode */}
+          {optimizationMode === 'runtime' && typeof proposedSetpoint === 'number' && (
+            <div className="mt-2 text-xs text-orange-600 font-medium flex items-center gap-1">
+              <div className="w-2 h-0.5 bg-orange-500"></div>
+              Proposed: {proposedSetpoint.toFixed(2)} {parameter.unit}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

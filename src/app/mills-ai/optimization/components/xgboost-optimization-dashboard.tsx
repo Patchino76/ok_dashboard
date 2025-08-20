@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { Activity, Zap, Settings, Play, CheckCircle, AlertCircle } from "lucide-react"
+import { Activity, Zap, Settings, Play, CheckCircle, AlertCircle, Wrench, Cpu } from "lucide-react"
 import { ParameterOptimizationCard } from "./parameter-optimization-card"
 import { TargetFractionDisplay } from "../../components/target-fraction-display"
 import { ModelSelection } from "../../components/model-selection"
@@ -65,10 +65,15 @@ export default function XgboostOptimizationDashboard() {
     parameterBounds: optimizationBounds,
     iterations,
     maximize,
+    optimizationMode,
+    proposedSetpoints,
     setTargetSetpoint,
     updateParameterBounds,
     setParameterBounds,
-    getOptimizationConfig
+    setOptimizationMode,
+    getOptimizationConfig,
+    isTrainingMode,
+    isRuntimeMode
   } = useOptimizationStore()
   
   const { startOptimization, isOptimizing, progress, error } = useOptimization()
@@ -79,6 +84,25 @@ export default function XgboostOptimizationDashboard() {
     applyOptimizedParameters,
     improvementScore 
   } = useOptimizationResults()
+  
+  // Add test proposed setpoints for runtime mode visualization
+  useEffect(() => {
+    if (optimizationMode === 'runtime' && !proposedSetpoints && parameters.length > 0) {
+      const testProposedSetpoints: Record<string, number> = {};
+      parameters.forEach(param => {
+        const bounds = parameterBounds[param.id] || [0, 100];
+        // Generate a test value between 30-70% of the parameter range
+        const range = bounds[1] - bounds[0];
+        const testValue = bounds[0] + (0.3 + Math.random() * 0.4) * range;
+        testProposedSetpoints[param.id] = testValue;
+      });
+      
+      // Set test proposed setpoints for visualization
+      const { setProposedSetpoints } = useOptimizationStore.getState();
+      setProposedSetpoints(testProposedSetpoints);
+      console.log('Added test proposed setpoints for runtime mode:', testProposedSetpoints);
+    }
+  }, [optimizationMode, proposedSetpoints, parameters, parameterBounds]);
   
   // Get target parameter bounds (PSI80)
   const targetParameter = useMemo(() => {
@@ -349,7 +373,7 @@ export default function XgboostOptimizationDashboard() {
                       max={targetParameter?.max || 100}
                       step={0.1}
                       className="w-full"
-                      disabled={isOptimizing}
+                      disabled={isOptimizing || isRuntimeMode()}
                     />
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
                       <span>{targetParameter?.min || 0}</span>
@@ -359,13 +383,42 @@ export default function XgboostOptimizationDashboard() {
                 </div>
               </Card>
               
+              {/* Mode Toggle */}
+              <Card className="p-3 mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Optimization Mode</div>
+                  <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+                    <Button
+                      size="sm"
+                      variant={optimizationMode === 'training' ? 'default' : 'ghost'}
+                      className="px-3 py-1 text-xs"
+                      onClick={() => setOptimizationMode('training')}
+                      disabled={isOptimizing}
+                    >
+                      <Wrench className="h-3 w-3 mr-1" />
+                      Training
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={optimizationMode === 'runtime' ? 'default' : 'ghost'}
+                      className="px-3 py-1 text-xs"
+                      onClick={() => setOptimizationMode('runtime')}
+                      disabled={isOptimizing}
+                    >
+                      <Cpu className="h-3 w-3 mr-1" />
+                      Runtime
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+              
               {/* Optimization Controls */}
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <Button
                     onClick={handleStartOptimization}
-                    disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0 || isRuntimeMode()}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                   >
                     <Play className="h-4 w-4 mr-2" />
                     {isOptimizing ? `Optimizing... ${progress.toFixed(0)}%` : 'Start Optimization'}
@@ -374,7 +427,7 @@ export default function XgboostOptimizationDashboard() {
                     onClick={resetFeatures}
                     variant="outline"
                     className="px-4"
-                    disabled={isOptimizing}
+                    disabled={isOptimizing || isRuntimeMode()}
                   >
                     Reset
                   </Button>
@@ -428,6 +481,8 @@ export default function XgboostOptimizationDashboard() {
         modelName={selectedModel?.name}
         targetVariable={selectedModel?.target_col}
         targetUnit={targetUnit}
+        spOptimize={targetSetpoint}
+        showOptimizationTarget={true}
       />
 
       {/* Parameter Optimization Cards Grid */}
@@ -444,6 +499,8 @@ export default function XgboostOptimizationDashboard() {
                 bounds={bounds as [number, number]}
                 rangeValue={rangeValue as [number, number]}
                 isSimulationMode={true}
+                optimizationMode={optimizationMode}
+                proposedSetpoint={proposedSetpoints?.[parameter.id]}
                 onRangeChange={(id: string, newRange: [number, number]) => {
                   updateParameterBounds(id, newRange);
                 }}

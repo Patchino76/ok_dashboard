@@ -32,6 +32,7 @@ export function useOptimizationResults(): UseOptimizationResultsReturn {
     currentResults,
     optimizationHistory,
     bestParameters,
+    setProposedSetpoints,
     clearResults,
     clearHistory,
   } = useOptimizationStore()
@@ -52,6 +53,9 @@ export function useOptimizationResults(): UseOptimizationResultsReturn {
       Object.entries(paramsToApply).forEach(([paramId, value]) => {
         updateSliderValue(paramId, value)
       })
+
+      // Set as proposed setpoints for runtime mode
+      setProposedSetpoints(paramsToApply)
 
       // Trigger a prediction with the new values
       setTimeout(() => {
