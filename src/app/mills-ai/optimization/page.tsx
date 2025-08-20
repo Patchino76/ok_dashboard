@@ -1,6 +1,6 @@
 "use client"
 
-import XgboostOptimizationDashboard from "@/app/mills-ai/components/xgboost-optimization-dashboard"
+import XgboostOptimizationDashboard from "./components/xgboost-optimization-dashboard"
 
 export default function XgboostOptimizationPage() {
   return (

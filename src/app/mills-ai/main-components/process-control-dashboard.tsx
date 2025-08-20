@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { ProcessTrendChart } from "@/app/mills-ai/components/process-trend-chart"
-import { VerticalGauge } from "@/app/mills-ai/components/vertical-gauge"
-import { ConvergenceIndicator } from "@/app/mills-ai/components/convergence-indicator"
+import { ProcessTrendChart } from "./process-trend-chart"
+import { VerticalGauge } from "./vertical-gauge"
+import { ConvergenceIndicator } from "./convergence-indicator"
 import { TrendingUp, Settings, Zap, Target, AlertTriangle, CheckCircle } from "lucide-react"
 
 interface ProcessData {

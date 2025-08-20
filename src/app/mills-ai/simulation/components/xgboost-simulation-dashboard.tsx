@@ -8,14 +8,14 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Activity, Zap, RotateCcw } from "lucide-react"
 import { ParameterSimulationCard } from "./parameter-simulation-card"
-import { TargetFractionDisplay } from "./target-fraction-display"
-import { ModelSelection } from "./model-selection"
-import { ControlPanel } from "./control-panel"
+import { TargetFractionDisplay } from "../../components/target-fraction-display"
+import { ModelSelection } from "../../components/model-selection"
+import { ControlPanel } from "../../components/control-panel"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
 import { millsTags } from "@/lib/tags/mills-tags"
 import { toast } from "sonner"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
-import { millsParameters } from "../data/mills-parameters"
+import { millsParameters } from "../../data/mills-parameters"
 
 // Define tag interface to match the structure in mills-tags.ts
 interface TagInfo {

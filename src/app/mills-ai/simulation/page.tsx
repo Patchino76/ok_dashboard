@@ -1,6 +1,6 @@
 "use client"
 
-import XgboostSimulationDashboard from "@/app/mills-ai/components/xgboost-simulation-dashboard"
+import XgboostSimulationDashboard from "./components/xgboost-simulation-dashboard"
 
 export default function XgboostSimulationPage() {
   return (

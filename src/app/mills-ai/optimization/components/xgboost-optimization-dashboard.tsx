@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Activity, Zap } from "lucide-react"
 import { ParameterOptimizationCard } from "./parameter-optimization-card"
-import { TargetFractionDisplay } from "./target-fraction-display"
-import { ModelSelection } from "./model-selection"
-import { ControlPanel } from "./control-panel"
+import { TargetFractionDisplay } from "../../components/target-fraction-display"
+import { ModelSelection } from "../../components/model-selection"
+import { ControlPanel } from "../../components/control-panel"
 import { useXgboostStore } from "@/app/mills-ai/stores/xgboost-store"
 import { toast } from "sonner"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
-import { millsParameters } from "../data/mills-parameters"
+import { millsParameters } from "../../data/mills-parameters"
 
 export default function XgboostOptimizationDashboard() {
   // Get the store instance

@@ -1,6 +1,6 @@
 "use client"
 
-import { ProcessControlDashboard } from "@/app/mills-ai/components/process-control-dashboard"
+import { ProcessControlDashboard } from "@/app/mills-ai/main-components/process-control-dashboard"
 import { MillsAINavigation } from "@/app/mills-ai/components/mills-ai-navigation"
 
 export default function MillsAIPage() {

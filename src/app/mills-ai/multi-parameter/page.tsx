@@ -1,6 +1,6 @@
 "use client"
 
-import { MultiParameterControlDashboard } from "@/app/mills-ai/components/multi-parameter-control-dashboard"
+import { MultiParameterControlDashboard } from "./components/multi-parameter-control-dashboard"
 
 export default function MultiParameterPage() {
   return (

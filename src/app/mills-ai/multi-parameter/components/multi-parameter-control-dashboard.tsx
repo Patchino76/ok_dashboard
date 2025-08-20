@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ProcessParameterCard } from "@/app/mills-ai/components/process-parameter-card"
-import { FractionMainDisplay } from "@/app/mills-ai/components/fraction-main-display"
+import { ProcessParameterCard } from "../../main-components/process-parameter-card"
+import { FractionMainDisplay } from "./fraction-main-display"
 import { Zap, Activity } from "lucide-react"
 
 interface ProcessParameter {

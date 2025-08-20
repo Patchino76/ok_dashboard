@@ -4,9 +4,9 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import { millsParameters } from "../data/mills-parameters"
-import { useXgboostStore } from "../stores/xgboost-store"
-import { DoubleRangeSlider } from "./double-range-slider"
+import { millsParameters } from "../../data/mills-parameters"
+import { useXgboostStore } from "../../stores/xgboost-store"
+import { DoubleRangeSlider } from "../../components/double-range-slider"
 
 interface Parameter {
   id: string

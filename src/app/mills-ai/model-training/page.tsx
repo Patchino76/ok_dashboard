@@ -1,6 +1,6 @@
 "use client"
 
-import { ModelTrainingDashboard } from "../components/model-training-dashboard"
+import { ModelTrainingDashboard } from "./components/model-training-dashboard"
 
 export default function ModelTrainingPage() {
   return (

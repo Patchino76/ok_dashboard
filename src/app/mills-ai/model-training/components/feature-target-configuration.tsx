@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Target, Zap, X } from "lucide-react"
-import type { ModelParameter } from "./model-training-dashboard"
+import type { ModelParameter } from "../../types/parameters"
 
 interface FeatureTargetConfigurationProps {
   parameters: ModelParameter[]
