@@ -73,32 +73,12 @@ export function ParameterOptimizationCard({
     return value.toFixed(1);
   };
 
-  // Calculate optimal y-axis domain based on data values and bounds
-  const calculateYAxisDomain = (trend: Array<{ timestamp: number; value: number }>, bounds: [number, number]) => {
-    if (trend.length === 0) return bounds;
+  // Simple domain calculation - let Recharts handle most of the work
+  const calculateYAxisDomain = (trend: Array<{ timestamp: number; value: number }>) => {
+    if (trend.length === 0) return ['dataMin - 5', 'dataMax + 5'];
     
-    // Get min and max values from trend data
-    const values = trend.map(point => point.value);
-    const dataMin = Math.min(...values);
-    const dataMax = Math.max(...values);
-    
-    // Add padding (10% of data range)
-    const dataRange = dataMax - dataMin;
-    const padding = Math.max(dataRange * 0.1, 0.01);
-    
-    // Calculate new min/max with padding, but respect bounds
-    let yMin = Math.max(dataMin - padding, bounds[0]);
-    let yMax = Math.min(dataMax + padding, bounds[1]);
-    
-    // If the range is too small, center it and expand
-    if (yMax - yMin < dataRange * 1.3) {
-      const center = (yMin + yMax) / 2;
-      const halfRange = dataRange * 0.65;
-      yMin = Math.max(center - halfRange, bounds[0]);
-      yMax = Math.min(center + halfRange, bounds[1]);
-    }
-    
-    return [yMin, yMax];
+    // Use Recharts' auto-scaling with padding
+    return ['dataMin - 5%', 'dataMax + 5%'];
   };
   
   // Determine color classes based on parameter.color
@@ -187,18 +167,26 @@ export function ParameterOptimizationCard({
           const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
           const filteredTrend = parameter.trend.filter(item => item.timestamp >= hoursAgo);
           
+          // Calculate optimal Y-axis domain based on actual data values
+          const yAxisDomain = calculateYAxisDomain(filteredTrend);
+          
+          // Debug logging
+          console.log(`Parameter ${parameter.id}: Filtering trend data with ${displayHours}h window`);
+          console.log(`- Original trend points: ${parameter.trend.length}`);
+          console.log(`- Filtered trend points: ${filteredTrend.length}`);
+          console.log(`- Y-axis domain: [${yAxisDomain[0]}, ${yAxisDomain[1]}]`);
+          
           return (
             <div className="h-24 -mx-2">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={filteredTrend} margin={{ top: 5, right: 10, bottom: 5, left: 40 }}>
                   <XAxis dataKey="timestamp" hide={true} />
                   <YAxis 
-                    domain={[bounds[0], bounds[1]]}
+                    domain={yAxisDomain}
                     hide={false}
                     width={40}
                     tick={{ fontSize: 10 }}
-                    tickFormatter={(value) => value.toFixed(2)}
-                    ticks={[bounds[0], bounds[1]]}
+                    tickFormatter={(value) => value >= 1 ? value.toFixed(0) : value.toFixed(2)}
                     interval={0}
                     allowDataOverflow={false}
                     axisLine={true}
