@@ -123,7 +123,7 @@ const parameterUnits: Record<string, string> = {
   Shisti: "%",
   Daiki: "%",
   PumpRPM: "rpm",
-  Grano: "mm",
+  Grano: "%",
   Class_12: "%",
   Class_15: "%"
 }
