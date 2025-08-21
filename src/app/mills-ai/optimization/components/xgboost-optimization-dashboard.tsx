@@ -16,6 +16,7 @@ import { useOptimizationResults } from "../../hooks/useOptimizationResults"
 import { toast } from "sonner"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
 import { millsParameters, getTargets } from "../../data/mills-parameters"
+import { Switch } from "@/components/ui/switch"
 
 export default function XgboostOptimizationDashboard() {
   // Get the store instance
@@ -73,7 +74,9 @@ export default function XgboostOptimizationDashboard() {
     setOptimizationMode,
     getOptimizationConfig,
     isTrainingMode,
-    isRuntimeMode
+    isRuntimeMode,
+    autoApplyProposals,
+    setAutoApplyProposals
   } = useOptimizationStore()
   
   const { startOptimization, isOptimizing, progress, error } = useOptimization()
@@ -340,7 +343,7 @@ export default function XgboostOptimizationDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-            <div className="w-full">
+            <div className="w-full space-y-4">
               <ModelSelection
                 currentMill={currentMill}
                 modelName={modelName}
@@ -351,9 +354,7 @@ export default function XgboostOptimizationDashboard() {
                 onModelChange={handleModelChange}
                 onMillChange={handleMillChange}
               />
-            </div>
-            <div className="space-y-4">
-              {/* Target SP Slider */}
+              {/* Target SP Slider (moved just below ModelSelection with same width) */}
               <Card className="p-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -379,6 +380,26 @@ export default function XgboostOptimizationDashboard() {
                       <span>{targetParameter?.min || 0}</span>
                       <span>{targetParameter?.max || 100}</span>
                     </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+            <div className="space-y-4">
+              {/* Auto-populate proposed setpoints toggle */}
+              <Card className="p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col">
+                    <div className="text-sm font-medium">Auto-populate proposed setpoints</div>
+                    <div className="text-xs text-slate-500">After optimization completes, use best parameters as proposed setpoints</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500">Manual</span>
+                    <Switch
+                      checked={autoApplyProposals}
+                      onCheckedChange={setAutoApplyProposals}
+                      disabled={isOptimizing}
+                    />
+                    <span className="text-xs text-slate-500">Auto</span>
                   </div>
                 </div>
               </Card>

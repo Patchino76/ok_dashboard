@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts"
+import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceArea, ReferenceLine } from "recharts"
 import { millsParameters } from "../../data/mills-parameters"
 import { useXgboostStore } from "../../stores/xgboost-store"
 import { DoubleRangeSlider } from "../../components/double-range-slider"
@@ -78,23 +78,12 @@ export function ParameterOptimizationCard({
     return value.toFixed(1);
   };
 
-  // Calculate Y-axis domain to include trend data, bounds, and proposed setpoint
-  const calculateYAxisDomain = (
-    trend: Array<{ timestamp: number; value: number }>,
-    bounds: [number, number],
-    proposed?: number
-  ): [number, number] => {
-    const values: number[] = trend.map(d => d.value)
-    if (typeof proposed === 'number' && !Number.isNaN(proposed)) values.push(proposed)
-    if (Array.isArray(bounds)) values.push(bounds[0], bounds[1])
-
-    if (values.length === 0) return [0, 1]
-
-    const minVal = Math.min(...values)
-    const maxVal = Math.max(...values)
-    const span = Math.max(maxVal - minVal, 1e-6)
-    const pad = Math.max(span * 0.05, 1e-3)
-    return [minVal - pad, maxVal + pad]
+  // Simple domain calculation - let Recharts handle most of the work
+  const calculateYAxisDomain = (trend: Array<{ timestamp: number; value: number }>) => {
+    if (trend.length === 0) return ['dataMin - 5', 'dataMax + 5'];
+    
+    // Use Recharts' auto-scaling with padding
+    return ['dataMin - 5%', 'dataMax + 5%'];
   };
   
   // Determine color classes based on parameter.color
@@ -177,15 +166,27 @@ export function ParameterOptimizationCard({
           </div>
         </div>
 
-        {/* Trend Chart - Only show for process parameters */}
-        {!isLabParameter && parameter.trend.length > 0 && (() => {
-          const isRuntimeMode = optimizationMode === 'runtime';
+        {/* Trend Chart - Show for process parameters even if no trend points to keep SP/shading visible */}
+        {!isLabParameter && (() => {
           // Filter trend data based on current displayHours
           const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
           const filteredTrend = parameter.trend.filter(item => item.timestamp >= hoursAgo);
           
-          // Calculate Y-axis domain including bounds and proposed setpoint so the line is visible
-          const yAxisDomain = calculateYAxisDomain(filteredTrend, bounds, proposedSetpoint);
+          // Calculate Y-axis domain to include data, current bounds, and proposed setpoint
+          let yMin: number
+          let yMax: number
+          if (filteredTrend.length > 0) {
+            const values = filteredTrend.map(d => d.value)
+            yMin = Math.min(...values, range[0], typeof proposedSetpoint === 'number' ? proposedSetpoint : values[0])
+            yMax = Math.max(...values, range[1], typeof proposedSetpoint === 'number' ? proposedSetpoint : values[0])
+          } else {
+            // Fallback when no trend points in window
+            const base = typeof proposedSetpoint === 'number' ? proposedSetpoint : (range[0] + range[1]) / 2
+            yMin = Math.min(range[0], base)
+            yMax = Math.max(range[1], base)
+          }
+          const pad = (yMax - yMin) || 1
+          const yAxisDomain: [number, number] = [yMin - pad * 0.05, yMax + pad * 0.05]
           
           // Debug logging
           console.log(`Parameter ${parameter.id}: Filtering trend data with ${displayHours}h window`);
@@ -205,7 +206,7 @@ export function ParameterOptimizationCard({
                     tick={{ fontSize: 10 }}
                     tickFormatter={(value) => value >= 1 ? value.toFixed(0) : value.toFixed(2)}
                     interval={0}
-                    allowDataOverflow={false}
+                    allowDataOverflow={true}
                     axisLine={true}
                     tickLine={true}
                     tickMargin={3}
@@ -225,15 +226,22 @@ export function ParameterOptimizationCard({
                     dot={false}
                     isAnimationActive={false}
                   />
-                  {/* Proposed Setpoint Horizontal Line in Runtime Mode at actual proposed value */}
-                  {isRuntimeMode && typeof proposedSetpoint === 'number' && (
+                  {/* Shaded optimization bounds (always shown) */}
+                  <ReferenceArea
+                    y1={range[0]}
+                    y2={range[1]}
+                    fill="#f97316"
+                    fillOpacity={0.08}
+                    strokeOpacity={0}
+                  />
+                  {/* Proposed Setpoint horizontal dashed line (shown when available) */}
+                  {typeof proposedSetpoint === 'number' && (
                     <ReferenceLine
                       y={proposedSetpoint}
                       stroke="#f97316"
                       strokeWidth={2}
                       strokeDasharray="8 4"
-                      isFront={true}
-                      label={{ value: proposedSetpoint.toFixed(1), position: 'right', fill: '#f97316', fontSize: 10 }}
+                      ifOverflow="extendDomain"
                     />
                   )}
                 </LineChart>

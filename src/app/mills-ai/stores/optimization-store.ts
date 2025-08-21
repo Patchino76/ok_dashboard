@@ -40,6 +40,8 @@ export interface OptimizationState {
   parameterBounds: Record<string, [number, number]>
   iterations: number
   maximize: boolean
+  // Settings
+  autoApplyProposals: boolean
   
   // Mode
   optimizationMode: OptimizationMode
@@ -78,6 +80,7 @@ export interface OptimizationState {
   // Proposed setpoints management
   setProposedSetpoints: (setpoints: Record<string, number>) => void
   clearProposedSetpoints: () => void
+  setAutoApplyProposals: (auto: boolean) => void
   
   // Utility
   getOptimizationConfig: (modelId: string) => OptimizationConfig
@@ -91,6 +94,7 @@ const initialState = {
   parameterBounds: {},
   iterations: 50,
   maximize: true,
+  autoApplyProposals: false,
   optimizationMode: 'training' as OptimizationMode,
   isOptimizing: false,
   optimizationProgress: 0,
@@ -222,6 +226,10 @@ export const useOptimizationStore = create<OptimizationState>()(
 
       clearProposedSetpoints: () => {
         set({ proposedSetpoints: null }, false, 'clearProposedSetpoints')
+      },
+
+      setAutoApplyProposals: (auto: boolean) => {
+        set({ autoApplyProposals: auto }, false, 'setAutoApplyProposals')
       },
 
       // Utility functions

@@ -25,6 +25,8 @@ export function useOptimization(): UseOptimizationReturn {
     setResults,
     addToHistory,
     setOptimizationId,
+    autoApplyProposals,
+    setProposedSetpoints,
   } = useOptimizationStore()
 
   const startOptimization = useCallback(async (config: OptimizationConfig): Promise<OptimizationResult | null> => {
@@ -69,6 +71,16 @@ export function useOptimization(): UseOptimizationReturn {
       setResults(optimizationResult)
       addToHistory(optimizationResult)
       
+      // Optionally auto-populate proposed setpoints from best parameters
+      if (autoApplyProposals && optimizationResult.best_parameters && Object.keys(optimizationResult.best_parameters).length > 0) {
+        try {
+          setProposedSetpoints(optimizationResult.best_parameters)
+          toast.success('Proposed setpoints auto-populated from best parameters')
+        } catch (e) {
+          console.warn('Failed to auto-populate proposed setpoints:', e)
+        }
+      }
+
       console.log('Optimization completed successfully:', optimizationResult)
       return optimizationResult
 
@@ -98,7 +110,7 @@ export function useOptimization(): UseOptimizationReturn {
       
       return null
     }
-  }, [startOptimizationInStore, stopOptimizationInStore, setResults, addToHistory, setOptimizationId])
+  }, [startOptimizationInStore, stopOptimizationInStore, setResults, addToHistory, setOptimizationId, autoApplyProposals, setProposedSetpoints])
 
   const stopOptimization = useCallback(async (): Promise<void> => {
     try {
