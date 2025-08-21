@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
+import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts"
 import { millsParameters } from "../../data/mills-parameters"
 import { useXgboostStore } from "../../stores/xgboost-store"
 import { DoubleRangeSlider } from "../../components/double-range-slider"
@@ -78,12 +78,23 @@ export function ParameterOptimizationCard({
     return value.toFixed(1);
   };
 
-  // Simple domain calculation - let Recharts handle most of the work
-  const calculateYAxisDomain = (trend: Array<{ timestamp: number; value: number }>) => {
-    if (trend.length === 0) return ['dataMin - 5', 'dataMax + 5'];
-    
-    // Use Recharts' auto-scaling with padding
-    return ['dataMin - 5%', 'dataMax + 5%'];
+  // Calculate Y-axis domain to include trend data, bounds, and proposed setpoint
+  const calculateYAxisDomain = (
+    trend: Array<{ timestamp: number; value: number }>,
+    bounds: [number, number],
+    proposed?: number
+  ): [number, number] => {
+    const values: number[] = trend.map(d => d.value)
+    if (typeof proposed === 'number' && !Number.isNaN(proposed)) values.push(proposed)
+    if (Array.isArray(bounds)) values.push(bounds[0], bounds[1])
+
+    if (values.length === 0) return [0, 1]
+
+    const minVal = Math.min(...values)
+    const maxVal = Math.max(...values)
+    const span = Math.max(maxVal - minVal, 1e-6)
+    const pad = Math.max(span * 0.05, 1e-3)
+    return [minVal - pad, maxVal + pad]
   };
   
   // Determine color classes based on parameter.color
@@ -173,8 +184,8 @@ export function ParameterOptimizationCard({
           const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
           const filteredTrend = parameter.trend.filter(item => item.timestamp >= hoursAgo);
           
-          // Calculate optimal Y-axis domain based on actual data values
-          const yAxisDomain = calculateYAxisDomain(filteredTrend);
+          // Calculate Y-axis domain including bounds and proposed setpoint so the line is visible
+          const yAxisDomain = calculateYAxisDomain(filteredTrend, bounds, proposedSetpoint);
           
           // Debug logging
           console.log(`Parameter ${parameter.id}: Filtering trend data with ${displayHours}h window`);
@@ -214,25 +225,15 @@ export function ParameterOptimizationCard({
                     dot={false}
                     isAnimationActive={false}
                   />
-                  {/* Proposed Setpoint Horizontal Line in Runtime Mode */}
+                  {/* Proposed Setpoint Horizontal Line in Runtime Mode at actual proposed value */}
                   {isRuntimeMode && typeof proposedSetpoint === 'number' && (
-                    <Line 
-                      type="monotone" 
-                      dataKey={() => {
-                        // Get Y-axis domain from filtered trend data
-                        if (filteredTrend.length === 0) return proposedSetpoint;
-                        const values = filteredTrend.map(d => d.value);
-                        const minVal = Math.min(...values);
-                        const maxVal = Math.max(...values);
-                        // Position the line at the center of the Y-axis range
-                        return (minVal + maxVal) / 2;
-                      }}
-                      name="Proposed Setpoint"
-                      stroke="#f97316" 
+                    <ReferenceLine
+                      y={proposedSetpoint}
+                      stroke="#f97316"
                       strokeWidth={2}
                       strokeDasharray="8 4"
-                      dot={false}
-                      isAnimationActive={false}
+                      isFront={true}
+                      label={{ value: proposedSetpoint.toFixed(1), position: 'right', fill: '#f97316', fontSize: 10 }}
                     />
                   )}
                 </LineChart>
