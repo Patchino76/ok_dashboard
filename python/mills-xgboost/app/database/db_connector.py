@@ -60,7 +60,8 @@ class MillsDataConnector:
                 end_parsed = pd.to_datetime(end_date)
                 logger.info(f"DEBUG: Parsed end_date: {end_parsed} (timezone: {end_parsed.tz})")
                 # Fix timezone issue by making both datetime objects timezone-aware or naive
-                now_utc = pd.to_datetime(datetime.now()).tz_localize('UTC')
+                from datetime import datetime as dt
+                now_utc = pd.to_datetime(dt.now()).tz_localize('UTC')
                 logger.info(f"DEBUG: Days from now to end_date: {(end_parsed - now_utc).days}")
             
             # Build query

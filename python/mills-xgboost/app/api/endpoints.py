@@ -232,7 +232,6 @@ async def train_model(request: TrainingRequest):
         end_date_adjusted = request.end_date
         if request.mill_number == 8:
             # Mill 8 has data gap from 2025-08-12 to 2025-08-18, extend to current time
-            from datetime import datetime
             current_time = datetime.now().strftime('%Y-%m-%dT%H:%M:%S.000Z')
             end_date_adjusted = current_time
             logger.info(f"DEBUG: Mill 8 detected - adjusting end_date from {request.end_date} to {end_date_adjusted}")
@@ -311,10 +310,11 @@ async def train_model(request: TrainingRequest):
         save_results = xgb_model.save_model(directory="models", mill_number=request.mill_number)
         
         # Store model in memory
+        from datetime import datetime as dt
         models_store[model_id] = {
             "model": xgb_model,
             "file_paths": save_results,
-            "created_at": datetime.now().isoformat(),
+            "created_at": dt.now().isoformat(),
             "features": features,
             "target_col": request.target_col
         }

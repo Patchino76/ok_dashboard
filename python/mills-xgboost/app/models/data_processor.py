@@ -49,25 +49,22 @@ class DataProcessor:
         if dropped_rows > 0:
             logger.info(f"Dropped {dropped_rows} rows with missing values ({dropped_rows/len(data):.2%} of data)")
         
-        # Apply filters based on feature bounds (similar to the notebook)
+        # Apply filters based on feature bounds
         if filter_data:
             logger.info("Applying filters on features")
-            # These filters match those in the notebook
-            if 'Ore' in data_clean.columns and target_col in data_clean.columns:
+            # Apply filter only for FR200 target column
+            if target_col == 'FR200' and target_col in data_clean.columns:
                 data_filtered = data_clean[
-                    (data_clean['Ore'] > 160) & 
-                    (data_clean['Ore'] < 200)
+                    (data_clean[target_col] > 15) & 
+                    (data_clean[target_col] < 35)
                 ]
-                
-                # Apply filter based on target column (PSI80 or FR200)
-                if target_col == 'PSI80':
-                    data_filtered = data_filtered[data_filtered[target_col] < 55]
-                elif target_col == 'FR200':
-                    data_filtered = data_filtered[data_filtered[target_col] < 30]
                 
                 filtered_rows = len(data_clean) - len(data_filtered)
                 logger.info(f"Filtered out {filtered_rows} rows ({filtered_rows/len(data_clean):.2%} of data)")
+                logger.info(f"Applied FR200 filter: 15 < FR200 < 35")
                 data_clean = data_filtered
+            else:
+                logger.info(f"No filtering applied - target column is {target_col}")
         
         # Split features and target
         X = data_clean[features]
