@@ -267,7 +267,18 @@ async def train_model(request: TrainingRequest):
         logger.info(f"=== STARTING DATA PROCESSING ===")
         data_processor = DataProcessor()
         try:
-            X_scaled, y, scaler = data_processor.preprocess(df, features, request.target_col)
+            # Convert filter_ranges from Pydantic models to dict if provided
+            filter_ranges_dict = None
+            if request.filter_ranges:
+                filter_ranges_dict = {}
+                for col_name, filter_range in request.filter_ranges.items():
+                    filter_ranges_dict[col_name] = {
+                        "min_value": filter_range.min_value,
+                        "max_value": filter_range.max_value
+                    }
+                logger.info(f"DEBUG: Using filter ranges: {filter_ranges_dict}")
+            
+            X_scaled, y, scaler = data_processor.preprocess(df, features, request.target_col, filter_data=True, filter_ranges=filter_ranges_dict)
             logger.info(f"DEBUG: Data preprocessing completed - X_scaled shape: {X_scaled.shape}, y shape: {y.shape}")
         except Exception as e:
             logger.error(f"DEBUG: Data preprocessing failed: {e}")

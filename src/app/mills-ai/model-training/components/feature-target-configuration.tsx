@@ -3,10 +3,10 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
-import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Target, Zap, X } from "lucide-react"
+import { DoubleRangeSlider } from "../../components/double-range-slider"
 import type { ModelParameter } from "../../types/parameters"
 
 interface FeatureTargetConfigurationProps {
@@ -29,10 +29,18 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
     })
   }
 
-  const handleBoundsChange = (parameter: ModelParameter, type: "min" | "max", value: number[]) => {
+  const handleRangeChange = (parameter: ModelParameter, range: [number, number]) => {
     onParameterUpdate({
       ...parameter,
-      [type === "min" ? "currentMin" : "currentMax"]: value[0],
+      currentMin: range[0],
+      currentMax: range[1],
+    })
+  }
+
+  const handleFilterEnabledChange = (parameter: ModelParameter, filterEnabled: boolean) => {
+    onParameterUpdate({
+      ...parameter,
+      filterEnabled,
     })
   }
 
@@ -75,7 +83,7 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
       {parameters.map((parameter, index) => (
         <Card key={parameter.id} className="border border-slate-200 dark:border-slate-700">
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-13 gap-4 items-center">
               {/* Parameter Info */}
               <div className="lg:col-span-3">
                 <div className="flex items-center gap-2 mb-1">
@@ -111,45 +119,35 @@ export function FeatureTargetConfiguration({ parameters, onParameterUpdate }: Fe
                 </div>
               </div>
 
-              {/* Bounds Configuration */}
-              <div className="lg:col-span-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      Min: {parameter.currentMin} {parameter.unit}
-                    </Label>
-                    <Slider
-                      value={[parameter.currentMin]}
-                      onValueChange={(value) => handleBoundsChange(parameter, "min", value)}
-                      min={parameter.min}
-                      max={Math.min(parameter.currentMax, parameter.max)}
-                      step={(parameter.max - parameter.min) / 100}
-                      className="mt-1"
-                      disabled={!parameter.enabled}
-                    />
-                    <div className="flex justify-between text-xs text-slate-400 mt-1">
-                      <span>{parameter.min}</span>
-                      <span>{parameter.currentMax}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                      Max: {parameter.currentMax} {parameter.unit}
-                    </Label>
-                    <Slider
-                      value={[parameter.currentMax]}
-                      onValueChange={(value) => handleBoundsChange(parameter, "max", value)}
-                      min={Math.max(parameter.currentMin, parameter.min)}
-                      max={parameter.max}
-                      step={(parameter.max - parameter.min) / 100}
-                      className="mt-1"
-                      disabled={!parameter.enabled}
-                    />
-                    <div className="flex justify-between text-xs text-slate-400 mt-1">
-                      <span>{parameter.currentMin}</span>
-                      <span>{parameter.max}</span>
-                    </div>
-                  </div>
+              {/* Filter Enable/Disable */}
+              <div className="lg:col-span-1 flex justify-center">
+                <div className="flex flex-col items-center gap-1">
+                  <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">Filter</Label>
+                  <Switch
+                    checked={parameter.filterEnabled || false}
+                    onCheckedChange={(filterEnabled) => handleFilterEnabledChange(parameter, filterEnabled)}
+                    disabled={!parameter.enabled}
+                  />
+                </div>
+              </div>
+
+              {/* Filter Range Configuration */}
+              <div className="lg:col-span-5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Filter Range: {parameter.currentMin?.toFixed(1)} - {parameter.currentMax?.toFixed(1)} {parameter.unit}
+                </Label>
+                <DoubleRangeSlider
+                  min={parameter.min}
+                  max={parameter.max}
+                  value={[parameter.currentMin || parameter.min, parameter.currentMax || parameter.max]}
+                  onChange={(range: [number, number]) => handleRangeChange(parameter, range)}
+                  step={(parameter.max - parameter.min) / 100}
+                  className="mt-2"
+                  disabled={!parameter.enabled || !parameter.filterEnabled}
+                />
+                <div className="flex justify-between text-xs text-slate-400 mt-1">
+                  <span>{parameter.min}</span>
+                  <span>{parameter.max}</span>
                 </div>
               </div>
             </div>

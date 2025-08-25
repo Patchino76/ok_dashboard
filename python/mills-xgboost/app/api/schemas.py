@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Optional, Union, Any, Annotated
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class DatabaseConfig(BaseModel):
     """Database connection configuration"""
@@ -22,6 +22,11 @@ class TrainingParameters(BaseModel):
     reg_lambda: float = 1.0
     objective: str = "reg:squarederror"
 
+class FilterRange(BaseModel):
+    """Filter range for a parameter"""
+    min_value: float
+    max_value: float
+
 class TrainingRequest(BaseModel):
     """Request model for training an XGBoost model"""
     db_config: DatabaseConfig = Field(default_factory=DatabaseConfig)
@@ -35,6 +40,7 @@ class TrainingRequest(BaseModel):
     target_col: str = "PSI80"
     test_size: float = 0.2
     params: Optional[TrainingParameters] = Field(default_factory=TrainingParameters)
+    filter_ranges: Optional[Dict[str, FilterRange]] = None  # Dynamic filter ranges for enabled features
 
 class ModelMetrics(BaseModel):
     """Model performance metrics"""

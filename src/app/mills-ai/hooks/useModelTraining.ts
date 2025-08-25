@@ -1,6 +1,22 @@
 import { useState } from 'react';
 import apiClient from '../api/ml-client';
-import type { ModelParameter, TrainingResults } from '../components/model-training-dashboard';
+import type { ModelParameter } from '../types/parameters';
+
+export interface TrainingResults {
+  mae: number
+  mse: number
+  rmse: number
+  r2: number
+  trainingTime: number
+  modelId?: string
+  featureImportance: Array<{ feature: string; importance: number }>
+  validationCurve: Array<{ iteration: number; trainLoss: number; valLoss: number }>
+}
+
+export interface FilterRange {
+  min_value: number;
+  max_value: number;
+}
 
 export interface TrainModelRequest {
   db_config: {
@@ -27,6 +43,7 @@ export interface TrainModelRequest {
     early_stopping_rounds: number;
     objective: string;
   };
+  filter_ranges?: Record<string, FilterRange>;
 }
 
 export interface TrainModelResponse {
@@ -117,6 +134,17 @@ export function useModelTraining() {
       throw new Error(`Target parameter ID is empty or invalid`);
     }
 
+    // Build filter ranges for parameters that have filterEnabled = true
+    const filterRanges: Record<string, FilterRange> = {};
+    parameters.forEach(param => {
+      if (param.filterEnabled && param.enabled) {
+        filterRanges[param.id] = {
+          min_value: param.currentMin,
+          max_value: param.currentMax
+        };
+      }
+    });
+
     return {
       db_config: DEFAULT_DB_CONFIG,
       mill_number: millNumber,
@@ -125,7 +153,8 @@ export function useModelTraining() {
       features: featureNames,
       target_col: targetName,
       test_size: 0.2,
-      params: DEFAULT_PARAMS
+      params: DEFAULT_PARAMS,
+      filter_ranges: Object.keys(filterRanges).length > 0 ? filterRanges : undefined
     };
   };
 

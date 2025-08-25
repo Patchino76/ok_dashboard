@@ -11,6 +11,8 @@ export interface ModelParameter {
   type: "feature" | "target";
   /** Whether the parameter is enabled/selected for use */
   enabled: boolean;
+  /** Whether filtering is enabled for this parameter during training */
+  filterEnabled?: boolean;
   /** Absolute minimum value possible for this parameter */
   min: number;
   /** Absolute maximum value possible for this parameter */

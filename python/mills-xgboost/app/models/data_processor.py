@@ -16,7 +16,7 @@ class DataProcessor:
         self.scaler = StandardScaler()
         self.feature_names = None
         
-    def preprocess(self, df, features, target_col, filter_data=True):
+    def preprocess(self, df, features, target_col, filter_data=True, filter_ranges=None):
         """
         Preprocess data for XGBoost model training or inference
         
@@ -24,7 +24,8 @@ class DataProcessor:
             df: DataFrame with raw data
             features: List of feature column names
             target_col: Target column name
-            filter_data: Whether to apply filters for Ore and target column
+            filter_data: Whether to apply filters
+            filter_ranges: Dict of {column_name: {"min_value": float, "max_value": float}} for dynamic filtering
             
         Returns:
             Tuple of (X_scaled, y, scaler)
@@ -49,22 +50,34 @@ class DataProcessor:
         if dropped_rows > 0:
             logger.info(f"Dropped {dropped_rows} rows with missing values ({dropped_rows/len(data):.2%} of data)")
         
-        # Apply filters based on feature bounds
-        if filter_data:
-            logger.info("Applying filters on features")
-            # Apply filter only for FR200 target column
-            if target_col == 'FR200' and target_col in data_clean.columns:
-                data_filtered = data_clean[
-                    (data_clean[target_col] > 15) & 
-                    (data_clean[target_col] < 35)
-                ]
-                
-                filtered_rows = len(data_clean) - len(data_filtered)
-                logger.info(f"Filtered out {filtered_rows} rows ({filtered_rows/len(data_clean):.2%} of data)")
-                logger.info(f"Applied FR200 filter: 15 < FR200 < 35")
-                data_clean = data_filtered
-            else:
-                logger.info(f"No filtering applied - target column is {target_col}")
+        # Apply dynamic filters based on filter_ranges
+        if filter_data and filter_ranges:
+            logger.info("Applying dynamic filters on features")
+            data_filtered = data_clean.copy()
+            
+            for column_name, filter_range in filter_ranges.items():
+                if column_name in data_filtered.columns:
+                    min_val = filter_range.get("min_value") if isinstance(filter_range, dict) else filter_range.min_value
+                    max_val = filter_range.get("max_value") if isinstance(filter_range, dict) else filter_range.max_value
+                    
+                    before_filter = len(data_filtered)
+                    data_filtered = data_filtered[
+                        (data_filtered[column_name] >= min_val) & 
+                        (data_filtered[column_name] <= max_val)
+                    ]
+                    after_filter = len(data_filtered)
+                    filtered_count = before_filter - after_filter
+                    
+                    logger.info(f"Applied filter on {column_name}: {min_val} <= {column_name} <= {max_val}")
+                    logger.info(f"Filtered out {filtered_count} rows ({filtered_count/before_filter:.2%} of remaining data)")
+                else:
+                    logger.warning(f"Column {column_name} not found in data for filtering")
+            
+            total_filtered = len(data_clean) - len(data_filtered)
+            logger.info(f"Total filtered out: {total_filtered} rows ({total_filtered/len(data_clean):.2%} of original data)")
+            data_clean = data_filtered
+        elif filter_data:
+            logger.info("No filter ranges provided - no filtering applied")
         
         # Split features and target
         X = data_clean[features]

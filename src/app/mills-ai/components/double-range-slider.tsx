@@ -10,15 +10,17 @@ interface DoubleRangeSliderProps {
   onChange: (value: [number, number]) => void
   step?: number
   className?: string
+  disabled?: boolean
 }
 
-export function DoubleRangeSlider({ min, max, value, onChange, step = 0.1, className = "" }: DoubleRangeSliderProps) {
+export function DoubleRangeSlider({ min, max, value, onChange, step = 0.1, className = "", disabled = false }: DoubleRangeSliderProps) {
   const sliderRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState<"lo" | "hi" | null>(null)
 
   const getPercentage = (val: number) => ((val - min) / (max - min)) * 100
 
   const handleMouseDown = (type: "lo" | "hi") => (e: React.MouseEvent) => {
+    if (disabled) return
     e.preventDefault()
     setIsDragging(type)
   }
@@ -65,7 +67,7 @@ export function DoubleRangeSlider({ min, max, value, onChange, step = 0.1, class
         <span>Hi: {value[1].toFixed(2)}</span>
       </div>
 
-      <div ref={sliderRef} className="relative h-2 bg-gray-200 rounded-full cursor-pointer">
+      <div ref={sliderRef} className={`relative h-2 bg-gray-200 rounded-full ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
         {/* Active range */}
         <div
           className="absolute h-2 bg-gray-800 rounded-full"
