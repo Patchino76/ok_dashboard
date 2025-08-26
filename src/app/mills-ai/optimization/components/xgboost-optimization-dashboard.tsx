@@ -107,11 +107,22 @@ export default function XgboostOptimizationDashboard() {
     }
   }, [optimizationMode, proposedSetpoints, parameters, parameterBounds]);
   
-  // Get target parameter bounds (PSI80)
+  // Get target parameter bounds based on current model's target
   const targetParameter = useMemo(() => {
+    const targetId = modelTarget || 'PSI80';
+    
+    // First try to find in targets
     const targets = getTargets();
-    return targets.find(t => t.id === 'PSI80') || targets[0];
-  }, []);
+    let targetParam = targets.find(t => t.id === targetId);
+    
+    // If not found in targets, look in all parameters (some models use features as targets)
+    if (!targetParam) {
+      targetParam = millsParameters.find(p => p.id === targetId);
+    }
+    
+    // Fallback to first target if nothing found
+    return targetParam || targets[0];
+  }, [modelTarget]);
 
   // Initialize optimization bounds from parameterBounds when parameters or bounds change
   useEffect(() => {
@@ -138,12 +149,13 @@ export default function XgboostOptimizationDashboard() {
     }
   }, [parameters, parameterBounds]);  // Removed optimizationBounds and setParameterBounds from deps
   
-  // Initialize target setpoint to middle of target parameter range
+  // Initialize target setpoint to middle of target parameter range when model changes
   useEffect(() => {
-    if (targetParameter && targetSetpoint === 50.0) {
+    if (targetParameter) {
+      // Always update when target parameter changes (model change)
       setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
     }
-  }, [targetParameter]);  // Removed targetSetpoint and setTargetSetpoint from deps
+  }, [targetParameter, setTargetSetpoint]);
 
   const [isPredicting, setIsPredicting] = useState(false);
   const { models } = useGetModels();
