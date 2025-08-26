@@ -517,8 +517,7 @@ async def optimize_parameters(request: OptimizationRequest):
         os.makedirs(results_dir, exist_ok=True)
         
         # Export study trials to CSV
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        csv_file = os.path.join(results_dir, f"optuna_trials_{request.model_id}_{timestamp}.csv")
+        csv_file = os.path.join(results_dir, f"optuna_trials_{request.model_id}.csv")
         
         # Export trial data
         trials_data = []

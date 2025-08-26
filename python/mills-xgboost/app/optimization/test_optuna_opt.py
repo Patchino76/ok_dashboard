@@ -5,6 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import optuna
+from sqlalchemy import false
 import xgboost as xgb
 import matplotlib.pyplot as plt
 from typing import Dict, List, Any, Tuple
@@ -75,7 +76,7 @@ class BlackBoxFunction:
         try:
             # Determine file paths based on model_id
             models_dir = os.path.join(project_root, 'models')
-            self.target_col = "PSI80"  # Default
+            self.target_col = "PSI200"  # Default
             
             
             # Get the base name without extension for metadata and scaler
@@ -157,7 +158,7 @@ class BlackBoxFunction:
             prediction = self.xgb_model.predict(input_data)[0]
             
             # Return prediction (negated if minimizing)
-            return prediction if self.maximize else -prediction
+            return prediction #if self.maximize else -prediction
             
         except Exception as e:
             logger.error(f"Error in prediction: {str(e)}")
@@ -295,7 +296,7 @@ def main(log_file=None):
         logger.info(f"Logging to file: {log_file}")
     
     # Example model ID and parameter bounds
-    model_id = "xgboost_PSI80_mill8"
+    model_id = "xgboost_PSI200_mill7"
     parameter_bounds = {
         "Ore": [160.0, 200.0],
         "WaterMill": [5.0, 20.0],
@@ -309,7 +310,7 @@ def main(log_file=None):
     
     # Create the black box function
     logger.info(f"Creating black box function with model {model_id}")
-    black_box = BlackBoxFunction(model_id=model_id, maximize=True)
+    black_box = BlackBoxFunction(model_id=model_id, maximize=False)
     
     # Set parameter bounds
     black_box.set_parameter_bounds(parameter_bounds)
@@ -354,7 +355,7 @@ def main(log_file=None):
     logger.info(f"Results saved to {results_file}")
     
     # Export study trials to CSV
-    csv_file = os.path.join(results_dir, "optuna_trials.csv")
+    csv_file = os.path.join(results_dir, "optuna_trials_test.csv")
     trials_df = export_study_to_csv(study, csv_file)
     logger.info(f"Exported {len(trials_df)} trials to {csv_file}")
     
@@ -381,7 +382,7 @@ if __name__ == "__main__":
     os.makedirs(results_dir, exist_ok=True)
     
     # Use constant log file name based on model ID
-    model_id = "xgboost_PSI80_mill8"
+    model_id = "xgboost_PSI200_mill7"
     log_file = os.path.join(logs_dir, f"optuna_optimization_{model_id}.log")
     
     main(log_file=log_file)
