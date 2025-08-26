@@ -253,7 +253,7 @@ export const millsParameters: ModelParameter[] = [
     max: 40,
     currentMin: calculateDefaultRange(10, 40)[0],
     currentMax: calculateDefaultRange(10, 40)[1],
-    unit: "μk",
+    unit: "%",
     description: "Основна целева стойност - финност на смилане +200 микрона",
   },
 ]

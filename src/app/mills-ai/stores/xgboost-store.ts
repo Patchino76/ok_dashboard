@@ -1030,18 +1030,10 @@ export const useXgboostStore = create<XgboostState>()(
           console.log(`Setting display hours to ${hours}`);
           set({ displayHours: hours });
           
-          // Check if we need to fetch more data for the new time window
+          // Always trigger immediate API call for fresh data when time window changes
           const state = useXgboostStore.getState();
-          const hoursAgo = Date.now() - hours * 60 * 60 * 1000;
-          const hasDataForWindow = state.targetData.some(point => point.timestamp >= hoursAgo);
-          
-          if (!hasDataForWindow && state.targetData.length > 0) {
-            console.log(`Need more data for ${hours}h window, fetching...`);
-            // Only fetch if we don't have sufficient data for the requested window
-            state.fetchRealTimeData();
-          } else {
-            console.log(`Sufficient data available for ${hours}h window, no fetch needed`);
-          }
+          console.log(`Time window changed to ${hours}h, triggering immediate API refresh...`);
+          state.fetchRealTimeData();
         },
 
         predictWithCurrentValues: async () => {

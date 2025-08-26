@@ -47,20 +47,8 @@ export function TargetFractionDisplay({
   const setDisplayHours = useXgboostStore(state => state.setDisplayHours)
   const fetchRealTimeData = useXgboostStore(state => state.fetchRealTimeData)
   
-  // Smart refresh: only fetch more data if we don't have enough for the requested window
-  useEffect(() => {
-    if (targetData.length > 0) {
-      const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
-      const hasDataForWindow = targetData.some(point => point.timestamp >= hoursAgo);
-      
-      if (!hasDataForWindow) {
-        console.log(`Need more data for ${displayHours}h window, fetching...`);
-        fetchRealTimeData();
-      } else {
-        console.log(`Sufficient data available for ${displayHours}h window, filtering existing data`);
-      }
-    }
-  }, [displayHours, fetchRealTimeData, targetData.length]);
+  // Note: Immediate refresh is now handled in the store's setDisplayHours function
+  // This ensures API calls happen immediately when time delta buttons are clicked
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
