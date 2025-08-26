@@ -758,13 +758,17 @@ export const useXgboostStore = create<XgboostState>()(
                 const allPoints = targetTrendData.timestamps.map((timestamp: string, index: number) => {
                   const ts = new Date(timestamp).getTime();
                   const value = targetTrendData.values[index];
-                  // Initialize SP trend equal to PV trend so both lines overlap initially
+                  
+                  // Check if we already have data for this timestamp to preserve existing SP values
+                  const existingPoint = state.targetData.find(p => Math.abs(p.timestamp - ts) < 60000); // within 1 minute
+                  const existingSP = existingPoint?.sp;
+                  
                   return {
                     timestamp: ts,
                     value: value,
-                    target: value,  // initialize same as PV for historical window
+                    target: existingSP !== undefined ? existingSP : value,  // preserve existing SP or use PV as fallback
                     pv: value,      // PV is the actual measured historical value
-                    sp: value       // SP initialized to PV; predictions will diverge it later
+                    sp: existingSP !== undefined ? existingSP : null       // preserve existing SP or set to null for historical data
                   } as TargetData;
                 });
                 
@@ -829,11 +833,11 @@ export const useXgboostStore = create<XgboostState>()(
               const lastSP = (lastDataPoint?.sp ?? lastDataPoint?.pv);
               const currentSP = currentStateForRT.currentTarget;
 
-              // Prefer last seeded SP, then current target, then current PV
+              // Prefer current target (from predictions), then last seeded SP, avoid falling back to PV
               const effectiveSP =
-                (typeof lastSP === 'number' && Number.isFinite(lastSP)) ? lastSP :
                 (typeof currentSP === 'number' && Number.isFinite(currentSP)) ? currentSP :
-                targetResult.value;
+                (typeof lastSP === 'number' && Number.isFinite(lastSP)) ? lastSP :
+                null; // Don't fallback to PV to avoid overlap
               
               console.log('Current PV:', targetResult.value, 'Effective SP:', effectiveSP);
               
@@ -841,9 +845,9 @@ export const useXgboostStore = create<XgboostState>()(
               const newRealTimePoint: TargetData = {
                 timestamp: normalizedTimestamp,
                 value: targetResult.value, // This is the actual PV value
-                target: effectiveSP,       // This is the target we're trying to reach (ensured to be a number)
+                target: effectiveSP || targetResult.value, // Fallback to PV only for target field (not SP)
                 pv: targetResult.value,    // PV is the actual measured value
-                sp: effectiveSP            // SP is the predicted/desired value
+                sp: effectiveSP            // SP is the predicted/desired value (can be null)
               };
               
               console.log('Adding real-time data point:', newRealTimePoint);
@@ -1025,6 +1029,19 @@ export const useXgboostStore = create<XgboostState>()(
         setDisplayHours: (hours) => {
           console.log(`Setting display hours to ${hours}`);
           set({ displayHours: hours });
+          
+          // Check if we need to fetch more data for the new time window
+          const state = useXgboostStore.getState();
+          const hoursAgo = Date.now() - hours * 60 * 60 * 1000;
+          const hasDataForWindow = state.targetData.some(point => point.timestamp >= hoursAgo);
+          
+          if (!hasDataForWindow && state.targetData.length > 0) {
+            console.log(`Need more data for ${hours}h window, fetching...`);
+            // Only fetch if we don't have sufficient data for the requested window
+            state.fetchRealTimeData();
+          } else {
+            console.log(`Sufficient data available for ${hours}h window, no fetch needed`);
+          }
         },
 
         predictWithCurrentValues: async () => {

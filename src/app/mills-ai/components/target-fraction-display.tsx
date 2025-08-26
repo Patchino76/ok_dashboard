@@ -47,14 +47,20 @@ export function TargetFractionDisplay({
   const setDisplayHours = useXgboostStore(state => state.setDisplayHours)
   const fetchRealTimeData = useXgboostStore(state => state.fetchRealTimeData)
   
-  // Refresh data when display hours changes
+  // Smart refresh: only fetch more data if we don't have enough for the requested window
   useEffect(() => {
-    // Only trigger a refresh if we have some data already
     if (targetData.length > 0) {
-      console.log(`Hours changed to ${displayHours}, refreshing trend data...`);
-      fetchRealTimeData();
+      const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
+      const hasDataForWindow = targetData.some(point => point.timestamp >= hoursAgo);
+      
+      if (!hasDataForWindow) {
+        console.log(`Need more data for ${displayHours}h window, fetching...`);
+        fetchRealTimeData();
+      } else {
+        console.log(`Sufficient data available for ${displayHours}h window, filtering existing data`);
+      }
     }
-  }, [displayHours, fetchRealTimeData]);
+  }, [displayHours, fetchRealTimeData, targetData.length]);
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp)
