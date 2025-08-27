@@ -56,6 +56,7 @@ export default function XgboostOptimizationDashboard() {
     startRealTimeUpdates,
     resetFeatures,
     resetSliders,
+    resetSlidersToPVs,
     predictWithCurrentValues
   } = store;
 
@@ -70,7 +71,9 @@ export default function XgboostOptimizationDashboard() {
     updateParameterBounds,
     setParameterBounds,
     setMaximize,
-    getOptimizationConfig
+    getOptimizationConfig,
+    clearProposedSetpoints,
+    clearResults
   } = useOptimizationStore()
   
   const { startOptimization, isOptimizing, progress, error } = useOptimization()
@@ -388,7 +391,21 @@ export default function XgboostOptimizationDashboard() {
                     {isOptimizing ? `Optimizing... ${progress.toFixed(0)}%` : 'Start Optimization'}
                   </Button>
                   <Button
-                    onClick={resetFeatures}
+                    onClick={() => {
+                      // Reset feature sliders to middle of bounds
+                      resetFeatures();
+                      // Force slider reset
+                      resetSlidersToPVs();
+                      // Clear optimization results and proposed setpoints
+                      clearProposedSetpoints();
+                      clearResults();
+                      // Reset target setpoint to middle of target parameter range
+                      if (targetParameter) {
+                        setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
+                      }
+                      // Show feedback to user
+                      toast.success('Reset complete: cleared all optimization results and returned to default values');
+                    }}
                     variant="outline"
                     className="px-4"
                     disabled={isOptimizing}

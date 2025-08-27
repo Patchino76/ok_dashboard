@@ -217,10 +217,10 @@ export function TargetFractionDisplay({
                   min={typeof targetParam?.min === 'number' ? targetParam.min : 0}
                   max={typeof targetParam?.max === 'number' ? targetParam.max : 100}
                   step={0.1}
-                  className="h-full"
+                  className="h-full [&_[data-orientation=vertical]]:bg-slate-300 [&_[role=slider]]:bg-orange-400 [&_[role=slider]]:border-slate-400"
                 />
               </div>
-              <div className="text-xs text-slate-500">
+              <div className="text-sm text-orange-500 font-medium">
                 {typeof targetSetpoint === 'number' ? targetSetpoint.toFixed(1) : '--'}{targetUnit}
               </div>
             </div>

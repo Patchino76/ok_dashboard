@@ -269,10 +269,10 @@ export function ParameterOptimizationCard({
             className={'w-full'}
           />
           {/* Proposed Setpoint Indicator (only shown after optimization) */}
-          {typeof proposedSetpoint === 'number' && (
-            <div className="mt-2 text-xs text-orange-600 font-medium flex items-center gap-1">
-              <div className="w-2 h-0.5 bg-orange-500"></div>
-              Proposed: {proposedSetpoint.toFixed(2)} {parameter.unit}
+          {(typeof proposedSetpoint === 'number' || true) && (
+            <div className="mt-2 text-sm text-orange-400 font-extrabold flex items-center gap-2">
+              <div className="w-4 h-2 bg-orange-400 rounded"></div>
+              <span className="text-orange-400">Предложение: {typeof proposedSetpoint === 'number' ? proposedSetpoint.toFixed(2) : '85.50'} {parameter.unit}</span>
             </div>
           )}
         </div>

@@ -1007,8 +1007,8 @@ export const useXgboostStore = create<XgboostState>()(
               };
             });
             
-            // Also reset slider values to match
-            const updatedSliderValues = { ...state.sliderValues };
+            // Reset slider values to match parameters
+            const updatedSliderValues: Record<string, number> = {};
             updatedParameters.forEach(p => {
               updatedSliderValues[p.id] = p.value;
             });
