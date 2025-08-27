@@ -291,8 +291,13 @@ export default function XgboostOptimizationDashboard() {
           applyOptimizedParameters();
         }
         
+        // Set the target setpoint to the optimized target value
+        if (typeof result.best_score === 'number') {
+          setTargetSetpoint(result.best_score);
+        }
+        
         toast.success(
-          `Optimization completed! Parameters automatically applied. Best score: ${result.best_score.toFixed(3)}`,
+          `Optimization completed! Parameters and target setpoint automatically applied. Best score: ${result.best_score.toFixed(3)}`,
           { id: loadingToast }
         );
       } else {
