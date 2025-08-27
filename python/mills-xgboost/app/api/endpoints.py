@@ -145,8 +145,8 @@ class BlackBoxFunction:
             # Make prediction
             prediction = self.xgb_model.predict(input_data)[0]
             
-            # Return prediction (negated if minimizing)
-            return prediction if self.maximize else -prediction
+            # Return raw prediction - let Optuna handle maximize/minimize direction
+            return prediction
             
         except Exception as e:
             logger.error(f"Error in prediction: {str(e)}")
@@ -498,14 +498,13 @@ async def optimize_parameters(request: OptimizationRequest):
             n_trials=n_trials
         )
         
-        # If we're minimizing, we need to negate the value back since BlackBoxFunction negates it internally
-        if not request.maximize:
-            best_value = -best_value
+        # Use raw value from Optuna - no negation needed
+        # best_value = study.best_value (already assigned above)
             
         # Generate recommendations from top trials
         recommendations = []
-        for trial in sorted(study.trials, key=lambda t: t.value if request.maximize else -t.value, reverse=request.maximize)[:5]:
-            value = trial.value if request.maximize else -trial.value
+        for trial in sorted(study.trials, key=lambda t: t.value, reverse=request.maximize)[:5]:
+            value = trial.value
             recommendations.append({
                 "params": trial.params,
                 "predicted_value": float(value)

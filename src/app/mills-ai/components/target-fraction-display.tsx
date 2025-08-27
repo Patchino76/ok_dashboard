@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { CheckCircle, AlertTriangle, Target, TrendingUp, Settings } from "lucide-react"
+import { CheckCircle, AlertTriangle, Target, TrendingUp } from "lucide-react"
 import { useXgboostStore } from "../stores/xgboost-store"
 import { Slider } from "@/components/ui/slider"
 import { useOptimizationStore } from "../stores/optimization-store"
@@ -146,9 +146,9 @@ export function TargetFractionDisplay({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-7 gap-3">
           {/* Main Values Display */}
-          <div className="lg:col-span-2 flex flex-col justify-center">
+          <div className="lg:col-span-1 flex flex-col justify-center">
             <div className="space-y-6">
               {/* Current Values */}
               <div className="space-y-4">
@@ -206,9 +206,8 @@ export function TargetFractionDisplay({
           {/* Vertical Target SP Slider (middle column) */}
           <div className="lg:col-span-1 hidden lg:flex items-center justify-center">
             <div className="h-[240px] flex flex-col items-center justify-between py-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
-                <Settings className="h-4 w-4" />
-                <span title={targetParam?.description || ''}>{targetParam?.name || 'Target'}</span>
+              <div className="text-sm font-medium text-slate-600 dark:text-slate-400 text-center leading-tight break-words px-1">
+                <span title={targetParam?.description || ''} className="whitespace-normal">{targetParam?.name || 'Target'}</span>
               </div>
               <div className="h-full flex items-center">
                 <Slider
@@ -228,7 +227,7 @@ export function TargetFractionDisplay({
           </div>
 
           {/* Chart */}
-          <div className="lg:col-span-4">
+          <div className="lg:col-span-5">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">

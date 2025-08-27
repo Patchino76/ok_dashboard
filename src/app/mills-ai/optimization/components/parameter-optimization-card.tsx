@@ -25,7 +25,6 @@ interface ParameterOptimizationCardProps {
   bounds: [number, number]
   rangeValue: [number, number]
   isSimulationMode?: boolean
-  optimizationMode?: OptimizationMode
   proposedSetpoint?: number
   onRangeChange: (id: string, range: [number, number]) => void
 }
@@ -35,7 +34,6 @@ export function ParameterOptimizationCard({
   bounds,
   rangeValue,
   isSimulationMode = true,
-  optimizationMode = 'training',
   proposedSetpoint,
   onRangeChange 
 }: ParameterOptimizationCardProps) {
@@ -234,7 +232,7 @@ export function ParameterOptimizationCard({
                     fillOpacity={0.08}
                     strokeOpacity={0}
                   />
-                  {/* Proposed Setpoint horizontal dashed line (shown when available) */}
+                  {/* Proposed Setpoint horizontal dashed line (only shown after optimization) */}
                   {typeof proposedSetpoint === 'number' && (
                     <ReferenceLine
                       y={proposedSetpoint}
@@ -262,18 +260,16 @@ export function ParameterOptimizationCard({
 
         {/* Double Range Slider (full width, no duplicate labels) */}
         <div className="pt-2">
-          <div className={`${!isSimulationMode || optimizationMode === 'runtime' ? 'opacity-50 pointer-events-none' : ''}`}>
-            <DoubleRangeSlider
-              min={bounds[0]}
-              max={bounds[1]}
-              value={range}
-              onChange={handleRangeChange}
-              step={(bounds[1] - bounds[0]) / 100}
-              className={'w-full'}
-            />
-          </div>
-          {/* Proposed Setpoint Indicator in Runtime Mode */}
-          {optimizationMode === 'runtime' && typeof proposedSetpoint === 'number' && (
+          <DoubleRangeSlider
+            min={bounds[0]}
+            max={bounds[1]}
+            value={range}
+            onChange={handleRangeChange}
+            step={(bounds[1] - bounds[0]) / 100}
+            className={'w-full'}
+          />
+          {/* Proposed Setpoint Indicator (only shown after optimization) */}
+          {typeof proposedSetpoint === 'number' && (
             <div className="mt-2 text-xs text-orange-600 font-medium flex items-center gap-1">
               <div className="w-2 h-0.5 bg-orange-500"></div>
               Proposed: {proposedSetpoint.toFixed(2)} {parameter.unit}

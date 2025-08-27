@@ -65,17 +65,12 @@ export default function XgboostOptimizationDashboard() {
     parameterBounds: optimizationBounds,
     iterations,
     maximize,
-    optimizationMode,
     proposedSetpoints,
     setTargetSetpoint,
     updateParameterBounds,
     setParameterBounds,
-    setOptimizationMode,
-    getOptimizationConfig,
-    isTrainingMode,
-    isRuntimeMode,
-    autoApplyProposals,
-    setAutoApplyProposals
+    setMaximize,
+    getOptimizationConfig
   } = useOptimizationStore()
   
   const { startOptimization, isOptimizing, progress, error } = useOptimization()
@@ -87,24 +82,6 @@ export default function XgboostOptimizationDashboard() {
     improvementScore 
   } = useOptimizationResults()
   
-  // Add test proposed setpoints for runtime mode visualization
-  useEffect(() => {
-    if (optimizationMode === 'runtime' && !proposedSetpoints && parameters.length > 0) {
-      const testProposedSetpoints: Record<string, number> = {};
-      parameters.forEach(param => {
-        const bounds = parameterBounds[param.id] || [0, 100];
-        // Generate a test value between 30-70% of the parameter range
-        const range = bounds[1] - bounds[0];
-        const testValue = bounds[0] + (0.3 + Math.random() * 0.4) * range;
-        testProposedSetpoints[param.id] = testValue;
-      });
-      
-      // Set test proposed setpoints for visualization
-      const { setProposedSetpoints } = useOptimizationStore.getState();
-      setProposedSetpoints(testProposedSetpoints);
-      console.log('Added test proposed setpoints for runtime mode:', testProposedSetpoints);
-    }
-  }, [optimizationMode, proposedSetpoints, parameters, parameterBounds]);
   
   // Get target parameter bounds based on current model's target
   const targetParameter = useMemo(() => {
@@ -309,8 +286,13 @@ export default function XgboostOptimizationDashboard() {
       const result = await startOptimization(config);
       
       if (result && result.status === 'completed') {
+        // Automatically apply optimized parameters
+        if (result.best_parameters) {
+          applyOptimizedParameters();
+        }
+        
         toast.success(
-          `Optimization completed! Best score: ${result.best_score.toFixed(3)}`,
+          `Optimization completed! Parameters automatically applied. Best score: ${result.best_score.toFixed(3)}`,
           { id: loadingToast }
         );
       } else {
@@ -325,11 +307,6 @@ export default function XgboostOptimizationDashboard() {
     }
   };
   
-  const handleApplyResults = () => {
-    if (currentResults?.best_parameters) {
-      applyOptimizedParameters();
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -342,8 +319,14 @@ export default function XgboostOptimizationDashboard() {
               Настройки на модел (Optimization)
             </CardTitle>
             <div className="flex gap-2">
-              <Badge variant="outline" className={`rounded-full px-3 py-1 ${isPredicting ? "bg-amber-100 text-amber-800 border-amber-200" : "bg-green-100 text-green-800 border-green-200"}`}>
-                {isPredicting ? "PREDICTING" : "READY"}
+              <Badge variant="outline" className={`rounded-full px-3 py-1 ${
+                isOptimizing ? "bg-amber-100 text-amber-800 border-amber-200" :
+                hasResults && isSuccessful ? "bg-green-100 text-green-800 border-green-200" :
+                "bg-slate-100 text-slate-600 border-slate-200"
+              }`}>
+                {isOptimizing ? `OPTIMIZING ${progress.toFixed(0)}%` :
+                 hasResults && isSuccessful ? "READY" :
+                 "CONFIGURING"}
               </Badge>
               <Badge variant="outline" className="rounded-full px-3 py-1 bg-blue-100 text-blue-800 border-blue-200 flex items-center gap-1">
                 <Zap className="h-3 w-3" />
@@ -368,60 +351,32 @@ export default function XgboostOptimizationDashboard() {
               {/* Target SP slider moved into TargetFractionDisplay as a vertical control */}
             </div>
             <div className="space-y-4">
-              {/* Auto-populate proposed setpoints toggle */}
-              <Card className="p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex flex-col">
-                    <div className="text-sm font-medium">Auto-populate proposed setpoints</div>
-                    <div className="text-xs text-slate-500">After optimization completes, use best parameters as proposed setpoints</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">Manual</span>
-                    <Switch
-                      checked={autoApplyProposals}
-                      onCheckedChange={setAutoApplyProposals}
-                      disabled={isOptimizing}
-                    />
-                    <span className="text-xs text-slate-500">Auto</span>
-                  </div>
-                </div>
-              </Card>
-              
-              {/* Mode Toggle */}
-              <Card className="p-3 mb-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium">Optimization Mode</div>
-                  <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-                    <Button
-                      size="sm"
-                      variant={optimizationMode === 'training' ? 'default' : 'ghost'}
-                      className="px-3 py-1 text-xs"
-                      onClick={() => setOptimizationMode('training')}
-                      disabled={isOptimizing}
-                    >
-                      <Wrench className="h-3 w-3 mr-1" />
-                      Training
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={optimizationMode === 'runtime' ? 'default' : 'ghost'}
-                      className="px-3 py-1 text-xs"
-                      onClick={() => setOptimizationMode('runtime')}
-                      disabled={isOptimizing}
-                    >
-                      <Cpu className="h-3 w-3 mr-1" />
-                      Runtime
-                    </Button>
-                  </div>
-                </div>
-              </Card>
               
               {/* Optimization Controls */}
-              <div className="space-y-2">
+              <div className="space-y-3">
+                {/* Maximize/Minimize Toggle */}
+                <Card className="p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <div className="text-sm font-medium">Optimization Goal</div>
+                      <div className="text-xs text-slate-500">Choose whether to maximize or minimize the target value</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs ${!maximize ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Minimize</span>
+                      <Switch
+                        checked={maximize}
+                        onCheckedChange={setMaximize}
+                        disabled={isOptimizing}
+                      />
+                      <span className={`text-xs ${maximize ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Maximize</span>
+                    </div>
+                  </div>
+                </Card>
+                
                 <div className="flex gap-2">
                   <Button
                     onClick={handleStartOptimization}
-                    disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0 || isRuntimeMode()}
+                    disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                   >
                     <Play className="h-4 w-4 mr-2" />
@@ -431,26 +386,12 @@ export default function XgboostOptimizationDashboard() {
                     onClick={resetFeatures}
                     variant="outline"
                     className="px-4"
-                    disabled={isOptimizing || isRuntimeMode()}
+                    disabled={isOptimizing}
                   >
                     Reset
                   </Button>
                 </div>
                 
-                {/* Results Actions */}
-                {hasResults && isSuccessful && (
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleApplyResults}
-                      variant="outline"
-                      className="flex-1 border-green-200 text-green-700 hover:bg-green-50"
-                      disabled={isOptimizing}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Apply Optimized Parameters
-                    </Button>
-                  </div>
-                )}
                 
                 {/* Error Display */}
                 {error && (
@@ -485,8 +426,8 @@ export default function XgboostOptimizationDashboard() {
         modelName={selectedModel?.name}
         targetVariable={selectedModel?.target_col}
         targetUnit={targetUnit}
-        spOptimize={targetSetpoint}
-        showOptimizationTarget={true}
+        spOptimize={hasResults && isSuccessful ? targetSetpoint : undefined}
+        showOptimizationTarget={hasResults && isSuccessful}
       />
 
       {/* Parameter Optimization Cards Grid */}
@@ -503,8 +444,7 @@ export default function XgboostOptimizationDashboard() {
                 bounds={bounds as [number, number]}
                 rangeValue={rangeValue as [number, number]}
                 isSimulationMode={true}
-                optimizationMode={optimizationMode}
-                proposedSetpoint={proposedSetpoints?.[parameter.id]}
+                proposedSetpoint={hasResults && isSuccessful ? proposedSetpoints?.[parameter.id] : undefined}
                 onRangeChange={(id: string, newRange: [number, number]) => {
                   updateParameterBounds(id, newRange);
                 }}
