@@ -5,8 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
-import { CheckCircle, AlertTriangle, Target, TrendingUp } from "lucide-react"
+import { CheckCircle, AlertTriangle, Target, TrendingUp, Settings } from "lucide-react"
 import { useXgboostStore } from "../stores/xgboost-store"
+import { Slider } from "@/components/ui/slider"
+import { useOptimizationStore } from "../stores/optimization-store"
+import { millsParameters, getTargets } from "../data/mills-parameters"
 
 interface TargetData {
   timestamp: number
@@ -46,6 +49,21 @@ export function TargetFractionDisplay({
   const displayHours = useXgboostStore(state => state.displayHours)
   const setDisplayHours = useXgboostStore(state => state.setDisplayHours)
   const fetchRealTimeData = useXgboostStore(state => state.fetchRealTimeData)
+  
+  // Connect to optimization store for target SP control
+  const targetSetpoint = useOptimizationStore(state => state.targetSetpoint)
+  const setTargetSetpoint = useOptimizationStore(state => state.setTargetSetpoint)
+  
+  // Resolve target default bounds from configuration
+  const targetParam = useMemo(() => {
+    const id = targetVariable || 'PSI80'
+    const targets = getTargets()
+    let t = targets.find(tt => tt.id === id)
+    if (!t) {
+      t = (millsParameters as any).find((p: any) => p.id === id)
+    }
+    return t || targets[0]
+  }, [targetVariable])
   
   // Note: Immediate refresh is now handled in the store's setDisplayHours function
   // This ensures API calls happen immediately when time delta buttons are clicked
@@ -259,8 +277,32 @@ export function TargetFractionDisplay({
             </div>
           </div>
 
+          {/* Vertical Target SP Slider (middle column) */}
+          <div className="lg:col-span-1 hidden lg:flex items-center justify-center">
+            <div className="h-[240px] flex flex-col items-center justify-between py-2">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400">
+                <Settings className="h-4 w-4" />
+                <span title={targetParam?.description || ''}>{targetParam?.name || 'Target'}</span>
+              </div>
+              <div className="h-full flex items-center">
+                <Slider
+                  orientation="vertical"
+                  value={[typeof targetSetpoint === 'number' ? targetSetpoint : 0]}
+                  onValueChange={(v) => setTargetSetpoint(v[0])}
+                  min={typeof targetParam?.min === 'number' ? targetParam.min : 0}
+                  max={typeof targetParam?.max === 'number' ? targetParam.max : 100}
+                  step={0.1}
+                  className="h-full"
+                />
+              </div>
+              <div className="text-xs text-slate-500">
+                {typeof targetSetpoint === 'number' ? targetSetpoint.toFixed(1) : '--'}{targetUnit}
+              </div>
+            </div>
+          </div>
+
           {/* Chart */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-4">
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">

@@ -4,8 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Slider } from "@/components/ui/slider"
-import { Activity, Zap, Settings, Play, CheckCircle, AlertCircle, Wrench, Cpu } from "lucide-react"
+import { Activity, Zap, Play, CheckCircle, AlertCircle, Wrench, Cpu } from "lucide-react"
 import { ParameterOptimizationCard } from "./parameter-optimization-card"
 import { TargetFractionDisplay } from "../../components/target-fraction-display"
 import { ModelSelection } from "../../components/model-selection"
@@ -366,35 +365,7 @@ export default function XgboostOptimizationDashboard() {
                 onModelChange={handleModelChange}
                 onMillChange={handleMillChange}
               />
-              {/* Target SP Slider (moved just below ModelSelection with same width) */}
-              <Card className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium flex items-center gap-2">
-                      <Settings className="h-4 w-4" />
-                      Target Setpoint ({targetParameter?.name || 'PSI80'})
-                    </h3>
-                    <Badge variant="outline" className="text-xs">
-                      {targetSetpoint.toFixed(1)} {targetParameter?.unit || '%'}
-                    </Badge>
-                  </div>
-                  <div className="px-2">
-                    <Slider
-                      value={[targetSetpoint]}
-                      onValueChange={(value) => setTargetSetpoint(value[0])}
-                      min={targetParameter?.min || 0}
-                      max={targetParameter?.max || 100}
-                      step={0.1}
-                      className="w-full"
-                      disabled={isOptimizing || isRuntimeMode()}
-                    />
-                    <div className="flex justify-between text-xs text-slate-500 mt-1">
-                      <span>{targetParameter?.min || 0}</span>
-                      <span>{targetParameter?.max || 100}</span>
-                    </div>
-                  </div>
-                </div>
-              </Card>
+              {/* Target SP slider moved into TargetFractionDisplay as a vertical control */}
             </div>
             <div className="space-y-4">
               {/* Auto-populate proposed setpoints toggle */}

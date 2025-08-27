@@ -13,14 +13,26 @@ const Slider = React.forwardRef<
     ref={ref}
     className={cn(
       "relative flex w-full touch-none select-none items-center",
+      // Vertical orientation adjustments
+      "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-8 data-[orientation=vertical]:flex-col",
       className
     )}
     {...props}
   >
     <SliderPrimitive.Track
-      className="relative h-2 w-full grow overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"
+      className={cn(
+        "relative h-2 w-full grow overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800",
+        // For vertical orientation the track should be tall and narrow
+        "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-2"
+      )}
     >
-      <SliderPrimitive.Range className="absolute h-full bg-slate-900 dark:bg-slate-400" />
+      <SliderPrimitive.Range
+        className={cn(
+          "absolute h-full bg-slate-900 dark:bg-slate-400",
+          // Ensure the range fills correctly in vertical orientation
+          "data-[orientation=vertical]:h-full data-[orientation=vertical]:w-full"
+        )}
+      />
     </SliderPrimitive.Track>
     {props.value?.map((_, i) => (
       <SliderPrimitive.Thumb
