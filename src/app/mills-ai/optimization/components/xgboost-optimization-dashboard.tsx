@@ -157,11 +157,11 @@ export default function XgboostOptimizationDashboard() {
     return () => clearTimeout(timeoutId);
   }, [sliderValues, predictWithCurrentValues]);
 
-  // Force simulation mode ON for optimization page only
+  // Force simulation mode OFF for optimization page to enable PV-based predictions
   useEffect(() => {
     try {
       const setSimulationMode = useXgboostStore.getState().setSimulationMode;
-      setSimulationMode(true);
+      setSimulationMode(false); // Use real-time mode for PV-based predictions
     } catch (e) {
       console.warn('Failed to set simulation mode on mount:', e);
     }

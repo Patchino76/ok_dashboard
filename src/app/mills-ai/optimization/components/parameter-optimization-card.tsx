@@ -170,19 +170,21 @@ export function ParameterOptimizationCard({
           const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
           const filteredTrend = parameter.trend.filter(item => item.timestamp >= hoursAgo);
           
-          // Calculate Y-axis domain to include data, current bounds, and proposed setpoint
+          // Calculate Y-axis domain to include data, optimization bounds, and proposed setpoint
           let yMin: number
           let yMax: number
+          
           if (filteredTrend.length > 0) {
             const values = filteredTrend.map(d => d.value)
             yMin = Math.min(...values, range[0], typeof proposedSetpoint === 'number' ? proposedSetpoint : values[0])
             yMax = Math.max(...values, range[1], typeof proposedSetpoint === 'number' ? proposedSetpoint : values[0])
           } else {
-            // Fallback when no trend points in window
+            // Fallback when no trend points in window - ensure bounds and proposed setpoint are visible
             const base = typeof proposedSetpoint === 'number' ? proposedSetpoint : (range[0] + range[1]) / 2
             yMin = Math.min(range[0], base)
             yMax = Math.max(range[1], base)
           }
+          
           const pad = (yMax - yMin) || 1
           const yAxisDomain: [number, number] = [yMin - pad * 0.05, yMax + pad * 0.05]
           
@@ -204,7 +206,7 @@ export function ParameterOptimizationCard({
                     tick={{ fontSize: 10 }}
                     tickFormatter={(value) => value >= 1 ? value.toFixed(0) : value.toFixed(2)}
                     interval={0}
-                    allowDataOverflow={true}
+                    allowDataOverflow={false}
                     axisLine={true}
                     tickLine={true}
                     tickMargin={3}
@@ -223,14 +225,6 @@ export function ParameterOptimizationCard({
                     strokeWidth={1.5}
                     dot={false}
                     isAnimationActive={false}
-                  />
-                  {/* Shaded optimization bounds (always shown) */}
-                  <ReferenceArea
-                    y1={range[0]}
-                    y2={range[1]}
-                    fill="#f97316"
-                    fillOpacity={0.08}
-                    strokeOpacity={0}
                   />
                   {/* Proposed Setpoint horizontal dashed line (only shown after optimization) */}
                   {typeof proposedSetpoint === 'number' && (

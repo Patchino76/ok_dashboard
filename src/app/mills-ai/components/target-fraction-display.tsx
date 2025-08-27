@@ -372,7 +372,6 @@ export function TargetFractionDisplay({
                         strokeDasharray="5 5" 
                         dot={false}
                         activeDot={{ r: 4 }}
-                        isAnimationActive={false} // Disable animation to ensure line is always visible
                       />
                       {/* Optimization Target Horizontal Line */}
                       {showOptimizationTarget && typeof spOptimize === 'number' && (
