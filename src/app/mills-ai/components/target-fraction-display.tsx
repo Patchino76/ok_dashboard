@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -92,95 +92,21 @@ export function TargetFractionDisplay({
     }))
     .sort((a, b) => a.time - b.time); // Ensure data is sorted by time
 
-  // Robust, dynamic gauge bounds with hysteresis
-  // Do not clamp to 0–100; allow the scale to expand beyond if data requires it
-  const domainMin = -Infinity;
-  const domainMax = Infinity;
-  const minSpanAbs = 2; // enforce at least 2 percentage points of span
-  const changeThreshold = 0.25; // >25% change in range triggers rescale
-  const edgeMarginFrac = 0.1; // if values are within 10% of edges, expand
-
-  const windowValues = useMemo(() => {
-    // Use retained historical data (store already prunes to retention window)
-    const vals: number[] = [];
-    for (const d of targetData) {
-      if (typeof d.pv === 'number' && isFinite(d.pv)) vals.push(d.pv);
-      if (typeof d.sp === 'number' && isFinite(d.sp as number)) vals.push(d.sp as number);
-    }
-    if (typeof currentPV === 'number' && isFinite(currentPV)) vals.push(currentPV);
-    if (typeof currentTarget === 'number' && isFinite(currentTarget)) vals.push(currentTarget);
-    return vals;
-  }, [targetData, currentPV, currentTarget]);
-
-  const quantile = (sorted: number[], q: number) => {
-    if (!sorted.length) return NaN;
-    const pos = (sorted.length - 1) * q;
-    const base = Math.floor(pos);
-    const rest = pos - base;
-    if (sorted[base + 1] !== undefined) {
-      return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
-    } else {
-      return sorted[base];
-    }
-  };
-
-  const boundsRef = useRef<{ min: number; max: number }>({ min: 0, max: 100 });
-  const [scaleMin, setScaleMin] = useState<number>(0);
-  const [scaleMax, setScaleMax] = useState<number>(100);
+  // Fixed gauge bounds using target defaults (do not auto-rescale)
+  const [scaleMin, setScaleMin] = useState<number>(
+    typeof targetParam?.min === 'number' ? targetParam.min : 0
+  );
+  const [scaleMax, setScaleMax] = useState<number>(
+    typeof targetParam?.max === 'number' ? targetParam.max : 100
+  );
 
   useEffect(() => {
-    const vals = windowValues.slice().sort((a, b) => a - b);
-    let baselineMin = vals.length ? quantile(vals, 0.05) : domainMin;
-    let baselineMax = vals.length ? quantile(vals, 0.95) : domainMax;
-
-    // Ensure current values are included in the range
-    if (typeof currentPV === 'number') {
-      baselineMin = Math.min(baselineMin, currentPV);
-      baselineMax = Math.max(baselineMax, currentPV);
-    }
-    if (typeof currentTarget === 'number') {
-      baselineMin = Math.min(baselineMin, currentTarget);
-      baselineMax = Math.max(baselineMax, currentTarget);
-    }
-    if (typeof spOptimize === 'number' && showOptimizationTarget) {
-      baselineMin = Math.min(baselineMin, spOptimize);
-      baselineMax = Math.max(baselineMax, spOptimize);
-    }
-
-    const range = Math.max(baselineMax - baselineMin, 0.001);
-    const pad = Math.max(0.5, range * 0.1);
-    let proposedMin = baselineMin - pad;
-    let proposedMax = baselineMax + pad;
-
-    // Enforce a minimum span
-    if (proposedMax - proposedMin < minSpanAbs) {
-      const center = (baselineMin + baselineMax) / 2;
-      proposedMin = center - minSpanAbs / 2;
-      proposedMax = center + minSpanAbs / 2;
-    }
-
-    // Hysteresis: only update if necessary
-    const curr = boundsRef.current;
-    const currRange = Math.max(curr.max - curr.min, 0.001);
-    const propRange = Math.max(proposedMax - proposedMin, 0.001);
-    const valuesToCheck = [currentPV, currentTarget];
-    if (typeof spOptimize === 'number' && showOptimizationTarget) {
-      valuesToCheck.push(spOptimize);
-    }
-    const outOfRange = valuesToCheck.some(
-      (v) => typeof v === 'number' && (v < curr.min || v > curr.max)
-    );
-    const nearEdge = valuesToCheck.some(
-      (v) => typeof v === 'number' && (v - curr.min < currRange * edgeMarginFrac || curr.max - v < currRange * edgeMarginFrac)
-    );
-    const rangeChanged = propRange > currRange * (1 + changeThreshold) || propRange < currRange * (1 - changeThreshold);
-
-    if (outOfRange || nearEdge || rangeChanged || (curr.min === domainMin && curr.max === domainMax)) {
-      boundsRef.current = { min: proposedMin, max: proposedMax };
-      setScaleMin(proposedMin);
-      setScaleMax(proposedMax);
-    }
-  }, [windowValues, currentPV, currentTarget, spOptimize, showOptimizationTarget, displayHours]);
+    const min = typeof targetParam?.min === 'number' ? targetParam.min : 0;
+    const maxRaw = typeof targetParam?.max === 'number' ? targetParam.max : 100;
+    const max = maxRaw > min ? maxRaw : min + 1; // ensure positive span
+    setScaleMin(min);
+    setScaleMax(max);
+  }, [targetParam?.min, targetParam?.max]);
 
   const formatValue = (v?: number | null) => {
     if (v === undefined || v === null) return "--"
@@ -377,10 +303,7 @@ export function TargetFractionDisplay({
                       <YAxis
                         stroke="#6b7280"
                         tick={{ fill: "#6b7280", fontSize: 12 }}
-                        domain={[
-                          (dataMin: number) => Math.floor(dataMin - 2),
-                          (dataMax: number) => Math.ceil(dataMax + 2),
-                        ]}
+                        domain={[scaleMin, scaleMax]}
                         tickFormatter={(value) => value.toString()}
                         width={60}
                         label={{ 
