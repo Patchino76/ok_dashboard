@@ -317,9 +317,25 @@ export default function XgboostOptimizationDashboard() {
   
 
   return (
-    <div className="space-y-6">
-      {/* System Overview */}
-      <Card className="rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 bg-white dark:bg-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-100 dark:from-purple-900/20 dark:via-indigo-800/20 dark:to-blue-700/20 p-6">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl shadow-lg">
+              <Zap className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+              Process Optimization
+            </h1>
+          </div>
+          <p className="text-slate-600 dark:text-slate-400 text-lg">
+            Advanced Bayesian optimization for maximum efficiency
+          </p>
+        </div>
+
+        {/* System Overview */}
+        <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
         <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl font-semibold flex items-center gap-2">
@@ -473,6 +489,7 @@ export default function XgboostOptimizationDashboard() {
               />
             );
           })}
+        </div>
       </div>
     </div>
   )

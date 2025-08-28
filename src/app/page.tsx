@@ -102,78 +102,87 @@ export default function Home() {
         <Heading size="4" mb="3">Контролни панели</Heading>
         <Grid columns={{ initial: "1", sm: "2", md: "3" }} gap="4">
           <Link href="/dashboard" className="no-underline">
-            <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-green-500">
+            <Card className="bg-gradient-to-br from-white to-green-50/50 h-full hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-400 to-emerald-400" />
               <Flex direction="column" p="5" height="100%">
                 <Flex justify="between" align="center" mb="3">
-                  <Box className="p-2 bg-green-50 rounded-md text-green-600">
-                    <Activity className="h-5 w-5" />
+                  <Box className="p-3 bg-gradient-to-br from-green-600 to-emerald-600 rounded-lg shadow-lg">
+                    <Activity className="h-5 w-5 text-white" />
                   </Box>
                   <Box className="size-8 flex items-center justify-center rounded-full bg-green-50 group-hover:bg-green-100 transition-colors">
                     <ArrowRight className="h-4 w-4 text-green-600" />
                   </Box>
                 </Flex>
-                <Heading size="4" mb="2">Производствени KPI</Heading>
+                <Heading size="4" mb="2" className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">Производствени KPI</Heading>
                 <Text className="text-gray-500 mb-2">Анализирайте производителността и KPI на диспечерите</Text>
                 <Box className="mt-auto">
-                  <Badge size="1" variant="soft" color="green">Активен</Badge>
+                  <Badge size="1" variant="soft" style={{backgroundColor: '#dcfce7', color: '#059669'}}>Активен</Badge>
                 </Box>
               </Flex>
             </Card>
           </Link>
           
           <Link href="/mills" className="no-underline">
-            <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-blue-500">
+            <Card className="bg-gradient-to-br from-white to-blue-50/50 h-full hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-cyan-400" />
               <Flex direction="column" p="5" height="100%">
                 <Flex justify="between" align="center" mb="3">
-                  <Box className="p-2 bg-blue-50 rounded-md text-blue-600">
-                    <GitFork className="h-5 w-5" />
+                  <Box className="p-3 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-lg shadow-lg">
+                    <GitFork className="h-5 w-5 text-white" />
                   </Box>
                   <Box className="size-8 flex items-center justify-center rounded-full bg-blue-50 group-hover:bg-blue-100 transition-colors">
                     <ArrowRight className="h-4 w-4 text-blue-600" />
                   </Box>
                 </Flex>
-                <Heading size="4" mb="2">Операции на мелниците</Heading>
+                <Heading size="4" mb="2" className="bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Операции на мелниците</Heading>
                 <Text className="text-gray-500 mb-2">Следете производителността, консумацията на руда и смените</Text>
                 <Box className="mt-auto">
-                  <Badge size="1" variant="soft" color="blue">Активен</Badge>
+                  <Badge size="1" variant="soft" style={{backgroundColor: '#dbeafe', color: '#2563eb'}}>Активен</Badge>
                 </Box>
               </Flex>
             </Card>
           </Link>
           
           <Link href="/analytics" className="no-underline">
-          <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-purple-500">
+          <Card className="bg-gradient-to-br from-white to-violet-50/50 h-full hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-400 to-purple-400" />
             <Flex direction="column" p="5" height="100%">
               <Flex justify="between" align="center" mb="3">
-                <Box className="p-2 bg-purple-50 rounded-md text-purple-600">
-                  <BarChart className="h-5 w-5" />
+                <Box className="p-3 bg-gradient-to-br from-violet-600 to-purple-600 rounded-lg shadow-lg">
+                  <BarChart className="h-5 w-5 text-white" />
                 </Box>
-                <Box className="size-8 flex items-center justify-center rounded-full bg-purple-50 group-hover:bg-purple-100 transition-colors">
-                  <ArrowRight className="h-4 w-4 text-purple-600" />
+                <Box className="size-8 flex items-center justify-center rounded-full bg-violet-50 group-hover:bg-violet-100 transition-colors">
+                  <ArrowRight className="h-4 w-4 text-violet-600" />
                 </Box>
               </Flex>
-              <Heading size="4" mb="2">Аналитики на смилане</Heading>
+              <Heading size="4" mb="2" className="bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent">Аналитики на смилане</Heading>
               <Text className="text-gray-500 mb-2">Следете индикаторите за производителност по екипи и смени</Text>
               <Box className="mt-auto">
-                <Badge size="1" variant="soft" color="gray">Очаквайте скоро</Badge>
+                <Badge size="1" variant="soft" style={{backgroundColor: '#f5f3ff', color: '#7c3aed'}}>Очаквайте скоро</Badge>
               </Box>
             </Flex>
           </Card>
           </Link>
           
-          <Link href="/tendences" className="no-underline">
-            <Card className="bg-white h-full hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-amber-500">
+          <Link href="/mills-ai" className="no-underline">
+            <Card className="bg-gradient-to-br from-white to-purple-50/50 h-full hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-indigo-400" />
               <Flex direction="column" p="5" height="100%">
                 <Flex justify="between" align="center" mb="3">
-                  <Box className="p-2 bg-amber-50 rounded-md text-amber-600">
-                    <AreaChart className="h-5 w-5" />
+                  <Box className="p-3 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-lg shadow-lg">
+                    <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
                   </Box>
-                  <Box className="size-8 flex items-center justify-center rounded-full bg-amber-50 group-hover:bg-amber-100 transition-colors">
-                    <ArrowRight className="h-4 w-4 text-amber-600" />
+                  <Box className="size-8 flex items-center justify-center rounded-full bg-purple-50 group-hover:bg-purple-100 transition-colors">
+                    <ArrowRight className="h-4 w-4 text-purple-600" />
                   </Box>
                 </Flex>
-                <Heading size="4" mb="2">Тенденции в данните</Heading>
-                <Text className="text-gray-500 mb-2">Анализирайте исторически данни и идентифицирайте тенденции</Text>
+                <Heading size="4" mb="2" className="bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">Оптимизация на смилане</Heading>
+                <Text className="text-gray-500 mb-2">AI-базирана оптимизация на процесите с машинно обучение</Text>
+                <Box className="mt-auto">
+                  <Badge size="1" variant="soft" style={{backgroundColor: '#f3e8ff', color: '#7c3aed'}}>AI Активен</Badge>
+                </Box>
               </Flex>
             </Card>
           </Link>
@@ -183,23 +192,24 @@ export default function Home() {
       {/* Data import section */}
       <Box className="mb-6">
         <Heading size="4" mb="3">Инструменти за данни</Heading>
-        <Card className="bg-white hover:shadow-md transition-shadow cursor-pointer overflow-hidden group border-l-4 border-l-cyan-500">
+        <Card className="bg-gradient-to-br from-white to-cyan-50/50 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-teal-400" />
           <Flex direction="column" p="5">
             <Flex justify="between" align="center" mb="3">
-              <Box className="p-2 bg-cyan-50 rounded-md text-cyan-600">
-                <FileSpreadsheet className="h-5 w-5" />
+              <Box className="p-3 bg-gradient-to-br from-cyan-600 to-teal-600 rounded-lg shadow-lg">
+                <FileSpreadsheet className="h-5 w-5 text-white" />
               </Box>
               <Box className="size-8 flex items-center justify-center rounded-full bg-cyan-50 group-hover:bg-cyan-100 transition-colors">
                 <ArrowRight className="h-4 w-4 text-cyan-600" />
               </Box>
             </Flex>
-            <Heading size="4" mb="2">Импорт на данни на диспечери</Heading>
+            <Heading size="4" mb="2" className="bg-gradient-to-r from-cyan-600 to-teal-600 bg-clip-text text-transparent">Импорт на данни на диспечери</Heading>
             <Text className="text-gray-500 mb-4">Импортирайте и обработвайте данни на диспечери от Excel файлове</Text>
             <Text size="2" className="text-gray-400 mb-2">
               Поддържа файлове като Doklad_Dispecheri_2024.xlsx с автоматично извличане на годината
             </Text>
             <Box>
-              <Badge size="1" variant="soft" color="gray">Очаквайте скоро</Badge>
+              <Badge size="1" variant="soft" style={{backgroundColor: '#ecfeff', color: '#0891b2'}}>Очаквайте скоро</Badge>
             </Box>
           </Flex>
         </Card>

@@ -6,8 +6,10 @@ import { cn } from "@/lib/utils"
 
 const navigationItems = [
   { name: "Process Control", href: "/mills-ai" },
-  { name: "Multi-Parameter", href: "/mills-ai/multi-parameter" },
-  { name: "XGBoost Simulation", href: "/mills-ai/simulation" }
+  { name: "XGBoost Simulation", href: "/mills-ai/simulation" },
+  { name: "Process Optimization", href: "/mills-ai/optimization" },
+  { name: "Model Training", href: "/mills-ai/model-training" },
+  { name: "Multi-Parameter", href: "/mills-ai/multi-parameter" }
 ]
 
 export function MillsAINavigation() {

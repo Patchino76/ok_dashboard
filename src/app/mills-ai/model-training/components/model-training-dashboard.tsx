@@ -86,37 +86,35 @@ export function ModelTrainingDashboard() {
 
   return (
     <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Feature & Target Configuration */}
+        <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <Settings className="h-5 w-5 text-blue-600" />
+              Настройки на модела
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TrainingControls 
+              selectedMill={selectedMill}
+              onMillChange={setSelectedMill}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
+              endDate={endDate}
+              onEndDateChange={setEndDate}
+            />
+            <div className="mb-4">
+              <h3 className="text-md font-medium mb-3 text-slate-900 dark:text-slate-100">
+                Конфигурация на характеристики и целеви стойности
+              </h3>
+              <FeatureTargetConfiguration parameters={parameters} onParameterUpdate={handleParameterUpdate} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Feature/Target Configuration */}
-        <div className="xl:col-span-2">
-          <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <Settings className="h-5 w-5 text-blue-600" />
-                Настройки на модела
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <TrainingControls 
-                selectedMill={selectedMill}
-                onMillChange={setSelectedMill}
-                startDate={startDate}
-                onStartDateChange={setStartDate}
-                endDate={endDate}
-                onEndDateChange={setEndDate}
-              />
-              <div className="mb-4">
-                <h3 className="text-md font-medium mb-3 text-slate-900 dark:text-slate-100">
-                  Конфигурация на характеристики и целеви стойности
-                </h3>
-                <FeatureTargetConfiguration parameters={parameters} onParameterUpdate={handleParameterUpdate} />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Training Results */}
+      {/* Training Results */}
         <div className="mb-6">
           {trainingError && (
             <div className="p-4 mb-4 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800">
@@ -225,7 +223,6 @@ export function ModelTrainingDashboard() {
             </CardContent>
           </Card>
         </div>
-      </div>
     </div>
   )
 }

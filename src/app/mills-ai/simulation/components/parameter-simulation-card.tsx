@@ -170,8 +170,8 @@ export function ParameterSimulationCard({
   }
 
   return (
-    <Card className="shadow-lg border-0 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm overflow-hidden">
-      <div className={`absolute top-0 left-0 right-0 h-1 ${getBgColorClass()}`} />
+    <Card className="shadow-lg border-0 bg-gradient-to-br from-white/90 to-blue-50/50 dark:from-slate-800/90 dark:to-blue-900/20 backdrop-blur-sm overflow-hidden">
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-cyan-400`} />
 
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">

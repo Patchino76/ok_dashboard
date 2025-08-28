@@ -16,7 +16,8 @@ import {
   CircleDashed,
   GitFork,
   Menu,
-  X
+  X,
+  Zap
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -46,7 +47,7 @@ export default function Sidebar() {
     { href: '/dashboard', label: 'Производствени KPI', icon: <TrendingUp className="w-5 h-5" /> },
     { href: '/mills', label: 'Параметри на мелнично', icon: <GitFork className="w-5 h-5" /> },
     { href: '/analytics', label: 'Аналитики', icon: <BarChart3 className="w-5 h-5" /> },
-    { href: '/tendences', label: 'Тенденции в данните', icon: <Share2 className="w-5 h-5" /> },
+    { href: '/mills-ai', label: 'Оптимизация на смилане', icon: <Zap className="w-5 h-5" /> },
     { href: '/personnel', label: 'Персонал', icon: <Users className="w-5 h-5" /> },
     { href: '/settings', label: 'Настройки', icon: <Settings className="w-5 h-5" /> },
   ];
