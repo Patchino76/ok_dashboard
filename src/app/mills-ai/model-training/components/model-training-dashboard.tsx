@@ -86,61 +86,53 @@ export function ModelTrainingDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Feature & Target Configuration */}
-        <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <Settings className="h-5 w-5 text-blue-600" />
-              Настройки на модела
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <TrainingControls 
-              selectedMill={selectedMill}
-              onMillChange={setSelectedMill}
-              startDate={startDate}
-              onStartDateChange={setStartDate}
-              endDate={endDate}
-              onEndDateChange={setEndDate}
-            />
-            <div className="mb-4">
-              <h3 className="text-md font-medium mb-3 text-slate-900 dark:text-slate-100">
-                Конфигурация на характеристики и целеви стойности
-              </h3>
-              <FeatureTargetConfiguration parameters={parameters} onParameterUpdate={handleParameterUpdate} />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Training Results */}
-        <div className="mb-6">
-          {trainingError && (
-            <div className="p-4 mb-4 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              <span>Грешка при обучението: {trainingError}</span>
-            </div>
-          )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Feature & Target Configuration - Takes 2/3 width */}
+        <div className="lg:col-span-2">
           <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
             <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-green-600" />
-                  Training Results
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-2">
-                    <Badge variant="outline">{enabledFeatures} Features</Badge>
-                    <Badge variant="outline">{selectedTargets} Targets</Badge>
-                    {trainingResults && <Badge variant="default">Model Trained</Badge>}
-                  </div>
-                </div>
-              </div>
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <Settings className="h-5 w-5 text-blue-600" />
+                Настройки на модела
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-4 flex items-center justify-between">
-                <div className="space-y-1">
+              <TrainingControls 
+                selectedMill={selectedMill}
+                onMillChange={setSelectedMill}
+                startDate={startDate}
+                onStartDateChange={setStartDate}
+                endDate={endDate}
+                onEndDateChange={setEndDate}
+              />
+              <div className="mb-4">
+                <h3 className="text-md font-medium mb-3 text-slate-900 dark:text-slate-100">
+                  Конфигурация на характеристики и целеви стойности
+                </h3>
+                <FeatureTargetConfiguration parameters={parameters} onParameterUpdate={handleParameterUpdate} />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Training and Testing Controls - Takes 1/3 width */}
+        <div className="space-y-6">
+          <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <Brain className="h-5 w-5 text-green-600" />
+                Обучение и тестване
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <Badge variant="outline">{enabledFeatures} Features</Badge>
+                  <Badge variant="outline">{selectedTargets} Targets</Badge>
+                  {trainingResults && <Badge variant="default">Model Trained</Badge>}
+                </div>
+                
+                <div className="space-y-3">
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     Configure your features and targets, then train the XGBoost model
                   </p>
@@ -148,9 +140,12 @@ export function ModelTrainingDashboard() {
                     {canTrain ? "Ready to train" : "Select at least 1 feature and 1 target to train"}
                   </p>
                 </div>
+
                 <Button 
                   onClick={handleTrainModel} 
                   disabled={isTraining || isTrainingLoading || !parameters.some(p => p.type === 'target' && p.enabled)}
+                  className="w-full"
+                  size="lg"
                 >
                   {isTraining || isTrainingLoading ? (
                     <>
@@ -164,65 +159,92 @@ export function ModelTrainingDashboard() {
                     </>
                   )}
                 </Button>
-              </div>
-              {trainingResults ? (
-                <>
-                  <ModelTrainingResults results={trainingResults} />
-                  
-                  <div className="mt-4">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-lg font-semibold flex items-center">
-                        <Activity className="mr-2 h-5 w-5 text-indigo-600" />
-                        Резултати от предсказване
-                      </h3>
-                      <Button 
-                        onClick={handlePredictWithModel} 
-                        disabled={isPredicting || isPredictionLoading || !trainingResults || !parameters.some(p => p.type === 'target' && p.enabled)}
-                        variant={!trainingResults ? "outline" : "default"}
-                        size="sm"
-                      >
-                        {isPredicting || isPredictionLoading ? (
-                          <>
-                            <Activity className="mr-2 h-4 w-4 animate-pulse" />
-                            Предсказване...
-                          </>
-                        ) : (
-                          <>
-                            <Activity className="mr-2 h-4 w-4" />
-                            Тествай модела
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                    {predictionResult ? (
-                      <ModelPredictionResults
-                        result={predictionResult}
-                        targetName={parameters.find(p => p.type === 'target' && p.enabled)?.name || ''}
-                        targetUnit={parameters.find(p => p.type === 'target' && p.enabled)?.unit || ''}
-                      />
+
+                {trainingResults && (
+                  <Button 
+                    onClick={handlePredictWithModel} 
+                    disabled={isPredicting || isPredictionLoading || !trainingResults || !parameters.some(p => p.type === 'target' && p.enabled)}
+                    variant="outline"
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isPredicting || isPredictionLoading ? (
+                      <>
+                        <Activity className="mr-2 h-4 w-4 animate-pulse" />
+                        Предсказване...
+                      </>
                     ) : (
-                      <div className="p-4 border border-gray-200 bg-gray-50 rounded-md text-center">
-                        <p className="text-gray-500 text-sm">Натиснете "Тествай модела" за да видите предсказвание</p>
-                      </div>
+                      <>
+                        <Activity className="mr-2 h-4 w-4" />
+                        Тествай модела
+                      </>
                     )}
+                  </Button>
+                )}
+
+                {trainingError && (
+                  <div className="p-3 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800 text-sm">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    <span>Грешка при обучението: {trainingError}</span>
                   </div>
-                </>
+                )}
+
+                {predictionError && (
+                  <div className="p-3 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800 text-sm">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    <span>Грешка при предсказването: {predictionError}</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Training Results - Below Training Controls */}
+          <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-green-600" />
+                Training Results
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {trainingResults ? (
+                <ModelTrainingResults results={trainingResults} />
               ) : (
                 <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                   <Brain className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p className="text-sm">Обучете модела, за да видите резултати</p>
                 </div>
               )}
-              
-              {predictionError && (
-                <div className="p-4 mt-4 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800">
-                  <AlertCircle className="h-5 w-5 mr-2" />
-                  <span>Грешка при предсказването: {predictionError}</span>
-                </div>
-              )}
             </CardContent>
           </Card>
+
+          {/* Prediction Results - Below Training Results */}
+          {trainingResults && (
+            <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-indigo-600" />
+                  Резултати от предсказване
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {predictionResult ? (
+                  <ModelPredictionResults
+                    result={predictionResult}
+                    targetName={parameters.find(p => p.type === 'target' && p.enabled)?.name || ''}
+                    targetUnit={parameters.find(p => p.type === 'target' && p.enabled)?.unit || ''}
+                  />
+                ) : (
+                  <div className="p-4 border border-gray-200 bg-gray-50 rounded-md text-center">
+                    <p className="text-gray-500 text-sm">Натиснете "Тествай модела" за да видите предсказвание</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
+      </div>
     </div>
   )
 }

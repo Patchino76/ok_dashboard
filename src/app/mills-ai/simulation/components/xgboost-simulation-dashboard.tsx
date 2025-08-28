@@ -43,11 +43,11 @@ export default function XgboostSimulationDashboard() {
   // Get the store instance
   const store = useXgboostStore();
   
-  // Set default mill to 8
+  // Set default mill to 7
   useEffect(() => {
     // Only set default mill on initial load
-    if (store.currentMill !== 8) {
-      store.setCurrentMill(8);
+    if (store.currentMill !== 7) {
+      store.setCurrentMill(7);
     }
   }, []);
   
@@ -137,7 +137,7 @@ export default function XgboostSimulationDashboard() {
       }
       
       // If no model for current mill, try the default model
-      const defaultModelId = "xgboost_PSI80_mill8";
+      const defaultModelId = "xgboost_PSI200_mill7";
       if (modelIds.includes(defaultModelId)) {
         return defaultModelId;
       }

@@ -280,14 +280,14 @@ export const useXgboostStore = create<XgboostState>()(
         targetData: [],
         
         // Model settings
-        modelName: "xgboost_PSI80_mill8",
+        modelName: "xgboost_PSI200_mill7",
         availableModels: [],
         modelFeatures: null,
         modelTarget: null,
         lastTrained: null,
         
         // Real-time data settings
-        currentMill: 8,
+        currentMill: 7,
         dataUpdateInterval: null,
         isFetching: false,
         
