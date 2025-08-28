@@ -444,7 +444,7 @@ export default function XgboostOptimizationDashboard() {
         currentPV={currentPV}
         targetData={targetData}
         isOptimizing={isPredicting}
-        isSimulationMode={true}
+        isSimulationMode={false}
         modelName={selectedModel?.name}
         targetVariable={selectedModel?.target_col}
         targetUnit={targetUnit}

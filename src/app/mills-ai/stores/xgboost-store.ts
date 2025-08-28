@@ -950,18 +950,16 @@ export const useXgboostStore = create<XgboostState>()(
         
         updateParameterFromRealData: (featureName, value, timestamp, trend = []) => 
           set(state => {
-            // Update slider values in real-time mode to keep them in sync
-            const updatedSliderValues = state.isSimulationMode 
-              ? state.sliderValues // Preserve slider values in simulation mode
-              : { ...state.sliderValues, [featureName]: value }; // Update slider values in real-time mode
-              
+            // Preserve user-set slider values during real-time updates; do not auto-sync to PV
+            const updatedSliderValues = state.sliderValues;
+
             return {
               parameters: state.parameters.map(param => 
                 param.id === featureName 
                   ? { 
                       ...param, 
-                      // In real-time mode: update both value and trend
-                      // In simulation mode: only update trend (preserve user slider values)
+                      // In real-time mode: update parameter PV and trend
+                      // In simulation mode: only update trend (keep parameter value)
                       value: state.isSimulationMode ? param.value : value,
                       // Update trend data
                       trend: Array.isArray(trend) && trend.length > 0 
