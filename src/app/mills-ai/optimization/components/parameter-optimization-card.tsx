@@ -7,7 +7,7 @@ import { LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceA
 import { millsParameters } from "../../data/mills-parameters"
 import { useXgboostStore } from "../../stores/xgboost-store"
 import { DoubleRangeSlider } from "../../components/double-range-slider"
-import { OptimizationMode } from "../../stores/optimization-store"
+import { useOptimizationStore } from '@/app/mills-ai/stores/optimization-store'
 
 interface Parameter {
   id: string

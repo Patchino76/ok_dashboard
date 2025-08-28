@@ -1,3 +1,4 @@
+
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 
@@ -32,8 +33,6 @@ export interface OptimizationResult {
   error_message?: string
 }
 
-export type OptimizationMode = 'training' | 'runtime'
-
 export interface OptimizationState {
   // Configuration
   targetSetpoint: number
@@ -42,9 +41,6 @@ export interface OptimizationState {
   maximize: boolean
   // Settings
   autoApplyProposals: boolean
-  
-  // Mode
-  optimizationMode: OptimizationMode
   
   // Status
   isOptimizing: boolean
@@ -63,7 +59,6 @@ export interface OptimizationState {
   setParameterBounds: (bounds: Record<string, [number, number]>) => void
   setIterations: (iterations: number) => void
   setMaximize: (maximize: boolean) => void
-  setOptimizationMode: (mode: OptimizationMode) => void
   
   // Optimization control
   startOptimization: (config: OptimizationConfig) => void
@@ -95,7 +90,6 @@ const initialState = {
   iterations: 50,
   maximize: true,
   autoApplyProposals: false,
-  optimizationMode: 'training' as OptimizationMode,
   isOptimizing: false,
   optimizationProgress: 0,
   currentOptimizationId: null,
@@ -138,10 +132,6 @@ export const useOptimizationStore = create<OptimizationState>()(
 
       setMaximize: (maximize: boolean) => {
         set({ maximize }, false, 'setMaximize')
-      },
-
-      setOptimizationMode: (mode: OptimizationMode) => {
-        set({ optimizationMode: mode }, false, 'setOptimizationMode')
       },
 
       // Optimization control
@@ -234,31 +224,24 @@ export const useOptimizationStore = create<OptimizationState>()(
 
       // Utility functions
       getOptimizationConfig: (modelId: string): OptimizationConfig => {
-        const state = get()
+        const { targetSetpoint, parameterBounds, iterations, maximize } = get()
         return {
           model_id: modelId,
-          target_setpoint: state.targetSetpoint,
-          parameter_bounds: state.parameterBounds,
-          n_iter: state.iterations,
-          maximize: state.maximize,
+          target_setpoint: targetSetpoint,
+          parameter_bounds: parameterBounds,
+          n_iter: iterations,
+          maximize,
         }
       },
-
+      
       resetToDefaults: () => {
-        set(
-          {
-            ...initialState,
-            // Preserve history and current results
-            optimizationHistory: get().optimizationHistory,
-            currentResults: get().currentResults,
-          },
-          false,
-          'resetToDefaults'
-        )
+        set({
+          targetSetpoint: 50.0,
+          iterations: 50,
+          maximize: true,
+          autoApplyProposals: false,
+        }, false, 'resetToDefaults')
       },
-
-      isTrainingMode: () => get().optimizationMode === 'training',
-      isRuntimeMode: () => get().optimizationMode === 'runtime',
     }),
     {
       name: 'optimization-store',

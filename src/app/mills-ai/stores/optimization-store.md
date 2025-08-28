@@ -38,12 +38,9 @@ This document explains the state model, actions, and how the optimization store 
   - `status: 'running' | 'completed' | 'failed' | 'cancelled'`
   - `error_message?: string`
 
-- `OptimizationMode = 'training' | 'runtime'`
-
 - `OptimizationState` (Zustand store shape)
   - Configuration: `targetSetpoint`, `parameterBounds`, `iterations`, `maximize`
   - Settings: `autoApplyProposals`
-  - Mode: `optimizationMode`
   - Status: `isOptimizing`, `optimizationProgress`, `currentOptimizationId`
   - Results: `currentResults`, `optimizationHistory`, `bestParameters`, `proposedSetpoints`
   - Actions: see below
@@ -57,7 +54,6 @@ This document explains the state model, actions, and how the optimization store 
 - `iterations`: 50
 - `maximize`: true
 - `autoApplyProposals`: false
-- `optimizationMode`: `'training'`
 - Status and Results: idle/empty by default
 
 ---
@@ -70,7 +66,6 @@ Configuration
 - `setParameterBounds(bounds)` — bulk set all ranges
 - `setIterations(iterations)`
 - `setMaximize(maximize)`
-- `setOptimizationMode(mode)`
 
 Lifecycle
 - `startOptimization(config)` — sets `isOptimizing`, `currentOptimizationId`, resets progress
@@ -92,7 +87,6 @@ Proposals
 Utilities
 - `getOptimizationConfig(modelId)` — builds the exact payload shape required by the API
 - `resetToDefaults()` — resets store while preserving `optimizationHistory` and `currentResults`
-- `isTrainingMode()` / `isRuntimeMode()`
 
 ---
 
