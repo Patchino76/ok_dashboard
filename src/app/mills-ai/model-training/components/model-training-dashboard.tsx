@@ -28,14 +28,14 @@ export interface TrainingResults {
 
 export function ModelTrainingDashboard() {
   const [parameters, setParameters] = useState<ModelParameter[]>(defaultModelParameters)
-  const [selectedMill, setSelectedMill] = useState(8) // Default to Mill 8
+  const [selectedMill, setSelectedMill] = useState(7) // Default to Mill 7
   const [startDate, setStartDate] = useState<Date | undefined>(() => {
     // Default to June 15, 2025 06:00
     return new Date(2025, 5, 15, 6, 0, 0) // Note: months are 0-indexed (5 = June)
   })
   const [endDate, setEndDate] = useState<Date | undefined>(() => {
-    // Default to July 15, 2025 22:00
-    return new Date(2025, 6, 15, 22, 0, 0) // Note: months are 0-indexed (6 = July)
+    // Default to August 27, 2025 22:00
+    return new Date(2025, 7, 27, 22, 0, 0) // Note: months are 0-indexed (7 = August)
   })
 
   const [isTraining, setIsTraining] = useState(false)
@@ -155,32 +155,10 @@ export function ModelTrainingDashboard() {
                   ) : (
                     <>
                       <Brain className="mr-2 h-4 w-4" />
-                      Обучи модел
+                      Тренирай модел
                     </>
                   )}
                 </Button>
-
-                {trainingResults && (
-                  <Button 
-                    onClick={handlePredictWithModel} 
-                    disabled={isPredicting || isPredictionLoading || !trainingResults || !parameters.some(p => p.type === 'target' && p.enabled)}
-                    variant="outline"
-                    className="w-full"
-                    size="lg"
-                  >
-                    {isPredicting || isPredictionLoading ? (
-                      <>
-                        <Activity className="mr-2 h-4 w-4 animate-pulse" />
-                        Предсказване...
-                      </>
-                    ) : (
-                      <>
-                        <Activity className="mr-2 h-4 w-4" />
-                        Тествай модела
-                      </>
-                    )}
-                  </Button>
-                )}
 
                 {trainingError && (
                   <div className="p-3 border border-red-200 bg-red-50 rounded-md flex items-center text-red-800 text-sm">
@@ -219,7 +197,32 @@ export function ModelTrainingDashboard() {
             </CardContent>
           </Card>
 
-          {/* Prediction Results - Below Training Results */}
+          {/* Test Model Button - Above Prediction Results */}
+          {trainingResults && (
+            <div className="flex justify-center">
+              <Button 
+                onClick={handlePredictWithModel} 
+                disabled={isPredicting || isPredictionLoading || !trainingResults || !parameters.some(p => p.type === 'target' && p.enabled)}
+                variant="outline"
+                className="w-full"
+                size="lg"
+              >
+                {isPredicting || isPredictionLoading ? (
+                  <>
+                    <Activity className="mr-2 h-4 w-4 animate-pulse" />
+                    Предсказване...
+                  </>
+                ) : (
+                  <>
+                    <Activity className="mr-2 h-4 w-4" />
+                    Тествай модел
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Prediction Results - Below Test Button */}
           {trainingResults && (
             <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
               <CardHeader className="pb-4">
@@ -237,7 +240,7 @@ export function ModelTrainingDashboard() {
                   />
                 ) : (
                   <div className="p-4 border border-gray-200 bg-gray-50 rounded-md text-center">
-                    <p className="text-gray-500 text-sm">Натиснете "Тествай модела" за да видите предсказвание</p>
+                    <p className="text-gray-500 text-sm">Натиснете "Тествай модел" за да видите предсказвание</p>
                   </div>
                 )}
               </CardContent>

@@ -12,7 +12,15 @@ interface ModelTrainingResultsProps {
 }
 
 export function ModelTrainingResults({ results }: ModelTrainingResultsProps) {
+  // Filter out MSE from bar chart data due to scale issues, but keep for detailed metrics
   const metricsData = [
+    { name: "MAE", value: results.mae, color: "#3b82f6", description: "Mean Absolute Error" },
+    { name: "RMSE", value: results.rmse, color: "#f59e0b", description: "Root Mean Squared Error" },
+    { name: "R²", value: results.r2, color: "#10b981", description: "R-squared Score" },
+  ]
+
+  // All metrics including MSE for detailed display
+  const allMetricsData = [
     { name: "MAE", value: results.mae, color: "#3b82f6", description: "Mean Absolute Error" },
     { name: "MSE", value: results.mse, color: "#ef4444", description: "Mean Squared Error" },
     { name: "RMSE", value: results.rmse, color: "#f59e0b", description: "Root Mean Squared Error" },
@@ -144,7 +152,7 @@ export function ModelTrainingResults({ results }: ModelTrainingResultsProps) {
 
       {/* Detailed Metrics */}
       <div className="grid grid-cols-2 gap-2 text-xs">
-        {metricsData.map((metric) => (
+        {allMetricsData.map((metric) => (
           <div key={metric.name} className="p-2 bg-slate-50 dark:bg-slate-700 rounded">
             <div className="font-semibold text-slate-900 dark:text-slate-100">
               {metric.name}: {metric.value.toFixed(3)}

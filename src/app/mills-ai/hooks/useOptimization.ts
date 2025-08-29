@@ -71,13 +71,13 @@ export function useOptimization(): UseOptimizationReturn {
       setResults(optimizationResult)
       addToHistory(optimizationResult)
       
-      // Optionally auto-populate proposed setpoints from best parameters
-      if (autoApplyProposals && optimizationResult.best_parameters && Object.keys(optimizationResult.best_parameters).length > 0) {
+      // Always set proposed setpoints from best parameters (regardless of autoApplyProposals)
+      if (optimizationResult.best_parameters && Object.keys(optimizationResult.best_parameters).length > 0) {
         try {
           setProposedSetpoints(optimizationResult.best_parameters)
-          toast.success('Proposed setpoints auto-populated from best parameters')
+          console.log('Proposed setpoints set from optimization results:', optimizationResult.best_parameters)
         } catch (e) {
-          console.warn('Failed to auto-populate proposed setpoints:', e)
+          console.warn('Failed to set proposed setpoints:', e)
         }
       }
 
