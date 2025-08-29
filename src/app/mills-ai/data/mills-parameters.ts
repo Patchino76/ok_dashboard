@@ -19,7 +19,9 @@ export const parameterIcons: Record<string, string> = {
   PumpRPM: "🔄",
   Grano: "📏",
   Class_12: "🔢",
-  PSI80: "🎯"
+  FE: "🔢",
+  PSI80: "🎯",
+  PSI200: "🎯",
 }
 
 // Colors for parameters
@@ -35,7 +37,9 @@ export const parameterColors: Record<string, string> = {
   PumpRPM: "indigo",
   Grano: "slate",
   Class_12: "rose",
-  PSI80: "green"
+  FE: "rose",
+  PSI80: "green",
+  PSI200: "green"
 }
 
 // Helper function to calculate 10% inside ranges
@@ -58,7 +62,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(140, 240)[0], // 10% inside
     currentMax: calculateDefaultRange(140, 240)[1], // 10% inside
     unit: "t/h",
-    isLab: false,
+    varType: "MV",
     description: "Разход на входяща руда към мелницата",
   },
   {
@@ -72,7 +76,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(5, 25)[0],
     currentMax: calculateDefaultRange(5, 25)[1],
     unit: "m³/h",
-    isLab: false,
+    varType: "MV",
     description: "Разход на вода в мелницата",
   },
   {
@@ -86,7 +90,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(140, 250)[0],
     currentMax: calculateDefaultRange(140, 250)[1],
     unit: "m³/h",
-    isLab: false,
+    varType: "MV",
     description: "Разход на вода в зумпф",
   },
   {
@@ -100,7 +104,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(400, 600)[0],
     currentMax: calculateDefaultRange(400, 600)[1],
     unit: "m³/h",
-    isLab: false,
+    varType: "CV",
     description: "Разход на пулп в ХЦ",
   },
   {
@@ -114,7 +118,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(150, 250)[0],
     currentMax: calculateDefaultRange(150, 250)[1],
     unit: "A",
-    isLab: false,
+    varType: "MV",
     description: "Консумация на ток от електродвигателя на мелницата",
   },
   {
@@ -128,7 +132,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(1200, 2000)[0],
     currentMax: calculateDefaultRange(1200, 2000)[1],
     unit: "kg/m³",
-    isLab: false,
+    varType: "CV",
     description: "Плътност на пулп в хидроциклона",
   },
   {
@@ -142,7 +146,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(0.0, 0.6)[0],
     currentMax: calculateDefaultRange(0.0, 0.6)[1],
     unit: "bar",
-    isLab: false,
+    varType: "CV",
     description: "Работно налягане в хидроциклона",
   },
   {
@@ -156,7 +160,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(0, 800)[0],
     currentMax: calculateDefaultRange(0, 800)[1],
     unit: "rev/min",
-    isLab: false,
+    varType: "CV",
     description: "Обороти на работната помпа",
   },
   {
@@ -170,7 +174,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(0.0, 100.0)[0],
     currentMax: calculateDefaultRange(0.0, 100.0)[1],
     unit: "%",
-    isLab: true,
+    varType: "DV",
     description: "Процентно съдържание на шисти в рудата",
   },
   {
@@ -184,7 +188,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(0.0, 100.0)[0],
     currentMax: calculateDefaultRange(0.0, 100.0)[1],
     unit: "%",
-    isLab: true,
+    varType: "DV",
     description: "Процентно съдържание на дайки в рудата",
   },
   {
@@ -198,7 +202,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(0.0, 100.0)[0],
     currentMax: calculateDefaultRange(0.0, 100.0)[1],
     unit: "%",
-    isLab: true,
+    varType: "DV",
     description: "Процентно съдържание на гранодиорити в рудата",
   },
   {
@@ -212,7 +216,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(0.0, 100.0)[0],
     currentMax: calculateDefaultRange(0.0, 100.0)[1],
     unit: "%",
-    isLab: true,
+    varType: "DV",
     description: "Процент материал в клас +12 милиметра",
   },
   {
@@ -226,8 +230,22 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(0.0, 100.0)[0],
     currentMax: calculateDefaultRange(0.0, 100.0)[1],
     unit: "%",
-    isLab: true,
+    varType: "DV",
     description: "Процент материал в клас +15 милиметра",
+  },
+  {
+    id: "FE",
+    name: "Желязо",
+    type: "feature",
+    enabled: true,
+    filterEnabled: false,
+    min: 0.0,
+    max: 0.6,
+    currentMin: calculateDefaultRange(0.0, 0.2)[0],
+    currentMax: calculateDefaultRange(0.0, 0.4)[1],
+    unit: "%",
+    varType: "DV",
+    description: "Процент съдържание на желязо в пулпа",
   },
   {
     id: "PSI80",
@@ -240,7 +258,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(40.0, 60.0)[0],
     currentMax: calculateDefaultRange(40.0, 60.0)[1],
     unit: "%",
-    isLab: false,
+    varType: "MV",
     description: "Класификация на размерите на частиците при 80 микрона",
   },
   {
@@ -254,6 +272,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(10, 40)[0],
     currentMax: calculateDefaultRange(10, 40)[1],
     unit: "%",
+    varType: "MV",
     description: "Основна целева стойност - финност на смилане +200 микрона",
   },
 ]

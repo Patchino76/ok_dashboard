@@ -13,6 +13,7 @@ interface Parameter {
   trend: Array<{ timestamp: number; value: number }>
   color: string
   icon: string
+  varType?: "MV" | "CV" | "DV"
 }
 
 interface PredictionResponse {
@@ -91,7 +92,8 @@ const parameterIcons: Record<string, string> = {
   PumpRPM: "🔄",
   Grano: "📏",
   Class_12: "🔢",
-  Class_15: "🔢"
+  Class_15: "🔢",
+  FE: "🔩"
 }
 
 // Colors for parameters
@@ -108,7 +110,8 @@ const parameterColors: Record<string, string> = {
   PumpRPM: "indigo",
   Grano: "slate",
   Class_12: "rose",
-  Class_15: "rose"
+  Class_15: "rose",
+  FE: "emerald"
 }
 
 // Units for parameters
@@ -125,7 +128,8 @@ const parameterUnits: Record<string, string> = {
   PumpRPM: "rpm",
   Grano: "%",
   Class_12: "%",
-  Class_15: "%"
+  Class_15: "%",
+  FE: "%"
 }
 
 // Parameter bounds from the requirements
@@ -142,7 +146,8 @@ const initialBounds: ParameterBounds = {
   PumpRPM: [700, 1200],   // Typical pump RPM range for industrial applications
   Grano: [30, 80],      // Granularity measurement in mm
   Class_12: [4, 15],     // Percentage range for Class_12
-  Class_15: [0.5, 2.5]      // Percentage range for Class_15 (same as Class_12)
+  Class_15: [0.5, 2.5],      // Percentage range for Class_15 (same as Class_12)
+  FE: [0.0, 0.6]         // Iron content percentage range
 }
 
 // Retain up to this many hours of history in memory for trends/targetData.
@@ -190,6 +195,7 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.Ore,
             icon: parameterIcons.Ore,
+            varType: millsParameters.find(p => p.id === "Ore")?.varType,
           },
           {
             id: "WaterMill",
@@ -199,6 +205,7 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.WaterMill,
             icon: parameterIcons.WaterMill,
+            varType: millsParameters.find(p => p.id === "WaterMill")?.varType,
           },
           {
             id: "WaterZumpf",
@@ -208,6 +215,7 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.WaterZumpf,
             icon: parameterIcons.WaterZumpf,
+            varType: millsParameters.find(p => p.id === "WaterZumpf")?.varType,
           },
           {
             id: "PressureHC",
@@ -217,6 +225,7 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.PressureHC,
             icon: parameterIcons.PressureHC,
+            varType: millsParameters.find(p => p.id === "PressureHC")?.varType,
           },
           {
             id: "DensityHC",
@@ -226,6 +235,7 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.DensityHC,
             icon: parameterIcons.DensityHC,
+            varType: millsParameters.find(p => p.id === "DensityHC")?.varType,
           },
           {
             id: "MotorAmp",
@@ -235,6 +245,7 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.MotorAmp,
             icon: parameterIcons.MotorAmp,
+            varType: millsParameters.find(p => p.id === "MotorAmp")?.varType,
           },
           {
             id: "Shisti",
@@ -244,6 +255,7 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.Shisti,
             icon: parameterIcons.Shisti,
+            varType: millsParameters.find(p => p.id === "Shisti")?.varType,
           },
           {
             id: "Daiki",
@@ -253,6 +265,17 @@ export const useXgboostStore = create<XgboostState>()(
             trend: [],
             color: parameterColors.Daiki,
             icon: parameterIcons.Daiki,
+            varType: millsParameters.find(p => p.id === "Daiki")?.varType,
+          },
+          {
+            id: "FE",
+            name: "Iron",
+            unit: "%",
+            value: 0.3,
+            trend: [],
+            color: parameterColors.FE,
+            icon: parameterIcons.FE,
+            varType: millsParameters.find(p => p.id === "FE")?.varType,
           },
         ],
         
@@ -269,6 +292,7 @@ export const useXgboostStore = create<XgboostState>()(
           // "MotorAmp": 200,
           // "Shisti": 0.2,
           // "Daiki": 0.3,
+          // "FE": 0.3,
         },
         
         // Simulation mode switch
@@ -430,7 +454,7 @@ export const useXgboostStore = create<XgboostState>()(
                 // This feature doesn't exist in parameters yet, add it with sensible defaults
                 const defaultValue = initialBounds[featureId] ? 
                   (initialBounds[featureId][0] + initialBounds[featureId][1]) / 2 : 0;
-                  
+                
                 newParameters.push({
                   id: featureId,
                   name: featureId,
@@ -438,7 +462,8 @@ export const useXgboostStore = create<XgboostState>()(
                   value: defaultValue,
                   trend: [],
                   color: parameterColors[featureId] || 'gray',
-                  icon: parameterIcons[featureId] || '📊'
+                  icon: parameterIcons[featureId] || '📊',
+                  varType: millsParameters.find(p => p.id === featureId)?.varType
                 });
               }
             });
@@ -551,9 +576,9 @@ export const useXgboostStore = create<XgboostState>()(
             const featurePromises = modelFeatures.map(async (featureName) => {
               console.log(`Processing feature: "${featureName}"`);
               
-              // Check if this is a lab parameter - skip real-time data fetching for lab parameters
+              // Check if this is a lab parameter (DV = Disturbance Variable)
               const parameterConfig = millsParameters.find(p => p.id === featureName);
-              const isLabParameter = parameterConfig?.isLab || false;
+              const isLabParameter = parameterConfig?.varType === 'DV';
               
               if (isLabParameter) {
                 console.log(`⚗️ Skipping real-time data fetch for lab parameter: ${featureName}`);
@@ -1078,7 +1103,7 @@ export const useXgboostStore = create<XgboostState>()(
             
             modelFeatures.forEach(featureName => {
               const parameterConfig = millsParameters.find(p => p.id === featureName);
-              const isLabParameter = parameterConfig?.isLab || false;
+              const isLabParameter = parameterConfig?.varType === 'DV';
               
               if (isLabParameter) {
                 // Lab parameters: Always use slider values and divide by 100 for the API

@@ -18,7 +18,7 @@ interface Parameter {
   trend: Array<{ timestamp: number; value: number }>
   color: string
   icon: string
-  isLab?: boolean // Lab parameters don't have trending
+  varType: "MV" | "CV" | "DV" // Variable type instead of isLab
 }
 
 interface ParameterSimulationCardProps {
@@ -40,9 +40,8 @@ export function ParameterSimulationCard({
 }: ParameterSimulationCardProps) {
   // Get displayHours from the store to filter trend data
   const displayHours = useXgboostStore(state => state.displayHours);
-  // Check if this is a lab parameter
-  const parameterConfig = millsParameters.find(p => p.id === parameter.id);
-  const isLabParameter = parameterConfig?.isLab || false;
+  // Check if this is a lab parameter (DV = Disturbance Variable)
+  const isLabParameter = parameter.varType === 'DV';
   
   // Separate state for input/slider value that doesn't affect the trend
   const [sliderValue, setSliderValue] = useState(propSliderValue)
@@ -169,9 +168,42 @@ export function ParameterSimulationCard({
     }
   }
 
+  // Background styles based on varType to match the provided examples
+  const getVarTypeStyles = () => {
+    switch (parameter.varType) {
+      // CV: cool blue background
+      case "CV":
+        return {
+          cardBg:
+            "bg-gradient-to-br from-white to-blue-100/80 dark:from-slate-800 dark:to-blue-900/40",
+          topBar: "from-blue-500 to-cyan-500",
+          ring: "ring-1 ring-blue-200/70 dark:ring-blue-900/50",
+        }
+      // MV: warm orange background
+      case "MV":
+        return {
+          cardBg:
+            "bg-gradient-to-br from-white to-amber-100/80 dark:from-slate-800 dark:to-amber-900/40",
+          topBar: "from-amber-500 to-orange-500",
+          ring: "ring-1 ring-amber-200/70 dark:ring-amber-900/50",
+        }
+      // DV: soft green background
+      case "DV":
+      default:
+        return {
+          cardBg:
+            "bg-gradient-to-br from-white to-green-100/80 dark:from-slate-800 dark:to-green-900/40",
+          topBar: "from-green-500 to-emerald-500",
+          ring: "ring-1 ring-green-200/70 dark:ring-green-900/50",
+        }
+    }
+  }
+
+  const vt = getVarTypeStyles()
+
   return (
-    <Card className="shadow-lg border-0 bg-gradient-to-br from-white/90 to-blue-50/50 dark:from-slate-800/90 dark:to-blue-900/20 backdrop-blur-sm overflow-hidden">
-      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-cyan-400`} />
+    <Card className={`shadow-lg border-0 ${vt.cardBg} ${vt.ring ?? ''} backdrop-blur-sm overflow-hidden`}>
+      <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${vt.topBar}`} />
 
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
