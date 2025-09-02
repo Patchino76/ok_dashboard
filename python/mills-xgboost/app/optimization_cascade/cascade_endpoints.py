@@ -24,6 +24,20 @@ from .cascade_engine import CascadeOptimizationEngine
 from .cascade_validator import CascadeValidator
 from .cascade_plotter import CascadePlotter
 
+# Import database and settings with try/except for flexibility
+try:
+    from ..database.db_connector import MillsDataConnector
+    from ..config.settings import settings
+except ImportError:
+    # Fallback for when imported from main API
+    import sys
+    import os
+    mills_app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'mills-xgboost', 'app')
+    if mills_app_path not in sys.path:
+        sys.path.insert(0, mills_app_path)
+    from database.db_connector import MillsDataConnector
+    from config.settings import settings
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -70,6 +84,10 @@ class TrainingRequest(BaseModel):
     data_source: str = Field("upload", description="Data source: upload, database, or synthetic")
     test_size: float = Field(0.2, description="Test set fraction")
     n_samples: Optional[int] = Field(None, description="Number of samples for synthetic data")
+    mill_number: Optional[int] = Field(8, description="Mill number for database source (6, 7, or 8)")
+    start_date: Optional[str] = Field(None, description="Start date for database query (YYYY-MM-DD)")
+    end_date: Optional[str] = Field(None, description="End date for database query (YYYY-MM-DD)")
+    resample_freq: str = Field("1min", description="Resampling frequency for database data")
 
 class ValidationRequest(BaseModel):
     validation_types: List[str] = Field(
@@ -138,6 +156,16 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
             # Generate synthetic data for testing
             n_samples = request.n_samples or 2000
             df = _generate_synthetic_data(n_samples)
+        elif request.data_source == "database":
+            # Get real data from database
+            df = await _get_database_training_data(
+                mill_number=request.mill_number,
+                start_date=request.start_date,
+                end_date=request.end_date,
+                resample_freq=request.resample_freq
+            )
+            if df is None or df.empty:
+                raise HTTPException(status_code=400, detail="No data retrieved from database")
         elif request.data_source == "upload":
             # For now, use synthetic data - in production, handle uploaded files
             df = _generate_synthetic_data(2000)
@@ -524,6 +552,63 @@ def _generate_synthetic_data(n_samples: int) -> pd.DataFrame:
     data['PSI200'] = np.clip(data['PSI200'], 10, 40)
     
     return pd.DataFrame(data)
+
+async def _get_database_training_data(
+    mill_number: int = 8,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    resample_freq: str = "1min"
+) -> Optional[pd.DataFrame]:
+    """Get training data from database for cascade model training"""
+    try:
+        logger.info(f"Retrieving database training data for Mill {mill_number}")
+        
+        # Initialize database connector
+        db_connector = MillsDataConnector(
+            host=settings.DB_HOST,
+            port=settings.DB_PORT,
+            dbname=settings.DB_NAME,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD
+        )
+        
+        # Get combined mill and ore quality data
+        df = db_connector.get_combined_data(
+            mill_number=mill_number,
+            start_date=start_date,
+            end_date=end_date,
+            resample_freq=resample_freq,
+            save_to_logs=True,
+            no_interpolation=False  # Use interpolation for training data
+        )
+        
+        if df is None or df.empty:
+            logger.error(f"No data retrieved for Mill {mill_number}")
+            return None
+        
+        logger.info(f"Database training data retrieved: {df.shape[0]} rows, {df.shape[1]} columns")
+        logger.info(f"Date range: {df.index.min()} to {df.index.max()}")
+        
+        # Validate required columns for cascade training
+        classifier = VariableClassifier()
+        required_vars = []
+        for var_type in [VariableType.MV, VariableType.CV, VariableType.DV, VariableType.TARGET]:
+            vars_of_type = [var.id for var in classifier.get_variables_by_type(var_type)]
+            required_vars.extend(vars_of_type)
+        
+        missing_vars = [var for var in required_vars if var not in df.columns]
+        if missing_vars:
+            logger.warning(f"Missing variables in database data: {missing_vars}")
+            # Continue with available variables - the model training will handle missing columns
+        
+        available_vars = [var for var in required_vars if var in df.columns]
+        logger.info(f"Available variables for training: {available_vars}")
+        
+        return df
+        
+    except Exception as e:
+        logger.error(f"Error retrieving database training data: {e}")
+        return None
 
 # Error handlers removed - FastAPI APIRouter doesn't support exception_handler
 # Exception handling is done within individual endpoints

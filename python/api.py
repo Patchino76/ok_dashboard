@@ -65,17 +65,9 @@ except Exception as e:
     logger.error(f"Failed to load Mills ML router: {e}")
     ML_SYSTEM_AVAILABLE = False
 
-# Import the cascade optimization router
+# Import the standalone cascade router
 try:
-    import sys
-    import os
-    
-    # Add the mills-xgboost/app directory to Python path
-    mills_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mills-xgboost', 'app')
-    if mills_app_path not in sys.path:
-        sys.path.insert(0, mills_app_path)
-    
-    from optimization_cascade.cascade_endpoints import cascade_router
+    from cascade_router import cascade_router
     app.include_router(cascade_router, tags=["Cascade Optimization"])
     CASCADE_SYSTEM_AVAILABLE = True
     logger.info(f"Successfully loaded Cascade Optimization router with {len(cascade_router.routes)} routes")

@@ -48,12 +48,12 @@ class VariableClassifier:
             "PumpRPM": VariableInfo("PumpRPM", "Обороти на помпата", VariableType.CV, "rev/min", 0, 800, "Обороти на работната помпа", enabled=False),
             
             # Disturbance Variables (DVs) - external factors
-            "Shisti": VariableInfo("Shisti", "Шисти", VariableType.DV, "%", 0.0, 100.0, "Процентно съдържание на шисти в рудата"),
-            "Daiki": VariableInfo("Daiki", "Дайки", VariableType.DV, "%", 0.0, 100.0, "Процентно съдържание на дайки в рудата"),
+            "Shisti": VariableInfo("Shisti", "Шисти", VariableType.DV, "%", 0.0, 100.0, "Процентно съдържание на шисти в рудата", enabled=False),
+            "Daiki": VariableInfo("Daiki", "Дайки", VariableType.DV, "%", 0.0, 100.0, "Процентно съдържание на дайки в рудата", enabled=False),
             "Grano": VariableInfo("Grano", "Гранодиорити", VariableType.DV, "%", 0.0, 100.0, "Процентно съдържание на гранодиорити в рудата", enabled=False),
             "Class_12": VariableInfo("Class_12", "Клас 12", VariableType.DV, "%", 0.0, 100.0, "Процент материал в клас +12 милиметра", enabled=False),
-            "Class_15": VariableInfo("Class_15", "Клас 15", VariableType.DV, "%", 0.0, 100.0, "Процент материал в клас +15 милиметра"),
-            "FE": VariableInfo("FE", "Желязо", VariableType.DV, "%", 0.0, 0.6, "Процент съдържание на желязо в пулпа"),
+            "Class_15": VariableInfo("Class_15", "Клас 15", VariableType.DV, "%", 0.0, 100.0, "Процент материал в клас +15 милиметра", enabled=False),
+            "FE": VariableInfo("FE", "Желязо", VariableType.DV, "%", 0.0, 0.6, "Процент съдържание на желязо в пулпа", enabled=False),
             
             # Target Variables
             "PSI80": VariableInfo("PSI80", "Фракция -80 μk", VariableType.TARGET, "%", 40, 60.0, "Класификация на размерите на частиците при 80 микрона", enabled=False),
