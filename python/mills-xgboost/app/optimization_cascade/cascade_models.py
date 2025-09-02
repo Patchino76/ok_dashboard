@@ -258,7 +258,19 @@ class CascadeModelManager:
             vars_of_type = [var.id for var in self.classifier.get_variables_by_type(var_type)]
             all_vars.extend(vars_of_type)
         
+        # Filter to only include relevant columns (MVs, CVs, DVs, Targets) plus datetime index
+        relevant_columns = all_vars
+        available_columns = [col for col in relevant_columns if col in df_clean.columns]
+        
+        print(f"Original columns: {len(df_clean.columns)}")
+        print(f"Relevant columns found: {available_columns}")
+        
+        # Keep only relevant columns
+        df_clean = df_clean[available_columns]
+        print(f"After filtering to relevant columns: {df_clean.shape}")
+        
         # Handle missing values first
+        print(df_clean.info())
         df_clean = df_clean.dropna()
         print(f"After removing NaN values: {df_clean.shape}")
         
