@@ -250,23 +250,27 @@ class CascadeModelManager:
         """
         Clean training data by handling missing values and outliers
         """
-        print("=== CLEANING TRAINING DATA ===")
+        df_clean = df.copy()
         
-        # Remove rows with too many missing values
-        missing_threshold = 0.5  # Remove rows with >50% missing values
-        df_clean = df.dropna(thresh=int(len(df.columns) * missing_threshold))
-        print(f"Removed {len(df) - len(df_clean)} rows with excessive missing values")
+        # Get all variable columns
+        all_vars = []
+        for var_type in [VariableType.MV, VariableType.CV, VariableType.DV, VariableType.TARGET]:
+            vars_of_type = [var.id for var in self.classifier.get_variables_by_type(var_type)]
+            all_vars.extend(vars_of_type)
         
-        # Forward fill missing values (appropriate for time series)
-        df_clean = df_clean.fillna(method='ffill')
+        # Remove outliers (beyond 3 standard deviations)
+        for col in all_vars:
+            if col in df_clean.columns:
+                mean_val = df_clean[col].mean()
+                std_val = df_clean[col].std()
+                df_clean = df_clean[
+                    (df_clean[col] > mean_val - 3*std_val) & 
+                    (df_clean[col] < mean_val + 3*std_val)
+                ]
         
-        # Backward fill any remaining missing values
-        df_clean = df_clean.fillna(method='bfill')
-        
-        # Drop any remaining rows with missing values
+        # Handle missing values
         df_clean = df_clean.dropna()
         
-        print(f"Final cleaned data shape: {df_clean.shape}")
         return df_clean
     
     def _convert_for_json(self, obj):
@@ -275,12 +279,12 @@ class CascadeModelManager:
             return {key: self._convert_for_json(value) for key, value in obj.items()}
         elif isinstance(obj, list):
             return [self._convert_for_json(item) for item in obj]
-        elif isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, (np.float32, np.float64)):
+            return float(obj)
+        elif isinstance(obj, (np.int32, np.int64)):
+            return int(obj)
         else:
             return obj
     
@@ -458,45 +462,6 @@ class CascadeModelManager:
         
         return results
     
-    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Clean data by removing outliers and handling missing values"""
-        df_clean = df.copy()
-        
-        # Get all variable columns
-        all_vars = []
-        for var_type in [VariableType.MV, VariableType.CV, VariableType.DV, VariableType.TARGET]:
-            vars_of_type = [var.id for var in self.classifier.get_variables_by_type(var_type)]
-            all_vars.extend(vars_of_type)
-        
-        # Remove outliers (beyond 3 standard deviations)
-        for col in all_vars:
-            if col in df_clean.columns:
-                mean_val = df_clean[col].mean()
-                std_val = df_clean[col].std()
-                df_clean = df_clean[
-                    (df_clean[col] > mean_val - 3*std_val) & 
-                    (df_clean[col] < mean_val + 3*std_val)
-                ]
-        
-        # Handle missing values
-        df_clean = df_clean.dropna()
-        
-        return df_clean
-    
-    def _convert_for_json(self, obj):
-        """Convert numpy types to native Python types for JSON serialization"""
-        if isinstance(obj, dict):
-            return {key: self._convert_for_json(value) for key, value in obj.items()}
-        elif isinstance(obj, list):
-            return [self._convert_for_json(item) for item in obj]
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, (np.float32, np.float64)):
-            return float(obj)
-        elif isinstance(obj, (np.int32, np.int64)):
-            return int(obj)
-        else:
-            return obj
     
     def load_models(self) -> bool:
         """Load trained models from disk"""

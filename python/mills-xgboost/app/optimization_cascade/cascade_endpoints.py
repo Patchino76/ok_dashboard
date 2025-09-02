@@ -1,102 +1,48 @@
 """
 FastAPI Endpoints for Cascade Optimization
 
-Provides REST API endpoints for the cascade optimization system:
-- Model training and validation
-- Single, multi-objective, and robust optimization
-- Results analysis and visualization
+Database-only cascade optimization system for mill process control.
 """
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
-from typing import Dict, List, Optional, Any, Union
+from typing import Dict, Optional
 import pandas as pd
-import numpy as np
-import json
 import os
-from datetime import datetime
-import asyncio
-import logging
 
-from .variable_classifier import VariableClassifier, VariableType
+from .variable_classifier import VariableClassifier
 from .cascade_models import CascadeModelManager
-from .cascade_engine import CascadeOptimizationEngine
-from .cascade_validator import CascadeValidator
-from .cascade_plotter import CascadePlotter
 
-# Import database and settings with try/except for flexibility
+# Import database and settings
 try:
     from ..database.db_connector import MillsDataConnector
     from ..config.settings import settings
 except ImportError:
-    # Fallback for when imported from main API
     import sys
-    import os
     mills_app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'mills-xgboost', 'app')
     if mills_app_path not in sys.path:
         sys.path.insert(0, mills_app_path)
     from database.db_connector import MillsDataConnector
     from config.settings import settings
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 # Create router
 cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["cascade_optimization"])
 
-# Global instances (will be initialized)
+# Global instances
 classifier = VariableClassifier()
 model_manager: Optional[CascadeModelManager] = None
-optimizer: Optional[CascadeOptimizationEngine] = None
-validator: Optional[CascadeValidator] = None
-plotter = CascadePlotter()
 
-# Pydantic models for API requests/responses
-class VariableValue(BaseModel):
-    id: str
-    value: float
-
-class OptimizationRequest(BaseModel):
-    dv_values: Dict[str, float] = Field(..., description="Disturbance variable values")
-    n_trials: int = Field(1000, description="Number of optimization trials")
-    timeout: Optional[int] = Field(None, description="Timeout in seconds")
-    optimization_type: str = Field("single", description="Type: single, multi, or robust")
-    custom_penalties: Optional[Dict[str, Any]] = Field(None, description="Custom penalty weights")
-
-class MultiObjectiveRequest(BaseModel):
-    dv_values: Dict[str, float]
-    objectives: List[str] = Field(["quality", "cost"], description="Objectives to optimize")
-    n_trials: int = Field(1000, description="Number of trials")
-    timeout: Optional[int] = None
-
-class RobustOptimizationRequest(BaseModel):
-    dv_scenarios: List[Dict[str, float]] = Field(..., description="List of DV scenarios")
-    n_trials: int = Field(1500, description="Number of trials")
-    timeout: Optional[int] = None
-    feasibility_threshold: float = Field(0.8, description="Minimum feasibility ratio")
-
+# Request models
 class PredictionRequest(BaseModel):
     mv_values: Dict[str, float] = Field(..., description="Manipulated variable values")
     dv_values: Dict[str, float] = Field(..., description="Disturbance variable values")
 
 class TrainingRequest(BaseModel):
-    data_source: str = Field("upload", description="Data source: upload, database, or synthetic")
+    mill_number: int = Field(8, description="Mill number (6, 7, or 8)")
+    start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date (YYYY-MM-DD)")
     test_size: float = Field(0.2, description="Test set fraction")
-    n_samples: Optional[int] = Field(None, description="Number of samples for synthetic data")
-    mill_number: Optional[int] = Field(8, description="Mill number for database source (6, 7, or 8)")
-    start_date: Optional[str] = Field(None, description="Start date for database query (YYYY-MM-DD)")
-    end_date: Optional[str] = Field(None, description="End date for database query (YYYY-MM-DD)")
-    resample_freq: str = Field("1min", description="Resampling frequency for database data")
-
-class ValidationRequest(BaseModel):
-    validation_types: List[str] = Field(
-        ["individual", "quality", "cascade", "cross_validation"],
-        description="Types of validation to run"
-    )
-    test_size: float = Field(0.3, description="Test set fraction")
-    n_folds: int = Field(5, description="Cross-validation folds")
-    n_samples: int = Field(500, description="Samples for cascade validation")
+    resample_freq: str = Field("1min", description="Resampling frequency")
 
 # API Endpoints
 
@@ -106,158 +52,78 @@ async def get_cascade_info():
     return {
         "system": "Cascade Optimization for Mills-AI",
         "version": "1.0.0",
-        "description": "Multi-model cascade optimization using MV→CV→Target approach",
-        "variable_structure": classifier.get_cascade_structure(),
+        "description": "Database-driven cascade optimization using MV→CV→Target approach",
         "model_status": {
-            "model_manager_initialized": model_manager is not None,
-            "models_trained": model_manager.process_models if model_manager else {},
-            "optimizer_ready": optimizer is not None,
-            "validator_ready": validator is not None
+            "models_trained": bool(model_manager and model_manager.process_models and model_manager.quality_model)
         },
         "endpoints": {
             "training": "/train",
-            "prediction": "/predict",
-            "optimization": "/optimize",
-            "validation": "/validate",
-            "results": "/results"
+            "prediction": "/predict"
         }
-    }
-
-@cascade_router.get("/variables")
-async def get_variables():
-    """Get all variables with their classifications and bounds"""
-    return {
-        "mvs": [{"id": mv.id, "name": mv.name, "unit": mv.unit, 
-                "bounds": [mv.min_bound, mv.max_bound], "description": mv.description}
-               for mv in classifier.get_mvs()],
-        "cvs": [{"id": cv.id, "name": cv.name, "unit": cv.unit,
-                "bounds": [cv.min_bound, cv.max_bound], "description": cv.description}
-               for cv in classifier.get_cvs()],
-        "dvs": [{"id": dv.id, "name": dv.name, "unit": dv.unit,
-                "bounds": [dv.min_bound, dv.max_bound], "description": dv.description}
-               for dv in classifier.get_dvs()],
-        "targets": [{"id": target.id, "name": target.name, "unit": target.unit,
-                    "bounds": [target.min_bound, target.max_bound], "description": target.description}
-                   for target in classifier.get_targets()]
     }
 
 @cascade_router.post("/train")
 async def train_models(request: TrainingRequest, background_tasks: BackgroundTasks):
-    """Train cascade models"""
-    global model_manager, optimizer, validator
+    """Train cascade models with database data"""
+    global model_manager
     
     try:
-        # Initialize model manager with path inside optimization_cascade
+        # Initialize model manager
         model_save_path = os.path.join(os.path.dirname(__file__), "cascade_models")
         model_save_path = os.path.abspath(model_save_path)
         model_manager = CascadeModelManager(model_save_path)
-        logger.info(f"Model manager initialized. Save path: {model_save_path}")
         
-        # Get or generate training data
-        if request.data_source == "synthetic":
-            # Generate synthetic data for testing
-            n_samples = request.n_samples or 2000
-            df = _generate_synthetic_data(n_samples)
-            logger.info(f"Generated synthetic data: {df.shape}")
-        elif request.data_source == "database":
-            # Get real data from database with enhanced error handling
-            logger.info(f"Attempting to retrieve database data for Mill {request.mill_number}")
-            df = await _get_database_training_data(
-                mill_number=request.mill_number,
-                start_date=request.start_date,
-                end_date=request.end_date,
-                resample_freq=request.resample_freq
-            )
-            if df is None:
-                error_msg = f"Failed to retrieve data from database for Mill {request.mill_number}"
-                logger.error(error_msg)
-                raise HTTPException(status_code=400, detail=error_msg)
-            elif df.empty:
-                error_msg = f"No data found in database for Mill {request.mill_number} in date range {request.start_date} to {request.end_date}"
-                logger.error(error_msg)
-                raise HTTPException(status_code=400, detail=error_msg)
-            else:
-                logger.info(f"Successfully retrieved database data: {df.shape[0]} rows, {df.shape[1]} columns")
-        elif request.data_source == "upload":
-            # For now, use synthetic data - in production, handle uploaded files
-            df = _generate_synthetic_data(2000)
-            logger.info("Using synthetic data for upload source (not implemented)")
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported data source")
+        # Get data from database
+        df = await _get_database_training_data(
+            mill_number=request.mill_number,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            resample_freq=request.resample_freq
+        )
         
-        # Validate data has required columns
+        if df is None or df.empty:
+            raise HTTPException(status_code=400, detail=f"No data found for Mill {request.mill_number}")
+        
+        # Validate data
         try:
-            data_info = model_manager.prepare_training_data(df)
-            logger.info(f"Data validation successful. MVs: {len(data_info['mvs'])}, CVs: {len(data_info['cvs'])}, DVs: {len(data_info['dvs'])}, Targets: {len(data_info['targets'])}")
+            model_manager.prepare_training_data(df)
         except ValueError as e:
-            logger.error(f"Data validation failed: {e}")
             raise HTTPException(status_code=400, detail=f"Data validation failed: {str(e)}")
         
-        # Train models in background with enhanced error handling
+        # Train models in background
         def train_background():
             try:
-                logger.info("Starting background model training...")
-                results = model_manager.train_all_models(df, test_size=request.test_size)
-                logger.info(f"Model training completed successfully: {results.get('training_timestamp', 'unknown')}")
-                
-                # Initialize optimizer and validator
-                global optimizer, validator
-                optimizer = CascadeOptimizationEngine(model_manager)
-                validator = CascadeValidator(model_manager)
-                logger.info("Optimizer and validator initialized")
-                
-                # Log model files created
-                if os.path.exists(model_save_path):
-                    model_files = os.listdir(model_save_path)
-                    logger.info(f"Model files created: {model_files}")
-                
-            except Exception as e:
-                logger.error(f"Background training failed: {e}")
-                import traceback
-                logger.error(f"Full traceback: {traceback.format_exc()}")
+                model_manager.train_all_models(df, test_size=request.test_size)
+            except Exception:
+                pass
         
         background_tasks.add_task(train_background)
         
         return {
             "status": "training_started",
-            "message": "Model training started in background with real database data" if request.data_source == "database" else "Model training started in background with synthetic data",
-            "data_source": request.data_source,
+            "message": "Model training started",
             "data_shape": df.shape,
-            "model_save_path": model_save_path,
-            "mill_number": request.mill_number if request.data_source == "database" else None,
-            "date_range": f"{request.start_date} to {request.end_date}" if request.data_source == "database" else None,
-            "estimated_time": "2-5 minutes"
+            "mill_number": request.mill_number,
+            "date_range": f"{request.start_date} to {request.end_date}"
         }
         
     except HTTPException:
-        raise  # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"Training initiation failed: {e}")
-        import traceback
-        logger.error(f"Full traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=f"Training initiation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @cascade_router.get("/training/status")
 async def get_training_status():
     """Get current training status"""
     if not model_manager:
-        return {"status": "not_started", "message": "Training not initiated"}
+        return {"status": "not_started"}
     
-    # Check if models are trained
     models_trained = bool(model_manager.process_models and model_manager.quality_model)
     
     if models_trained:
-        summary = model_manager.get_model_summary()
-        return {
-            "status": "completed",
-            "message": "Models trained successfully",
-            "summary": summary
-        }
+        return {"status": "completed", "message": "Models trained successfully"}
     else:
-        return {
-            "status": "in_progress",
-            "message": "Training in progress..."
-        }
+        return {"status": "in_progress"}
 
 @cascade_router.post("/predict")
 async def predict_cascade(request: PredictionRequest):
@@ -267,106 +133,43 @@ async def predict_cascade(request: PredictionRequest):
     
     try:
         result = model_manager.predict_cascade(request.mv_values, request.dv_values)
-        
         return {
             "predicted_target": result['predicted_target'],
             "predicted_cvs": result['predicted_cvs'],
-            "is_feasible": result['is_feasible'],
-            "constraint_violations": result['constraint_violations'],
-            "mv_inputs": result['mv_inputs'],
-            "dv_inputs": result['dv_inputs']
+            "is_feasible": result['is_feasible']
         }
-        
     except Exception as e:
-        logger.error(f"Prediction failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@cascade_router.post("/optimize")
-async def optimize_single_objective(request: OptimizationRequest, background_tasks: BackgroundTasks):
-    """Run single-objective optimization"""
-    if not optimizer:
-        raise HTTPException(status_code=400, detail="Optimizer not initialized. Train models first.")
-    
+async def _get_database_training_data(
+    mill_number: int = 8,
+    start_date: str = None,
+    end_date: str = None,
+    resample_freq: str = "1min"
+) -> Optional[pd.DataFrame]:
+    """Get training data from database"""
     try:
-        # Run optimization in background for longer runs
-        if request.n_trials > 500:
-            def optimize_background():
-                try:
-                    result = optimizer.optimize_single_objective(
-                        dv_values=request.dv_values,
-                        n_trials=request.n_trials,
-                        timeout=request.timeout,
-                        custom_penalties=request.custom_penalties
-                    )
-                    # Store result for later retrieval
-                    optimizer.optimization_results[f"single_{datetime.now().strftime('%Y%m%d_%H%M%S')}"] = result
-                    logger.info(f"Background optimization completed: {result['best_target_value']:.2f}")
-                except Exception as e:
-                    logger.error(f"Background optimization failed: {e}")
-            
-            background_tasks.add_task(optimize_background)
-            
-            return {
-                "status": "optimization_started",
-                "message": f"Optimization started in background ({request.n_trials} trials)",
-                "estimated_time": f"{request.n_trials // 10} seconds"
-            }
-        else:
-            # Run synchronously for quick optimizations
-            result = optimizer.optimize_single_objective(
-                dv_values=request.dv_values,
-                n_trials=request.n_trials,
-                timeout=request.timeout,
-                custom_penalties=request.custom_penalties
-            )
-            
-            return {
-                "status": "completed",
-                "best_target_value": result['best_target_value'],
-                "best_mv_parameters": result['best_mv_parameters'],
-                "predicted_cvs": result['predicted_cvs'],
-                "is_feasible": result['is_feasible'],
-                "constraint_violations": result['constraint_violations'],
-                "n_trials": result['n_trials'],
-                "convergence_data": result.get('convergence_data', {})
-            }
-            
-    except Exception as e:
-        logger.error(f"Optimization failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@cascade_router.post("/optimize/multi")
-async def optimize_multi_objective(request: MultiObjectiveRequest):
-    """Run multi-objective optimization"""
-    if not optimizer:
-        raise HTTPException(status_code=400, detail="Optimizer not initialized")
-    
-    try:
-        result = optimizer.optimize_multi_objective(
-            dv_values=request.dv_values,
-            objectives=request.objectives,
-            n_trials=request.n_trials,
-            timeout=request.timeout
+        db_connector = MillsDataConnector(
+            host=settings.DB_HOST,
+            port=settings.DB_PORT,
+            dbname=settings.DB_NAME,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD
         )
         
-        return {
-            "status": "completed",
-            "optimization_type": "multi_objective",
-            "objectives": result['objectives'],
-            "pareto_solutions": result['pareto_trials'][:10],  # Return top 10
-            "total_pareto_solutions": len(result['pareto_trials']),
-            "n_trials": result['n_trials']
-        }
+        df = db_connector.get_combined_data(
+            mill_number=mill_number,
+            start_date=start_date,
+            end_date=end_date,
+            resample_freq=resample_freq,
+            save_to_logs=True,
+            no_interpolation=False
+        )
         
-    except Exception as e:
-        logger.error(f"Multi-objective optimization failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@cascade_router.post("/optimize/robust")
-async def optimize_robust(request: RobustOptimizationRequest):
-    """Run robust optimization across scenarios"""
-    if not optimizer:
-        raise HTTPException(status_code=400, detail="Optimizer not initialized")
+        return df
+        
+    except Exception:
+        return None
     
     try:
         result = optimizer.optimize_robust(

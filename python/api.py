@@ -1,7 +1,7 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, APIRouter, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Union
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, RootModel, Field
 from datetime import datetime, timedelta
 
 # Import the DatabaseManager and configuration first before path modifications
@@ -65,32 +65,152 @@ except Exception as e:
     logger.error(f"Failed to load Mills ML router: {e}")
     ML_SYSTEM_AVAILABLE = False
 
-# Import the full cascade router with database integration
-try:
-    import sys
-    import os
-    mills_cascade_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'app', 'optimization_cascade')
-    if mills_cascade_path not in sys.path:
-        sys.path.insert(0, mills_cascade_path)
+# ----------------------------- Cascade Optimization Endpoints -----------------------------
+
+# Create cascade router directly in main API
+cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["cascade_optimization"])
+
+# Simple cascade models
+class CascadeTrainingRequest(BaseModel):
+    mill_number: int = Field(8, description="Mill number")
+    start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
+    end_date: str = Field(..., description="End date (YYYY-MM-DD)")
+    test_size: float = Field(0.2, description="Test set fraction")
+    resample_freq: str = Field("1min", description="Data resampling frequency")
+
+class CascadePredictionRequest(BaseModel):
+    mv_values: Dict[str, float] = Field(..., description="Manipulated variable values")
+    dv_values: Dict[str, float] = Field(..., description="Disturbance variable values")
+
+# Global cascade state
+cascade_model_manager = None
+cascade_training_status = {"status": "not_started", "message": "Training not initiated"}
+
+@cascade_router.get("/info")
+async def get_cascade_info():
+    """Get information about the cascade optimization system"""
+    return {
+        "system": "Database Cascade Optimization",
+        "version": "2.0.0",
+        "description": "Database-driven MV→CV→Target cascade approach",
+        "status": "available",
+        "endpoints": {
+            "training": "/train",
+            "prediction": "/predict",
+            "status": "/training/status",
+            "health": "/health"
+        }
+    }
+
+@cascade_router.get("/health")
+async def cascade_health_check():
+    """Health check for cascade system"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "models_trained": cascade_model_manager is not None,
+        "training_status": cascade_training_status["status"]
+    }
+
+@cascade_router.post("/train")
+async def train_cascade_models(request: CascadeTrainingRequest, background_tasks: BackgroundTasks):
+    """Train cascade models with database data"""
+    global cascade_model_manager, cascade_training_status
     
-    from cascade_endpoints import cascade_router
-    app.include_router(cascade_router, tags=["Cascade Optimization"])
-    CASCADE_SYSTEM_AVAILABLE = True
-    logger.info(f"Successfully loaded Full Cascade Optimization router with {len(cascade_router.routes)} routes")
-    
-    # Log cascade routes
-    for route in cascade_router.routes:
-        logger.info(f"Registered Cascade route: {route.path} [{','.join(route.methods)}]")
-except Exception as e:
-    logger.error(f"Failed to load Full Cascade router, falling back to standalone: {e}")
     try:
-        from cascade_router import cascade_router
-        app.include_router(cascade_router, tags=["Cascade Optimization"])
-        CASCADE_SYSTEM_AVAILABLE = True
-        logger.info(f"Successfully loaded Standalone Cascade router with {len(cascade_router.routes)} routes")
-    except Exception as e2:
-        logger.error(f"Failed to load any Cascade router: {e2}")
-        CASCADE_SYSTEM_AVAILABLE = False
+        # Import cascade components
+        import sys
+        import os
+        mills_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'app')
+        if mills_path not in sys.path:
+            sys.path.insert(0, mills_path)
+        
+        from optimization_cascade.cascade_models import CascadeModelManager
+        from database.db_connector import MillsDataConnector
+        from config.settings import settings
+        
+        # Initialize model manager
+        model_save_path = os.path.join(os.path.dirname(__file__), "mills-xgboost", "app", "optimization_cascade", "cascade_models")
+        model_save_path = os.path.abspath(model_save_path)
+        cascade_model_manager = CascadeModelManager(model_save_path)
+        
+        # Get database data
+        db_connector = MillsDataConnector(
+            host=settings.DB_HOST,
+            port=settings.DB_PORT,
+            dbname=settings.DB_NAME,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD
+        )
+        
+        df = db_connector.get_combined_data(
+            mill_number=request.mill_number,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            resample_freq=request.resample_freq,
+            save_to_logs=True,
+            no_interpolation=False
+        )
+        
+        if df is None or df.empty:
+            raise HTTPException(status_code=400, detail=f"No data found for Mill {request.mill_number}")
+        
+        # Prepare training data
+        cascade_model_manager.prepare_training_data(df)
+        
+        # Background training function
+        def train_background():
+            global cascade_training_status
+            try:
+                cascade_training_status = {"status": "training", "message": "Training in progress"}
+                cascade_model_manager.train_all_models(df, test_size=request.test_size)
+                cascade_training_status = {"status": "completed", "message": "Training completed successfully"}
+            except Exception as e:
+                cascade_training_status = {"status": "failed", "message": f"Training failed: {str(e)}"}
+        
+        background_tasks.add_task(train_background)
+        
+        return {
+            "status": "training_started",
+            "message": "Model training started",
+            "data_shape": df.shape,
+            "mill_number": request.mill_number,
+            "date_range": f"{request.start_date} to {request.end_date}",
+            "model_save_path": model_save_path
+        }
+        
+    except Exception as e:
+        logger.error(f"Cascade training failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@cascade_router.get("/training/status")
+async def get_cascade_training_status():
+    """Get current training status"""
+    return cascade_training_status
+
+@cascade_router.post("/predict")
+async def predict_cascade(request: CascadePredictionRequest):
+    """Make cascade prediction: MV → CV → Target"""
+    if not cascade_model_manager or not cascade_model_manager.process_models:
+        raise HTTPException(status_code=400, detail="Models not trained")
+    
+    try:
+        result = cascade_model_manager.predict_cascade(request.mv_values, request.dv_values)
+        return {
+            "predicted_target": result['predicted_target'],
+            "predicted_cvs": result['predicted_cvs'],
+            "is_feasible": result['is_feasible'],
+            "mv_inputs": request.mv_values,
+            "dv_inputs": request.dv_values
+        }
+    except Exception as e:
+        logger.error(f"Cascade prediction failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Include cascade router in main app
+app.include_router(cascade_router, tags=["Cascade Optimization"])
+CASCADE_SYSTEM_AVAILABLE = True
+logger.info("Successfully loaded Direct Cascade Optimization router")
 
 
 # ----------------------------- Models -----------------------------
