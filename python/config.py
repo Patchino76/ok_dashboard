@@ -21,7 +21,7 @@ if ENV == "production":
         "http://em-m-db4.ellatzite-med.com:8001"
     ]
 else:  # development
-    HOST = "0.0.0.0"
+    HOST = "127.0.0.1"
     PORT = 8000
     CORS_ORIGINS = [
         "http://localhost:3000",

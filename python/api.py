@@ -5,6 +5,9 @@ from pydantic import BaseModel, RootModel
 from datetime import datetime, timedelta
 
 # Import the DatabaseManager and configuration first before path modifications
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from database import DatabaseManager, create_db_manager
 from api_utils.mills_utils import MillsUtils
 from mills_analysis.mills_fetcher import get_mills_by_param
@@ -62,6 +65,28 @@ except Exception as e:
     logger.error(f"Failed to load Mills ML router: {e}")
     ML_SYSTEM_AVAILABLE = False
 
+# Import the cascade optimization router
+try:
+    import sys
+    import os
+    
+    # Add the mills-xgboost/app directory to Python path
+    mills_app_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mills-xgboost', 'app')
+    if mills_app_path not in sys.path:
+        sys.path.insert(0, mills_app_path)
+    
+    from optimization_cascade.cascade_endpoints import cascade_router
+    app.include_router(cascade_router, tags=["Cascade Optimization"])
+    CASCADE_SYSTEM_AVAILABLE = True
+    logger.info(f"Successfully loaded Cascade Optimization router with {len(cascade_router.routes)} routes")
+    
+    # Log cascade routes
+    for route in cascade_router.routes:
+        logger.info(f"Registered Cascade route: {route.path} [{','.join(route.methods)}]")
+except Exception as e:
+    logger.error(f"Failed to load Cascade Optimization router: {e}")
+    CASCADE_SYSTEM_AVAILABLE = False
+
 
 # ----------------------------- Models -----------------------------
 
@@ -107,6 +132,10 @@ async def health_check():
         "ml_system": {
             "available": ML_SYSTEM_AVAILABLE,
             "endpoints_count": len(mills_ml_router.routes) if ML_SYSTEM_AVAILABLE else 0
+        },
+        "cascade_system": {
+            "available": CASCADE_SYSTEM_AVAILABLE,
+            "endpoints_count": len(cascade_router.routes) if CASCADE_SYSTEM_AVAILABLE else 0
         }
     }
 
