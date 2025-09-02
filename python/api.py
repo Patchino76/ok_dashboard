@@ -126,8 +126,19 @@ async def train_cascade_models(request: CascadeTrainingRequest, background_tasks
             sys.path.insert(0, mills_path)
         
         from optimization_cascade.cascade_models import CascadeModelManager
-        from database.db_connector import MillsDataConnector
-        from config.settings import settings
+        
+        # Import database connector from the correct path
+        mills_db_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'app', 'database')
+        if mills_db_path not in sys.path:
+            sys.path.insert(0, mills_db_path)
+        from db_connector import MillsDataConnector
+        
+        # Import settings using absolute path loading
+        settings_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'config', 'settings.py')
+        spec = importlib.util.spec_from_file_location('settings_module', settings_path)
+        settings_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(settings_module)
+        settings = settings_module.settings
         
         # Initialize model manager
         model_save_path = os.path.join(os.path.dirname(__file__), "mills-xgboost", "app", "optimization_cascade", "cascade_models")

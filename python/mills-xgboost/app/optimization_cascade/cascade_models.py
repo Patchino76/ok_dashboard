@@ -258,19 +258,29 @@ class CascadeModelManager:
             vars_of_type = [var.id for var in self.classifier.get_variables_by_type(var_type)]
             all_vars.extend(vars_of_type)
         
-        # Remove outliers (beyond 3 standard deviations)
+        # Handle missing values first
+        df_clean = df_clean.dropna()
+        print(f"After removing NaN values: {df_clean.shape}")
+        
+        # More conservative outlier removal using IQR method
         for col in all_vars:
             if col in df_clean.columns:
-                mean_val = df_clean[col].mean()
-                std_val = df_clean[col].std()
+                Q1 = df_clean[col].quantile(0.25)
+                Q3 = df_clean[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                
+                initial_count = len(df_clean)
                 df_clean = df_clean[
-                    (df_clean[col] > mean_val - 3*std_val) & 
-                    (df_clean[col] < mean_val + 3*std_val)
+                    (df_clean[col] >= lower_bound) & 
+                    (df_clean[col] <= upper_bound)
                 ]
+                removed_count = initial_count - len(df_clean)
+                if removed_count > 0:
+                    print(f"Removed {removed_count} outliers from {col} (bounds: {lower_bound:.2f} to {upper_bound:.2f})")
         
-        # Handle missing values
-        df_clean = df_clean.dropna()
-        
+        print(f"Final cleaned data shape: {df_clean.shape}")
         return df_clean
     
     def _convert_for_json(self, obj):

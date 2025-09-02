@@ -59,10 +59,16 @@ class MillsDataConnector:
             if end_date:
                 end_parsed = pd.to_datetime(end_date)
                 logger.info(f"DEBUG: Parsed end_date: {end_parsed} (timezone: {end_parsed.tz})")
-                # Fix timezone issue by making both datetime objects timezone-aware or naive
+                # Fix timezone issue by making both datetime objects timezone-naive
                 from datetime import datetime as dt
-                now_utc = pd.to_datetime(dt.now()).tz_localize('UTC')
-                logger.info(f"DEBUG: Days from now to end_date: {(end_parsed - now_utc).days}")
+                now_naive = pd.to_datetime(dt.now())
+                if end_parsed.tz is None:
+                    # Both are timezone-naive, safe to compare
+                    logger.info(f"DEBUG: Days from now to end_date: {(end_parsed - now_naive).days}")
+                else:
+                    # Convert end_parsed to naive for comparison
+                    end_naive = end_parsed.tz_convert(None)
+                    logger.info(f"DEBUG: Days from now to end_date: {(end_naive - now_naive).days}")
             
             # Build query
             query = f"SELECT * FROM mills.\"{mill_table}\""
