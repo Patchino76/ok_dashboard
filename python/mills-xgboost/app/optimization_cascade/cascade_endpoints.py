@@ -147,58 +147,95 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
     global model_manager, optimizer, validator
     
     try:
-        # Initialize model manager
-        model_save_path = "cascade_models"
+        # Initialize model manager with path inside optimization_cascade
+        model_save_path = os.path.join(os.path.dirname(__file__), "cascade_models")
+        model_save_path = os.path.abspath(model_save_path)
         model_manager = CascadeModelManager(model_save_path)
+        logger.info(f"Model manager initialized. Save path: {model_save_path}")
         
         # Get or generate training data
         if request.data_source == "synthetic":
             # Generate synthetic data for testing
             n_samples = request.n_samples or 2000
             df = _generate_synthetic_data(n_samples)
+            logger.info(f"Generated synthetic data: {df.shape}")
         elif request.data_source == "database":
-            # Get real data from database
+            # Get real data from database with enhanced error handling
+            logger.info(f"Attempting to retrieve database data for Mill {request.mill_number}")
             df = await _get_database_training_data(
                 mill_number=request.mill_number,
                 start_date=request.start_date,
                 end_date=request.end_date,
                 resample_freq=request.resample_freq
             )
-            if df is None or df.empty:
-                raise HTTPException(status_code=400, detail="No data retrieved from database")
+            if df is None:
+                error_msg = f"Failed to retrieve data from database for Mill {request.mill_number}"
+                logger.error(error_msg)
+                raise HTTPException(status_code=400, detail=error_msg)
+            elif df.empty:
+                error_msg = f"No data found in database for Mill {request.mill_number} in date range {request.start_date} to {request.end_date}"
+                logger.error(error_msg)
+                raise HTTPException(status_code=400, detail=error_msg)
+            else:
+                logger.info(f"Successfully retrieved database data: {df.shape[0]} rows, {df.shape[1]} columns")
         elif request.data_source == "upload":
             # For now, use synthetic data - in production, handle uploaded files
             df = _generate_synthetic_data(2000)
+            logger.info("Using synthetic data for upload source (not implemented)")
         else:
             raise HTTPException(status_code=400, detail="Unsupported data source")
         
-        # Train models in background
+        # Validate data has required columns
+        try:
+            data_info = model_manager.prepare_training_data(df)
+            logger.info(f"Data validation successful. MVs: {len(data_info['mvs'])}, CVs: {len(data_info['cvs'])}, DVs: {len(data_info['dvs'])}, Targets: {len(data_info['targets'])}")
+        except ValueError as e:
+            logger.error(f"Data validation failed: {e}")
+            raise HTTPException(status_code=400, detail=f"Data validation failed: {str(e)}")
+        
+        # Train models in background with enhanced error handling
         def train_background():
             try:
+                logger.info("Starting background model training...")
                 results = model_manager.train_all_models(df, test_size=request.test_size)
-                logger.info(f"Model training completed: {results['training_timestamp']}")
+                logger.info(f"Model training completed successfully: {results.get('training_timestamp', 'unknown')}")
                 
                 # Initialize optimizer and validator
                 global optimizer, validator
                 optimizer = CascadeOptimizationEngine(model_manager)
                 validator = CascadeValidator(model_manager)
+                logger.info("Optimizer and validator initialized")
+                
+                # Log model files created
+                if os.path.exists(model_save_path):
+                    model_files = os.listdir(model_save_path)
+                    logger.info(f"Model files created: {model_files}")
                 
             except Exception as e:
                 logger.error(f"Background training failed: {e}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
         
         background_tasks.add_task(train_background)
         
         return {
             "status": "training_started",
-            "message": "Model training started in background",
+            "message": "Model training started in background with real database data" if request.data_source == "database" else "Model training started in background with synthetic data",
+            "data_source": request.data_source,
             "data_shape": df.shape,
             "model_save_path": model_save_path,
+            "mill_number": request.mill_number if request.data_source == "database" else None,
+            "date_range": f"{request.start_date} to {request.end_date}" if request.data_source == "database" else None,
             "estimated_time": "2-5 minutes"
         }
         
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
     except Exception as e:
         logger.error(f"Training initiation failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Training initiation failed: {str(e)}")
 
 @cascade_router.get("/training/status")
 async def get_training_status():
@@ -562,32 +599,47 @@ async def _get_database_training_data(
     """Get training data from database for cascade model training"""
     try:
         logger.info(f"Retrieving database training data for Mill {mill_number}")
+        logger.info(f"Database settings - Host: {settings.DB_HOST}, Port: {settings.DB_PORT}, DB: {settings.DB_NAME}")
         
-        # Initialize database connector
-        db_connector = MillsDataConnector(
-            host=settings.DB_HOST,
-            port=settings.DB_PORT,
-            dbname=settings.DB_NAME,
-            user=settings.DB_USER,
-            password=settings.DB_PASSWORD
-        )
+        # Initialize database connector with enhanced error handling
+        try:
+            db_connector = MillsDataConnector(
+                host=settings.DB_HOST,
+                port=settings.DB_PORT,
+                dbname=settings.DB_NAME,
+                user=settings.DB_USER,
+                password=settings.DB_PASSWORD
+            )
+            logger.info("Database connector initialized successfully")
+        except Exception as db_init_error:
+            logger.error(f"Failed to initialize database connector: {db_init_error}")
+            raise
         
         # Get combined mill and ore quality data
-        df = db_connector.get_combined_data(
-            mill_number=mill_number,
-            start_date=start_date,
-            end_date=end_date,
-            resample_freq=resample_freq,
-            save_to_logs=True,
-            no_interpolation=False  # Use interpolation for training data
-        )
+        try:
+            df = db_connector.get_combined_data(
+                mill_number=mill_number,
+                start_date=start_date,
+                end_date=end_date,
+                resample_freq=resample_freq,
+                save_to_logs=True,
+                no_interpolation=False  # Use interpolation for training data
+            )
+            logger.info("Database query executed successfully")
+        except Exception as query_error:
+            logger.error(f"Database query failed: {query_error}")
+            raise
         
-        if df is None or df.empty:
-            logger.error(f"No data retrieved for Mill {mill_number}")
+        if df is None:
+            logger.error(f"Database query returned None for Mill {mill_number}")
+            return None
+        elif df.empty:
+            logger.error(f"Database query returned empty DataFrame for Mill {mill_number}")
             return None
         
         logger.info(f"Database training data retrieved: {df.shape[0]} rows, {df.shape[1]} columns")
         logger.info(f"Date range: {df.index.min()} to {df.index.max()}")
+        logger.info(f"Available columns: {list(df.columns)}")
         
         # Validate required columns for cascade training
         classifier = VariableClassifier()
@@ -597,17 +649,24 @@ async def _get_database_training_data(
             required_vars.extend(vars_of_type)
         
         missing_vars = [var for var in required_vars if var not in df.columns]
+        available_vars = [var for var in required_vars if var in df.columns]
+        
+        logger.info(f"Required variables: {required_vars}")
+        logger.info(f"Available variables: {available_vars}")
+        
         if missing_vars:
             logger.warning(f"Missing variables in database data: {missing_vars}")
-            # Continue with available variables - the model training will handle missing columns
-        
-        available_vars = [var for var in required_vars if var in df.columns]
-        logger.info(f"Available variables for training: {available_vars}")
+            # Check if we have enough variables to proceed
+            if len(available_vars) < len(required_vars) * 0.5:  # Less than 50% of required variables
+                logger.error(f"Too many missing variables ({len(missing_vars)}/{len(required_vars)}). Cannot proceed with training.")
+                return None
         
         return df
         
     except Exception as e:
         logger.error(f"Error retrieving database training data: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return None
 
 # Error handlers removed - FastAPI APIRouter doesn't support exception_handler

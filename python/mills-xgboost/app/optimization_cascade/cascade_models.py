@@ -66,21 +66,44 @@ class CascadeModelManager:
         dvs = [dv.id for dv in self.classifier.get_dvs()]
         targets = [target.id for target in self.classifier.get_targets()]
         
-        # Validate data contains required columns
-        required_cols = mvs + cvs + dvs + targets
-        missing_cols = [col for col in required_cols if col not in df.columns]
-        if missing_cols:
-            raise ValueError(f"Missing columns in data: {missing_cols}")
+        # Filter to only include columns that exist in the data
+        available_mvs = [col for col in mvs if col in df.columns]
+        available_cvs = [col for col in cvs if col in df.columns]
+        available_dvs = [col for col in dvs if col in df.columns]
+        available_targets = [col for col in targets if col in df.columns]
+        
+        # Check if we have minimum required variables
+        missing_mvs = [col for col in mvs if col not in df.columns]
+        missing_cvs = [col for col in cvs if col not in df.columns]
+        missing_dvs = [col for col in dvs if col not in df.columns]
+        missing_targets = [col for col in targets if col not in df.columns]
+        
+        print(f"Available MVs: {available_mvs} (missing: {missing_mvs})")
+        print(f"Available CVs: {available_cvs} (missing: {missing_cvs})")
+        print(f"Available DVs: {available_dvs} (missing: {missing_dvs})")
+        print(f"Available Targets: {available_targets} (missing: {missing_targets})")
+        
+        # Require at least some variables of each type
+        if len(available_mvs) == 0:
+            raise ValueError(f"No manipulated variables (MVs) found in data. Required: {mvs}")
+        if len(available_cvs) == 0:
+            raise ValueError(f"No controlled variables (CVs) found in data. Required: {cvs}")
+        if len(available_targets) == 0:
+            raise ValueError(f"No target variables found in data. Required: {targets}")
+        
+        # DVs are optional for some models
+        if len(available_dvs) == 0:
+            print("Warning: No disturbance variables (DVs) found. Quality model will use only CVs.")
         
         return {
-            'mvs': mvs,
-            'cvs': cvs, 
-            'dvs': dvs,
-            'targets': targets,
-            'mv_data': df[mvs],
-            'cv_data': df[cvs],
-            'dv_data': df[dvs],
-            'target_data': df[targets]
+            'mvs': available_mvs,
+            'cvs': available_cvs, 
+            'dvs': available_dvs,
+            'targets': available_targets,
+            'mv_data': df[available_mvs] if available_mvs else pd.DataFrame(),
+            'cv_data': df[available_cvs] if available_cvs else pd.DataFrame(),
+            'dv_data': df[available_dvs] if available_dvs else pd.DataFrame(),
+            'target_data': df[available_targets] if available_targets else pd.DataFrame()
         }
     
     def train_process_models(self, df: pd.DataFrame, test_size: float = 0.2) -> Dict[str, Any]:
@@ -222,6 +245,44 @@ class CascadeModelManager:
         joblib.dump(scaler, scaler_path)
         
         return results
+    
+    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Clean training data by handling missing values and outliers
+        """
+        print("=== CLEANING TRAINING DATA ===")
+        
+        # Remove rows with too many missing values
+        missing_threshold = 0.5  # Remove rows with >50% missing values
+        df_clean = df.dropna(thresh=int(len(df.columns) * missing_threshold))
+        print(f"Removed {len(df) - len(df_clean)} rows with excessive missing values")
+        
+        # Forward fill missing values (appropriate for time series)
+        df_clean = df_clean.fillna(method='ffill')
+        
+        # Backward fill any remaining missing values
+        df_clean = df_clean.fillna(method='bfill')
+        
+        # Drop any remaining rows with missing values
+        df_clean = df_clean.dropna()
+        
+        print(f"Final cleaned data shape: {df_clean.shape}")
+        return df_clean
+    
+    def _convert_for_json(self, obj):
+        """Convert numpy types to native Python types for JSON serialization"""
+        if isinstance(obj, dict):
+            return {key: self._convert_for_json(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_for_json(item) for item in obj]
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return obj
     
     def train_all_models(self, df: pd.DataFrame, test_size: float = 0.2) -> Dict[str, Any]:
         """

@@ -65,19 +65,32 @@ except Exception as e:
     logger.error(f"Failed to load Mills ML router: {e}")
     ML_SYSTEM_AVAILABLE = False
 
-# Import the standalone cascade router
+# Import the full cascade router with database integration
 try:
-    from cascade_router import cascade_router
+    import sys
+    import os
+    mills_cascade_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'app', 'optimization_cascade')
+    if mills_cascade_path not in sys.path:
+        sys.path.insert(0, mills_cascade_path)
+    
+    from cascade_endpoints import cascade_router
     app.include_router(cascade_router, tags=["Cascade Optimization"])
     CASCADE_SYSTEM_AVAILABLE = True
-    logger.info(f"Successfully loaded Cascade Optimization router with {len(cascade_router.routes)} routes")
+    logger.info(f"Successfully loaded Full Cascade Optimization router with {len(cascade_router.routes)} routes")
     
     # Log cascade routes
     for route in cascade_router.routes:
         logger.info(f"Registered Cascade route: {route.path} [{','.join(route.methods)}]")
 except Exception as e:
-    logger.error(f"Failed to load Cascade Optimization router: {e}")
-    CASCADE_SYSTEM_AVAILABLE = False
+    logger.error(f"Failed to load Full Cascade router, falling back to standalone: {e}")
+    try:
+        from cascade_router import cascade_router
+        app.include_router(cascade_router, tags=["Cascade Optimization"])
+        CASCADE_SYSTEM_AVAILABLE = True
+        logger.info(f"Successfully loaded Standalone Cascade router with {len(cascade_router.routes)} routes")
+    except Exception as e2:
+        logger.error(f"Failed to load any Cascade router: {e2}")
+        CASCADE_SYSTEM_AVAILABLE = False
 
 
 # ----------------------------- Models -----------------------------
