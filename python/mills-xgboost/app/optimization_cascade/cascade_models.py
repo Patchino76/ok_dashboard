@@ -195,10 +195,10 @@ class CascadeModelManager:
         X = df[feature_cols]  # Real measured CVs + DVs
         y = df[primary_target]  # Target quality
         
-        # Train-test split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=test_size, random_state=42
-        )
+        # Train-test split - no shuffling for time series data
+        test_size = int(len(X) * test_size)
+        X_train, X_test = X[:-test_size], X[-test_size:]
+        y_train, y_test = y[:-test_size], y[-test_size:]
         
         # Scale features
         scaler = StandardScaler()
