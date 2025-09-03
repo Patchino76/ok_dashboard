@@ -39,7 +39,7 @@ class MultiOutputTrainResponse(BaseModel):
     mill_number: int
     data_points: int
     metrics: Dict[str, Dict[str, float]]
-    overall_r2: float
+    overall_r2: Dict[str, float]
     timestamp: datetime
 
 # Global model instance

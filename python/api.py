@@ -73,7 +73,8 @@ multi_output_router = APIRouter(prefix="/api/v1/ml/multi-output", tags=["Multi-O
 # Multi-output models
 class MultiOutputTrainRequest(BaseModel):
     mill_number: int = Field(default=8, ge=1, le=12, description="Mill number (1-12)")
-    days_back: int = Field(default=30, ge=7, le=90, description="Days of historical data to use")
+    start_date: str = Field(default="2025-06-21", description="Start date (YYYY-MM-DD)")
+    end_date: str = Field(default="2025-08-21", description="End date (YYYY-MM-DD)")
 
 class MultiOutputPredictRequest(BaseModel):
     motor_amp: float = Field(..., ge=150, le=250, description="Motor amperage (150-250A)")
@@ -97,7 +98,7 @@ class MultiOutputTrainResponse(BaseModel):
     mill_number: int
     data_points: int
     metrics: Dict[str, Dict[str, float]]
-    overall_r2: float
+    overall_r2: Dict[str, float]
     timestamp: datetime
 
 # Global multi-output state
@@ -140,25 +141,67 @@ async def train_multi_output_model(request: MultiOutputTrainRequest):
     try:
         _multi_output_training_status = {"status": "training", "message": "Training in progress"}
         
-        # For now, return a mock response until we can properly integrate the database
-        # This allows the endpoints to be visible and testable
-        _multi_output_training_status = {"status": "completed", "message": "Mock training completed"}
+        # Import the real MultiOutputMillModel
+        import sys
+        import os
+        mills_xgboost_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost')
+        if mills_xgboost_path not in sys.path:
+            sys.path.insert(0, mills_xgboost_path)
         
-        mock_metrics = {
-            "PulpHC": {"r2": 0.85, "rmse": 15.2},
-            "DensityHC": {"r2": 0.78, "rmse": 45.8},
-            "PressureHC": {"r2": 0.82, "rmse": 0.08},
-            "PSI200": {"r2": 0.88, "rmse": 2.1},
-            "overall_r2": 0.83
-        }
+        from app.optimization_multiple.multi_output_model import MultiOutputMillModel
         
-        _multi_output_model = "mock_trained_model"  # Mock model state
+        # Create database connector
+        database_path = os.path.join(mills_xgboost_path, 'app', 'database')
+        if database_path not in sys.path:
+            sys.path.append(database_path)
+        from db_connector import MillsDataConnector
+        
+        # Load settings from mills-xgboost config
+        import importlib.util
+        settings_path = os.path.join(mills_xgboost_path, 'config', 'settings.py')
+        spec = importlib.util.spec_from_file_location('settings_module', settings_path)
+        settings_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(settings_module)
+        settings = settings_module.Settings()
+        
+        # Use correct database credentials from settings
+        host = settings.DB_HOST
+        port = settings.DB_PORT
+        dbname = settings.DB_NAME
+        user = settings.DB_USER
+        password = settings.DB_PASSWORD
+        
+        db_connector = MillsDataConnector(host, port, dbname, user, password)
+        
+        # Create and train model
+        model = MultiOutputMillModel(mill_number=request.mill_number)
+        
+        # Load data from database using the specified date range
+        df = model.load_data_from_database(db_connector, start_date=request.start_date, end_date=request.end_date)
+        
+        logger.info(f"Loaded {len(df)} data points from database")
+        
+        if len(df) < 100:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient data: {len(df)} samples (minimum 100 required)"
+            )
+        
+        # Train the model
+        metrics = model.train(df)
+        
+        # Store trained model globally
+        _multi_output_model = model
+        _multi_output_training_status = {"status": "completed", "message": "Training completed successfully"}
+        
+        # Extract overall_r2 from metrics and remove it
+        overall_r2_value = metrics.pop('overall_r2')
         
         return MultiOutputTrainResponse(
             mill_number=request.mill_number,
-            data_points=1500,  # Mock data points
-            metrics=mock_metrics,
-            overall_r2=0.83,
+            data_points=len(df),
+            metrics=metrics,
+            overall_r2={"value": float(overall_r2_value)},
             timestamp=datetime.now()
         )
         

@@ -321,10 +321,10 @@ class MillsDataConnector:
                 df_resampled = df_processed[numeric_cols].resample(resample_freq).ffill()   
                 
                 # Forward fill to keep values constant - this ensures same value throughout the period
-                df_processed = df_resampled.fillna(method='ffill')
+                df_processed = df_resampled.ffill()
                 
                 # Handle any remaining NAs at the start with backward fill
-                df_processed = df_processed.fillna(method='bfill')
+                df_processed = df_processed.bfill()
                 logger.info(f"Applied resampling with constant values (no interpolation or smoothing)")
             else:
                 # Original behavior - resample and interpolate

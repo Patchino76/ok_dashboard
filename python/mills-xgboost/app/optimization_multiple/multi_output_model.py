@@ -31,12 +31,15 @@ class MultiOutputMillModel:
         self.scaler_y = StandardScaler()
         
         # Define features and targets based on mills-parameters.ts
-        self.feature_names = ['MotorAmp']  # Primary MV we can control
+        self.feature_names = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']  # All MVs we can control
         self.target_names = ['PulpHC', 'DensityHC', 'PressureHC', 'PSI200']  # CVs + Quality
         
         # Define bounds from mills-parameters.ts
         self.mv_bounds = {
-            'MotorAmp': (150, 250)  # Amperes
+            'Ore': (140, 240),        # t/h - Ore feed rate
+            'WaterMill': (5, 25),     # m³/h - Mill water flow
+            'WaterZumpf': (140, 250), # m³/h - Sump water flow
+            'MotorAmp': (150, 250)    # A - Motor amperage
         }
         
         self.cv_constraints = {
@@ -47,24 +50,41 @@ class MultiOutputMillModel:
         }
         
     def load_data_from_database(self, db_connector: MillsDataConnector, 
-                               days_back: int = 30) -> pd.DataFrame:
+                               start_date: str = "2025-06-21", end_date: str = "2025-08-21",
+                               ) -> pd.DataFrame:
         """
         Load real data from database for the specified mill
+        
+        Args:
+            db_connector: Database connector instance
+            start_date: Start date in 'YYYY-MM-DD' format
+            end_date: End date in 'YYYY-MM-DD' format
         """
         try:
-            logger.info(f"Loading data for Mill {self.mill_number} from last {days_back} days")
+            logger.info(f"Loading data for Mill {self.mill_number} from {start_date} to {end_date}")
             
             # Get mill data
             mill_data = db_connector.get_mill_data(
                 mill_number=self.mill_number,
-                days_back=days_back
+                start_date=start_date,
+                end_date=end_date
             )
             
             if mill_data.empty:
                 raise ValueError(f"No mill data found for Mill {self.mill_number}")
             
-            # Get ore quality data
-            ore_data = db_connector.get_ore_quality_data(days_back=days_back)
+            # Get ore quality data with same date range
+            ore_data = db_connector.get_ore_quality(start_date=start_date, end_date=end_date)
+            
+            # Process ore quality data to remove duplicates and handle timestamps
+            if not ore_data.empty:
+                ore_data = db_connector.process_dataframe(
+                    ore_data, 
+                    start_date=start_date, 
+                    end_date=end_date,
+                    resample_freq='1min',
+                    no_interpolation=True
+                )
             
             # Join datasets on timestamp
             if not ore_data.empty:
@@ -164,12 +184,12 @@ class MultiOutputMillModel:
         
         return metrics
     
-    def predict(self, motor_amp: float) -> Dict[str, float]:
+    def predict(self, mv_values: Dict[str, float]) -> Dict[str, float]:
         """
-        Predict all targets from MotorAmp value
+        Predict all targets from MV values
         
         Args:
-            motor_amp: Motor amperage value (150-250A)
+            mv_values: Dictionary with MV values {'Ore': 180, 'WaterMill': 15, 'WaterZumpf': 200, 'MotorAmp': 200}
         
         Returns:
             Dictionary with predicted CVs and quality
@@ -177,13 +197,18 @@ class MultiOutputMillModel:
         if self.model is None:
             raise ValueError("Model not trained yet!")
         
-        # Validate input bounds
-        min_amp, max_amp = self.mv_bounds['MotorAmp']
-        if not (min_amp <= motor_amp <= max_amp):
-            raise ValueError(f"MotorAmp {motor_amp} outside bounds [{min_amp}, {max_amp}]")
+        # Validate all MV inputs
+        for mv_name in self.feature_names:
+            if mv_name not in mv_values:
+                raise ValueError(f"Missing MV value for {mv_name}")
+            
+            min_val, max_val = self.mv_bounds[mv_name]
+            value = mv_values[mv_name]
+            if not (min_val <= value <= max_val):
+                raise ValueError(f"{mv_name} {value} outside bounds [{min_val}, {max_val}]")
         
-        # Prepare input
-        X = np.array([[motor_amp]])
+        # Prepare input in correct order
+        X = np.array([[mv_values[name] for name in self.feature_names]])
         X_scaled = self.scaler_X.transform(X)
         
         # Predict scaled outputs
@@ -201,17 +226,20 @@ class MultiOutputMillModel:
     
     def optimize(self, n_trials: int = 1000) -> Dict:
         """
-        Optimize MotorAmp to minimize PSI200 while keeping CVs within constraints
+        Optimize all MVs to minimize PSI200 while keeping CVs within constraints
         """
         if self.model is None:
             raise ValueError("Model not trained yet!")
         
         def objective(trial):
-            # Sample MotorAmp (this is what Optuna will optimize)
-            motor_amp = trial.suggest_float('MotorAmp', *self.mv_bounds['MotorAmp'])
+            # Sample all MVs (these are what Optuna will optimize)
+            mv_values = {}
+            for mv_name in self.feature_names:
+                min_val, max_val = self.mv_bounds[mv_name]
+                mv_values[mv_name] = trial.suggest_float(mv_name, min_val, max_val)
             
             # Predict all targets
-            predictions = self.predict(motor_amp)
+            predictions = self.predict(mv_values)
             
             # Check CV constraints (reject if infeasible)
             for cv_name in ['PulpHC', 'DensityHC', 'PressureHC']:
@@ -231,10 +259,10 @@ class MultiOutputMillModel:
         best_value = study.best_value
         
         # Predict all targets with optimal parameters
-        optimal_predictions = self.predict(best_params['MotorAmp'])
+        optimal_predictions = self.predict(best_params)
         
         result = {
-            'best_motor_amp': best_params['MotorAmp'],
+            'best_mv_values': best_params,
             'best_psi200': best_value,
             'predictions': optimal_predictions,
             'feasible': all(
@@ -244,7 +272,8 @@ class MultiOutputMillModel:
         }
         
         logger.info(f"Optimization Results:")
-        logger.info(f"Best MotorAmp: {result['best_motor_amp']:.2f}A")
+        for mv_name, value in best_params.items():
+            logger.info(f"Best {mv_name}: {value:.2f}")
         logger.info(f"Best PSI200: {result['best_psi200']:.2f}%")
         logger.info(f"Feasible: {result['feasible']}")
         
