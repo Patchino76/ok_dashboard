@@ -32,7 +32,8 @@ class MultiOutputMillModel:
         
         # Define features and targets based on mills-parameters.ts
         self.feature_names = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']  # All MVs we can control
-        self.target_names = ['PulpHC', 'DensityHC', 'PressureHC', 'PSI200']  # CVs + Quality
+        # self.target_names = ['PulpHC', 'DensityHC', 'PressureHC']  # CVs + Quality
+        self.target_names = ['PulpHC', 'DensityHC', 'PressureHC', 'PSI200'] 
         
         # Define bounds from mills-parameters.ts
         self.mv_bounds = {
@@ -43,14 +44,14 @@ class MultiOutputMillModel:
         }
         
         self.cv_constraints = {
-            'PulpHC': (400, 600),      # m³/h
-            'DensityHC': (1200, 2000), # kg/m³
-            'PressureHC': (0.0, 0.6),  # bar
-            'PSI200': (10, 40)         # % (quality target)
+            'PulpHC': (350, 600),      # m³/h
+            'DensityHC': (1600, 1900), # kg/m³
+            'PressureHC': (0.3, 0.5),  # bar
+            'PSI200': (0.18, 0.36)         # % (quality target)
         }
         
     def load_data_from_database(self, db_connector: MillsDataConnector, 
-                               start_date: str = "2025-06-21", end_date: str = "2025-08-21",
+                               start_date: str = "2025-06-21", end_date: str = "2025-09-02",
                                ) -> pd.DataFrame:
         """
         Load real data from database for the specified mill
@@ -106,25 +107,16 @@ class MultiOutputMillModel:
         """
         Prepare input (MV) and output (CVs + Quality) data
         """
-        # Check if required columns exist
-        missing_features = [col for col in self.feature_names if col not in df.columns]
-        missing_targets = [col for col in self.target_names if col not in df.columns]
+        # Filter PSI200 values to be between 18 and 36
+        df = df[(df['PSI200'] >= 18) & (df['PSI200'] >= 36)]
         
-        if missing_features:
-            raise ValueError(f"Missing feature columns: {missing_features}")
-        if missing_targets:
-            raise ValueError(f"Missing target columns: {missing_targets}")
+        # Remove rows with NaN values
+        df = df.dropna(subset=self.feature_names + self.target_names)
         
         # Extract features and targets
         X = df[self.feature_names].values
         y = df[self.target_names].values
         
-        # Remove rows with NaN values
-        mask = ~(np.isnan(X).any(axis=1) | np.isnan(y).any(axis=1))
-        X = X[mask]
-        y = y[mask]
-        
-        logger.info(f"Prepared data: {X.shape[0]} samples, {X.shape[1]} features, {y.shape[1]} targets")
         return X, y
     
     def train(self, df: pd.DataFrame) -> Dict:
@@ -136,10 +128,10 @@ class MultiOutputMillModel:
         if len(X) < 100:
             raise ValueError(f"Insufficient data for training: {len(X)} samples")
         
-        # Train-test split
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42
-        )
+        # Train-test split without shuffling (80/20 split)
+        split_idx = int(len(X) * 0.8)
+        X_train, X_test = X[:split_idx], X[split_idx:]
+        y_train, y_test = y[:split_idx], y[split_idx:]
         
         # Scale features and targets
         X_train_scaled = self.scaler_X.fit_transform(X_train)
@@ -149,9 +141,10 @@ class MultiOutputMillModel:
         
         # Create multi-output XGBoost model
         base_model = xgb.XGBRegressor(
-            n_estimators=200,
+            objective = 'reg:squarederror',
+            n_estimators=300,
+            learning_rate=0.05,
             max_depth=6,
-            learning_rate=0.1,
             subsample=0.8,
             colsample_bytree=0.8,
             random_state=42
