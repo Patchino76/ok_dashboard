@@ -7,7 +7,7 @@ import { AlertCircle } from "lucide-react"
 import { useGetModels } from "@/app/mills-ai/hooks/use-get-models"
 
 interface ModelSelectionProps {
-  currentMill: number
+  currentMill: number | undefined
   modelName: string
   availableModels: string[]
   modelFeatures: string[] | null
@@ -57,8 +57,8 @@ export function ModelSelection({
               Mill Selection
             </label>
             <Select
-              value={currentMill.toString()}
-              onValueChange={(value) => onMillChange(parseInt(value))}
+              value={currentMill?.toString() || '8'}
+              onValueChange={(value) => onMillChange(parseInt(value || '8'))}
             >
               <SelectTrigger id="mill-select" className="w-full">
                 <SelectValue placeholder="Select Mill" />
