@@ -10,12 +10,13 @@ import { TargetFractionDisplay } from "../../components/target-fraction-display"
 import { ModelSelection } from "../../components/model-selection"
 import { useXgboostStore } from "../../stores/xgboost-store"
 import { useOptimizationStore } from "../../stores/optimization-store"
-import { useOptimization } from "../../hooks/useOptimization"
+import { useCascadeOptimization } from "../../hooks/useCascadeOptimization"
 import { useOptimizationResults } from "../../hooks/useOptimizationResults"
 import { toast } from "sonner"
 import { useGetModels } from "../../hooks/use-get-models"
 import { millsParameters, getTargets } from "../../data/mills-parameters"
 import { Switch } from "@/components/ui/switch"
+import { classifyParameters } from "../../data/cascade-parameter-classification"
 
 export default function CascadeOptimizationDashboard() {
   // Get the store instance
@@ -78,7 +79,7 @@ export default function CascadeOptimizationDashboard() {
     setAutoApplyProposals
   } = useOptimizationStore()
   
-  const { startOptimization, isOptimizing, progress, error } = useOptimization()
+  const { startCascadeOptimization, isOptimizing, error } = useCascadeOptimization()
   const { 
     currentResults, 
     hasResults, 
@@ -282,27 +283,45 @@ export default function CascadeOptimizationDashboard() {
     const loadingToast = toast.loading('Starting Cascade optimization...');
     
     try {
-      // Get optimization config from store
-      const config = getOptimizationConfig(modelName);
+      // Prepare cascade-specific config with MV and DV values
+      const cascadeConfig = {
+        mv_values: {} as Record<string, number>,
+        dv_values: {} as Record<string, number>
+      };
       
-      console.log('Starting cascade optimization with config:', config);
+      // Classify parameters into MV and DV
+      const parameterIds = parameters.map(p => p.id);
+      const { mv_parameters, dv_parameters } = classifyParameters(parameterIds);
       
-      // Start optimization using the hook
-      const result = await startOptimization(config);
+      // Map MV parameters (controllable)
+      mv_parameters.forEach(paramId => {
+        const bounds = parameterBounds[paramId] || [0, 100];
+        const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || ((bounds[0] + bounds[1]) / 2);
+        cascadeConfig.mv_values[paramId] = currentValue;
+      });
+      
+      // Map DV parameters (disturbances)
+      dv_parameters.forEach(paramId => {
+        const bounds = parameterBounds[paramId] || [0, 100];
+        const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || ((bounds[0] + bounds[1]) / 2);
+        cascadeConfig.dv_values[paramId] = currentValue;
+      });
+      
+      console.log('MV Parameters:', mv_parameters, 'DV Parameters:', dv_parameters);
+      
+      console.log('Starting cascade optimization with config:', cascadeConfig);
+      
+      // Start cascade optimization using the new hook
+      const result = await startCascadeOptimization(cascadeConfig);
       
       if (result && result.status === 'completed') {
-        // Automatically apply optimized parameters if auto-apply is enabled
-        if (result.best_parameters && autoApplyProposals) {
-          applyOptimizedParameters();
-        }
-        
-        // Set the target setpoint to the optimized target value
-        if (typeof result.best_score === 'number') {
-          setTargetSetpoint(result.best_score);
+        // Set the target setpoint to the predicted target value
+        if (typeof result.predicted_target === 'number') {
+          setTargetSetpoint(result.predicted_target);
         }
         
         toast.success(
-          `Cascade optimization completed! ${autoApplyProposals ? 'Parameters and target setpoint automatically applied.' : 'Review proposed setpoints below.'} Best score: ${result.best_score.toFixed(3)}`,
+          `Cascade optimization completed! Predicted target: ${result.predicted_target.toFixed(3)} ${result.is_feasible ? '(Feasible)' : '(Not Feasible)'}`,
           { id: loadingToast }
         );
       } else {
@@ -350,7 +369,7 @@ export default function CascadeOptimizationDashboard() {
                 hasResults && isSuccessful ? "bg-green-100 text-green-800 border-green-200" :
                 "bg-slate-100 text-slate-600 border-slate-200"
               }`}>
-                {isOptimizing ? `OPTIMIZING ${progress.toFixed(0)}%` :
+                {isOptimizing ? 'OPTIMIZING...' :
                  hasResults && isSuccessful ? "READY" :
                  "CONFIGURING"}
               </Badge>
@@ -373,6 +392,7 @@ export default function CascadeOptimizationDashboard() {
                 lastTrained={lastTrained}
                 onModelChange={handleModelChange}
                 onMillChange={handleMillChange}
+                modelType="cascade"
               />
               {/* Target SP slider moved into TargetFractionDisplay as a vertical control */}
             </div>
@@ -425,7 +445,7 @@ export default function CascadeOptimizationDashboard() {
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
                   >
                     <Play className="h-4 w-4 mr-2" />
-                    {isOptimizing ? `Optimizing... ${progress.toFixed(0)}%` : 'Start Cascade Optimization'}
+                    {isOptimizing ? 'Optimizing...' : 'Start Cascade Optimization'}
                   </Button>
                   <Button
                     onClick={() => {

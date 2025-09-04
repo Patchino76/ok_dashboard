@@ -295,15 +295,118 @@ app.include_router(multi_output_router, tags=["Multi-Output Optimization"])
 MULTI_OUTPUT_AVAILABLE = True
 logger.info("Successfully loaded Multi-Output Optimization router with mock implementation")
 
-# ----------------------------- Cascade Optimization Endpoints (DISABLED) -----------------------------
+# ----------------------------- Cascade Optimization Endpoints -----------------------------
 
-# Cascade optimization endpoints are disabled
-# Use multi-output optimization instead: /api/v1/ml/multi-output/*
-
+# Direct cascade endpoints implementation
 CASCADE_SYSTEM_AVAILABLE = False
 
-# All cascade endpoints have been disabled
-# Use multi-output optimization endpoints instead
+# Add mills-xgboost paths directly
+mills_xgboost_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost')
+mills_app_path = os.path.join(mills_xgboost_path, 'app')
+
+if mills_xgboost_path not in sys.path:
+    sys.path.insert(0, mills_xgboost_path)
+if mills_app_path not in sys.path:
+    sys.path.insert(0, mills_app_path)
+
+# Create cascade router directly in api.py
+cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["Cascade Optimization"])
+
+@cascade_router.get("/info")
+async def cascade_info():
+    """Get cascade system information"""
+    return {
+        "system": "Cascade Optimization",
+        "version": "1.0",
+        "available": True,
+        "endpoints": [
+            "/api/v1/cascade/info",
+            "/api/v1/cascade/train",
+            "/api/v1/cascade/predict",
+            "/api/v1/cascade/training/status",
+            "/api/v1/cascade/health"
+        ]
+    }
+
+@cascade_router.get("/health")
+async def cascade_health():
+    """Cascade system health check"""
+    return {"status": "healthy", "system": "cascade_optimization"}
+
+@cascade_router.post("/train")
+async def train_cascade_models(request: dict):
+    """Train cascade models"""
+    try:
+        # Import cascade functionality
+        from optimization_cascade.cascade_model_manager import CascadeModelManager
+        from database.db_connector import DatabaseConnector
+        
+        # Initialize components
+        db_connector = DatabaseConnector()
+        cascade_manager = CascadeModelManager(db_connector)
+        
+        # Start training
+        result = await cascade_manager.train_models_async(request)
+        return result
+        
+    except ImportError as e:
+        logger.error(f"Cascade training import error: {e}")
+        raise HTTPException(status_code=500, detail=f"Cascade system not available: {str(e)}")
+    except Exception as e:
+        logger.error(f"Cascade training error: {e}")
+        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
+
+@cascade_router.post("/predict")
+async def predict_cascade(request: dict):
+    """Make cascade prediction"""
+    try:
+        # Import cascade functionality
+        from optimization_cascade.cascade_model_manager import CascadeModelManager
+        from database.db_connector import DatabaseConnector
+        
+        # Initialize components
+        db_connector = DatabaseConnector()
+        cascade_manager = CascadeModelManager(db_connector)
+        
+        # Make prediction
+        result = cascade_manager.predict_cascade(request)
+        return result
+        
+    except ImportError as e:
+        logger.error(f"Cascade prediction import error: {e}")
+        raise HTTPException(status_code=500, detail=f"Cascade system not available: {str(e)}")
+    except Exception as e:
+        logger.error(f"Cascade prediction error: {e}")
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+
+@cascade_router.get("/training/status")
+async def get_cascade_training_status():
+    """Get cascade training status"""
+    try:
+        from optimization_cascade.cascade_model_manager import CascadeModelManager
+        from database.db_connector import DatabaseConnector
+        
+        db_connector = DatabaseConnector()
+        cascade_manager = CascadeModelManager(db_connector)
+        
+        status = cascade_manager.get_training_status()
+        return status
+        
+    except ImportError as e:
+        logger.error(f"Cascade status import error: {e}")
+        return {"status": "error", "message": f"Cascade system not available: {str(e)}"}
+    except Exception as e:
+        logger.error(f"Cascade status error: {e}")
+        return {"status": "error", "message": f"Status check failed: {str(e)}"}
+
+# Include cascade router
+app.include_router(cascade_router)
+CASCADE_SYSTEM_AVAILABLE = True
+logger.info(f"Successfully loaded Cascade router with {len(cascade_router.routes)} routes")
+
+# Log all cascade routes
+for route in cascade_router.routes:
+    logger.info(f"Registered Cascade route: {route.path} [{','.join(route.methods)}]")
 
 
 # ----------------------------- Models -----------------------------
@@ -357,7 +460,7 @@ async def health_check():
         },
         "cascade_system": {
             "available": CASCADE_SYSTEM_AVAILABLE,
-            "endpoints_count": 0
+            "endpoints_count": len(cascade_router.routes) if CASCADE_SYSTEM_AVAILABLE else 0
         }
     }
 
@@ -632,21 +735,17 @@ if __name__ == "__main__":
     print("Starting API server with reload completely disabled...")
     
     try:
-        # Test that the DB manager can be created with fallback
-        print("Testing database connection with fallback...")
-        test_db = create_db_manager()
-        print(f"Database manager created successfully: {type(test_db).__name__}")
+        # Define reload directories and exclusions
+        reload_dirs = [
+            os.path.dirname(__file__),
+            os.path.join(os.path.dirname(__file__), "mills-xgboost")
+        ]
         
-        # Start the server with selective reload
-        # Only watch main code directories, exclude temp files and folders
-        reload_dirs = [".", "./mills-xgboost/app"]
-        
-        # Configure specific folders to exclude from reload monitoring
         reload_excludes = [
-            "*/__pycache__",
+            "*/__pycache__/*",
             "*/logs/*",
-            "*/.git/*",
             "*/models/*",
+            "*/.git/*",
             "*/.vscode/*",
             "*/.idea/*",
             "*/.pytest_cache/*",
@@ -656,14 +755,16 @@ if __name__ == "__main__":
             "*/*.pyd"
         ]
         
+        # Ensure app is properly initialized before starting uvicorn
+        print(f"Starting API server with {len(app.routes)} routes loaded")
+        print(f"Cascade system available: {CASCADE_SYSTEM_AVAILABLE}")
+        
         # Enable reload but with controlled exclusions
         uvicorn.run(
-            "api:app", 
+            app,  # Pass app object directly instead of string reference
             host=HOST, 
             port=PORT, 
-            reload=True, 
-            reload_dirs=reload_dirs,
-            reload_excludes=reload_excludes,
+            reload=False,  # Disable reload to avoid module loading issues
             workers=1
         )
     except Exception as e:

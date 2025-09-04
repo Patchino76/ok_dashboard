@@ -15,6 +15,7 @@ interface ModelSelectionProps {
   lastTrained: string | null
   onModelChange: (modelName: string) => void
   onMillChange: (millNumber: number) => void
+  modelType?: 'main' | 'cascade'  // New prop to distinguish model types
 }
 
 export function ModelSelection({
@@ -25,7 +26,8 @@ export function ModelSelection({
   modelTarget,
   lastTrained,
   onModelChange,
-  onMillChange
+  onMillChange,
+  modelType = 'main'
 }: ModelSelectionProps) {
   // Use the useGetModels hook to fetch models
   const { models, isLoading: isLoadingModels, error: modelsError } = useGetModels();
@@ -33,9 +35,19 @@ export function ModelSelection({
   // Get the selected model from the models object
   const selectedModel = modelName && models ? models[modelName] : null;
   
-  // Filter models for the current mill
+  // Filter models based on type and mill
   const filteredModels = models ? 
-    Object.keys(models).filter(model => model.endsWith(`_mill${currentMill}`)) : 
+    Object.keys(models).filter(model => {
+      const isForCurrentMill = model.endsWith(`_mill${currentMill}`);
+      // For cascade models, we might need different filtering logic
+      // For now, use the same filtering but this can be extended
+      if (modelType === 'cascade') {
+        // Cascade models might have different naming convention
+        // This can be customized based on actual cascade model names
+        return isForCurrentMill;
+      }
+      return isForCurrentMill;
+    }) : 
     [];
   
   // Update available models when models are loaded
@@ -112,6 +124,9 @@ export function ModelSelection({
         </div>
         
         <div className="flex flex-wrap gap-x-8 gap-y-2">
+          <div className="text-sm">
+            <span className="text-gray-500">Type:</span> <span className="font-medium text-purple-600">{modelType === 'cascade' ? 'Cascade Model' : 'Main Model'}</span>
+          </div>
           <div className="text-sm">
             <span className="text-gray-500">Target:</span> <span className="font-medium text-blue-600">{modelTarget || 'PSI80'}</span>
           </div>
