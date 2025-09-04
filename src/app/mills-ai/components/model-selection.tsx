@@ -69,8 +69,8 @@ export function ModelSelection({
               Mill Selection
             </label>
             <Select
-              value={currentMill?.toString() || '8'}
-              onValueChange={(value) => onMillChange(parseInt(value || '8'))}
+              value={currentMill?.toString() || '7'}
+              onValueChange={(value) => onMillChange(parseInt(value || '7'))}
             >
               <SelectTrigger id="mill-select" className="w-full">
                 <SelectValue placeholder="Select Mill" />

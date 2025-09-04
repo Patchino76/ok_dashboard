@@ -286,51 +286,68 @@ export default function CascadeOptimizationDashboard() {
       // Prepare cascade-specific config with MV and DV values
       const cascadeConfig = {
         mv_values: {} as Record<string, number>,
-        dv_values: {} as Record<string, number>
+        dv_values: {} as Record<string, number>,
+        target_setpoint: targetSetpoint,
+        maximize: maximize
       };
       
       // Classify parameters into MV and DV
       const parameterIds = parameters.map(p => p.id);
       const { mv_parameters, dv_parameters } = classifyParameters(parameterIds);
       
-      // Map MV parameters (controllable)
+      // Map MV parameters (controllable) with optimization bounds
       mv_parameters.forEach(paramId => {
-        const bounds = parameterBounds[paramId] || [0, 100];
-        const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || ((bounds[0] + bounds[1]) / 2);
+        const optBounds = optimizationBounds[paramId] || parameterBounds[paramId] || [0, 100];
+        const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || ((optBounds[0] + optBounds[1]) / 2);
         cascadeConfig.mv_values[paramId] = currentValue;
       });
       
-      // Map DV parameters (disturbances)
+      // Map DV parameters (disturbances) with current values
       dv_parameters.forEach(paramId => {
-        const bounds = parameterBounds[paramId] || [0, 100];
-        const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || ((bounds[0] + bounds[1]) / 2);
+        const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || 0;
         cascadeConfig.dv_values[paramId] = currentValue;
       });
       
-      console.log('MV Parameters:', mv_parameters, 'DV Parameters:', dv_parameters);
-      
-      console.log('Starting cascade optimization with config:', cascadeConfig);
+      console.log('Cascade optimization config:', cascadeConfig);
       
       // Start cascade optimization using the new hook
       const result = await startCascadeOptimization(cascadeConfig);
       
       if (result && result.status === 'completed') {
-        // Set the target setpoint to the predicted target value
-        if (typeof result.predicted_target === 'number') {
-          setTargetSetpoint(result.predicted_target);
+        // Update proposed setpoints with optimized MV values
+        const newProposedSetpoints: Record<string, number> = {};
+        
+        // Set proposed setpoints for MV parameters based on optimization result
+        if (result.predicted_cvs) {
+          Object.entries(result.predicted_cvs).forEach(([paramId, value]) => {
+            if (mv_parameters.includes(paramId)) {
+              newProposedSetpoints[paramId] = value;
+            }
+          });
+        }
+        
+        // Apply proposed setpoints to the optimization store
+        if (Object.keys(newProposedSetpoints).length > 0) {
+          useOptimizationStore.getState().setProposedSetpoints(newProposedSetpoints);
+        }
+        
+        // Auto-apply if enabled
+        if (autoApplyProposals) {
+          applyOptimizedParameters();
         }
         
         toast.success(
-          `Cascade optimization completed! Predicted target: ${result.predicted_target.toFixed(3)} ${result.is_feasible ? '(Feasible)' : '(Not Feasible)'}`,
+          `Cascade optimization completed! Target: ${result.predicted_target?.toFixed(3) || 'N/A'} ${result.is_feasible ? '✓' : '⚠️'}`,
           { id: loadingToast }
         );
       } else {
-        toast.error('Cascade optimization failed. Please try again.', { id: loadingToast });
+        toast.error('Cascade optimization failed. Please check the logs.', { id: loadingToast });
       }
       
     } catch (error) {
       console.error('Cascade optimization failed:', error);
-      toast.error('Cascade optimization failed. Please try again.', { id: loadingToast });
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Cascade optimization failed: ${errorMsg}`, { id: loadingToast });
     } finally {
       toast.dismiss(loadingToast);
     }
@@ -441,11 +458,20 @@ export default function CascadeOptimizationDashboard() {
                 <div className="flex gap-2">
                   <Button
                     onClick={handleStartOptimization}
-                    disabled={isOptimizing || !modelFeatures || modelFeatures.length === 0}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50"
+                    disabled={isOptimizing || !modelName || !parameters || parameters.length === 0}
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                   >
-                    <Play className="h-4 w-4 mr-2" />
-                    {isOptimizing ? 'Optimizing...' : 'Start Cascade Optimization'}
+                    {isOptimizing ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
+                        Optimizing...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Start Cascade Optimization
+                      </>
+                    )}
                   </Button>
                   <Button
                     onClick={() => {
@@ -516,10 +542,34 @@ export default function CascadeOptimizationDashboard() {
           .map((parameter) => {
             const bounds = parameterBounds[parameter.id] || [0, 100];
             const rangeValue = optimizationBounds[parameter.id] || [bounds[0], bounds[1]];
+            
+            // Classify parameter type for cascade
+            const parameterIds = [parameter.id];
+            const { mv_parameters, dv_parameters } = classifyParameters(parameterIds);
+            
+            let varType: "MV" | "CV" | "DV" = "CV"; // Default
+            if (mv_parameters.includes(parameter.id)) {
+              varType = "MV";
+            } else if (dv_parameters.includes(parameter.id)) {
+              varType = "DV";
+            }
+            
+            // Create cascade parameter with proper typing
+            const cascadeParameter: CascadeParameter = {
+              id: parameter.id,
+              name: parameter.name,
+              unit: parameter.unit,
+              value: parameter.value,
+              trend: parameter.trend,
+              color: parameter.color,
+              icon: parameter.icon,
+              varType: varType
+            };
+            
             return (
               <ParameterCascadeOptimizationCard
                 key={`${modelName}-${parameter.id}`}
-                parameter={parameter as unknown as CascadeParameter}
+                parameter={cascadeParameter}
                 bounds={bounds as [number, number]}
                 rangeValue={rangeValue as [number, number]}
                 isSimulationMode={true}
