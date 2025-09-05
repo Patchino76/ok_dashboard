@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Activity, Zap, Play, CheckCircle, AlertCircle, Wrench, Cpu } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Activity, Zap, Play, CheckCircle, AlertCircle, Wrench, Cpu, GraduationCap } from "lucide-react"
 import { ParameterCascadeOptimizationCard, CascadeParameter } from "."
 import { TargetFractionDisplay } from "../../components/target-fraction-display"
 import { ModelSelection } from "../../components/model-selection"
@@ -12,6 +13,7 @@ import { useXgboostStore } from "../../stores/xgboost-store"
 import { useOptimizationStore } from "../../stores/optimization-store"
 import { useCascadeOptimization } from "../../hooks/useCascadeOptimization"
 import { useOptimizationResults } from "../../hooks/useOptimizationResults"
+import { useCascadeTraining } from "../../hooks/useCascadeTraining"
 import { toast } from "sonner"
 import { useGetModels } from "../../hooks/use-get-models"
 import { millsParameters, getTargets } from "../../data/mills-parameters"
@@ -87,6 +89,19 @@ export default function CascadeOptimizationDashboard() {
     applyOptimizedParameters,
     improvementScore 
   } = useOptimizationResults()
+  
+  // Training functionality
+  const { trainCascadeModel, isTraining, progress: trainingProgress, error: trainingError } = useCascadeTraining()
+  const [startDate, setStartDate] = useState<string>('')
+  const [endDate, setEndDate] = useState<string>('')
+  
+  // Initialize dates to last 30 days
+  useEffect(() => {
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    setEndDate(now.toISOString().split('T')[0])
+    setStartDate(thirtyDaysAgo.toISOString().split('T')[0])
+  }, [])
   
   
   // Get target parameter bounds based on current model's target
@@ -353,6 +368,34 @@ export default function CascadeOptimizationDashboard() {
     }
   };
   
+  const handleTrainModel = async () => {
+    if (isTraining || !currentMill || !startDate || !endDate) return;
+    
+    const loadingToast = toast.loading('Training cascade model...');
+    
+    try {
+      const result = await trainCascadeModel({
+        mill_number: currentMill,
+        start_date: startDate,
+        end_date: endDate,
+        test_size: 0.2,
+        resample_freq: "1min"
+      });
+      
+      toast.success(
+        `Cascade training started! Mill ${result.mill_number}, Data: ${result.data_shape?.[0] || 'N/A'} rows, Date range: ${result.date_range}`,
+        { id: loadingToast }
+      );
+      
+    } catch (error) {
+      console.error('Cascade training failed:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Cascade training failed: ${errorMsg}`, { id: loadingToast });
+    } finally {
+      toast.dismiss(loadingToast);
+    }
+  };
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-100 dark:from-purple-900/20 dark:via-indigo-800/20 dark:to-blue-700/20 p-6">
@@ -452,6 +495,61 @@ export default function CascadeOptimizationDashboard() {
                       />
                       <span className={`text-xs ${autoApplyProposals ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Auto</span>
                     </div>
+                  </div>
+                </Card>
+                
+                {/* Training Section */}
+                <Card className="p-3 mb-3">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="h-4 w-4 text-green-600" />
+                      <span className="text-sm font-medium">Model Training</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-slate-500">Start Date</label>
+                        <Input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          disabled={isTraining}
+                          className="text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500">End Date</label>
+                        <Input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          disabled={isTraining}
+                          className="text-xs"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      onClick={handleTrainModel}
+                      disabled={isTraining || !currentMill || !startDate || !endDate}
+                      className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                      size="sm"
+                    >
+                      {isTraining ? (
+                        <>
+                          <div className="animate-spin h-3 w-3 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
+                          Training... {trainingProgress.toFixed(0)}%
+                        </>
+                      ) : (
+                        <>
+                          <GraduationCap className="h-3 w-3 mr-2" />
+                          Train Model (Mill {currentMill}, PSI200)
+                        </>
+                      )}
+                    </Button>
+                    {trainingError && (
+                      <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
+                        {trainingError}
+                      </div>
+                    )}
                   </div>
                 </Card>
                 

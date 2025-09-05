@@ -31,7 +31,7 @@ try:
     from optimization_cascade.cascade_endpoints import cascade_router as original_cascade_router
     
     # Copy all routes from the original cascade router
-    for route in original_cascade_router.routes:
+    for route in cascade_router.routes:
         router.routes.append(route)
     
     logger.info(f"Successfully imported cascade endpoints with {len(router.routes)} routes")
@@ -40,19 +40,20 @@ try:
     for route in router.routes:
         logger.info(f"Added cascade route: {route.path} [{','.join(route.methods)}]")
         
-    CASCADE_AVAILABLE = True
-    
 except ImportError as e:
-    logger.error(f"Failed to import cascade endpoints: {e}")
+    logger.warning(f"Could not import cascade_endpoints: {e}")
     CASCADE_AVAILABLE = False
     
-    # Add a fallback info endpoint
-    @router.get("/info")
+    # Create a dummy router for when cascade is not available
+    from fastapi import APIRouter
+    cascade_router = APIRouter()
+    
+    @cascade_router.get("/info")
     async def cascade_not_available():
         return {
-            "available": False,
-            "error": "Cascade optimization system not available",
-            "reason": str(e)
+            "status": "error",
+            "message": "Cascade optimization system not available",
+            "error": str(e)
         }
 
 # Add status endpoint

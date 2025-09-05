@@ -26,12 +26,27 @@ class MillsDataConnector:
         """
         self.connection_string = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
         self.engine = None
+        self.connection_params = {
+            'host': host,
+            'port': port,
+            'dbname': dbname,
+            'user': user,
+            'password': '***'  # Masked for security
+        }
+        
+        logger.info(f"Initializing database connection to {user}@{host}:{port}/{dbname}")
+        
         try:
             self.engine = create_engine(self.connection_string)
-            logger.info("Database connection initialized successfully")
+            # Test the connection
+            with self.engine.connect() as conn:
+                conn.execute("SELECT 1")
+            logger.info("✅ Database connection test successful")
         except Exception as e:
-            logger.error(f"Failed to initialize database connection: {e}")
-            raise
+            error_msg = f"❌ Failed to initialize database connection: {str(e)}"
+            logger.error(error_msg)
+            logger.error(f"Connection parameters used: {self.connection_params}")
+            raise RuntimeError(error_msg) from e
 
     def get_mill_data(self, mill_number, start_date=None, end_date=None):
         """
