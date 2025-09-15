@@ -1,21 +1,18 @@
 """
-Cascade Model Manager for Multi-Model Optimization
+Simplified Cascade Model Manager
 
-Implements the multi-model cascade approach:
-1. Process Models: MV → CV (predict how controls affect measurements)
-2. Quality Model: CV + DV → Target (predict how measurements + disturbances affect quality)
+Uses the same database approach as regular optimization endpoints.
 """
 
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Optional
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 import joblib
 import os
-from datetime import datetime
 
 from .variable_classifier import VariableClassifier, VariableType
 
@@ -36,24 +33,11 @@ class CascadeModelManager:
         # Create model save directory
         os.makedirs(model_save_path, exist_ok=True)
         
-        # Model configurations
-        self.process_model_config = {
+        # Simplified model configuration
+        self.model_config = {
             'n_estimators': 200,
             'max_depth': 6,
             'learning_rate': 0.1,
-            'subsample': 0.8,
-            'colsample_bytree': 0.8,
-            'random_state': 42
-        }
-        
-        self.quality_model_config = {
-            'n_estimators': 500,  # More complex for quality prediction
-            'max_depth': 8,
-            'learning_rate': 0.05,
-            'subsample': 0.8,
-            'colsample_bytree': 0.8,
-            'reg_alpha': 0.1,
-            'reg_lambda': 0.1,
             'random_state': 42
         }
     
@@ -137,7 +121,7 @@ class CascadeModelManager:
             X_test_scaled = scaler.transform(X_test)
             
             # Train model
-            model = xgb.XGBRegressor(**self.process_model_config)
+            model = xgb.XGBRegressor(**self.model_config)
             model.fit(X_train_scaled, y_train)
             
             # Evaluate
@@ -206,7 +190,7 @@ class CascadeModelManager:
         X_test_scaled = scaler.transform(X_test)
         
         # Train model
-        model = xgb.XGBRegressor(**self.quality_model_config)
+        model = xgb.XGBRegressor(**self.model_config)
         model.fit(X_train_scaled, y_train)
         
         # Evaluate

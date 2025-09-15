@@ -43,6 +43,16 @@ try:
         router.routes.append(route)
         logger.info(f"Added route: {route.path} [{','.join(route.methods)}]")
     
+    # Import and add cascade optimization endpoints
+    try:
+        from app.optimization_cascade.cascade_endpoints import cascade_router
+        # Add cascade routes to the main router
+        for route in cascade_router.routes:
+            router.routes.append(route)
+            logger.info(f"Added cascade route: {route.path} [{','.join(route.methods)}]")
+    except Exception as cascade_error:
+        logger.warning(f"Failed to load cascade optimization endpoints: {cascade_error}")
+    
     ML_AVAILABLE = True
 except Exception as e:
     logger.error(f"Failed to import mills-xgboost endpoints: {str(e)}")
