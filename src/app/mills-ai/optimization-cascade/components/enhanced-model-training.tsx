@@ -29,6 +29,7 @@ interface EnhancedModelTrainingProps {
   isTraining: boolean
   trainingProgress: number
   trainingError: string | null
+  trainingSuccess?: boolean
 }
 
 export interface CascadeTrainingConfig {
@@ -50,7 +51,8 @@ export function EnhancedModelTraining({
   onTrainModel,
   isTraining,
   trainingProgress,
-  trainingError
+  trainingError,
+  trainingSuccess = false
 }: EnhancedModelTrainingProps) {
   // Training configuration state
   const [startDate, setStartDate] = useState<string>('')
@@ -460,57 +462,6 @@ export function EnhancedModelTraining({
           </div>
         </div>
 
-        <Separator />
-
-        {/* Advanced Settings */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label>Test Size</Label>
-            <Select
-              value={testSize.toString()}
-              onValueChange={(value) => setTestSize(parseFloat(value))}
-              disabled={isTraining}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0.1">10%</SelectItem>
-                <SelectItem value="0.2">20%</SelectItem>
-                <SelectItem value="0.3">30%</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Resample Frequency</Label>
-            <Select
-              value={resampleFreq}
-              onValueChange={setResampleFreq}
-              disabled={isTraining}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30s">30 seconds</SelectItem>
-                <SelectItem value="1min">1 minute</SelectItem>
-                <SelectItem value="5min">5 minutes</SelectItem>
-                <SelectItem value="10min">10 minutes</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>Model Name Suffix (Optional)</Label>
-            <Input
-              value={modelNameSuffix}
-              onChange={(e) => setModelNameSuffix(e.target.value)}
-              placeholder="e.g., v2, test"
-              disabled={isTraining}
-            />
-          </div>
-        </div>
 
         {/* Training Button and Status */}
         <div className="space-y-3">
@@ -523,15 +474,22 @@ export function EnhancedModelTraining({
             {isTraining ? (
               <>
                 <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
-                Training Cascade Model... {trainingProgress.toFixed(0)}%
+                Training Model... {trainingProgress.toFixed(0)}%
               </>
             ) : (
               <>
                 <GraduationCap className="h-4 w-4 mr-2" />
-                Train Cascade Model (Mill {currentMill}, {targetVariable})
+                Train Model
               </>
             )}
           </Button>
+          
+          {trainingSuccess && !isTraining && (
+            <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-3 rounded-lg">
+              <CheckCircle2 className="h-4 w-4" />
+              Model trained successfully! Ready for predictions and optimization.
+            </div>
+          )}
           
           {trainingError && (
             <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
