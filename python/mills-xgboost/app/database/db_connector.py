@@ -1,5 +1,5 @@
 import pandas as pd
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 import logging
 import os
 from datetime import datetime
@@ -40,7 +40,8 @@ class MillsDataConnector:
             self.engine = create_engine(self.connection_string)
             # Test the connection
             with self.engine.connect() as conn:
-                conn.execute("SELECT 1")
+                conn.execute(text("SELECT 1"))
+                conn.commit()
             logger.info("✅ Database connection test successful")
         except Exception as e:
             error_msg = f"❌ Failed to initialize database connection: {str(e)}"
