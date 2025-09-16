@@ -14,8 +14,18 @@ from .variable_classifier import VariableClassifier
 from .cascade_models import CascadeModelManager
 
 # Import database and settings
-from ..database.db_connector import MillsDataConnector
-from ...config.settings import settings
+try:
+    from ..database.db_connector import MillsDataConnector
+    from ...config.settings import settings
+except ImportError:
+    # Fallback for direct testing
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'database'))
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
+    from db_connector import MillsDataConnector
+    from settings import Settings
+    settings = Settings()
 
 # Create router
 cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["cascade_optimization"])

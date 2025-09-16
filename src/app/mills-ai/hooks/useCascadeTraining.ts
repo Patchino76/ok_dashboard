@@ -106,7 +106,7 @@ export function useCascadeTraining(): UseCascadeTrainingReturn {
 
   const getTrainingStatus = useCallback(async (): Promise<CascadeTrainingStatus> => {
     try {
-      const response = await cascadeApiClient.get<CascadeTrainingStatus>('/status')
+      const response = await cascadeApiClient.get<CascadeTrainingStatus>('/training/status')
       return response.data
     } catch (error) {
       console.error('Error getting training status:', error)

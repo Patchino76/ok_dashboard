@@ -7,7 +7,7 @@ Uses the same database approach as regular optimization endpoints.
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler

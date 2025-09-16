@@ -297,308 +297,38 @@ logger.info("Successfully loaded Multi-Output Optimization router with mock impl
 
 # ----------------------------- Cascade Optimization Endpoints -----------------------------
 
-# Direct cascade endpoints implementation
+# Import cascade endpoints from the new structure
 CASCADE_SYSTEM_AVAILABLE = False
 
-# Add mills-xgboost paths directly
-mills_xgboost_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost')
-mills_app_path = os.path.join(mills_xgboost_path, 'app')
-
-if mills_xgboost_path not in sys.path:
-    sys.path.insert(0, mills_xgboost_path)
-if mills_app_path not in sys.path:
-    sys.path.insert(0, mills_app_path)
-
-# Create cascade router directly in api.py
-cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["Cascade Optimization"])
-
-@cascade_router.get("/info")
-async def cascade_info():
-    """Get cascade system information"""
-    return {
-        "system": "Cascade Optimization",
-        "version": "1.0",
-        "available": True,
-        "endpoints": [
-            "/api/v1/cascade/info",
-            "/api/v1/cascade/train",
-            "/api/v1/cascade/predict",
-            "/api/v1/cascade/training/status",
-            "/api/v1/cascade/health"
-        ]
-    }
-
-@cascade_router.get("/health")
-async def cascade_health():
-    """Cascade system health check"""
-    return {"status": "healthy", "system": "cascade_optimization"}
-
-@cascade_router.post("/train")
-async def train_cascade_models(request: dict):
-    """Train cascade models"""
-    try:
-        logger.info("Starting cascade model training...")
-        
-        # Add the mills-xgboost/app directory to path
-        import sys
-        import os
-        mills_app_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'app')
-        if mills_app_path not in sys.path:
-            sys.path.insert(0, mills_app_path)
-        
-        logger.info(f"Python path: {sys.path}")
-        
-        # Try to import the cascade model manager
-        try:
-            from optimization_cascade.cascade_model_manager import CascadeModelManager
-            logger.info("Successfully imported CascadeModelManager")
-        except ImportError as e:
-            # Try alternative import path
-            try:
-                from mills_xgboost.app.optimization_cascade.cascade_model_manager import CascadeModelManager
-                logger.info("Successfully imported CascadeModelManager from alternative path")
-            except ImportError as e2:
-                logger.error(f"Failed to import CascadeModelManager: {e}")
-                logger.error(f"Alternative import also failed: {e2}")
-                raise ImportError(f"Failed to import CascadeModelManager: {e}")
-        
-        # Initialize model manager with explicit path
-        models_dir = os.path.join(mills_app_path, 'optimization_cascade', 'cascade_models')
-        model_manager = CascadeModelManager(models_dir=models_dir)
-        logger.info(f"Initialized CascadeModelManager with models directory: {models_dir}")
-        
-        # Get parameters from request with defaults
-        mill_number = request.get('mill_number', 8)
-        start_date = request.get('start_date', '2025-06-21')
-        end_date = request.get('end_date', '2025-08-21')
-        test_size = request.get('test_size', 0.2)
-        resample_freq = request.get('resample_freq', '5min')
-        
-        logger.info(f"Training parameters - mill: {mill_number}, start: {start_date}, end: {end_date}")
-        
-        # Start training in background
-        model_id = f"mill_{mill_number}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        
-        # Import database connector
-        from database.db_connector import MillsDataConnector
-        
-        try:
-            # Default database configuration - update these values to match your environment
-            db_config = {
-                'host': 'localhost',
-                'port': 5432,
-                'dbname': 'mills_db',
-                'user': 'postgres',
-                'password': 'postgres'  # In production, use environment variables for security
-            }
-            
-            logger.info(f"Connecting to database: {db_config['user']}@{db_config['host']}:{db_config['port']}/{db_config['dbname']}")
-            
-            # Initialize database connector
-            db_connector = MillsDataConnector(**db_config)
-            
-            logger.info(f"Fetching mill data for mill {mill_number} from {start_date} to {end_date}")
-            
-            # Get mill data
-            mill_data = db_connector.get_mill_data(
-                mill_number=mill_number,
-                start_date=start_date,
-                end_date=end_date
-            )
-            
-            if mill_data is None or mill_data.empty:
-                raise ValueError(f"No data found for mill {mill_number} in the specified date range")
-                
-            logger.info(f"Retrieved {len(mill_data)} records for training")
-            
-            # Prepare features (X) and target (y)
-            # This is a simplified example - adjust based on your actual data structure
-            feature_columns = ['Ore', 'WaterMill', 'WaterZumpf']  # Example features
-            target_column = 'Target'  # Example target column
-            
-            if not all(col in mill_data.columns for col in feature_columns):
-                raise ValueError(f"Required columns not found in the data. Available columns: {mill_data.columns.tolist()}")
-                
-            X_train = mill_data[feature_columns]
-            y_train = mill_data[target_column] if target_column in mill_data.columns else None
-            
-            if y_train is None:
-                logger.warning(f"Target column '{target_column}' not found. Using first feature as target for demonstration.")
-                y_train = X_train.iloc[:, 0]
-                
-        except Exception as e:
-            logger.error(f"Error loading training data: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to load training data: {str(e)}"
-            )
-            
-        # Train the model
-        model_manager.train_model(
-            model_id=model_id,
-            X_train=X_train,
-            y_train=y_train,
-            metadata={
-                'mill_number': mill_number,
-                'start_date': start_date,
-                'end_date': end_date,
-                'test_size': test_size,
-                'resample_freq': resample_freq,
-                'trained_at': datetime.now().isoformat()
-            }
-        )
-        
-        return {
-            "status": "training_started", 
-            "message": "Cascade model training started",
-            "mill_number": mill_number,
-            "start_date": start_date,
-            "end_date": end_date
-        }
-        
-    except Exception as e:
-        logger.error(f"Cascade training error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Training failed: {str(e)}")
-
-@cascade_router.post("/predict")
-async def predict_cascade(request: dict):
-    """Make cascade prediction"""
-    try:
-        logger.info("Starting cascade prediction...")
-        
-        # Add the mills-xgboost/app directory to path
-        import sys
-        import os
-        mills_app_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'app')
-        if mills_app_path not in sys.path:
-            sys.path.insert(0, mills_app_path)
-        
-        logger.info(f"Python path: {sys.path}")
-        
-        # Try to import the cascade model manager
-        try:
-            from optimization_cascade.cascade_model_manager import CascadeModelManager
-            logger.info("Successfully imported CascadeModelManager for prediction")
-        except ImportError as e:
-            # Try alternative import path
-            try:
-                from mills_xgboost.app.optimization_cascade.cascade_model_manager import CascadeModelManager
-                logger.info("Successfully imported CascadeModelManager from alternative path")
-            except ImportError as e2:
-                logger.error(f"Failed to import CascadeModelManager: {e}")
-                logger.error(f"Alternative import also failed: {e2}")
-                raise ImportError(f"Failed to import CascadeModelManager: {e}")
-        
-        # Import database connector
-        try:
-            from database.db_connector import DatabaseConnector
-            logger.info("Successfully imported DatabaseConnector")
-        except ImportError as e:
-            logger.error(f"Failed to import DatabaseConnector: {e}")
-            raise ImportError(f"Failed to import DatabaseConnector: {e}")
-        
-        # Initialize model manager with explicit path
-        models_dir = os.path.join(mills_app_path, 'optimization_cascade', 'cascade_models')
-        model_manager = CascadeModelManager(models_dir=models_dir)
-        logger.info(f"Initialized CascadeModelManager with models directory: {models_dir}")
-        
-        # Get parameters from request with defaults
-        mill_number = request.get('mill_number', 8)
-        input_data = request.get('input_data', {})
-        
-        logger.info(f"Prediction parameters - mill: {mill_number}, input_data: {input_data}")
-        
-        # Get prediction
-        prediction = model_manager.predict(
-            mill_number=mill_number,
-            input_data=input_data
-        )
-        
-        logger.info("Successfully generated cascade prediction")
-        
-        return {
-            "status": "success", 
-            "mill_number": mill_number,
-            "prediction": prediction
-        }
-        
-    except Exception as e:
-        logger.error(f"Cascade prediction error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
-
-@cascade_router.get("/training/status")
-async def get_cascade_training_status():
-    """Get cascade training status"""
-    try:
-        logger.info("Getting cascade training status...")
-        
-        # Add the mills-xgboost/app directory to path
-        import sys
-        import os
-        mills_app_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost', 'app')
-        if mills_app_path not in sys.path:
-            sys.path.insert(0, mills_app_path)
-        
-        # Try to import the cascade model manager
-        try:
-            from optimization_cascade.cascade_model_manager import CascadeModelManager
-            logger.info("Successfully imported CascadeModelManager for status check")
-        except ImportError as e:
-            # Try alternative import path
-            try:
-                from mills_xgboost.app.optimization_cascade.cascade_model_manager import CascadeModelManager
-                logger.info("Successfully imported CascadeModelManager from alternative path for status check")
-            except ImportError as e2:
-                logger.error(f"Failed to import CascadeModelManager: {e}")
-                logger.error(f"Alternative import also failed: {e2}")
-                raise ImportError(f"Failed to import CascadeModelManager: {e}")
-        
-        # Import database connector
-        try:
-            from database.db_connector import DatabaseConnector
-            logger.info("Successfully imported DatabaseConnector for status check")
-        except ImportError as e:
-            logger.error(f"Failed to import DatabaseConnector: {e}")
-            raise ImportError(f"Failed to import DatabaseConnector: {e}")
-        
-        # Initialize model manager with explicit path
-        models_dir = os.path.join(mills_app_path, 'optimization_cascade', 'cascade_models')
-        model_manager = CascadeModelManager(models_dir=models_dir)
-        logger.info(f"Initialized CascadeModelManager with models directory: {models_dir}")
-        
-        # Get training status
-        status = model_manager.get_training_status()
-        logger.info(f"Training status: {status}")
-        
-        return {
-            "status": "success", 
-            "system": "cascade_optimization",
-            "training_status": status,
-            "models_directory": models_dir
-        }
-        
-    except Exception as e:
-        logger.error(f"Error getting training status: {e}", exc_info=True)
-        return {
-            "status": "error", 
-            "system": "cascade_optimization",
-            "message": f"Status check failed: {str(e)}",
-            "python_path": sys.path
-        }
-
-@cascade_router.get("/health")
-async def cascade_health():
-    """Cascade system health check"""
-    return {"status": "healthy", "system": "cascade_optimization"}
-
-# Include cascade router
-app.include_router(cascade_router)
-CASCADE_SYSTEM_AVAILABLE = True
-logger.info(f"Successfully loaded Cascade router with {len(cascade_router.routes)} routes")
-
-# Log all cascade routes
-for route in cascade_router.routes:
-    logger.info(f"Registered Cascade route: {route.path} [{','.join(route.methods)}]")
+try:
+    # Add mills-xgboost paths
+    mills_xgboost_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost')
+    mills_app_path = os.path.join(mills_xgboost_path, 'app')
+    
+    # Add to Python path if not already present
+    if mills_app_path not in sys.path:
+        sys.path.insert(0, mills_app_path)
+    
+    # Import the cascade router from the new endpoints file
+    from optimization_cascade.cascade_endpoints import cascade_router
+    
+    # Include cascade router
+    app.include_router(cascade_router)
+    CASCADE_SYSTEM_AVAILABLE = True
+    logger.info("Successfully loaded Cascade Optimization endpoints from cascade_endpoints.py")
+    
+except Exception as e:
+    logger.error(f"Failed to load Cascade Optimization endpoints: {e}")
+    # Create a fallback router for health check
+    cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["Cascade Optimization"])
+    
+    @cascade_router.get("/health")
+    async def cascade_health_fallback():
+        """Cascade system health check - fallback"""
+        return {"status": "unavailable", "error": "Cascade system failed to load"}
+    
+    app.include_router(cascade_router)
+    logger.info("Loaded fallback Cascade Optimization health endpoint")
 
 
 # ----------------------------- Models -----------------------------
