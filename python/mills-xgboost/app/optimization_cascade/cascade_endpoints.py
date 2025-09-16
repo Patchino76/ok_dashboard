@@ -6,7 +6,7 @@ Database-only cascade optimization system for mill process control.
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import pandas as pd
 import os
 
@@ -35,8 +35,13 @@ class TrainingRequest(BaseModel):
     mill_number: int = Field(8, description="Mill number (6, 7, or 8)")
     start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
     end_date: str = Field(..., description="End date (YYYY-MM-DD)")
+    mv_features: List[str] = Field(["Ore", "WaterMill", "WaterZumpf", "MotorAmp"], description="Manipulated variables")
+    cv_features: List[str] = Field(["PulpHC", "DensityHC", "PressureHC"], description="Controlled variables")
+    dv_features: List[str] = Field(["Shisti", "Daiki", "Grano"], description="Disturbance variables")
+    target_variable: str = Field("PSI200", description="Target variable")
     test_size: float = Field(0.2, description="Test set fraction")
     resample_freq: str = Field("1min", description="Resampling frequency")
+    model_name_suffix: Optional[str] = Field(None, description="Optional model name suffix")
 
 class OptimizationRequest(BaseModel):
     dv_values: Dict[str, float] = Field(..., description="Disturbance variable values")
@@ -79,7 +84,12 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
             mill_number=request.mill_number,
             start_date=request.start_date,
             end_date=request.end_date,
-            resample_freq=request.resample_freq
+            resample_freq=request.resample_freq,
+            mv_features=request.mv_features,
+            cv_features=request.cv_features,
+            dv_features=request.dv_features,
+            target_variable=request.target_variable,
+            model_name_suffix=request.model_name_suffix
         )
         
         if df is None or df.empty:
@@ -95,7 +105,26 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
         def train_background():
             global optimizer
             try:
-                model_manager.train_all_models(df, test_size=request.test_size)
+                # Generate mill-specific model name
+                model_name = f"cascade_mill_{request.mill_number}"
+                if request.model_name_suffix:
+                    model_name += f"_{request.model_name_suffix}"
+                
+                # Configure model manager with selected features
+                model_manager.configure_features(
+                    mv_features=request.mv_features,
+                    cv_features=request.cv_features,
+                    dv_features=request.dv_features,
+                    target_variable=request.target_variable
+                )
+                
+                # Train models with mill-specific naming
+                model_manager.train_all_models(
+                    df, 
+                    test_size=request.test_size,
+                    model_name=model_name
+                )
+                
                 # Initialize optimizer after successful training
                 optimizer = CascadeOptimizer(model_manager)
             except Exception:
@@ -186,7 +215,12 @@ async def _get_database_training_data(
     mill_number: int = 8,
     start_date: str = None,
     end_date: str = None,
-    resample_freq: str = "1min"
+    resample_freq: str = "1min",
+    mv_features: List[str] = ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"],
+    cv_features: List[str] = ["PulpHC", "DensityHC", "PressureHC"],
+    dv_features: List[str] = ["Shisti", "Daiki", "Grano"],
+    target_variable: str = "PSI200",
+    model_name_suffix: Optional[str] = None
 ) -> Optional[pd.DataFrame]:
     """Get training data from database using common db_connector approach"""
     try:

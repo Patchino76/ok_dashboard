@@ -12,6 +12,7 @@ import { ModelSelection } from "../../components/model-selection"
 import { useXgboostStore } from "../../stores/xgboost-store"
 import { useOptimizationStore } from "../../stores/optimization-store"
 import { useCascadeOptimization } from "../../hooks/useCascadeOptimization"
+import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization"
 import { useOptimizationResults } from "../../hooks/useOptimizationResults"
 import { useCascadeTraining } from "../../hooks/useCascadeTraining"
 import { toast } from "sonner"
@@ -19,6 +20,10 @@ import { useGetModels } from "../../hooks/use-get-models"
 import { millsParameters, getTargets } from "../../data/mills-parameters"
 import { Switch } from "@/components/ui/switch"
 import { classifyParameters } from "../../data/cascade-parameter-classification"
+import { AdvancedOptimizationControls } from "./advanced-optimization-controls"
+import { OptimizationJobTracker } from "./optimization-job-tracker"
+import { EnhancedModelTraining } from "./enhanced-model-training"
+import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization"
 
 export default function CascadeOptimizationDashboard() {
   // Get the store instance
@@ -82,6 +87,20 @@ export default function CascadeOptimizationDashboard() {
   } = useOptimizationStore()
   
   const { startCascadeOptimization, isOptimizing, error } = useCascadeOptimization()
+  
+  // Advanced optimization hook
+  const {
+    startOptimization: startAdvancedOptimization,
+    cancelOptimization,
+    getOptimizationStatus,
+    getOptimizationResults,
+    getRecommendations,
+    listOptimizationJobs,
+    currentJob,
+    currentResults: advancedResults,
+    isOptimizing: isAdvancedOptimizing,
+    error: advancedError
+  } = useAdvancedCascadeOptimization()
   const { 
     currentResults, 
     hasResults, 
@@ -89,6 +108,9 @@ export default function CascadeOptimizationDashboard() {
     applyOptimizedParameters,
     improvementScore 
   } = useOptimizationResults()
+  
+  // Job history state for advanced optimization
+  const [jobHistory, setJobHistory] = useState<OptimizationJob[]>([])
   
   // Training functionality
   const { trainCascadeModel, isTraining, progress: trainingProgress, error: trainingError } = useCascadeTraining()
@@ -144,7 +166,7 @@ export default function CascadeOptimizationDashboard() {
     if (hasChanges) {
       setParameterBounds(initial);
     }
-  }, [parameters, parameterBounds]);  // Removed optimizationBounds and setParameterBounds from deps
+  }, [parameters, parameterBounds])  // Removed optimizationBounds and setParameterBounds from deps
   
   // Initialize target setpoint to middle of target parameter range when model changes
   useEffect(() => {
@@ -155,6 +177,7 @@ export default function CascadeOptimizationDashboard() {
   }, [targetParameter, setTargetSetpoint]);
 
   const [isPredicting, setIsPredicting] = useState(false);
+  const [useAdvancedOptimization, setUseAdvancedOptimization] = useState(false);
   const { models } = useGetModels();
   
   const selectedModel = modelName && models ? models[modelName] : null;
@@ -368,22 +391,44 @@ export default function CascadeOptimizationDashboard() {
     }
   };
   
-  const handleTrainModel = async () => {
-    if (isTraining || !currentMill || !startDate || !endDate) return;
+  const handleTrainModel = async (config?: {
+    mill_number: number;
+    start_date: string;
+    end_date: string;
+    mv_features: string[];
+    cv_features: string[];
+    dv_features: string[];
+    target_variable: string;
+    test_size: number;
+    resample_freq: string;
+    model_name_suffix?: string;
+  }) => {
+    // Use enhanced config if provided, otherwise fall back to basic config
+    const trainingConfig = config || {
+      mill_number: currentMill,
+      start_date: startDate,
+      end_date: endDate,
+      mv_features: ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"],
+      cv_features: ["PulpHC", "DensityHC", "PressureHC"],
+      dv_features: ["Shisti", "Daiki", "Grano"],
+      target_variable: "PSI200",
+      test_size: 0.2,
+      resample_freq: "1min"
+    };
+    
+    if (isTraining || !trainingConfig.mill_number || !trainingConfig.start_date || !trainingConfig.end_date) return;
     
     const loadingToast = toast.loading('Training cascade model...');
     
     try {
-      const result = await trainCascadeModel({
-        mill_number: currentMill,
-        start_date: startDate,
-        end_date: endDate,
-        test_size: 0.2,
-        resample_freq: "1min"
-      });
+      const result = await trainCascadeModel(trainingConfig);
+      
+      const modelName = trainingConfig.model_name_suffix 
+        ? `cascade_mill_${trainingConfig.mill_number}_${trainingConfig.model_name_suffix}`
+        : `cascade_mill_${trainingConfig.mill_number}`;
       
       toast.success(
-        `Cascade training started! Mill ${result.mill_number}, Data: ${result.data_shape?.[0] || 'N/A'} rows, Date range: ${result.date_range}`,
+        `Cascade training started! Model: ${modelName}, Mill ${result.mill_number}, Data: ${result.data_shape?.[0] || 'N/A'} rows, Date range: ${result.date_range}`,
         { id: loadingToast }
       );
       
@@ -457,8 +502,26 @@ export default function CascadeOptimizationDashboard() {
               {/* Target SP slider moved into TargetFractionDisplay as a vertical control */}
             </div>
             <div className="space-y-4">
-              
-              {/* Optimization Controls */}
+                            {/* Optimization Mode Toggle */}
+                <Card className="p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col">
+                      <div className="text-sm font-medium">Optimization Mode</div>
+                      <div className="text-xs text-slate-500">Choose between basic cascade or advanced multi-objective optimization</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs ${!useAdvancedOptimization ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Basic</span>
+                      <Switch
+                        checked={useAdvancedOptimization}
+                        onCheckedChange={setUseAdvancedOptimization}
+                        disabled={isOptimizing || isAdvancedOptimizing}
+                      />
+                      <span className={`text-xs ${useAdvancedOptimization ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Advanced</span>
+                    </div>
+                  </div>
+                </Card>
+                
+                {/* Optimization Controls */}
               <div className="space-y-3">
                 {/* Maximize/Minimize Toggle */}
                 <Card className="p-3">
@@ -498,79 +561,35 @@ export default function CascadeOptimizationDashboard() {
                   </div>
                 </Card>
                 
-                {/* Training Section */}
-                <Card className="p-3 mb-3">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center gap-2">
-                      <GraduationCap className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium">Model Training</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-slate-500">Start Date</label>
-                        <Input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
-                          disabled={isTraining}
-                          className="text-xs"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-slate-500">End Date</label>
-                        <Input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          disabled={isTraining}
-                          className="text-xs"
-                        />
-                      </div>
-                    </div>
+                {/* Enhanced Model Training Section */}
+                <EnhancedModelTraining 
+                  currentMill={currentMill}
+                  onMillChange={setCurrentMill}
+                  onTrainModel={handleTrainModel}
+                  isTraining={isTraining}
+                  trainingProgress={trainingProgress}
+                  trainingError={trainingError}
+                />
+                
+                {!useAdvancedOptimization && (
+                  <div className="flex gap-2">
                     <Button
-                      onClick={handleTrainModel}
-                      disabled={isTraining || !currentMill || !startDate || !endDate}
-                      className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                      size="sm"
+                      onClick={handleStartOptimization}
+                      disabled={isOptimizing || !modelName || !parameters || parameters.length === 0}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                     >
-                      {isTraining ? (
+                      {isOptimizing ? (
                         <>
-                          <div className="animate-spin h-3 w-3 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
-                          Training... {trainingProgress.toFixed(0)}%
+                          <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
+                          Optimizing...
                         </>
                       ) : (
                         <>
-                          <GraduationCap className="h-3 w-3 mr-2" />
-                          Train Model (Mill {currentMill}, PSI200)
+                          <Play className="h-4 w-4 mr-2" />
+                          Start Basic Optimization
                         </>
                       )}
                     </Button>
-                    {trainingError && (
-                      <div className="text-xs text-red-600 bg-red-50 p-2 rounded">
-                        {trainingError}
-                      </div>
-                    )}
-                  </div>
-                </Card>
-                
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleStartOptimization}
-                    disabled={isOptimizing || !modelName || !parameters || parameters.length === 0}
-                    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                  >
-                    {isOptimizing ? (
-                      <>
-                        <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
-                        Optimizing...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4 mr-2" />
-                        Start Cascade Optimization
-                      </>
-                    )}
-                  </Button>
                   <Button
                     onClick={() => {
                       // Reset feature sliders to middle of bounds
@@ -593,14 +612,13 @@ export default function CascadeOptimizationDashboard() {
                   >
                     Reset
                   </Button>
-                </div>
-                
-                
+                  </div>
+                )}
                 {/* Error Display */}
-                {error && (
+                {(error || advancedError) && (
                   <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-2 rounded">
                     <AlertCircle className="h-4 w-4" />
-                    {error}
+                    {error || advancedError}
                   </div>
                 )}
                 
@@ -618,6 +636,92 @@ export default function CascadeOptimizationDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Advanced Optimization Controls */}
+      {useAdvancedOptimization && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <AdvancedOptimizationControls
+            onStartOptimization={async (request) => {
+              try {
+                const loadingToast = toast.loading('Starting advanced optimization...');
+                await startAdvancedOptimization(request);
+                toast.success('Advanced optimization started successfully!', { id: loadingToast });
+              } catch (error) {
+                console.error('Advanced optimization failed:', error);
+                const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                toast.error(`Advanced optimization failed: ${errorMsg}`);
+              }
+            }}
+            onCancelOptimization={async () => {
+              try {
+                if (currentJob?.job_id) {
+                  await cancelOptimization(currentJob.job_id);
+                  toast.success('Optimization cancelled successfully');
+                }
+              } catch (error) {
+                console.error('Failed to cancel optimization:', error);
+                toast.error('Failed to cancel optimization');
+              }
+            }}
+            currentJob={currentJob}
+            currentResults={advancedResults}
+            isOptimizing={isAdvancedOptimizing}
+            error={advancedError}
+            dvValues={(() => {
+              const dvValues: Record<string, number> = {};
+              const parameterIds = parameters.map(p => p.id);
+              const { dv_parameters } = classifyParameters(parameterIds);
+              
+              dv_parameters.forEach(paramId => {
+                const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || 0;
+                dvValues[paramId] = currentValue;
+              });
+              
+              return dvValues;
+            })()}
+          />
+          
+          <OptimizationJobTracker
+            currentJob={currentJob}
+            currentResults={advancedResults}
+            jobHistory={jobHistory}
+            onApplyRecommendations={(recommendations) => {
+              try {
+                const newProposedSetpoints: Record<string, number> = {};
+                
+                recommendations.forEach(rec => {
+                  newProposedSetpoints[rec.parameter_id] = rec.recommended_value;
+                });
+                
+                if (Object.keys(newProposedSetpoints).length > 0) {
+                  useOptimizationStore.getState().setProposedSetpoints(newProposedSetpoints);
+                  
+                  if (autoApplyProposals) {
+                    applyOptimizedParameters();
+                  }
+                  
+                  toast.success(`Applied ${recommendations.length} parameter recommendations`);
+                }
+              } catch (error) {
+                console.error('Failed to apply recommendations:', error);
+                toast.error('Failed to apply recommendations');
+              }
+            }}
+            onCancelJob={async () => {
+              try {
+                if (currentJob?.job_id) {
+                  await cancelOptimization(currentJob.job_id);
+                  toast.success('Job cancelled successfully');
+                }
+              } catch (error) {
+                console.error('Failed to cancel job:', error);
+                toast.error('Failed to cancel job');
+              }
+            }}
+            isOptimizing={isAdvancedOptimizing}
+          />
+        </div>
+      )}
 
       {/* Target Display */}
       <TargetFractionDisplay

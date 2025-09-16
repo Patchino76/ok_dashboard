@@ -30,6 +30,12 @@ class CascadeModelManager:
         self.quality_model = None  # CV + DV → Target model
         self.scalers = {}
         
+        # Feature configuration (can be customized)
+        self.mv_features = ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"]
+        self.cv_features = ["PulpHC", "DensityHC", "PressureHC"]
+        self.dv_features = ["Shisti", "Daiki", "Grano"]
+        self.target_variable = "PSI200"
+        
         # Create model save directory
         os.makedirs(model_save_path, exist_ok=True)
         
@@ -41,14 +47,22 @@ class CascadeModelManager:
             'random_state': 42
         }
     
+    def configure_features(self, mv_features: List[str], cv_features: List[str], 
+                          dv_features: List[str], target_variable: str):
+        """Configure the features to use for training"""
+        self.mv_features = mv_features
+        self.cv_features = cv_features
+        self.dv_features = dv_features
+        self.target_variable = target_variable
+    
     def prepare_training_data(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Prepare training data by separating MVs, CVs, DVs, and targets
         """
-        mvs = [mv.id for mv in self.classifier.get_mvs()]
-        cvs = [cv.id for cv in self.classifier.get_cvs()]
-        dvs = [dv.id for dv in self.classifier.get_dvs()]
-        targets = [target.id for target in self.classifier.get_targets()]
+        mvs = self.mv_features
+        cvs = self.cv_features
+        dvs = self.dv_features
+        targets = [self.target_variable]
         
         # Filter to only include columns that exist in the data
         available_mvs = [col for col in mvs if col in df.columns]
@@ -294,7 +308,7 @@ class CascadeModelManager:
         else:
             return obj
     
-    def train_all_models(self, df: pd.DataFrame, test_size: float = 0.2) -> Dict[str, Any]:
+    def train_all_models(self, df: pd.DataFrame, test_size: float = 0.2, model_name: str = None) -> Dict[str, Any]:
         """
         Train complete cascade: process models + quality model
         """
@@ -324,8 +338,14 @@ class CascadeModelManager:
             'model_save_path': self.model_save_path
         }
         
+        # Save models with mill-specific naming
+        if model_name:
+            self.save_models(model_name)
+            results['model_name'] = model_name
+        
         # Save training results
-        results_path = os.path.join(self.model_save_path, "training_results.json")
+        results_filename = f"{model_name}_training_results.json" if model_name else "training_results.json"
+        results_path = os.path.join(self.model_save_path, results_filename)
         import json
         with open(results_path, 'w') as f:
             # Convert numpy types to native Python types for JSON serialization
@@ -339,6 +359,25 @@ class CascadeModelManager:
         print(f"Results saved to: {results_path}")
         
         return results
+    
+    def save_models(self, model_name: str):
+        """Save trained models with mill-specific naming"""
+        # Save process models
+        for cv_id, model in self.process_models.items():
+            model_path = os.path.join(self.model_save_path, f"{model_name}_process_{cv_id}.joblib")
+            joblib.dump(model, model_path)
+        
+        # Save quality model
+        if self.quality_model:
+            quality_path = os.path.join(self.model_save_path, f"{model_name}_quality.joblib")
+            joblib.dump(self.quality_model, quality_path)
+        
+        # Save scalers
+        for scaler_name, scaler in self.scalers.items():
+            scaler_path = os.path.join(self.model_save_path, f"{model_name}_scaler_{scaler_name}.joblib")
+            joblib.dump(scaler, scaler_path)
+        
+        print(f"Models saved with prefix: {model_name}")
     
     def predict_cascade(self, mv_values: Dict[str, float], dv_values: Dict[str, float]) -> Dict[str, Any]:
         """
