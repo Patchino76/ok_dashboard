@@ -24,7 +24,7 @@ class MillsDataConnector:
             user: PostgreSQL username
             password: PostgreSQL password
         """
-        self.connection_string = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+        self.connection_string = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}"
         self.engine = None
         self.connection_params = {
             'host': host,
