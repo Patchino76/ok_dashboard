@@ -10,9 +10,19 @@ from typing import Dict, Optional
 import pandas as pd
 import os
 
-from .old_files_to_delete.variable_classifier import VariableClassifier
 from .cascade_models import CascadeModelManager
 from .simple_cascade_optimizer import SimpleCascadeOptimizer, OptimizationRequest, OptimizationResult
+
+# Import variable classifier with error handling
+try:
+    from .old_files_to_delete.variable_classifier import VariableClassifier
+except ImportError:
+    # Fallback: create a minimal classifier if import fails
+    class VariableClassifier:
+        def get_mvs(self):
+            return []
+        def get_cvs(self):
+            return []
 
 # Import database and settings
 try:
@@ -160,6 +170,9 @@ async def predict_cascade(request: PredictionRequest):
         raise HTTPException(status_code=400, detail="Models not trained")
     
     try:
+        print(f"🔍 Prediction request received")
+        print(f"   MV values: {request.mv_values}")
+        print(f"   DV values: {request.dv_values}")
         result = model_manager.predict_cascade(request.mv_values, request.dv_values)
         return {
             "predicted_target": result['predicted_target'],
@@ -169,7 +182,10 @@ async def predict_cascade(request: PredictionRequest):
             "constraint_violations": result.get('constraint_violations', [])
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"❌ Prediction error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 @cascade_router.post("/optimize")
 async def optimize_cascade(request: CascadeOptimizationRequest):
@@ -178,11 +194,21 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
         raise HTTPException(status_code=400, detail="Models not trained. Load or train models first.")
     
     try:
+        # Add debug logging
+        print(f"🔍 Optimization request received")
+        print(f"   MV bounds: {request.mv_bounds}")
+        print(f"   Target: {request.target_variable}")
+        print(f"   Trials: {request.n_trials}")
+        
         # Convert tuple bounds to proper format
+        print(f"   Converting bounds...")
         mv_bounds = {k: tuple(v) for k, v in request.mv_bounds.items()}
         cv_bounds = {k: tuple(v) for k, v in request.cv_bounds.items()}
+        print(f"   MV bounds converted: {mv_bounds}")
+        print(f"   CV bounds converted: {cv_bounds}")
         
         # Create optimization request
+        print(f"   Creating optimization request...")
         opt_request = OptimizationRequest(
             mv_bounds=mv_bounds,
             cv_bounds=cv_bounds,
@@ -193,8 +219,10 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
         )
         
         # Run optimization
+        print(f"   Starting optimization...")
         optimizer = SimpleCascadeOptimizer(model_manager)
         result = optimizer.optimize(opt_request)
+        print(f"   Optimization completed successfully!")
         
         return {
             "status": "success",
@@ -213,6 +241,9 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
         }
         
     except Exception as e:
+        print(f"❌ Optimization error: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
 
 async def _get_database_training_data(
