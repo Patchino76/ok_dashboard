@@ -174,12 +174,24 @@ async def predict_cascade(request: PredictionRequest):
         print(f"   MV values: {request.mv_values}")
         print(f"   DV values: {request.dv_values}")
         result = model_manager.predict_cascade(request.mv_values, request.dv_values)
+        # Convert numpy types to Python native types for JSON serialization
+        def convert_numpy_types(obj):
+            """Convert numpy types to Python native types"""
+            if hasattr(obj, 'item'):  # numpy scalar
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {k: convert_numpy_types(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [convert_numpy_types(item) for item in obj]
+            else:
+                return obj
+        
         return {
-            "predicted_target": result['predicted_target'],
-            "predicted_cvs": result['predicted_cvs'],
-            "is_feasible": result['is_feasible'],
-            "mill_number": model_manager.mill_number,
-            "constraint_violations": result.get('constraint_violations', [])
+            "predicted_target": convert_numpy_types(result['predicted_target']),
+            "predicted_cvs": convert_numpy_types(result['predicted_cvs']),
+            "is_feasible": bool(result['is_feasible']),
+            "mill_number": int(model_manager.mill_number),
+            "constraint_violations": convert_numpy_types(result.get('constraint_violations', []))
         }
     except Exception as e:
         print(f"❌ Prediction error: {e}")
@@ -224,19 +236,31 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
         result = optimizer.optimize(opt_request)
         print(f"   Optimization completed successfully!")
         
+        # Convert numpy types to Python native types for JSON serialization
+        def convert_numpy_types(obj):
+            """Convert numpy types to Python native types"""
+            if hasattr(obj, 'item'):  # numpy scalar
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {k: convert_numpy_types(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [convert_numpy_types(item) for item in obj]
+            else:
+                return obj
+        
         return {
             "status": "success",
-            "best_mv_values": result.best_mv_values,
-            "best_cv_values": result.best_cv_values,
-            "best_target_value": result.best_target_value,
-            "is_feasible": result.is_feasible,
-            "n_trials": result.n_trials,
-            "best_trial_number": result.best_trial_number,
-            "mill_number": model_manager.mill_number,
+            "best_mv_values": convert_numpy_types(result.best_mv_values),
+            "best_cv_values": convert_numpy_types(result.best_cv_values),
+            "best_target_value": convert_numpy_types(result.best_target_value),
+            "is_feasible": bool(result.is_feasible),
+            "n_trials": int(result.n_trials),
+            "best_trial_number": int(result.best_trial_number),
+            "mill_number": int(model_manager.mill_number),
             "optimization_config": {
-                "target_variable": request.target_variable,
-                "maximize": request.maximize,
-                "n_trials": request.n_trials
+                "target_variable": str(request.target_variable),
+                "maximize": bool(request.maximize),
+                "n_trials": int(request.n_trials)
             }
         }
         

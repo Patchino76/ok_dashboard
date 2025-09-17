@@ -315,6 +315,14 @@ try:
     CASCADE_SYSTEM_AVAILABLE = True
     logger.info("Successfully loaded Cascade Optimization endpoints with clean /api/v1/cascade/* URLs")
     
+    # Try to load simple optimization endpoint as backup
+    try:
+        from optimization_cascade.simple_api_endpoint import simple_router
+        app.include_router(simple_router)
+        logger.info("Successfully loaded Simple Optimization backup endpoint at /api/v1/simple/*")
+    except Exception as simple_e:
+        logger.error(f"Failed to load Simple Optimization backup: {simple_e}")
+    
 except Exception as e:
     logger.error(f"Failed to load Cascade Optimization endpoints: {e}")
     # Create a fallback router for health check
