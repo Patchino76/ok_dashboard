@@ -10,8 +10,9 @@ from typing import Dict, Optional
 import pandas as pd
 import os
 
-from .variable_classifier import VariableClassifier
+from .old_files_to_delete.variable_classifier import VariableClassifier
 from .cascade_models import CascadeModelManager
+from .simple_cascade_optimizer import SimpleCascadeOptimizer, OptimizationRequest, OptimizationResult
 
 # Import database and settings
 try:
@@ -47,6 +48,14 @@ class TrainingRequest(BaseModel):
     resample_freq: str = Field("1min", description="Resampling frequency")
     model_suffix: Optional[str] = Field(None, description="Optional model name suffix for versioning")
 
+class CascadeOptimizationRequest(BaseModel):
+    mv_bounds: Dict[str, tuple] = Field(..., description="MV bounds as {name: [min, max]}")
+    cv_bounds: Dict[str, tuple] = Field(..., description="CV bounds as {name: [min, max]}")
+    dv_values: Dict[str, float] = Field(..., description="Fixed DV values")
+    target_variable: str = Field("PSI200", description="Target variable to optimize")
+    maximize: bool = Field(False, description="True to maximize, False to minimize")
+    n_trials: int = Field(100, description="Number of optimization trials")
+
 # API Endpoints
 
 @cascade_router.get("/info")
@@ -62,6 +71,7 @@ async def get_cascade_info():
         "endpoints": {
             "training": "/api/v1/cascade/train",
             "prediction": "/api/v1/cascade/predict",
+            "optimization": "/api/v1/cascade/optimize",
             "models": "/api/v1/cascade/models",
             "load_model": "/api/v1/cascade/models/{mill_number}/load",
             "model_info": "/api/v1/cascade/models/{mill_number}"
@@ -160,6 +170,50 @@ async def predict_cascade(request: PredictionRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@cascade_router.post("/optimize")
+async def optimize_cascade(request: CascadeOptimizationRequest):
+    """Run Bayesian optimization to find optimal MV values"""
+    if not model_manager or not model_manager.process_models:
+        raise HTTPException(status_code=400, detail="Models not trained. Load or train models first.")
+    
+    try:
+        # Convert tuple bounds to proper format
+        mv_bounds = {k: tuple(v) for k, v in request.mv_bounds.items()}
+        cv_bounds = {k: tuple(v) for k, v in request.cv_bounds.items()}
+        
+        # Create optimization request
+        opt_request = OptimizationRequest(
+            mv_bounds=mv_bounds,
+            cv_bounds=cv_bounds,
+            dv_values=request.dv_values,
+            target_variable=request.target_variable,
+            maximize=request.maximize,
+            n_trials=request.n_trials
+        )
+        
+        # Run optimization
+        optimizer = SimpleCascadeOptimizer(model_manager)
+        result = optimizer.optimize(opt_request)
+        
+        return {
+            "status": "success",
+            "best_mv_values": result.best_mv_values,
+            "best_cv_values": result.best_cv_values,
+            "best_target_value": result.best_target_value,
+            "is_feasible": result.is_feasible,
+            "n_trials": result.n_trials,
+            "best_trial_number": result.best_trial_number,
+            "mill_number": model_manager.mill_number,
+            "optimization_config": {
+                "target_variable": request.target_variable,
+                "maximize": request.maximize,
+                "n_trials": request.n_trials
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
 
 async def _get_database_training_data(
     mill_number: int = 8,
