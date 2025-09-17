@@ -27,7 +27,7 @@ except ImportError:
     from settings import Settings
     settings = Settings()
 
-# Create router
+# Create router with clean prefix for direct integration
 cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["cascade_optimization"])
 
 # Global instances
@@ -40,11 +40,12 @@ class PredictionRequest(BaseModel):
     dv_values: Dict[str, float] = Field(..., description="Disturbance variable values")
 
 class TrainingRequest(BaseModel):
-    mill_number: int = Field(8, description="Mill number (6, 7, or 8)")
+    mill_number: int = Field(8, description="Mill number (6, 7, 8, 9, 10, etc.)")
     start_date: str = Field(..., description="Start date (YYYY-MM-DD)")
     end_date: str = Field(..., description="End date (YYYY-MM-DD)")
     test_size: float = Field(0.2, description="Test set fraction")
     resample_freq: str = Field("1min", description="Resampling frequency")
+    model_suffix: Optional[str] = Field(None, description="Optional model name suffix for versioning")
 
 # API Endpoints
 
@@ -59,8 +60,11 @@ async def get_cascade_info():
             "models_trained": bool(model_manager and model_manager.process_models and model_manager.quality_model)
         },
         "endpoints": {
-            "training": "/train",
-            "prediction": "/predict"
+            "training": "/api/v1/cascade/train",
+            "prediction": "/api/v1/cascade/predict",
+            "models": "/api/v1/cascade/models",
+            "load_model": "/api/v1/cascade/models/{mill_number}/load",
+            "model_info": "/api/v1/cascade/models/{mill_number}"
         }
     }
 
@@ -70,10 +74,10 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
     global model_manager
     
     try:
-        # Initialize model manager
-        model_save_path = os.path.join(os.path.dirname(__file__), "cascade_models")
-        model_save_path = os.path.abspath(model_save_path)
-        model_manager = CascadeModelManager(model_save_path)
+        # Initialize model manager with mill-specific path
+        base_model_path = os.path.join(os.path.dirname(__file__), "cascade_models")
+        base_model_path = os.path.abspath(base_model_path)
+        model_manager = CascadeModelManager(base_model_path, mill_number=request.mill_number)
         
         # Get data from database
         df = await _get_database_training_data(
@@ -103,10 +107,12 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
         
         return {
             "status": "training_started",
-            "message": "Model training started",
+            "message": f"Model training started for Mill {request.mill_number}",
             "data_shape": df.shape,
             "mill_number": request.mill_number,
-            "date_range": f"{request.start_date} to {request.end_date}"
+            "date_range": f"{request.start_date} to {request.end_date}",
+            "model_save_path": model_manager.model_save_path,
+            "model_suffix": request.model_suffix
         }
         
     except HTTPException:
@@ -123,9 +129,19 @@ async def get_training_status():
     models_trained = bool(model_manager.process_models and model_manager.quality_model)
     
     if models_trained:
-        return {"status": "completed", "message": "Models trained successfully"}
+        summary = model_manager.get_model_summary()
+        return {
+            "status": "completed", 
+            "message": f"Models trained successfully for Mill {model_manager.mill_number}",
+            "mill_number": model_manager.mill_number,
+            "model_path": model_manager.model_save_path,
+            "summary": summary
+        }
     else:
-        return {"status": "in_progress"}
+        return {
+            "status": "in_progress",
+            "mill_number": model_manager.mill_number if model_manager else None
+        }
 
 @cascade_router.post("/predict")
 async def predict_cascade(request: PredictionRequest):
@@ -138,7 +154,9 @@ async def predict_cascade(request: PredictionRequest):
         return {
             "predicted_target": result['predicted_target'],
             "predicted_cvs": result['predicted_cvs'],
-            "is_feasible": result['is_feasible']
+            "is_feasible": result['is_feasible'],
+            "mill_number": model_manager.mill_number,
+            "constraint_violations": result.get('constraint_violations', [])
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -172,16 +190,101 @@ async def _get_database_training_data(
         print(f"Database error: {e}")
         return None
 
+# New endpoints for mill model management
+@cascade_router.get("/models")
+async def list_mill_models():
+    """List all available mill models"""
+    try:
+        base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
+        base_path = os.path.abspath(base_path)
+        mill_models = CascadeModelManager.list_mill_models(base_path)
+        
+        return {
+            "status": "success",
+            "mill_models": mill_models,
+            "total_mills": len(mill_models)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@cascade_router.get("/models/{mill_number}")
+async def get_mill_model_info(mill_number: int):
+    """Get detailed information about a specific mill's models"""
+    try:
+        base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
+        base_path = os.path.abspath(base_path)
+        mill_models = CascadeModelManager.list_mill_models(base_path)
+        
+        if mill_number not in mill_models:
+            raise HTTPException(status_code=404, detail=f"No models found for Mill {mill_number}")
+        
+        return {
+            "status": "success",
+            "mill_number": mill_number,
+            "model_info": mill_models[mill_number]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@cascade_router.post("/models/{mill_number}/load")
+async def load_mill_model(mill_number: int):
+    """Load models for a specific mill"""
+    global model_manager
+    
+    try:
+        base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
+        base_path = os.path.abspath(base_path)
+        
+        # Check if mill models exist
+        mill_models = CascadeModelManager.list_mill_models(base_path)
+        if mill_number not in mill_models:
+            raise HTTPException(status_code=404, detail=f"No models found for Mill {mill_number}")
+        
+        # Initialize model manager and load models
+        model_manager = CascadeModelManager(base_path, mill_number=mill_number)
+        success = model_manager.load_models()
+        
+        if not success:
+            raise HTTPException(status_code=500, detail=f"Failed to load models for Mill {mill_number}")
+        
+        summary = model_manager.get_model_summary()
+        return {
+            "status": "success",
+            "message": f"Models loaded successfully for Mill {mill_number}",
+            "mill_number": mill_number,
+            "summary": summary
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Health check
 @cascade_router.get("/health")
 async def health_check():
     """Health check endpoint"""
     from datetime import datetime
+    
+    # Get available mill models
+    try:
+        base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
+        base_path = os.path.abspath(base_path)
+        mill_models = CascadeModelManager.list_mill_models(base_path)
+        available_mills = list(mill_models.keys())
+    except Exception:
+        available_mills = []
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "components": {
             "classifier": "ready",
-            "model_manager": "ready" if model_manager else "not_initialized"
-        }
+            "model_manager": "ready" if model_manager else "not_initialized",
+            "current_mill": model_manager.mill_number if model_manager else None
+        },
+        "available_mills": available_mills,
+        "total_mill_models": len(available_mills)
     }

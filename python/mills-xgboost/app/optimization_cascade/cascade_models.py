@@ -13,6 +13,8 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler
 import joblib
 import os
+import json
+from datetime import datetime
 
 from .variable_classifier import VariableClassifier, VariableType
 
@@ -23,15 +25,32 @@ class CascadeModelManager:
     - Quality model (CV + DV → Target)
     """
     
-    def __init__(self, model_save_path: str = "cascade_models"):
+    def __init__(self, model_save_path: str = "cascade_models", mill_number: Optional[int] = None):
         self.classifier = VariableClassifier()
-        self.model_save_path = model_save_path
+        self.base_model_path = model_save_path
+        self.mill_number = mill_number
         self.process_models = {}  # MV → CV models
         self.quality_model = None  # CV + DV → Target model
         self.scalers = {}
         
+        # Set mill-specific model save path
+        if mill_number:
+            self.model_save_path = os.path.join(model_save_path, f"mill_{mill_number}")
+        else:
+            self.model_save_path = model_save_path
+            
         # Create model save directory
-        os.makedirs(model_save_path, exist_ok=True)
+        os.makedirs(self.model_save_path, exist_ok=True)
+        
+        # Initialize metadata
+        self.metadata = {
+            "mill_number": mill_number,
+            "created_at": datetime.now().isoformat(),
+            "model_version": "1.0.0",
+            "training_config": {},
+            "model_performance": {},
+            "data_info": {}
+        }
         
         # Simplified model configuration
         self.model_config = {
@@ -151,6 +170,15 @@ class CascadeModelManager:
             scaler_path = os.path.join(self.model_save_path, f"scaler_mv_to_{cv_id}.pkl")
             joblib.dump(model, model_path)
             joblib.dump(scaler, scaler_path)
+            
+            # Update metadata
+            self.metadata["model_performance"][f"process_model_{cv_id}"] = {
+                "r2_score": float(r2),
+                "rmse": float(rmse),
+                "feature_importance": {k: float(v) for k, v in results[cv_id]["feature_importance"].items()},
+                "input_vars": mvs,
+                "output_var": cv_id
+            }
         
         print(f"\nProcess models training completed. {len(results)} models trained.")
         return results
@@ -227,6 +255,17 @@ class CascadeModelManager:
         scaler_path = os.path.join(self.model_save_path, "scaler_quality_model.pkl")
         joblib.dump(model, model_path)
         joblib.dump(scaler, scaler_path)
+        
+        # Update metadata
+        self.metadata["model_performance"]["quality_model"] = {
+            "r2_score": float(r2),
+            "rmse": float(rmse),
+            "feature_importance": {k: float(v) for k, v in feature_importance.items()},
+            "input_vars": feature_cols,
+            "output_var": primary_target,
+            "cv_vars": cvs,
+            "dv_vars": dvs
+        }
         
         return results
     
@@ -314,6 +353,27 @@ class CascadeModelManager:
         # Validate complete chain
         chain_results = self.validate_complete_chain(df_clean)
         
+        # Update metadata with training information
+        self.metadata["training_config"] = {
+            "test_size": test_size,
+            "data_shape": df_clean.shape,
+            "training_timestamp": datetime.now().isoformat()
+        }
+        self.metadata["data_info"] = {
+            "original_shape": df.shape,
+            "cleaned_shape": df_clean.shape,
+            "data_reduction": f"{((df.shape[0] - df_clean.shape[0]) / df.shape[0] * 100):.1f}%"
+        }
+        self.metadata["model_performance"]["chain_validation"] = {
+            "r2_score": float(chain_results['r2_score']),
+            "rmse": float(chain_results['rmse']),
+            "mae": float(chain_results['mae']),
+            "n_samples": int(chain_results['n_samples'])
+        }
+        
+        # Save metadata
+        self._save_metadata()
+        
         # Compile results
         results = {
             'process_models': process_results,
@@ -321,12 +381,12 @@ class CascadeModelManager:
             'chain_validation': chain_results,
             'training_timestamp': datetime.now().isoformat(),
             'data_shape': df_clean.shape,
-            'model_save_path': self.model_save_path
+            'model_save_path': self.model_save_path,
+            'mill_number': self.mill_number
         }
         
         # Save training results
         results_path = os.path.join(self.model_save_path, "training_results.json")
-        import json
         with open(results_path, 'w') as f:
             # Convert numpy types to native Python types for JSON serialization
             json_results = self._convert_for_json(results)
@@ -498,13 +558,65 @@ class CascadeModelManager:
             print(f"Error loading models: {e}")
             return False
     
+    def _save_metadata(self):
+        """Save model metadata to JSON file"""
+        metadata_path = os.path.join(self.model_save_path, "metadata.json")
+        with open(metadata_path, 'w') as f:
+            json.dump(self.metadata, f, indent=2)
+        print(f"Metadata saved to: {metadata_path}")
+    
+    def load_metadata(self) -> Optional[Dict[str, Any]]:
+        """Load model metadata from JSON file"""
+        metadata_path = os.path.join(self.model_save_path, "metadata.json")
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                return json.load(f)
+        return None
+    
     def get_model_summary(self) -> Dict[str, Any]:
         """Get summary of trained models"""
+        metadata = self.load_metadata()
         summary = {
+            'mill_number': self.mill_number,
             'process_models': list(self.process_models.keys()),
             'quality_model_trained': self.quality_model is not None,
             'scalers': list(self.scalers.keys()),
             'model_save_path': self.model_save_path,
-            'cascade_structure': self.classifier.get_cascade_structure()
+            'cascade_structure': self.classifier.get_cascade_structure(),
+            'metadata': metadata
         }
         return summary
+    
+    @classmethod
+    def list_mill_models(cls, base_path: str = "cascade_models") -> Dict[int, Dict[str, Any]]:
+        """List all available mill models with their metadata"""
+        mill_models = {}
+        
+        if not os.path.exists(base_path):
+            return mill_models
+            
+        for item in os.listdir(base_path):
+            item_path = os.path.join(base_path, item)
+            if os.path.isdir(item_path) and item.startswith("mill_"):
+                try:
+                    mill_number = int(item.split("_")[1])
+                    metadata_path = os.path.join(item_path, "metadata.json")
+                    
+                    if os.path.exists(metadata_path):
+                        with open(metadata_path, 'r') as f:
+                            metadata = json.load(f)
+                        
+                        # Check for model files
+                        model_files = [f for f in os.listdir(item_path) if f.endswith('.pkl')]
+                        
+                        mill_models[mill_number] = {
+                            "path": item_path,
+                            "metadata": metadata,
+                            "model_files": model_files,
+                            "has_complete_cascade": len([f for f in model_files if f.startswith('process_model_')]) > 0 and 'quality_model.pkl' in model_files
+                        }
+                except (ValueError, json.JSONDecodeError) as e:
+                    print(f"Error processing mill folder {item}: {e}")
+                    continue
+        
+        return mill_models

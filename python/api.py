@@ -297,39 +297,36 @@ logger.info("Successfully loaded Multi-Output Optimization router with mock impl
 
 # ----------------------------- Cascade Optimization Endpoints -----------------------------
 
-# Import cascade endpoints from the new structure
 CASCADE_SYSTEM_AVAILABLE = False
 
 try:
-    # Add mills-xgboost paths
-    mills_xgboost_path = os.path.join(os.path.dirname(__file__), 'mills-xgboost')
+    # Add mills-xgboost paths for cascade imports
+    mills_xgboost_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mills-xgboost')
     mills_app_path = os.path.join(mills_xgboost_path, 'app')
     
-    # Add to Python path if not already present
+    if mills_xgboost_path not in sys.path:
+        sys.path.insert(0, mills_xgboost_path)
     if mills_app_path not in sys.path:
         sys.path.insert(0, mills_app_path)
     
-    # Import the cascade router from the new endpoints file
+    # Import and include cascade router directly
     from optimization_cascade.cascade_endpoints import cascade_router
-    
-    # Include cascade router
     app.include_router(cascade_router)
     CASCADE_SYSTEM_AVAILABLE = True
-    logger.info("Successfully loaded Cascade Optimization endpoints from cascade_endpoints.py")
+    logger.info("Successfully loaded Cascade Optimization endpoints with clean /api/v1/cascade/* URLs")
     
 except Exception as e:
     logger.error(f"Failed to load Cascade Optimization endpoints: {e}")
     # Create a fallback router for health check
-    cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["Cascade Optimization"])
+    fallback_cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["Cascade Optimization"])
     
-    @cascade_router.get("/health")
+    @fallback_cascade_router.get("/health")
     async def cascade_health_fallback():
         """Cascade system health check - fallback"""
         return {"status": "unavailable", "error": "Cascade system failed to load"}
     
-    app.include_router(cascade_router)
+    app.include_router(fallback_cascade_router)
     logger.info("Loaded fallback Cascade Optimization health endpoint")
-
 
 # ----------------------------- Models -----------------------------
 
@@ -382,7 +379,8 @@ async def health_check():
         },
         "cascade_system": {
             "available": CASCADE_SYSTEM_AVAILABLE,
-            "endpoints_count": len(cascade_router.routes) if CASCADE_SYSTEM_AVAILABLE else 0
+            "endpoints_count": len(cascade_router.routes) if CASCADE_SYSTEM_AVAILABLE else 0,
+            "base_url": "/api/v1/cascade" if CASCADE_SYSTEM_AVAILABLE else None
         }
     }
 
