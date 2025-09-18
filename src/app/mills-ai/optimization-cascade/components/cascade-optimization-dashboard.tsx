@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Activity, Zap, Play, CheckCircle, AlertCircle, Wrench, Cpu, GraduationCap, Loader2 } from "lucide-react"
 import { ParameterCascadeOptimizationCard, CascadeParameter } from "."
-import { TargetFractionDisplay } from "../../components/target-fraction-display"
+import { CascadeTargetTrend } from "./target-cascade-trend"
 import { ModelSelection } from "../../components/model-selection"
 import { useXgboostStore } from "../../stores/xgboost-store"
 import { useOptimizationStore } from "../../stores/optimization-store"
@@ -20,8 +20,6 @@ import { useGetModels } from "../../hooks/use-get-models"
 import { millsParameters, getTargets } from "../../data/mills-parameters"
 import { Switch } from "@/components/ui/switch"
 import { classifyParameters } from "../../data/cascade-parameter-classification"
-import { AdvancedOptimizationControls } from "./advanced-optimization-controls"
-import { OptimizationJobTracker } from "./optimization-job-tracker"
 import { EnhancedModelTraining } from "./enhanced-model-training"
 import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization"
 
@@ -126,6 +124,10 @@ export default function CascadeOptimizationDashboard() {
   }, [])
   
   
+  // Add missing state variables
+  const [isSimulationMode, setIsSimulationMode] = useState(false);
+  const [targetVariable, setTargetVariable] = useState('PSI80');
+
   // Get target parameter bounds based on current model's target
   const targetParameter = useMemo(() => {
     const targetId = modelTarget || 'PSI80';
@@ -612,100 +614,16 @@ export default function CascadeOptimizationDashboard() {
         </CardContent>
       </Card>
 
-      {/* Advanced Optimization Controls */}
-      {/* Removed Advanced Optimization Section */}
-      <div className="mt-6">
-          <AdvancedOptimizationControls
-            onStartOptimization={async (request) => {
-              try {
-                const loadingToast = toast.loading('Starting advanced optimization...');
-                await startAdvancedOptimization(request);
-                toast.success('Advanced optimization started successfully!', { id: loadingToast });
-              } catch (error) {
-                console.error('Advanced optimization failed:', error);
-                const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-                toast.error(`Advanced optimization failed: ${errorMsg}`);
-              }
-            }}
-            onCancelOptimization={async () => {
-              try {
-                if (currentJob?.job_id) {
-                  await cancelOptimization(currentJob.job_id);
-                  toast.success('Optimization cancelled successfully');
-                }
-              } catch (error) {
-                console.error('Failed to cancel optimization:', error);
-                toast.error('Failed to cancel optimization');
-              }
-            }}
-            currentJob={currentJob}
-            currentResults={advancedResults}
-            isOptimizing={isAdvancedOptimizing}
-            error={advancedError}
-            dvValues={(() => {
-              const dvValues: Record<string, number> = {};
-              const parameterIds = parameters.map(p => p.id);
-              const { dv_parameters } = classifyParameters(parameterIds);
-              
-              dv_parameters.forEach(paramId => {
-                const currentValue = sliderValues[paramId] || parameters.find(p => p.id === paramId)?.value || 0;
-                dvValues[paramId] = currentValue;
-              });
-              
-              return dvValues;
-            })()}
-          />
-          
-          <OptimizationJobTracker
-            currentJob={currentJob}
-            currentResults={advancedResults}
-            jobHistory={jobHistory}
-            onApplyRecommendations={(recommendations) => {
-              try {
-                const newProposedSetpoints: Record<string, number> = {};
-                
-                recommendations.forEach(rec => {
-                  newProposedSetpoints[rec.parameter_id] = rec.recommended_value;
-                });
-                
-                if (Object.keys(newProposedSetpoints).length > 0) {
-                  useOptimizationStore.getState().setProposedSetpoints(newProposedSetpoints);
-                  
-                  if (autoApplyProposals) {
-                    applyOptimizedParameters();
-                  }
-                  
-                  toast.success(`Applied ${recommendations.length} parameter recommendations`);
-                }
-              } catch (error) {
-                console.error('Failed to apply recommendations:', error);
-                toast.error('Failed to apply recommendations');
-              }
-            }}
-            onCancelJob={async () => {
-              try {
-                if (currentJob?.job_id) {
-                  await cancelOptimization(currentJob.job_id);
-                  toast.success('Job cancelled successfully');
-                }
-              } catch (error) {
-                console.error('Failed to cancel job:', error);
-                toast.error('Failed to cancel job');
-              }
-            }}
-            isOptimizing={isAdvancedOptimizing}
-          />
-      </div>
 
       {/* Target Display */}
-      <TargetFractionDisplay
+      <CascadeTargetTrend
         currentTarget={currentTarget}
         currentPV={currentPV}
         targetData={targetData}
-        isOptimizing={isPredicting}
-        isSimulationMode={false}
-        modelName={selectedModel?.name}
-        targetVariable={selectedModel?.target_col}
+        isOptimizing={isOptimizing}
+        isSimulationMode={isSimulationMode}
+        modelName={modelName}
+        targetVariable={targetVariable}
         targetUnit={targetUnit}
         spOptimize={hasResults && isSuccessful ? targetSetpoint : undefined}
         showOptimizationTarget={hasResults && isSuccessful}
