@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Activity, Zap, Play, CheckCircle, AlertCircle, Wrench, Cpu, GraduationCap } from "lucide-react"
+import { Activity, Zap, Play, CheckCircle, AlertCircle, Wrench, Cpu, GraduationCap, Loader2 } from "lucide-react"
 import { ParameterCascadeOptimizationCard, CascadeParameter } from "."
 import { TargetFractionDisplay } from "../../components/target-fraction-display"
 import { ModelSelection } from "../../components/model-selection"
@@ -177,10 +177,22 @@ export default function CascadeOptimizationDashboard() {
   }, [targetParameter, setTargetSetpoint]);
 
   const [isPredicting, setIsPredicting] = useState(false);
-  const [useAdvancedOptimization, setUseAdvancedOptimization] = useState(false);
   const { models } = useGetModels();
   
   const selectedModel = modelName && models ? models[modelName] : null;
+  
+  const handleResetOptimization = () => {
+    // Clear optimization results
+    clearResults();
+    
+    // Reset target setpoint to middle of target parameter range
+    if (targetParameter) {
+      setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
+    }
+    
+    // Show feedback to user
+    toast.success('Optimization reset: cleared all optimization results and returned to default values');
+  };
   
   const targetUnit = useMemo(() => {
     if (!selectedModel?.target_col) return '%';
@@ -502,25 +514,7 @@ export default function CascadeOptimizationDashboard() {
               {/* Target SP slider moved into TargetFractionDisplay as a vertical control */}
             </div>
             <div className="space-y-4">
-                            {/* Optimization Mode Toggle */}
-                <Card className="p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col">
-                      <div className="text-sm font-medium">Optimization Mode</div>
-                      <div className="text-xs text-slate-500">Choose between basic cascade or advanced multi-objective optimization</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs ${!useAdvancedOptimization ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Basic</span>
-                      <Switch
-                        checked={useAdvancedOptimization}
-                        onCheckedChange={setUseAdvancedOptimization}
-                        disabled={isOptimizing || isAdvancedOptimizing}
-                      />
-                      <span className={`text-xs ${useAdvancedOptimization ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Advanced</span>
-                    </div>
-                  </div>
-                </Card>
-                
+                            
                 {/* Optimization Controls */}
               <div className="space-y-3">
                 {/* Maximize/Minimize Toggle */}
@@ -571,49 +565,30 @@ export default function CascadeOptimizationDashboard() {
                   trainingError={trainingError}
                 />
                 
-                {!useAdvancedOptimization && (
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleStartOptimization}
-                      disabled={isOptimizing || !modelName || !parameters || parameters.length === 0}
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                    >
-                      {isOptimizing ? (
-                        <>
-                          <div className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full"></div>
-                          Optimizing...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-2" />
-                          Start Basic Optimization
-                        </>
-                      )}
-                    </Button>
+                <div className="flex gap-2">
                   <Button
-                    onClick={() => {
-                      // Reset feature sliders to middle of bounds
-                      resetFeatures();
-                      // Force slider reset
-                      resetSlidersToPVs();
-                      // Clear optimization results and proposed setpoints
-                      clearProposedSetpoints();
-                      clearResults();
-                      // Reset target setpoint to middle of target parameter range
-                      if (targetParameter) {
-                        setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
-                      }
-                      // Show feedback to user
-                      toast.success('Reset complete: cleared all optimization results and returned to default values');
-                    }}
+                    onClick={handleStartOptimization}
+                    disabled={isOptimizing || !modelName}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isOptimizing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Optimizing...
+                      </>
+                    ) : (
+                      'Start Optimization'
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleResetOptimization}
                     variant="outline"
-                    className="px-4"
+                    className="text-slate-700 border-slate-300 hover:bg-slate-50"
                     disabled={isOptimizing}
                   >
                     Reset
                   </Button>
-                  </div>
-                )}
+                </div>
                 {/* Error Display */}
                 {(error || advancedError) && (
                   <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-2 rounded">
@@ -638,8 +613,8 @@ export default function CascadeOptimizationDashboard() {
       </Card>
 
       {/* Advanced Optimization Controls */}
-      {useAdvancedOptimization && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Removed Advanced Optimization Section */}
+      <div className="mt-6">
           <AdvancedOptimizationControls
             onStartOptimization={async (request) => {
               try {
@@ -720,8 +695,7 @@ export default function CascadeOptimizationDashboard() {
             }}
             isOptimizing={isAdvancedOptimizing}
           />
-        </div>
-      )}
+      </div>
 
       {/* Target Display */}
       <TargetFractionDisplay
