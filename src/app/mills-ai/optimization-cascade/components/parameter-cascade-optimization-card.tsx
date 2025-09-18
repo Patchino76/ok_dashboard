@@ -118,33 +118,39 @@ export function ParameterCascadeOptimizationCard({
     }
   };
 
-  // Background styles based on varType to match the provided examples
+  // Enhanced background styles based on varType for better cascade visualization
   const getVarTypeStyles = () => {
     switch (parameter.varType) {
-      // CV: cool blue background
-      case "CV":
-        return {
-          cardBg:
-            "bg-gradient-to-br from-white to-blue-100/80 dark:from-slate-800 dark:to-blue-900/40",
-          topBar: "from-blue-500 to-cyan-500",
-          ring: "ring-1 ring-blue-200/70 dark:ring-blue-900/50",
-        };
-      // MV: warm orange background
+      // MV: Warm Orange/Amber - Manipulated Variables (What we control)
       case "MV":
         return {
-          cardBg:
-            "bg-gradient-to-br from-white to-amber-100/80 dark:from-slate-800 dark:to-amber-900/40",
+          cardBg: "bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-800 dark:to-amber-900/30",
           topBar: "from-amber-500 to-orange-500",
-          ring: "ring-1 ring-amber-200/70 dark:ring-amber-900/50",
+          ring: "ring-2 ring-amber-200/80 dark:ring-amber-900/60",
+          badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+          iconColor: "text-amber-600",
+          accentColor: "#f97316" // orange-500
         };
-      // DV: soft green background
+      // CV: Cool Blue - Controlled Variables (What we measure and predict)
+      case "CV":
+        return {
+          cardBg: "bg-gradient-to-br from-white to-blue-50/90 dark:from-slate-800 dark:to-blue-900/30",
+          topBar: "from-blue-500 to-cyan-500",
+          ring: "ring-2 ring-blue-200/80 dark:ring-blue-900/60",
+          badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+          iconColor: "text-blue-600",
+          accentColor: "#3b82f6" // blue-500
+        };
+      // DV: Soft Green - Disturbance Variables (External factors/Lab parameters)
       case "DV":
       default:
         return {
-          cardBg:
-            "bg-gradient-to-br from-white to-green-100/80 dark:from-slate-800 dark:to-green-900/40",
-          topBar: "from-green-500 to-emerald-500",
-          ring: "ring-1 ring-green-200/70 dark:ring-green-900/50",
+          cardBg: "bg-gradient-to-br from-white to-emerald-50/90 dark:from-slate-800 dark:to-emerald-900/30",
+          topBar: "from-emerald-500 to-green-500",
+          ring: "ring-2 ring-emerald-200/80 dark:ring-emerald-900/60",
+          badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+          iconColor: "text-emerald-600",
+          accentColor: "#10b981" // emerald-500
         };
     }
   };
@@ -156,12 +162,24 @@ export function ParameterCascadeOptimizationCard({
       <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${vt.topBar}`} />
 
       <CardHeader className="pb-2">
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-base font-medium flex items-center gap-2">
-            <span className="text-xl">{parameter.icon}</span>
-            {parameter.name}
-          </CardTitle>
-          <Badge variant={isInRange ? "outline" : "secondary"} className={isInRange ? getTextColorClass() : ""}>
+        <div className="flex justify-between items-start">
+          <div className="flex flex-col gap-1">
+            <CardTitle className="text-base font-medium flex items-center gap-2">
+              <span className={`text-xl ${vt.iconColor}`}>{parameter.icon}</span>
+              {parameter.name}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={`text-xs px-2 py-0.5 ${vt.badgeColor}`}>
+                {parameter.varType}
+              </Badge>
+              <span className="text-xs text-slate-500">
+                {parameter.varType === 'MV' ? 'Manipulated' : 
+                 parameter.varType === 'CV' ? 'Controlled' : 
+                 'Disturbance'}
+              </span>
+            </div>
+          </div>
+          <Badge variant={isInRange ? "outline" : "secondary"} className={isInRange ? vt.badgeColor : "bg-red-100 text-red-800 border-red-200"}>
             {isInRange ? "In Range" : "Out of Range"}
           </Badge>
         </div>
@@ -235,19 +253,19 @@ export function ParameterCascadeOptimizationCard({
                     contentStyle={{ background: "#1f2937", borderColor: "#374151", color: "#e5e7eb", fontSize: "12px" }}
                     itemStyle={{ color: "#e5e7eb" }}
                   />
-                  {/* Optimization Range Shaded Area */}
+                  {/* Optimization Range Shaded Area - Use variable type color */}
                   <ReferenceArea
                     y1={range[0]}
                     y2={range[1]}
-                    fill="#3b82f6"
-                    fillOpacity={0.1}
+                    fill={vt.accentColor}
+                    fillOpacity={0.15}
                     ifOverflow="extendDomain"
                   />
                   <Line
                     type="monotone"
                     dataKey="value"
-                    stroke={getStrokeColor()}
-                    strokeWidth={1.5}
+                    stroke={vt.accentColor}
+                    strokeWidth={2}
                     dot={false}
                     isAnimationActive={false}
                   />
@@ -270,9 +288,9 @@ export function ParameterCascadeOptimizationCard({
         {/* Lab parameter info */}
         {isLabParameter && (
           <div className="h-14 -mx-2 flex items-center justify-center">
-            <div className="text-sm text-slate-500 dark:text-slate-400 text-center">
-              🧪 Lab Parameter<br/>
-              <span className="text-xs">No historical trending</span>
+            <div className={`text-sm text-center p-3 rounded-lg bg-gradient-to-r ${vt.topBar} bg-opacity-10`}>
+              <div className={`${vt.iconColor} font-medium`}>🧪 Lab Parameter</div>
+              <div className="text-xs text-slate-500 mt-1">No historical trending</div>
             </div>
           </div>
         )}
