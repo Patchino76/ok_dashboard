@@ -318,7 +318,7 @@ async def list_mill_models():
 
 @cascade_router.get("/models/{mill_number}")
 async def get_mill_model_info(mill_number: int):
-    """Get detailed information about a specific mill's models"""
+    """Get detailed information about a specific mill's models including feature classification"""
     try:
         base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
         base_path = os.path.abspath(base_path)
@@ -327,10 +327,53 @@ async def get_mill_model_info(mill_number: int):
         if mill_number not in mill_models:
             raise HTTPException(status_code=404, detail=f"No models found for Mill {mill_number}")
         
+        # Get basic model info
+        model_info = mill_models[mill_number]
+        
+        # Load the model manager to get detailed metadata and feature classification
+        try:
+            temp_manager = CascadeModelManager(base_path, mill_number=mill_number)
+            metadata = temp_manager.load_metadata()
+            
+            if metadata:
+                # Get feature classification from the variable classifier
+                mvs = [mv.id for mv in temp_manager.classifier.get_mvs()]
+                cvs = [cv.id for cv in temp_manager.classifier.get_cvs()]
+                dvs = [dv.id for dv in temp_manager.classifier.get_dvs()]
+                targets = [target.id for target in temp_manager.classifier.get_targets()]
+                
+                # Add feature classification to model info
+                model_info["feature_classification"] = {
+                    "mv_features": mvs,
+                    "cv_features": cvs,
+                    "dv_features": dvs,
+                    "target_features": targets
+                }
+                
+                # Add model performance and training info
+                if "model_performance" in metadata:
+                    model_info["performance"] = metadata["model_performance"]
+                
+                if "training_config" in metadata:
+                    model_info["training_config"] = metadata["training_config"]
+                
+                if "data_info" in metadata:
+                    model_info["data_info"] = metadata["data_info"]
+                    
+                # Add all features list for easy access
+                all_features = list(set(mvs + cvs + dvs))
+                model_info["all_features"] = all_features
+                model_info["target_variable"] = targets[0] if targets else "PSI200"
+                
+        except Exception as e:
+            print(f"Warning: Could not load detailed metadata for Mill {mill_number}: {e}")
+            # Fallback to basic info only
+            pass
+        
         return {
             "status": "success",
             "mill_number": mill_number,
-            "model_info": mill_models[mill_number]
+            "model_info": model_info
         }
     except HTTPException:
         raise

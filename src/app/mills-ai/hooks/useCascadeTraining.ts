@@ -3,7 +3,7 @@ import axios from 'axios'
 
 // Create a dedicated client for Cascade API endpoints
 const cascadeApiClient = axios.create({
-  baseURL: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/cascade`,
+  baseURL: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/ml/cascade`,
   headers: {
     'Content-Type': 'application/json'
   }

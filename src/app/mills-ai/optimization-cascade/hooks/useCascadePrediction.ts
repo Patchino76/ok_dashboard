@@ -34,7 +34,8 @@ export function useCascadePrediction() {
 
       console.log('🔍 Making cascade prediction request:', requestBody)
 
-      const response = await fetch('/api/v1/cascade/predict', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/api/v1/ml/cascade/predict`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

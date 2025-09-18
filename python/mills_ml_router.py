@@ -43,8 +43,20 @@ try:
         router.routes.append(route)
         logger.info(f"Added route: {route.path} [{','.join(route.methods)}]")
     
-    # Note: Cascade optimization endpoints are now integrated directly in main api.py
-    # This avoids routing conflicts and provides clean /api/v1/cascade/* URLs
+    # Import cascade endpoints and add them under /cascade prefix
+    try:
+        from app.optimization_cascade.cascade_endpoints import cascade_router
+        
+        # Add cascade routes under /cascade prefix
+        for route in cascade_router.routes:
+            # Update route path to remove the /api/v1/cascade prefix and add /cascade
+            new_path = route.path.replace("/api/v1/cascade", "/cascade")
+            route.path = new_path
+            router.routes.append(route)
+            logger.info(f"Added cascade route: {new_path} [{','.join(route.methods)}]")
+            
+    except Exception as cascade_error:
+        logger.warning(f"Failed to import cascade endpoints: {cascade_error}")
     
     ML_AVAILABLE = True
 except Exception as e:

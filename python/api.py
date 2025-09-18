@@ -297,44 +297,8 @@ logger.info("Successfully loaded Multi-Output Optimization router with mock impl
 
 # ----------------------------- Cascade Optimization Endpoints -----------------------------
 
-CASCADE_SYSTEM_AVAILABLE = False
-
-try:
-    # Add mills-xgboost paths for cascade imports
-    mills_xgboost_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mills-xgboost')
-    mills_app_path = os.path.join(mills_xgboost_path, 'app')
-    
-    if mills_xgboost_path not in sys.path:
-        sys.path.insert(0, mills_xgboost_path)
-    if mills_app_path not in sys.path:
-        sys.path.insert(0, mills_app_path)
-    
-    # Import and include cascade router directly
-    from optimization_cascade.cascade_endpoints import cascade_router
-    app.include_router(cascade_router)
-    CASCADE_SYSTEM_AVAILABLE = True
-    logger.info("Successfully loaded Cascade Optimization endpoints with clean /api/v1/cascade/* URLs")
-    
-    # Try to load simple optimization endpoint as backup
-    try:
-        from optimization_cascade.simple_api_endpoint import simple_router
-        app.include_router(simple_router)
-        logger.info("Successfully loaded Simple Optimization backup endpoint at /api/v1/simple/*")
-    except Exception as simple_e:
-        logger.error(f"Failed to load Simple Optimization backup: {simple_e}")
-    
-except Exception as e:
-    logger.error(f"Failed to load Cascade Optimization endpoints: {e}")
-    # Create a fallback router for health check
-    fallback_cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["Cascade Optimization"])
-    
-    @fallback_cascade_router.get("/health")
-    async def cascade_health_fallback():
-        """Cascade system health check - fallback"""
-        return {"status": "unavailable", "error": "Cascade system failed to load"}
-    
-    app.include_router(fallback_cascade_router)
-    logger.info("Loaded fallback Cascade Optimization health endpoint")
+# Cascade endpoints are now integrated through mills_ml_router at /api/v1/ml/cascade/*
+CASCADE_SYSTEM_AVAILABLE = ML_SYSTEM_AVAILABLE  # Cascade availability depends on ML system
 
 # ----------------------------- Models -----------------------------
 
@@ -387,8 +351,8 @@ async def health_check():
         },
         "cascade_system": {
             "available": CASCADE_SYSTEM_AVAILABLE,
-            "endpoints_count": len(cascade_router.routes) if CASCADE_SYSTEM_AVAILABLE else 0,
-            "base_url": "/api/v1/cascade" if CASCADE_SYSTEM_AVAILABLE else None
+            "endpoints_count": 9 if CASCADE_SYSTEM_AVAILABLE else 0,  # 9 cascade endpoints in mills_ml_router
+            "base_url": "/api/v1/ml/cascade" if CASCADE_SYSTEM_AVAILABLE else None
         }
     }
 

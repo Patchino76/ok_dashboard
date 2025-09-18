@@ -138,7 +138,7 @@ export function useAdvancedCascadeOptimization(): UseAdvancedCascadeOptimization
       
       console.log('Starting advanced cascade optimization:', request)
       
-      const response = await mlApiClient.post('/api/v1/cascade/optimize', request)
+      const response = await mlApiClient.post('/api/v1/ml/cascade/optimize', request)
       
       if (!response.data) {
         throw new Error('No response from optimization API')
@@ -163,7 +163,7 @@ export function useAdvancedCascadeOptimization(): UseAdvancedCascadeOptimization
 
   const getOptimizationStatus = useCallback(async (jobId: string): Promise<OptimizationJob | null> => {
     try {
-      const response = await mlApiClient.get(`/api/v1/cascade/optimization/status/${jobId}`)
+      const response = await mlApiClient.get(`/api/v1/ml/cascade/optimization/status/${jobId}`)
       return response.data
     } catch (err) {
       console.error('Failed to get optimization status:', err)
@@ -173,7 +173,7 @@ export function useAdvancedCascadeOptimization(): UseAdvancedCascadeOptimization
 
   const getOptimizationResults = useCallback(async (jobId: string): Promise<OptimizationResults | null> => {
     try {
-      const response = await mlApiClient.get(`/api/v1/cascade/optimization/results/${jobId}`)
+      const response = await mlApiClient.get(`/api/v1/ml/cascade/optimization/results/${jobId}`)
       const results: OptimizationResults = response.data
       setCurrentResults(results)
       return results
@@ -185,7 +185,7 @@ export function useAdvancedCascadeOptimization(): UseAdvancedCascadeOptimization
 
   const cancelOptimization = useCallback(async (jobId: string): Promise<boolean> => {
     try {
-      await mlApiClient.delete(`/api/v1/cascade/optimization/${jobId}`)
+      await mlApiClient.delete(`/api/v1/ml/cascade/optimization/${jobId}`)
       setIsOptimizing(false)
       if (currentJob?.job_id === jobId) {
         setCurrentJob({ ...currentJob, status: 'cancelled' })
@@ -210,7 +210,7 @@ export function useAdvancedCascadeOptimization(): UseAdvancedCascadeOptimization
         params.append(`dv_values[${key}]`, value.toString())
       })
 
-      const response = await mlApiClient.get(`/api/v1/cascade/recommendations?${params}`)
+      const response = await mlApiClient.get(`/api/v1/ml/cascade/recommendations?${params}`)
       return response.data
     } catch (err) {
       console.error('Failed to get recommendations:', err)
@@ -220,7 +220,7 @@ export function useAdvancedCascadeOptimization(): UseAdvancedCascadeOptimization
 
   const listOptimizationJobs = useCallback(async (): Promise<OptimizationJob[]> => {
     try {
-      const response = await mlApiClient.get('/api/v1/cascade/optimization/jobs')
+      const response = await mlApiClient.get('/api/v1/ml/cascade/optimization/jobs')
       return response.data.jobs || []
     } catch (err) {
       console.error('Failed to list optimization jobs:', err)
@@ -230,7 +230,7 @@ export function useAdvancedCascadeOptimization(): UseAdvancedCascadeOptimization
 
   const getOptimizationInfo = useCallback(async () => {
     try {
-      const response = await mlApiClient.get('/api/v1/cascade/optimization/info')
+      const response = await mlApiClient.get('/api/v1/ml/cascade/optimization/info')
       return response.data
     } catch (err) {
       console.error('Failed to get optimization info:', err)
