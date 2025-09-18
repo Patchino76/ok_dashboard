@@ -85,6 +85,14 @@ export function useCascadeModelLoader() {
       
       const infoData = await infoResponse.json()
       console.log(`✅ Model info loaded for Mill ${millNumber}:`, infoData)
+      console.log(`🔍 Model info structure:`, {
+        hasModelInfo: !!infoData.model_info,
+        modelInfoKeys: Object.keys(infoData.model_info || {}),
+        hasAllFeatures: !!infoData.model_info?.all_features,
+        allFeatures: infoData.model_info?.all_features,
+        hasFeatureClassification: !!infoData.model_info?.feature_classification,
+        featureClassification: infoData.model_info?.feature_classification
+      })
       
       // Then, load the model into memory
       const loadResponse = await fetch(`${apiUrl}/api/v1/ml/cascade/models/${millNumber}/load`, {
@@ -98,17 +106,16 @@ export function useCascadeModelLoader() {
       const loadData = await loadResponse.json()
       console.log(`✅ Model loaded successfully for Mill ${millNumber}:`, loadData)
       
-      const modelMetadata: CascadeModelMetadata = {
-        mill_number: millNumber,
-        model_info: infoData.model_info
-      }
+      console.log('🔄 Setting cascade model metadata in state:', infoData);
       
       setState(prev => ({
         ...prev,
         isLoading: false,
-        modelMetadata,
+        modelMetadata: infoData,
         error: null
       }))
+      
+      console.log('✅ Cascade model metadata set in state');
       
       // Show success toast with model details
       const featureCount = infoData.model_info.all_features?.length || 0
@@ -120,7 +127,7 @@ export function useCascadeModelLoader() {
         }
       )
       
-      return modelMetadata
+      return infoData
       
     } catch (error) {
       console.error(`❌ Error loading model for Mill ${millNumber}:`, error)

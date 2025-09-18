@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -48,10 +48,13 @@ export default function CascadeOptimizationDashboard() {
   // Set default mill to 7 and load cascade models on page load
   useEffect(() => {
     const initializeCascade = async () => {
+      console.log('🚀 Initializing cascade optimization dashboard...');
       if (store.currentMill !== 7) {
+        console.log(`🔄 Setting current mill from ${store.currentMill} to 7`);
         store.setCurrentMill(7);
       }
       // Auto-load cascade models for the current mill on page load
+      console.log(`📥 Loading cascade model for mill ${store.currentMill}...`);
       await loadModelForMill(store.currentMill);
     };
     
@@ -60,6 +63,34 @@ export default function CascadeOptimizationDashboard() {
   
   // One-time guard to apply optimization-specific default model
   const appliedOptimizationDefaultModel = useRef(false);
+  
+  // Function to update parameter types based on cascade model classification
+  const updateParameterTypes = useCallback((featureClassification: any) => {
+    console.log('🏷️ Updating parameter types with classification:', featureClassification);
+    
+    // Update the store parameters with correct varType based on cascade model
+    useXgboostStore.setState(state => ({
+      ...state,
+      parameters: state.parameters.map(param => {
+        let varType: "MV" | "CV" | "DV" | undefined;
+        
+        if (featureClassification.mv_features?.includes(param.id)) {
+          varType = "MV";
+        } else if (featureClassification.cv_features?.includes(param.id)) {
+          varType = "CV";
+        } else if (featureClassification.dv_features?.includes(param.id)) {
+          varType = "DV";
+        }
+        
+        console.log(`📊 Parameter ${param.id}: ${param.varType} → ${varType}`);
+        
+        return {
+          ...param,
+          varType
+        };
+      })
+    }));
+  }, []);
   
   // Destructure store values with proper types
   const {
@@ -233,15 +264,36 @@ export default function CascadeOptimizationDashboard() {
     return targetParam?.unit || '%';
   }, [getTargetVariable]);
 
+  // Check if cascade model is ready for predictions
+  const isCascadeModelReady = useMemo(() => {
+    const features = getAllFeatures();
+    const currentState = useXgboostStore.getState();
+    return !!(
+      modelMetadata && 
+      features && 
+      features.length > 0 && 
+      currentState.modelFeatures && 
+      currentState.modelFeatures.length > 0
+    );
+  }, [modelMetadata, getAllFeatures]);
+
   // Debounced prediction effect for slider changes (reuse existing store behavior)
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (Object.keys(sliderValues).length > 0) {
+      // Only predict if cascade model is ready and we have slider values
+      if (isCascadeModelReady && Object.keys(sliderValues).length > 0) {
+        console.log('🔮 Triggering prediction - cascade model is ready');
         predictWithCurrentValues();
+      } else {
+        console.log('⏳ Skipping prediction:', {
+          isCascadeModelReady,
+          hasSliderValues: Object.keys(sliderValues).length > 0,
+          sliderValuesCount: Object.keys(sliderValues).length
+        });
       }
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [sliderValues, predictWithCurrentValues]);
+  }, [sliderValues, predictWithCurrentValues, isCascadeModelReady]);
 
   // Force simulation mode OFF for optimization page to enable PV-based predictions
   useEffect(() => {
@@ -256,15 +308,75 @@ export default function CascadeOptimizationDashboard() {
   // Update store metadata when cascade model is loaded
   useEffect(() => {
     if (modelMetadata) {
+      console.log('🔍 Raw cascade model metadata:', modelMetadata);
+      
       const features = getAllFeatures();
       const target = getTargetVariable();
       const lastTrained = modelMetadata.model_info.metadata?.created_at || 'Unknown';
+      const featureClassification = getFeatureClassification();
       
-      // Update the store with cascade model metadata
-      setModelMetadata(features, target, lastTrained);
-      setModelName(`cascade_mill_${modelMetadata.mill_number}`);
+      console.log('🔧 Updating XGBoost store with cascade model metadata:', {
+        features,
+        target,
+        featureClassification,
+        featuresLength: features?.length,
+        featuresArray: features,
+        modelInfoStructure: Object.keys(modelMetadata.model_info || {}),
+        hasAllFeatures: !!modelMetadata.model_info?.all_features,
+        hasFeatureClassification: !!modelMetadata.model_info?.feature_classification
+      });
+      
+      // Only proceed if we have features
+      if (features && features.length > 0) {
+        // Update the store with cascade model metadata
+        setModelMetadata(features, target, lastTrained);
+        setModelName(`cascade_mill_${modelMetadata.mill_number}`);
+        
+        // Update parameter varTypes based on cascade model classification
+        if (featureClassification && (
+          featureClassification.mv_features?.length > 0 || 
+          featureClassification.cv_features?.length > 0
+        )) {
+          updateParameterTypes(featureClassification);
+        } else {
+          console.warn('⚠️ No feature classification available, using default parameter types');
+        }
+        
+        console.log('✅ Successfully updated XGBoost store with cascade model metadata');
+        
+        // Wait a moment for the store to be fully updated, then verify
+        setTimeout(() => {
+          const currentState = useXgboostStore.getState();
+          console.log('🔍 Verifying XGBoost store state after update:', {
+            modelFeatures: currentState.modelFeatures,
+            modelFeaturesLength: currentState.modelFeatures?.length,
+            modelName: currentState.modelName,
+            modelTarget: currentState.modelTarget,
+            parametersCount: currentState.parameters?.length
+          });
+        }, 100);
+      } else {
+        console.error('❌ No features found in cascade model metadata');
+        console.error('Available model info keys:', Object.keys(modelMetadata.model_info || {}));
+        
+        // Fallback: try to extract features from feature classification
+        if (featureClassification) {
+          const fallbackFeatures = [
+            ...(featureClassification.mv_features || []),
+            ...(featureClassification.cv_features || []),
+            ...(featureClassification.dv_features || [])
+          ];
+          
+          if (fallbackFeatures.length > 0) {
+            console.log('🔄 Using fallback features from classification:', fallbackFeatures);
+            setModelMetadata(fallbackFeatures, target, lastTrained);
+            setModelName(`cascade_mill_${modelMetadata.mill_number}`);
+            updateParameterTypes(featureClassification);
+          }
+        }
+      }
     }
-  }, [modelMetadata, getAllFeatures, getTargetVariable, setModelMetadata, setModelName]);
+  }, [modelMetadata, getAllFeatures, getTargetVariable, getFeatureClassification, setModelMetadata, setModelName, updateParameterTypes]);
 
   // Start real-time data updates when cascade model is loaded
   useEffect(() => {
@@ -573,6 +685,18 @@ export default function CascadeOptimizationDashboard() {
                           <div className="text-xs text-slate-600">
                             {modelMetadata ? `Loaded: cascade_mill_${modelMetadata.mill_number}` : 'No cascade model loaded'}
                           </div>
+                          {isCascadeModelReady && (
+                            <div className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Ready for predictions
+                            </div>
+                          )}
+                          {modelMetadata && !isCascadeModelReady && (
+                            <div className="text-xs text-yellow-600 flex items-center gap-1 mt-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Model loaded but not ready
+                            </div>
+                          )}
                           {isLoadingModel && (
                             <div className="text-xs text-blue-600 flex items-center gap-1 mt-1">
                               <Loader2 className="h-3 w-3 animate-spin" />
@@ -600,6 +724,7 @@ export default function CascadeOptimizationDashboard() {
                     <CascadeFlowDiagram 
                       modelFeatures={getAllFeatures()}
                       modelTarget={getTargetVariable()}
+                      featureClassification={getFeatureClassification()}
                     />
                   </div>
                 )}

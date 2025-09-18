@@ -435,7 +435,14 @@ export const useXgboostStore = create<XgboostState>()(
           set({ availableModels: models }),
           
         setModelMetadata: (features, target, lastTrained) => {
-          console.log('Updating model metadata:', { features, target, lastTrained });
+          console.log('🔧 XGBoost Store: setModelMetadata called with:', { 
+            features, 
+            target, 
+            lastTrained,
+            featuresType: typeof features,
+            featuresLength: features?.length,
+            featuresArray: features
+          });
           
           // Get current timestamp for initial data points
           const now = Date.now();
@@ -476,7 +483,7 @@ export const useXgboostStore = create<XgboostState>()(
             }
             
             // Return the initial state update
-            return {
+            const newState = {
               modelFeatures: features,
               modelTarget: target,
               lastTrained,
@@ -492,6 +499,9 @@ export const useXgboostStore = create<XgboostState>()(
                 )
               }
             };
+            
+            console.log('✅ XGBoost Store: Updated state with modelFeatures:', newState.modelFeatures);
+            return newState;
           });
           
           // Trigger a real-time data fetch which will update the PV and SP values
@@ -1061,10 +1071,19 @@ export const useXgboostStore = create<XgboostState>()(
 
         predictWithCurrentValues: async () => {
           const state = useXgboostStore.getState();
-          const { modelFeatures, modelName, isSimulationMode, parameters, sliderValues } = state;
+          const { modelFeatures, modelName, modelTarget, isSimulationMode, parameters, sliderValues } = state;
           
           if (!modelFeatures || modelFeatures.length === 0) {
             console.error('❌ No model features available for prediction');
+            console.error('🔍 Debug info:', {
+              modelFeatures,
+              modelFeaturesType: typeof modelFeatures,
+              modelFeaturesLength: modelFeatures?.length,
+              modelName,
+              modelTarget,
+              parametersCount: parameters?.length,
+              sliderValuesCount: Object.keys(sliderValues || {}).length
+            });
             return;
           }
           

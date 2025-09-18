@@ -8,20 +8,48 @@ import { classifyParameters } from "../../data/cascade-parameter-classification"
 interface CascadeFlowDiagramProps {
   modelFeatures?: string[]
   modelTarget?: string
+  featureClassification?: {
+    mv_features: string[]
+    cv_features: string[]
+    dv_features: string[]
+    target_features: string[]
+  }
   className?: string
 }
 
 export function CascadeFlowDiagram({ 
   modelFeatures = [], 
   modelTarget = "PSI80",
+  featureClassification,
   className = ""
 }: CascadeFlowDiagramProps) {
-  // Classify parameters into MV, DV, and determine CV parameters
-  const { mv_parameters, dv_parameters, unknown_parameters } = classifyParameters(modelFeatures);
+  // Use feature classification from cascade model API if available, otherwise fallback to static classification
+  let mv_parameters: string[], cv_parameters: string[], dv_parameters: string[];
   
-  // CV parameters are typically the intermediate variables in cascade models
-  // For now, we'll treat unknown parameters as potential CV parameters
-  const cv_parameters = unknown_parameters;
+  if (featureClassification) {
+    // Use the actual feature classification from the cascade model
+    mv_parameters = featureClassification.mv_features || [];
+    cv_parameters = featureClassification.cv_features || [];
+    dv_parameters = featureClassification.dv_features || [];
+    
+    console.log('🏷️ Using cascade model feature classification:', {
+      mv_parameters,
+      cv_parameters,
+      dv_parameters
+    });
+  } else {
+    // Fallback to static classification
+    const { mv_parameters: mv, dv_parameters: dv, unknown_parameters } = classifyParameters(modelFeatures);
+    mv_parameters = mv;
+    dv_parameters = dv;
+    cv_parameters = unknown_parameters;
+    
+    console.log('⚠️ Using fallback static classification:', {
+      mv_parameters,
+      cv_parameters,
+      dv_parameters
+    });
+  }
 
   // Variable type styling
   const getVarTypeStyle = (varType: "MV" | "CV" | "DV") => {
