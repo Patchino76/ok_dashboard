@@ -15,7 +15,7 @@ from .simple_cascade_optimizer import SimpleCascadeOptimizer, OptimizationReques
 
 # Import variable classifier with error handling
 try:
-    from .old_files_to_delete.variable_classifier import VariableClassifier
+    from .variable_classifier import VariableClassifier
 except ImportError:
     # Fallback: create a minimal classifier if import fails
     class VariableClassifier:
