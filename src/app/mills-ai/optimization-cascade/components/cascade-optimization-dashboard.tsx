@@ -1,36 +1,55 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
-import { Activity, Zap, Play, CheckCircle, AlertCircle, Wrench, Cpu, GraduationCap, Loader2, BarChart3, Settings, Sliders } from "lucide-react"
-import { ParameterCascadeOptimizationCard, CascadeParameter } from "."
-import { CascadeTargetTrend } from "./target-cascade-trend"
-import { CascadeFlowDiagram } from "./cascade-flow-diagram"
-import { CascadeSimulationInterface } from "./cascade-simulation-interface"
-import { ModelSelection } from "../../components/model-selection"
-import { useXgboostStore } from "../../stores/xgboost-store"
-import { useOptimizationStore } from "../../stores/optimization-store"
-import { useCascadeOptimization } from "../../hooks/useCascadeOptimization"
-import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization"
-import { useOptimizationResults } from "../../hooks/useOptimizationResults"
-import { useCascadeTraining } from "../../hooks/useCascadeTraining"
-import { useCascadeModelLoader } from "../../hooks/useCascadeModelLoader"
-import { toast } from "sonner"
-import { useGetModels } from "../../hooks/use-get-models"
-import { millsParameters, getTargets } from "../../data/mills-parameters"
-import { classifyParameters } from "../../data/cascade-parameter-classification"
-import { EnhancedModelTraining } from "./enhanced-model-training"
-import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization"
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import {
+  Activity,
+  Zap,
+  Play,
+  CheckCircle,
+  AlertCircle,
+  Wrench,
+  Cpu,
+  GraduationCap,
+  Loader2,
+  BarChart3,
+  Settings,
+  Sliders,
+} from "lucide-react";
+import { ParameterCascadeOptimizationCard, CascadeParameter } from ".";
+import { CascadeTargetTrend } from "./target-cascade-trend";
+import { CascadeFlowDiagram } from "./cascade-flow-diagram";
+import { CascadeSimulationInterface } from "./cascade-simulation-interface";
+import { ModelSelection } from "../../components/model-selection";
+import { useXgboostStore } from "../../stores/xgboost-store";
+import { useOptimizationStore } from "../../stores/optimization-store";
+import { useCascadeOptimization } from "../../hooks/useCascadeOptimization";
+import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization";
+import { useOptimizationResults } from "../../hooks/useOptimizationResults";
+import { useCascadeTraining } from "../../hooks/useCascadeTraining";
+import { useCascadeModelLoader } from "../../hooks/useCascadeModelLoader";
+import { toast } from "sonner";
+import { useGetModels } from "../../hooks/use-get-models";
+import { millsParameters, getTargets } from "../../data/mills-parameters";
+import { classifyParameters } from "../../data/cascade-parameter-classification";
+import { EnhancedModelTraining } from "./enhanced-model-training";
+import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 
 export default function CascadeOptimizationDashboard() {
   // Get the store instance
   const store = useXgboostStore();
-  
+
   // Cascade model loader hook
   const {
     isLoading: isLoadingModel,
@@ -42,13 +61,13 @@ export default function CascadeOptimizationDashboard() {
     getAllFeatures,
     getTargetVariable,
     hasCompleteCascade,
-    getModelPerformance
+    getModelPerformance,
   } = useCascadeModelLoader();
 
   // Set default mill to 7 and load cascade models on page load
   useEffect(() => {
     const initializeCascade = async () => {
-      console.log('🚀 Initializing cascade optimization dashboard...');
+      console.log("🚀 Initializing cascade optimization dashboard...");
       if (store.currentMill !== 7) {
         console.log(`🔄 Setting current mill from ${store.currentMill} to 7`);
         store.setCurrentMill(7);
@@ -57,23 +76,26 @@ export default function CascadeOptimizationDashboard() {
       console.log(`📥 Loading cascade model for mill ${store.currentMill}...`);
       await loadModelForMill(store.currentMill);
     };
-    
+
     initializeCascade();
   }, []);
-  
+
   // One-time guard to apply optimization-specific default model
   const appliedOptimizationDefaultModel = useRef(false);
-  
+
   // Function to update parameter types based on cascade model classification
   const updateParameterTypes = useCallback((featureClassification: any) => {
-    console.log('🏷️ Updating parameter types with classification:', featureClassification);
-    
+    console.log(
+      "🏷️ Updating parameter types with classification:",
+      featureClassification
+    );
+
     // Update the store parameters with correct varType based on cascade model
-    useXgboostStore.setState(state => ({
+    useXgboostStore.setState((state) => ({
       ...state,
-      parameters: state.parameters.map(param => {
+      parameters: state.parameters.map((param) => {
         let varType: "MV" | "CV" | "DV" | undefined;
-        
+
         if (featureClassification.mv_features?.includes(param.id)) {
           varType = "MV";
         } else if (featureClassification.cv_features?.includes(param.id)) {
@@ -81,17 +103,17 @@ export default function CascadeOptimizationDashboard() {
         } else if (featureClassification.dv_features?.includes(param.id)) {
           varType = "DV";
         }
-        
+
         console.log(`📊 Parameter ${param.id}: ${param.varType} → ${varType}`);
-        
+
         return {
           ...param,
-          varType
+          varType,
         };
-      })
+      }),
     }));
   }, []);
-  
+
   // Destructure store values with proper types
   const {
     parameters,
@@ -118,7 +140,7 @@ export default function CascadeOptimizationDashboard() {
     resetFeatures,
     resetSliders,
     resetSlidersToPVs,
-    predictWithCurrentValues
+    predictWithCurrentValues,
   } = store;
 
   // Optimization store and hooks
@@ -136,11 +158,12 @@ export default function CascadeOptimizationDashboard() {
     clearProposedSetpoints,
     clearResults,
     autoApplyProposals,
-    setAutoApplyProposals
-  } = useOptimizationStore()
-  
-  const { startCascadeOptimization, isOptimizing, error } = useCascadeOptimization()
-  
+    setAutoApplyProposals,
+  } = useOptimizationStore();
+
+  const { startCascadeOptimization, isOptimizing, error } =
+    useCascadeOptimization();
+
   // Advanced optimization hook
   const {
     startOptimization: startAdvancedOptimization,
@@ -152,51 +175,55 @@ export default function CascadeOptimizationDashboard() {
     currentJob,
     currentResults: advancedResults,
     isOptimizing: isAdvancedOptimizing,
-    error: advancedError
-  } = useAdvancedCascadeOptimization()
-  const { 
-    currentResults, 
-    hasResults, 
-    isSuccessful, 
+    error: advancedError,
+  } = useAdvancedCascadeOptimization();
+  const {
+    currentResults,
+    hasResults,
+    isSuccessful,
     applyOptimizedParameters,
-    improvementScore 
-  } = useOptimizationResults()
-  
+    improvementScore,
+  } = useOptimizationResults();
+
   // Job history state for advanced optimization
-  const [jobHistory, setJobHistory] = useState<OptimizationJob[]>([])
-  
+  const [jobHistory, setJobHistory] = useState<OptimizationJob[]>([]);
+
   // Training functionality
-  const { trainCascadeModel, isTraining, progress: trainingProgress, error: trainingError } = useCascadeTraining()
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  
+  const {
+    trainCascadeModel,
+    isTraining,
+    progress: trainingProgress,
+    error: trainingError,
+  } = useCascadeTraining();
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
   // Initialize dates to last 30 days
   useEffect(() => {
-    const now = new Date()
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    setEndDate(now.toISOString().split('T')[0])
-    setStartDate(thirtyDaysAgo.toISOString().split('T')[0])
-  }, [])
-  
-  
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    setEndDate(now.toISOString().split("T")[0]);
+    setStartDate(thirtyDaysAgo.toISOString().split("T")[0]);
+  }, []);
+
   // Add missing state variables
   const [isSimulationMode, setIsSimulationMode] = useState(false);
-  const [targetVariable, setTargetVariable] = useState('PSI80');
-  const [activeTab, setActiveTab] = useState('overview');
+  const [targetVariable, setTargetVariable] = useState("PSI80");
+  const [activeTab, setActiveTab] = useState("overview");
 
   // Get target parameter bounds based on cascade model's target
   const targetParameter = useMemo(() => {
     const targetId = getTargetVariable();
-    
+
     // First try to find in targets
     const targets = getTargets();
-    let targetParam = targets.find(t => t.id === targetId);
-    
+    let targetParam = targets.find((t) => t.id === targetId);
+
     // If not found in targets, look in all parameters (some models use features as targets)
     if (!targetParam) {
-      targetParam = millsParameters.find(p => p.id === targetId);
+      targetParam = millsParameters.find((p) => p.id === targetId);
     }
-    
+
     // Fallback to first target if nothing found
     return targetParam || targets[0];
   }, [getTargetVariable]);
@@ -204,14 +231,16 @@ export default function CascadeOptimizationDashboard() {
   // Initialize optimization bounds from parameterBounds when cascade model is loaded
   useEffect(() => {
     if (!modelMetadata) return;
-    
+
     const allModelFeatures = getAllFeatures();
-    const filteredParameters = parameters.filter(p => allModelFeatures.includes(p.id));
-    
+    const filteredParameters = parameters.filter((p) =>
+      allModelFeatures.includes(p.id)
+    );
+
     const initial: Record<string, [number, number]> = {};
     let hasChanges = false;
-    
-    filteredParameters.forEach(p => {
+
+    filteredParameters.forEach((p) => {
       const b = parameterBounds[p.id] || [0, 100];
       // If existing bounds present keep them, else initialize to 10% inside the parameter bounds
       if (optimizationBounds[p.id]) {
@@ -224,13 +253,13 @@ export default function CascadeOptimizationDashboard() {
         hasChanges = true;
       }
     });
-    
+
     // Only update if there are actual changes
     if (hasChanges) {
       setParameterBounds(initial);
     }
-  }, [modelMetadata, parameters, parameterBounds, getAllFeatures])  // Added modelMetadata and getAllFeatures
-  
+  }, [modelMetadata, parameters, parameterBounds, getAllFeatures]); // Added modelMetadata and getAllFeatures
+
   // Initialize target setpoint to middle of target parameter range when model changes
   useEffect(() => {
     if (targetParameter) {
@@ -241,27 +270,31 @@ export default function CascadeOptimizationDashboard() {
 
   const [isPredicting, setIsPredicting] = useState(false);
   const { models } = useGetModels();
-  
+
   const selectedModel = modelName && models ? models[modelName] : null;
-  
+
   const handleResetOptimization = () => {
     // Clear optimization results
     clearResults();
-    
+
     // Reset target setpoint to middle of target parameter range
     if (targetParameter) {
       setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
     }
-    
+
     // Show feedback to user
-    toast.success('Optimization reset: cleared all optimization results and returned to default values');
+    toast.success(
+      "Optimization reset: cleared all optimization results and returned to default values"
+    );
   };
-  
+
   const targetUnit = useMemo(() => {
     const targetVariable = getTargetVariable();
-    if (!targetVariable) return '%';
-    const targetParam = millsParameters.find(param => param.id === targetVariable);
-    return targetParam?.unit || '%';
+    if (!targetVariable) return "%";
+    const targetParam = millsParameters.find(
+      (param) => param.id === targetVariable
+    );
+    return targetParam?.unit || "%";
   }, [getTargetVariable]);
 
   // Check if cascade model is ready for predictions
@@ -269,10 +302,10 @@ export default function CascadeOptimizationDashboard() {
     const features = getAllFeatures();
     const currentState = useXgboostStore.getState();
     return !!(
-      modelMetadata && 
-      features && 
-      features.length > 0 && 
-      currentState.modelFeatures && 
+      modelMetadata &&
+      features &&
+      features.length > 0 &&
+      currentState.modelFeatures &&
       currentState.modelFeatures.length > 0
     );
   }, [modelMetadata, getAllFeatures]);
@@ -282,13 +315,13 @@ export default function CascadeOptimizationDashboard() {
     const timeoutId = setTimeout(() => {
       // Only predict if cascade model is ready and we have slider values
       if (isCascadeModelReady && Object.keys(sliderValues).length > 0) {
-        console.log('🔮 Triggering prediction - cascade model is ready');
+        console.log("🔮 Triggering prediction - cascade model is ready");
         predictWithCurrentValues();
       } else {
-        console.log('⏳ Skipping prediction:', {
+        console.log("⏳ Skipping prediction:", {
           isCascadeModelReady,
           hasSliderValues: Object.keys(sliderValues).length > 0,
-          sliderValuesCount: Object.keys(sliderValues).length
+          sliderValuesCount: Object.keys(sliderValues).length,
         });
       }
     }, 500);
@@ -301,21 +334,22 @@ export default function CascadeOptimizationDashboard() {
       const setSimulationMode = useXgboostStore.getState().setSimulationMode;
       setSimulationMode(false); // Use real-time mode for PV-based predictions
     } catch (e) {
-      console.warn('Failed to set simulation mode on mount:', e);
+      console.warn("Failed to set simulation mode on mount:", e);
     }
   }, []);
 
   // Update store metadata when cascade model is loaded
   useEffect(() => {
     if (modelMetadata) {
-      console.log('🔍 Raw cascade model metadata:', modelMetadata);
-      
+      console.log("🔍 Raw cascade model metadata:", modelMetadata);
+
       const features = getAllFeatures();
       const target = getTargetVariable();
-      const lastTrained = modelMetadata.model_info.metadata?.created_at || 'Unknown';
+      const lastTrained =
+        modelMetadata.model_info.metadata?.created_at || "Unknown";
       const featureClassification = getFeatureClassification();
-      
-      console.log('🔧 Updating XGBoost store with cascade model metadata:', {
+
+      console.log("🔧 Updating XGBoost store with cascade model metadata:", {
         features,
         target,
         featureClassification,
@@ -323,52 +357,64 @@ export default function CascadeOptimizationDashboard() {
         featuresArray: features,
         modelInfoStructure: Object.keys(modelMetadata.model_info || {}),
         hasAllFeatures: !!modelMetadata.model_info?.all_features,
-        hasFeatureClassification: !!modelMetadata.model_info?.feature_classification
+        hasFeatureClassification:
+          !!modelMetadata.model_info?.feature_classification,
       });
-      
+
       // Only proceed if we have features
       if (features && features.length > 0) {
         // Update the store with cascade model metadata
         setModelMetadata(features, target, lastTrained);
         setModelName(`cascade_mill_${modelMetadata.mill_number}`);
-        
+
         // Update parameter varTypes based on cascade model classification
-        if (featureClassification && (
-          featureClassification.mv_features?.length > 0 || 
-          featureClassification.cv_features?.length > 0
-        )) {
+        if (
+          featureClassification &&
+          (featureClassification.mv_features?.length > 0 ||
+            featureClassification.cv_features?.length > 0)
+        ) {
           updateParameterTypes(featureClassification);
         } else {
-          console.warn('⚠️ No feature classification available, using default parameter types');
+          console.warn(
+            "⚠️ No feature classification available, using default parameter types"
+          );
         }
-        
-        console.log('✅ Successfully updated XGBoost store with cascade model metadata');
-        
+
+        console.log(
+          "✅ Successfully updated XGBoost store with cascade model metadata"
+        );
+
         // Wait a moment for the store to be fully updated, then verify
         setTimeout(() => {
           const currentState = useXgboostStore.getState();
-          console.log('🔍 Verifying XGBoost store state after update:', {
+          console.log("🔍 Verifying XGBoost store state after update:", {
             modelFeatures: currentState.modelFeatures,
             modelFeaturesLength: currentState.modelFeatures?.length,
             modelName: currentState.modelName,
             modelTarget: currentState.modelTarget,
-            parametersCount: currentState.parameters?.length
+            parametersCount: currentState.parameters?.length,
           });
         }, 100);
       } else {
-        console.error('❌ No features found in cascade model metadata');
-        console.error('Available model info keys:', Object.keys(modelMetadata.model_info || {}));
-        
+        console.error("❌ No features found in cascade model metadata");
+        console.error(
+          "Available model info keys:",
+          Object.keys(modelMetadata.model_info || {})
+        );
+
         // Fallback: try to extract features from feature classification
         if (featureClassification) {
           const fallbackFeatures = [
             ...(featureClassification.mv_features || []),
             ...(featureClassification.cv_features || []),
-            ...(featureClassification.dv_features || [])
+            ...(featureClassification.dv_features || []),
           ];
-          
+
           if (fallbackFeatures.length > 0) {
-            console.log('🔄 Using fallback features from classification:', fallbackFeatures);
+            console.log(
+              "🔄 Using fallback features from classification:",
+              fallbackFeatures
+            );
             setModelMetadata(fallbackFeatures, target, lastTrained);
             setModelName(`cascade_mill_${modelMetadata.mill_number}`);
             updateParameterTypes(featureClassification);
@@ -376,7 +422,15 @@ export default function CascadeOptimizationDashboard() {
         }
       }
     }
-  }, [modelMetadata, getAllFeatures, getTargetVariable, getFeatureClassification, setModelMetadata, setModelName, updateParameterTypes]);
+  }, [
+    modelMetadata,
+    getAllFeatures,
+    getTargetVariable,
+    getFeatureClassification,
+    setModelMetadata,
+    setModelName,
+    updateParameterTypes,
+  ]);
 
   // Start real-time data updates when cascade model is loaded
   useEffect(() => {
@@ -386,9 +440,9 @@ export default function CascadeOptimizationDashboard() {
       if (modelMetadata && features.length > 0) {
         try {
           const cleanupFn = startRealTimeUpdates();
-          if (typeof cleanupFn === 'function') cleanup = cleanupFn;
+          if (typeof cleanupFn === "function") cleanup = cleanupFn;
         } catch (error) {
-          console.error('Error starting real-time updates:', error);
+          console.error("Error starting real-time updates:", error);
         }
       }
     };
@@ -410,71 +464,74 @@ export default function CascadeOptimizationDashboard() {
 
   const handleMillChange = async (newMill: number) => {
     if (newMill === currentMill) return;
-    
+
     try {
       await stopRealTimeUpdates();
       setCurrentMill(newMill);
-      
+
       // Reset state for new mill
       setPredictedTarget(0);
       resetFeatures(); // Reset parameters to default values
-      
+
       // Auto-load cascade models for the new mill
       await loadModelForMill(newMill);
-      
+
       toast.success(`Switched to Mill ${newMill}`);
     } catch (error) {
-      console.error('Error switching mills:', error);
-      toast.error('Failed to switch mills');
+      console.error("Error switching mills:", error);
+      toast.error("Failed to switch mills");
     }
   };
 
-  
   const handleStartOptimization = async () => {
     if (isOptimizing || !modelMetadata) return;
-    
-    const loadingToast = toast.loading('Starting Cascade optimization...');
-    
+
+    const loadingToast = toast.loading("Starting Cascade optimization...");
+
     try {
       // Get feature classification from loaded cascade model
       const featureClassification = getFeatureClassification();
-      
+
       // Prepare cascade-specific config with MV and DV values
       const cascadeConfig = {
         mv_values: {} as Record<string, number>,
         dv_values: {} as Record<string, number>,
         target_setpoint: targetSetpoint,
-        maximize: maximize
+        maximize: maximize,
       };
-      
+
       // Map MV parameters (controllable) with optimization bounds
-      featureClassification.mv_features.forEach(paramId => {
-        const param = parameters.find(p => p.id === paramId);
+      featureClassification.mv_features.forEach((paramId) => {
+        const param = parameters.find((p) => p.id === paramId);
         if (param) {
-          const optBounds = optimizationBounds[paramId] || parameterBounds[paramId] || [0, 100];
-          const currentValue = sliderValues[paramId] || param.value || ((optBounds[0] + optBounds[1]) / 2);
+          const optBounds = optimizationBounds[paramId] ||
+            parameterBounds[paramId] || [0, 100];
+          const currentValue =
+            sliderValues[paramId] ||
+            param.value ||
+            (optBounds[0] + optBounds[1]) / 2;
           cascadeConfig.mv_values[paramId] = currentValue;
         }
       });
-      
+
       // Map DV parameters (disturbances) with current values
-      featureClassification.dv_features.forEach(paramId => {
-        const param = parameters.find(p => p.id === paramId);
+      featureClassification.dv_features.forEach((paramId) => {
+        const param = parameters.find((p) => p.id === paramId);
         if (param) {
           const currentValue = sliderValues[paramId] || param.value || 0;
           cascadeConfig.dv_values[paramId] = currentValue;
         }
       });
-      
-      console.log('Cascade optimization config:', cascadeConfig);
-      
+
+      console.log("Cascade optimization config:", cascadeConfig);
+
       // Start cascade optimization using the new hook
       const result = await startCascadeOptimization(cascadeConfig);
-      
-      if (result && result.status === 'completed') {
+
+      if (result && result.status === "completed") {
         // Update proposed setpoints with optimized MV values
         const newProposedSetpoints: Record<string, number> = {};
-        
+
         // Set proposed setpoints for MV parameters based on optimization result
         if (result.predicted_cvs) {
           Object.entries(result.predicted_cvs).forEach(([paramId, value]) => {
@@ -483,34 +540,41 @@ export default function CascadeOptimizationDashboard() {
             }
           });
         }
-        
+
         // Apply proposed setpoints to the optimization store
         if (Object.keys(newProposedSetpoints).length > 0) {
-          useOptimizationStore.getState().setProposedSetpoints(newProposedSetpoints);
+          useOptimizationStore
+            .getState()
+            .setProposedSetpoints(newProposedSetpoints);
         }
-        
+
         // Auto-apply if enabled
         if (autoApplyProposals) {
           applyOptimizedParameters();
         }
-        
+
         toast.success(
-          `Cascade optimization completed! Target: ${result.predicted_target?.toFixed(3) || 'N/A'} ${result.is_feasible ? '✓' : '⚠️'}`,
+          `Cascade optimization completed! Target: ${
+            result.predicted_target?.toFixed(3) || "N/A"
+          } ${result.is_feasible ? "✓" : "⚠️"}`,
           { id: loadingToast }
         );
       } else {
-        toast.error('Cascade optimization failed. Please check the logs.', { id: loadingToast });
+        toast.error("Cascade optimization failed. Please check the logs.", {
+          id: loadingToast,
+        });
       }
-      
     } catch (error) {
-      console.error('Cascade optimization failed:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      toast.error(`Cascade optimization failed: ${errorMsg}`, { id: loadingToast });
+      console.error("Cascade optimization failed:", error);
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      toast.error(`Cascade optimization failed: ${errorMsg}`, {
+        id: loadingToast,
+      });
     } finally {
       toast.dismiss(loadingToast);
     }
   };
-  
+
   const handleTrainModel = async (config?: {
     mill_number: number;
     start_date: string;
@@ -533,34 +597,42 @@ export default function CascadeOptimizationDashboard() {
       dv_features: ["Shisti", "Daiki", "Grano"],
       target_variable: "PSI200",
       test_size: 0.2,
-      resample_freq: "1min"
+      resample_freq: "1min",
     };
-    
-    if (isTraining || !trainingConfig.mill_number || !trainingConfig.start_date || !trainingConfig.end_date) return;
-    
-    const loadingToast = toast.loading('Training cascade model...');
-    
+
+    if (
+      isTraining ||
+      !trainingConfig.mill_number ||
+      !trainingConfig.start_date ||
+      !trainingConfig.end_date
+    )
+      return;
+
+    const loadingToast = toast.loading("Training cascade model...");
+
     try {
       const result = await trainCascadeModel(trainingConfig);
-      
-      const modelName = trainingConfig.model_name_suffix 
+
+      const modelName = trainingConfig.model_name_suffix
         ? `cascade_mill_${trainingConfig.mill_number}_${trainingConfig.model_name_suffix}`
         : `cascade_mill_${trainingConfig.mill_number}`;
-      
+
       toast.success(
-        `Cascade training started! Model: ${modelName}, Mill ${result.mill_number}, Data: ${result.data_shape?.[0] || 'N/A'} rows, Date range: ${result.date_range}`,
+        `Cascade training started! Model: ${modelName}, Mill ${
+          result.mill_number
+        }, Data: ${result.data_shape?.[0] || "N/A"} rows, Date range: ${
+          result.date_range
+        }`,
         { id: loadingToast }
       );
-      
     } catch (error) {
-      console.error('Cascade training failed:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error("Cascade training failed:", error);
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
       toast.error(`Cascade training failed: ${errorMsg}`, { id: loadingToast });
     } finally {
       toast.dismiss(loadingToast);
     }
   };
-  
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-100 dark:from-purple-900/20 dark:via-indigo-800/20 dark:to-blue-700/20 p-6">
@@ -591,7 +663,10 @@ export default function CascadeOptimizationDashboard() {
               <GraduationCap className="h-4 w-4" />
               Training
             </TabsTrigger>
-            <TabsTrigger value="optimization" className="flex items-center gap-2">
+            <TabsTrigger
+              value="optimization"
+              className="flex items-center gap-2"
+            >
               <Settings className="h-4 w-4" />
               Optimization
             </TabsTrigger>
@@ -612,16 +687,26 @@ export default function CascadeOptimizationDashboard() {
                     System Overview & Cascade Flow
                   </CardTitle>
                   <div className="flex gap-2">
-                    <Badge variant="outline" className={`rounded-full px-3 py-1 ${
-                      isOptimizing ? "bg-amber-100 text-amber-800 border-amber-200" :
-                      hasResults && isSuccessful ? "bg-green-100 text-green-800 border-green-200" :
-                      "bg-slate-100 text-slate-600 border-slate-200"
-                    }`}>
-                      {isOptimizing ? 'OPTIMIZING...' :
-                       hasResults && isSuccessful ? "READY" :
-                       "CONFIGURING"}
+                    <Badge
+                      variant="outline"
+                      className={`rounded-full px-3 py-1 ${
+                        isOptimizing
+                          ? "bg-amber-100 text-amber-800 border-amber-200"
+                          : hasResults && isSuccessful
+                          ? "bg-green-100 text-green-800 border-green-200"
+                          : "bg-slate-100 text-slate-600 border-slate-200"
+                      }`}
+                    >
+                      {isOptimizing
+                        ? "OPTIMIZING..."
+                        : hasResults && isSuccessful
+                        ? "READY"
+                        : "CONFIGURING"}
                     </Badge>
-                    <Badge variant="outline" className="rounded-full px-3 py-1 bg-blue-100 text-blue-800 border-blue-200 flex items-center gap-1">
+                    <Badge
+                      variant="outline"
+                      className="rounded-full px-3 py-1 bg-blue-100 text-blue-800 border-blue-200 flex items-center gap-1"
+                    >
                       <Zap className="h-3 w-3" />
                       Cascade Active
                     </Badge>
@@ -637,15 +722,19 @@ export default function CascadeOptimizationDashboard() {
                       <div className="space-y-3">
                         <div className="flex items-center gap-2">
                           <Cpu className="h-4 w-4 text-blue-600" />
-                          <span className="font-medium text-sm">Mill Selection</span>
+                          <span className="font-medium text-sm">
+                            Mill Selection
+                          </span>
                         </div>
                         <select
                           value={currentMill}
-                          onChange={(e) => handleMillChange(parseInt(e.target.value))}
+                          onChange={(e) =>
+                            handleMillChange(parseInt(e.target.value))
+                          }
                           className="w-full p-2 border border-slate-300 rounded-md text-sm"
                           disabled={isLoadingModel}
                         >
-                          {Object.keys(cascadeAvailableModels).map(mill => (
+                          {Object.keys(cascadeAvailableModels).map((mill) => (
                             <option key={mill} value={parseInt(mill)}>
                               Mill {mill}
                             </option>
@@ -659,31 +748,47 @@ export default function CascadeOptimizationDashboard() {
                       </div>
                     </Card>
                   </div>
-                  
+
                   {/* Model Information */}
                   <div className="lg:col-span-2 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="text-center p-3 bg-slate-50 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">{currentMill}</div>
-                        <div className="text-sm text-slate-600">Selected Mill</div>
+                        <div className="text-2xl font-bold text-blue-600">
+                          {currentMill}
+                        </div>
+                        <div className="text-sm text-slate-600">
+                          Selected Mill
+                        </div>
                       </div>
                       <div className="text-center p-3 bg-slate-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">{getAllFeatures().length}</div>
-                        <div className="text-sm text-slate-600">Model Features</div>
+                        <div className="text-2xl font-bold text-green-600">
+                          {getAllFeatures().length}
+                        </div>
+                        <div className="text-sm text-slate-600">
+                          Model Features
+                        </div>
                       </div>
                       <div className="text-center p-3 bg-slate-50 rounded-lg">
-                        <div className="text-lg font-bold text-purple-600">{getTargetVariable()}</div>
-                        <div className="text-sm text-slate-600">Target Variable</div>
+                        <div className="text-lg font-bold text-purple-600">
+                          {getTargetVariable()}
+                        </div>
+                        <div className="text-sm text-slate-600">
+                          Target Variable
+                        </div>
                       </div>
                     </div>
-                    
+
                     {/* Model Status */}
                     <div className="p-3 bg-slate-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium text-sm">Cascade Model Status</div>
+                          <div className="font-medium text-sm">
+                            Cascade Model Status
+                          </div>
                           <div className="text-xs text-slate-600">
-                            {modelMetadata ? `Loaded: cascade_mill_${modelMetadata.mill_number}` : 'No cascade model loaded'}
+                            {modelMetadata
+                              ? `Loaded: cascade_mill_${modelMetadata.mill_number}`
+                              : "No cascade model loaded"}
                           </div>
                           {isCascadeModelReady && (
                             <div className="text-xs text-green-600 flex items-center gap-1 mt-1">
@@ -709,10 +814,15 @@ export default function CascadeOptimizationDashboard() {
                             </div>
                           )}
                         </div>
-                        <div className={`w-3 h-3 rounded-full ${
-                          modelMetadata && hasCompleteCascade() ? 'bg-green-500' : 
-                          isLoadingModel ? 'bg-yellow-500' : 'bg-red-500'
-                        }`} />
+                        <div
+                          className={`w-3 h-3 rounded-full ${
+                            modelMetadata && hasCompleteCascade()
+                              ? "bg-green-500"
+                              : isLoadingModel
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                          }`}
+                        />
                       </div>
                     </div>
                   </div>
@@ -721,33 +831,38 @@ export default function CascadeOptimizationDashboard() {
                 {/* Cascade Flow Diagram */}
                 {modelMetadata && getAllFeatures().length > 0 && (
                   <div className="border-t pt-6">
-                    <CascadeFlowDiagram 
+                    <CascadeFlowDiagram
                       modelFeatures={getAllFeatures()}
                       modelTarget={getTargetVariable()}
                       featureClassification={getFeatureClassification()}
                     />
                   </div>
                 )}
-                
+
                 {/* No Model Loaded State */}
                 {!modelMetadata && !isLoadingModel && (
                   <div className="border-t pt-6">
                     <div className="text-center py-8 text-slate-500">
                       <Activity className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                      <h3 className="text-lg font-medium mb-2">No Cascade Model Loaded</h3>
+                      <h3 className="text-lg font-medium mb-2">
+                        No Cascade Model Loaded
+                      </h3>
                       <p className="text-sm">
-                        Select a mill to load its cascade model and view the system flow diagram.
+                        Select a mill to load its cascade model and view the
+                        system flow diagram.
                       </p>
                     </div>
                   </div>
                 )}
-                
+
                 {/* Loading State */}
                 {isLoadingModel && (
                   <div className="border-t pt-6">
                     <div className="text-center py-8 text-slate-500">
                       <Loader2 className="h-12 w-12 mx-auto mb-4 text-blue-500 animate-spin" />
-                      <h3 className="text-lg font-medium mb-2">Loading Cascade Model</h3>
+                      <h3 className="text-lg font-medium mb-2">
+                        Loading Cascade Model
+                      </h3>
                       <p className="text-sm">
                         Loading model for Mill {currentMill}...
                       </p>
@@ -756,20 +871,6 @@ export default function CascadeOptimizationDashboard() {
                 )}
               </CardContent>
             </Card>
-
-            {/* Target Display */}
-            <CascadeTargetTrend
-              currentTarget={currentTarget}
-              currentPV={currentPV}
-              targetData={targetData}
-              isOptimizing={isOptimizing}
-              isSimulationMode={isSimulationMode}
-              modelName={modelName}
-              targetVariable={targetVariable}
-              targetUnit={targetUnit}
-              spOptimize={hasResults && isSuccessful ? targetSetpoint : undefined}
-              showOptimizationTarget={hasResults && isSuccessful}
-            />
           </TabsContent>
 
           {/* Training Tab */}
@@ -782,7 +883,7 @@ export default function CascadeOptimizationDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <EnhancedModelTraining 
+                <EnhancedModelTraining
                   currentMill={currentMill}
                   onMillChange={setCurrentMill}
                   onTrainModel={handleTrainModel}
@@ -810,41 +911,83 @@ export default function CascadeOptimizationDashboard() {
                   <Card className="p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col">
-                        <div className="text-sm font-medium">Optimization Goal</div>
-                        <div className="text-xs text-slate-500">Choose whether to maximize or minimize the target value</div>
+                        <div className="text-sm font-medium">
+                          Optimization Goal
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Choose whether to maximize or minimize the target
+                          value
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs ${!maximize ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Minimize</span>
+                        <span
+                          className={`text-xs ${
+                            !maximize
+                              ? "text-slate-900 font-medium"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          Minimize
+                        </span>
                         <Switch
                           checked={maximize}
                           onCheckedChange={setMaximize}
                           disabled={isOptimizing}
                         />
-                        <span className={`text-xs ${maximize ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Maximize</span>
+                        <span
+                          className={`text-xs ${
+                            maximize
+                              ? "text-slate-900 font-medium"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          Maximize
+                        </span>
                       </div>
                     </div>
                   </Card>
-                  
+
                   {/* Auto-Apply Proposed Setpoints Toggle */}
                   <Card className="p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col">
-                        <div className="text-sm font-medium">Auto-Apply Proposed Setpoints</div>
-                        <div className="text-xs text-slate-500">Automatically apply optimized parameters when optimization completes</div>
+                        <div className="text-sm font-medium">
+                          Auto-Apply Proposed Setpoints
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          Automatically apply optimized parameters when
+                          optimization completes
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs ${!autoApplyProposals ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Manual</span>
+                        <span
+                          className={`text-xs ${
+                            !autoApplyProposals
+                              ? "text-slate-900 font-medium"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          Manual
+                        </span>
                         <Switch
                           checked={autoApplyProposals}
                           onCheckedChange={setAutoApplyProposals}
                           disabled={isOptimizing}
                         />
-                        <span className={`text-xs ${autoApplyProposals ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>Auto</span>
+                        <span
+                          className={`text-xs ${
+                            autoApplyProposals
+                              ? "text-slate-900 font-medium"
+                              : "text-slate-500"
+                          }`}
+                        >
+                          Auto
+                        </span>
                       </div>
                     </div>
                   </Card>
                 </div>
-                
+
                 <div className="flex gap-2">
                   <Button
                     onClick={handleStartOptimization}
@@ -857,7 +1000,7 @@ export default function CascadeOptimizationDashboard() {
                         Optimizing...
                       </>
                     ) : (
-                      'Start Optimization'
+                      "Start Optimization"
                     )}
                   </Button>
                   <Button
@@ -877,18 +1020,36 @@ export default function CascadeOptimizationDashboard() {
                     {error || advancedError}
                   </div>
                 )}
-                
+
                 {/* Results Summary */}
                 {hasResults && isSuccessful && improvementScore !== null && (
                   <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4" />
-                      Cascade optimization completed with {(improvementScore || 0) > 0 ? '+' : ''}{(improvementScore || 0).toFixed(1)}% improvement
+                      Cascade optimization completed with{" "}
+                      {(improvementScore || 0) > 0 ? "+" : ""}
+                      {(improvementScore || 0).toFixed(1)}% improvement
                     </div>
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* Target Trend Display */}
+            <CascadeTargetTrend
+              currentTarget={currentTarget}
+              currentPV={currentPV}
+              targetData={targetData}
+              isOptimizing={isOptimizing}
+              isSimulationMode={isSimulationMode}
+              modelName={modelName}
+              targetVariable={getTargetVariable()}
+              targetUnit={targetUnit}
+              spOptimize={
+                hasResults && isSuccessful ? targetSetpoint : undefined
+              }
+              showOptimizationTarget={hasResults && isSuccessful}
+            />
 
             {/* Parameter Optimization Cards - Organized by Variable Type */}
             <div className="space-y-8">
@@ -899,9 +1060,12 @@ export default function CascadeOptimizationDashboard() {
                     <Card className="p-8 text-center">
                       <div className="text-slate-500">
                         <Settings className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                        <h3 className="text-lg font-medium mb-2">Load Cascade Model</h3>
+                        <h3 className="text-lg font-medium mb-2">
+                          Load Cascade Model
+                        </h3>
                         <p className="text-sm">
-                          Select a mill to load its cascade model and configure optimization parameters.
+                          Select a mill to load its cascade model and configure
+                          optimization parameters.
                         </p>
                       </div>
                     </Card>
@@ -913,14 +1077,20 @@ export default function CascadeOptimizationDashboard() {
                 const allModelFeatures = getAllFeatures();
 
                 // Filter parameters to only include those in the loaded model
-                const filteredParameters = parameters.filter(parameter => 
+                const filteredParameters = parameters.filter((parameter) =>
                   allModelFeatures.includes(parameter.id)
                 );
 
                 // Group parameters by type using model metadata
-                const mvParams = filteredParameters.filter(p => featureClassification.mv_features.includes(p.id));
-                const cvParams = filteredParameters.filter(p => featureClassification.cv_features.includes(p.id));
-                const dvParams = filteredParameters.filter(p => featureClassification.dv_features.includes(p.id));
+                const mvParams = filteredParameters.filter((p) =>
+                  featureClassification.mv_features.includes(p.id)
+                );
+                const cvParams = filteredParameters.filter((p) =>
+                  featureClassification.cv_features.includes(p.id)
+                );
+                const dvParams = filteredParameters.filter((p) =>
+                  featureClassification.dv_features.includes(p.id)
+                );
 
                 const renderParameterSection = (
                   title: string,
@@ -938,24 +1108,36 @@ export default function CascadeOptimizationDashboard() {
                         <span className={`text-2xl ${iconColor}`}>{icon}</span>
                         <div>
                           <h3 className="text-lg font-semibold">{title}</h3>
-                          <p className="text-sm text-slate-600">{description}</p>
+                          <p className="text-sm text-slate-600">
+                            {description}
+                          </p>
                         </div>
                         <div className="ml-auto">
-                          <Badge variant="outline" className={`px-3 py-1 ${
-                            varType === 'MV' ? 'bg-amber-100 text-amber-800 border-amber-200' :
-                            varType === 'CV' ? 'bg-blue-100 text-blue-800 border-blue-200' :
-                            'bg-emerald-100 text-emerald-800 border-emerald-200'
-                          }`}>
-                            {parameters.length} {varType} Parameter{parameters.length !== 1 ? 's' : ''}
+                          <Badge
+                            variant="outline"
+                            className={`px-3 py-1 ${
+                              varType === "MV"
+                                ? "bg-amber-100 text-amber-800 border-amber-200"
+                                : varType === "CV"
+                                ? "bg-blue-100 text-blue-800 border-blue-200"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            }`}
+                          >
+                            {parameters.length} {varType} Parameter
+                            {parameters.length !== 1 ? "s" : ""}
                           </Badge>
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {parameters.map((parameter) => {
-                          const bounds = parameterBounds[parameter.id] || [0, 100];
-                          const rangeValue = optimizationBounds[parameter.id] || [bounds[0], bounds[1]];
-                          
+                          const bounds = parameterBounds[parameter.id] || [
+                            0, 100,
+                          ];
+                          const rangeValue = optimizationBounds[
+                            parameter.id
+                          ] || [bounds[0], bounds[1]];
+
                           // Create cascade parameter with proper typing
                           const cascadeParameter: CascadeParameter = {
                             id: parameter.id,
@@ -965,9 +1147,9 @@ export default function CascadeOptimizationDashboard() {
                             trend: parameter.trend,
                             color: parameter.color,
                             icon: parameter.icon,
-                            varType: varType
+                            varType: varType,
                           };
-                          
+
                           return (
                             <ParameterCascadeOptimizationCard
                               key={`${modelName}-${parameter.id}`}
@@ -975,8 +1157,15 @@ export default function CascadeOptimizationDashboard() {
                               bounds={bounds as [number, number]}
                               rangeValue={rangeValue as [number, number]}
                               isSimulationMode={false}
-                              proposedSetpoint={hasResults && isSuccessful ? proposedSetpoints?.[parameter.id] : undefined}
-                              onRangeChange={(id: string, newRange: [number, number]) => {
+                              proposedSetpoint={
+                                hasResults && isSuccessful
+                                  ? proposedSetpoints?.[parameter.id]
+                                  : undefined
+                              }
+                              onRangeChange={(
+                                id: string,
+                                newRange: [number, number]
+                              ) => {
                                 updateParameterBounds(id, newRange);
                               }}
                             />
@@ -1030,9 +1219,12 @@ export default function CascadeOptimizationDashboard() {
               <Card className="p-8 text-center">
                 <div className="text-slate-500">
                   <Sliders className="h-12 w-12 mx-auto mb-4 text-slate-300" />
-                  <h3 className="text-lg font-medium mb-2">Load Cascade Model</h3>
+                  <h3 className="text-lg font-medium mb-2">
+                    Load Cascade Model
+                  </h3>
                   <p className="text-sm">
-                    Select a mill to load its cascade model and start simulation.
+                    Select a mill to load its cascade model and start
+                    simulation.
                   </p>
                 </div>
               </Card>
@@ -1041,5 +1233,5 @@ export default function CascadeOptimizationDashboard() {
         </Tabs>
       </div>
     </div>
-  )
+  );
 }
