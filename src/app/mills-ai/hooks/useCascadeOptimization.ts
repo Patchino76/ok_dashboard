@@ -1,26 +1,48 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { mlApiClient } from '../utils/api-client'
+import { useCascadeOptimizationStore } from '../optimization-cascade/stores/cascade-optimization-store'
+import type { 
+  CascadeOptimizationConfig, 
+  CascadeOptimizationResult 
+} from '../optimization-cascade/stores/cascade-optimization-store'
 
-// Cascade-specific interfaces
-export interface CascadeOptimizationConfig {
-  mv_values: Record<string, number>  // Manipulated variables
-  dv_values: Record<string, number>  // Disturbance variables
+// API request/response interfaces
+export interface CascadeOptimizationRequest {
+  mill_number: number
+  mv_bounds: Record<string, [number, number]>
+  cv_bounds: Record<string, [number, number]>
+  dv_values: Record<string, number>
+  target_variable: string
+  target_setpoint?: number
+  maximize?: boolean
+  n_trials?: number
+  timeout_seconds?: number
 }
 
-export interface CascadeOptimizationResult {
-  id: string
-  timestamp: number
-  config: CascadeOptimizationConfig
+export interface CascadeOptimizationApiResponse {
+  optimization_id: string
+  best_mv_values: Record<string, number>
+  predicted_cvs: Record<string, number>
   predicted_target: number
-  predicted_cvs: Record<string, number>  // Controlled variables
   is_feasible: boolean
-  status: 'completed' | 'failed'
-  error_message?: string
+  constraint_violations: string[]
+  optimization_history: Array<{
+    trial: number
+    mv_values: Record<string, number>
+    predicted_target: number
+    is_feasible: boolean
+  }>
+  convergence_data: Array<{
+    trial: number
+    best_target: number
+  }>
+  duration_seconds: number
+  status: string
 }
 
 export interface UseCascadeOptimizationReturn {
-  startCascadeOptimization: (config: CascadeOptimizationConfig) => Promise<CascadeOptimizationResult | null>
+  startCascadeOptimization: () => Promise<CascadeOptimizationResult | null>
   getCascadeInfo: () => Promise<any>
   trainCascadeModels: (request: CascadeTrainingRequest) => Promise<any>
   getTrainingStatus: () => Promise<any>
@@ -38,19 +60,45 @@ export interface CascadeTrainingRequest {
 }
 
 export function useCascadeOptimization(): UseCascadeOptimizationReturn {
-  const [isOptimizing, setIsOptimizing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [currentResults, setCurrentResults] = useState<CascadeOptimizationResult | null>(null)
+  
+  // Use the cascade optimization store
+  const {
+    isOptimizing,
+    currentResults,
+    getOptimizationConfig,
+    startOptimization,
+    stopOptimization,
+    setResults,
+    addToHistory,
+  } = useCascadeOptimizationStore()
 
-  const startCascadeOptimization = useCallback(async (config: CascadeOptimizationConfig): Promise<CascadeOptimizationResult | null> => {
+  const startCascadeOptimization = useCallback(async (): Promise<CascadeOptimizationResult | null> => {
     try {
       setError(null)
-      setIsOptimizing(true)
       
+      // Get configuration from store
+      const config = getOptimizationConfig()
       console.log('Starting cascade optimization with config:', config)
       
-      // Call the cascade prediction API
-      const response = await mlApiClient.post('/api/v1/ml/cascade/predict', config)
+      // Start optimization in store
+      startOptimization(config)
+      
+      // Prepare API request
+      const request: CascadeOptimizationRequest = {
+        mill_number: config.mill_number,
+        mv_bounds: config.mv_bounds,
+        cv_bounds: config.cv_bounds,
+        dv_values: config.dv_values,
+        target_variable: config.target_variable,
+        target_setpoint: config.target_setpoint,
+        maximize: config.maximize,
+        n_trials: config.n_trials,
+        timeout_seconds: config.timeout_seconds,
+      }
+      
+      // Call the cascade optimization API
+      const response = await mlApiClient.post<CascadeOptimizationApiResponse>('/api/v1/ml/cascade/optimize', request)
       
       if (!response.data) {
         throw new Error('No data received from cascade optimization API')
@@ -58,16 +106,24 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
 
       // Create cascade optimization result object
       const cascadeResult: CascadeOptimizationResult = {
-        id: `cascade_opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: response.data.optimization_id || `cascade_opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: Date.now(),
         config,
-        predicted_target: response.data.predicted_target || 0,
+        best_mv_values: response.data.best_mv_values || {},
         predicted_cvs: response.data.predicted_cvs || {},
+        predicted_target: response.data.predicted_target || 0,
         is_feasible: response.data.is_feasible || false,
+        constraint_violations: response.data.constraint_violations || [],
+        optimization_history: response.data.optimization_history || [],
+        convergence_data: response.data.convergence_data || [],
+        duration_seconds: response.data.duration_seconds || 0,
         status: 'completed',
       }
 
-      setCurrentResults(cascadeResult)
+      // Update store with results
+      setResults(cascadeResult)
+      addToHistory(cascadeResult)
+      
       console.log('Cascade optimization completed successfully:', cascadeResult)
       return cascadeResult
 
@@ -81,20 +137,23 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
       const failedResult: CascadeOptimizationResult = {
         id: `cascade_opt_failed_${Date.now()}`,
         timestamp: Date.now(),
-        config,
-        predicted_target: 0,
+        config: getOptimizationConfig(),
+        best_mv_values: {},
         predicted_cvs: {},
+        predicted_target: 0,
         is_feasible: false,
+        constraint_violations: [],
+        optimization_history: [],
+        convergence_data: [],
+        duration_seconds: 0,
         status: 'failed',
         error_message: errorMessage,
       }
       
-      setCurrentResults(failedResult)
+      setResults(failedResult)
       return null
-    } finally {
-      setIsOptimizing(false)
     }
-  }, [])
+  }, [getOptimizationConfig, startOptimization, setResults, addToHistory])
 
   const getCascadeInfo = useCallback(async () => {
     try {

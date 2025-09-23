@@ -16,7 +16,6 @@ import {
 import { millsParameters } from "../../data/mills-parameters";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import { DoubleRangeSlider } from "../../components/double-range-slider";
-import { useOptimizationStore } from "../../stores/optimization-store";
 
 import { CascadeParameter } from ".";
 

@@ -16,7 +16,7 @@ import {
 import { CheckCircle, AlertTriangle, Target, TrendingUp, RefreshCw } from "lucide-react";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import { Slider } from "@/components/ui/slider";
-import { useOptimizationStore } from "../../stores/optimization-store";
+import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { millsParameters, getTargets } from "../../data/mills-parameters";
 
 interface TargetData {
@@ -57,9 +57,9 @@ TargetFractionDisplayProps) {
   const setDisplayHours = useXgboostStore((state) => state.setDisplayHours);
   const fetchRealTimeData = useXgboostStore((state) => state.fetchRealTimeData);
 
-  // Connect to optimization store for target SP control
-  const targetSetpoint = useOptimizationStore((state) => state.targetSetpoint);
-  const setTargetSetpoint = useOptimizationStore(
+  // Connect to cascade optimization store for target SP control
+  const targetSetpoint = useCascadeOptimizationStore((state) => state.targetSetpoint);
+  const setTargetSetpoint = useCascadeOptimizationStore(
     (state) => state.setTargetSetpoint
   );
 

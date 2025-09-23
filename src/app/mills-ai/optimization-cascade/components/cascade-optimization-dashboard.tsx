@@ -35,6 +35,7 @@ import { ModelSelection } from "../../components/model-selection";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import { useOptimizationStore } from "../../stores/optimization-store";
 import { useCascadeOptimization } from "../../hooks/useCascadeOptimization";
+import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization";
 import { useOptimizationResults } from "../../hooks/useOptimizationResults";
 import { useCascadeTraining } from "../../hooks/useCascadeTraining";
@@ -169,6 +170,9 @@ export default function CascadeOptimizationDashboard() {
     autoApplyProposals,
     setAutoApplyProposals,
   } = useOptimizationStore();
+
+  // Cascade optimization store
+  const cascadeOptStore = useCascadeOptimizationStore();
 
   const { startCascadeOptimization, isOptimizing, error } =
     useCascadeOptimization();
@@ -599,50 +603,62 @@ export default function CascadeOptimizationDashboard() {
     try {
       // Get feature classification from loaded cascade model
       const featureClassification = getFeatureClassification();
+      const targetVariable = getTargetVariable();
 
-      // Prepare cascade-specific config with MV and DV values
-      const cascadeConfig = {
-        mv_values: {} as Record<string, number>,
-        dv_values: {} as Record<string, number>,
-        target_setpoint: targetSetpoint,
-        maximize: maximize,
-      };
+      // Configure the cascade optimization store
+      cascadeOptStore.setMillNumber(currentMill);
+      cascadeOptStore.setTargetVariable(targetVariable);
+      cascadeOptStore.setTargetSetpoint(targetSetpoint);
+      cascadeOptStore.setMaximize(maximize);
 
-      // Map MV parameters (controllable) with optimization bounds
+      // Set MV bounds from optimization bounds
+      const mvBounds: Record<string, [number, number]> = {};
       featureClassification.mv_features.forEach((paramId) => {
-        const param = parameters.find((p) => p.id === paramId);
-        if (param) {
-          const optBounds = optimizationBounds[paramId] ||
-            parameterBounds[paramId] || [0, 100];
-          const currentValue =
-            sliderValues[paramId] ||
-            param.value ||
-            (optBounds[0] + optBounds[1]) / 2;
-          cascadeConfig.mv_values[paramId] = currentValue;
+        const optBounds = optimizationBounds[paramId] || parameterBounds[paramId] || [0, 100];
+        mvBounds[paramId] = optBounds;
+      });
+      cascadeOptStore.setMVBounds(mvBounds);
+
+      // Set CV bounds (for constraint checking)
+      const cvBounds: Record<string, [number, number]> = {};
+      featureClassification.cv_features.forEach((paramId) => {
+        const bounds = parameterBounds[paramId];
+        if (bounds) {
+          cvBounds[paramId] = bounds;
         }
       });
+      cascadeOptStore.setCVBounds(cvBounds);
 
-      // Map DV parameters (disturbances) with current values
+      // Set DV values (current disturbance values)
+      const dvValues: Record<string, number> = {};
       featureClassification.dv_features.forEach((paramId) => {
         const param = parameters.find((p) => p.id === paramId);
         if (param) {
           const currentValue = sliderValues[paramId] || param.value || 0;
-          cascadeConfig.dv_values[paramId] = currentValue;
+          dvValues[paramId] = currentValue;
         }
       });
+      cascadeOptStore.setDVValues(dvValues);
 
-      console.log("Cascade optimization config:", cascadeConfig);
+      console.log("Cascade optimization store configured:", {
+        mill: currentMill,
+        target: targetVariable,
+        setpoint: targetSetpoint,
+        mvBounds,
+        cvBounds,
+        dvValues
+      });
 
-      // Start cascade optimization using the new hook
-      const result = await startCascadeOptimization(cascadeConfig);
+      // Start cascade optimization using the new hook (no parameters needed)
+      const result = await startCascadeOptimization();
 
       if (result && result.status === "completed") {
         // Update proposed setpoints with optimized MV values
         const newProposedSetpoints: Record<string, number> = {};
 
         // Set proposed setpoints for MV parameters based on optimization result
-        if (result.predicted_cvs) {
-          Object.entries(result.predicted_cvs).forEach(([paramId, value]) => {
+        if (result.best_mv_values) {
+          Object.entries(result.best_mv_values).forEach(([paramId, value]) => {
             if (featureClassification.mv_features.includes(paramId)) {
               newProposedSetpoints[paramId] = value;
             }
@@ -664,7 +680,7 @@ export default function CascadeOptimizationDashboard() {
         toast.success(
           `Cascade optimization completed! Target: ${
             result.predicted_target?.toFixed(3) || "N/A"
-          } ${result.is_feasible ? "✓" : "⚠️"}`,
+          } ${result.is_feasible ? "✓" : "⚠️"} (${result.duration_seconds?.toFixed(1)}s)`,
           { id: loadingToast }
         );
       } else {
