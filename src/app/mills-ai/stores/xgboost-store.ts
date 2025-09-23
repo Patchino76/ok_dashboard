@@ -542,10 +542,12 @@ export const useXgboostStore = create<XgboostState>()(
           if (!modelFeatures || modelFeatures.length === 0) {
             console.warn('❌ No model features available for real-time data fetch');
             console.warn('Current modelFeatures:', modelFeatures);
+            set({ isFetching: false }); // Reset fetching flag
             return;
           }
           if (!modelTarget) {
             console.warn('❌ No model target available for real-time data fetch');
+            set({ isFetching: false }); // Reset fetching flag
             return;
           }
 

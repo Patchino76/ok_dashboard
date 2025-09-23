@@ -278,11 +278,24 @@ export function ParameterCascadeOptimizationCard({
         {/* Trend Chart - Show for process parameters even if no trend points to keep SP/shading visible */}
         {!isLabParameter &&
           (() => {
+            // Debug trend data
+            console.log(`📊 Parameter ${parameter.id} trend data:`, {
+              trendLength: parameter.trend.length,
+              displayHours,
+              trendSample: parameter.trend.slice(0, 3)
+            });
+            
             // Filter trend data based on current displayHours
             const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
             const filteredTrend = parameter.trend.filter(
               (item) => item.timestamp >= hoursAgo
             );
+            
+            console.log(`📊 Filtered trend for ${parameter.id}:`, {
+              originalLength: parameter.trend.length,
+              filteredLength: filteredTrend.length,
+              hoursAgo: new Date(hoursAgo).toISOString()
+            });
 
             // Calculate Y-axis domain to include data, optimization bounds, and proposed setpoint
             let yMin: number;

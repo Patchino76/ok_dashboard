@@ -13,7 +13,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { CheckCircle, AlertTriangle, Target, TrendingUp } from "lucide-react";
+import { CheckCircle, AlertTriangle, Target, TrendingUp, RefreshCw } from "lucide-react";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import { Slider } from "@/components/ui/slider";
 import { useOptimizationStore } from "../../stores/optimization-store";
@@ -327,6 +327,18 @@ TargetFractionDisplayProps) {
                       <span>Optimization Target</span>
                     </div>
                   )}
+                  {/* Manual refresh button */}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="px-2"
+                    onClick={() => {
+                      console.log('🔄 Manual refresh triggered from cascade target trend');
+                      fetchRealTimeData();
+                    }}
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
                   {/* Time range selector */}
                   <div className="hidden sm:flex items-center gap-1 ml-4">
                     <span className="text-slate-500 mr-1">Last:</span>
