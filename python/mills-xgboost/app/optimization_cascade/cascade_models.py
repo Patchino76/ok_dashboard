@@ -33,6 +33,14 @@ class CascadeModelManager:
         self.quality_model = None  # CV + DV → Target model
         self.scalers = {}
         
+        # Feature configuration overrides
+        self.configured_features = {
+            'mvs': None,
+            'cvs': None,
+            'dvs': None,
+            'target': None
+        }
+        
         # Set mill-specific model save path
         if mill_number:
             self.model_save_path = os.path.join(model_save_path, f"mill_{mill_number}")
@@ -60,14 +68,45 @@ class CascadeModelManager:
             'random_state': 42
         }
     
+    def configure_features(self, mv_features: Optional[List[str]] = None, 
+                          cv_features: Optional[List[str]] = None,
+                          dv_features: Optional[List[str]] = None,
+                          target_variable: Optional[str] = None):
+        """
+        Configure specific features to use for training instead of classifier defaults
+        
+        Args:
+            mv_features: List of manipulated variable names to use
+            cv_features: List of controlled variable names to use  
+            dv_features: List of disturbance variable names to use
+            target_variable: Target variable name to use
+        """
+        if mv_features is not None:
+            self.configured_features['mvs'] = mv_features
+            print(f"Configured MVs: {mv_features}")
+        
+        if cv_features is not None:
+            self.configured_features['cvs'] = cv_features
+            print(f"Configured CVs: {cv_features}")
+            
+        if dv_features is not None:
+            self.configured_features['dvs'] = dv_features
+            print(f"Configured DVs: {dv_features}")
+            
+        if target_variable is not None:
+            self.configured_features['target'] = target_variable
+            print(f"Configured Target: {target_variable}")
+    
     def prepare_training_data(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Prepare training data by separating MVs, CVs, DVs, and targets
+        Uses configured features if available, otherwise falls back to classifier defaults
         """
-        mvs = [mv.id for mv in self.classifier.get_mvs()]
-        cvs = [cv.id for cv in self.classifier.get_cvs()]
-        dvs = [dv.id for dv in self.classifier.get_dvs()]
-        targets = [target.id for target in self.classifier.get_targets()]
+        # Use configured features if available, otherwise use classifier defaults
+        mvs = self.configured_features['mvs'] or [mv.id for mv in self.classifier.get_mvs()]
+        cvs = self.configured_features['cvs'] or [cv.id for cv in self.classifier.get_cvs()]
+        dvs = self.configured_features['dvs'] or [dv.id for dv in self.classifier.get_dvs()]
+        targets = [self.configured_features['target']] if self.configured_features['target'] else [target.id for target in self.classifier.get_targets()]
         
         # Filter to only include columns that exist in the data
         available_mvs = [col for col in mvs if col in df.columns]
@@ -171,12 +210,13 @@ class CascadeModelManager:
             joblib.dump(model, model_path)
             joblib.dump(scaler, scaler_path)
             
-            # Update metadata
+            # Update metadata with actual features used (configured or default)
+            actual_mvs = self.configured_features['mvs'] or mvs
             self.metadata["model_performance"][f"process_model_{cv_id}"] = {
                 "r2_score": float(r2),
                 "rmse": float(rmse),
                 "feature_importance": {k: float(v) for k, v in results[cv_id]["feature_importance"].items()},
-                "input_vars": mvs,
+                "input_vars": actual_mvs,  # Use actual configured features
                 "output_var": cv_id
             }
         
@@ -256,15 +296,19 @@ class CascadeModelManager:
         joblib.dump(model, model_path)
         joblib.dump(scaler, scaler_path)
         
-        # Update metadata
+        # Update metadata with actual features used (configured or default)
+        actual_cvs = self.configured_features['cvs'] or cvs
+        actual_dvs = self.configured_features['dvs'] or dvs  
+        actual_target = self.configured_features['target'] or primary_target
+        
         self.metadata["model_performance"]["quality_model"] = {
             "r2_score": float(r2),
             "rmse": float(rmse),
             "feature_importance": {k: float(v) for k, v in feature_importance.items()},
-            "input_vars": feature_cols,
-            "output_var": primary_target,
-            "cv_vars": cvs,
-            "dv_vars": dvs
+            "input_vars": feature_cols,  # Actual features used in training
+            "output_var": actual_target,  # Use configured target
+            "cv_vars": actual_cvs,  # Use configured CVs
+            "dv_vars": actual_dvs   # Use configured DVs (may be empty)
         }
         
         return results
@@ -350,14 +394,36 @@ class CascadeModelManager:
         # Train quality model
         quality_results = self.train_quality_model(df_clean, test_size)
         
-        # Validate complete chain
-        chain_results = self.validate_complete_chain(df_clean)
+        # Validate complete chain with error handling
+        try:
+            chain_results = self.validate_complete_chain(df_clean)
+        except Exception as e:
+            print(f"Warning: Chain validation failed: {e}")
+            # Create dummy chain results so training can complete
+            chain_results = {
+                'r2_score': 0.0,
+                'rmse': 999.0,
+                'mae': 999.0,
+                'n_samples': 0,
+                'n_requested': 200,
+                'predictions': [],
+                'actuals': [],
+                'validation_error': str(e)
+            }
         
         # Update metadata with training information
         self.metadata["training_config"] = {
             "test_size": test_size,
             "data_shape": df_clean.shape,
-            "training_timestamp": datetime.now().isoformat()
+            "training_timestamp": datetime.now().isoformat(),
+            "configured_features": {
+                "mv_features": self.configured_features['mvs'],
+                "cv_features": self.configured_features['cvs'], 
+                "dv_features": self.configured_features['dvs'],
+                "target_variable": self.configured_features['target'],
+                "using_custom_features": any([self.configured_features['mvs'], self.configured_features['cvs'], 
+                                            self.configured_features['dvs'], self.configured_features['target']])
+            }
         }
         self.metadata["data_info"] = {
             "original_shape": df.shape,
@@ -368,7 +434,9 @@ class CascadeModelManager:
             "r2_score": float(chain_results['r2_score']),
             "rmse": float(chain_results['rmse']),
             "mae": float(chain_results['mae']),
-            "n_samples": int(chain_results['n_samples'])
+            "n_samples": int(chain_results['n_samples']),
+            "n_requested": int(chain_results.get('n_requested', 200)),
+            "validation_error": chain_results.get('validation_error', None)
         }
         
         # Save metadata
@@ -382,7 +450,15 @@ class CascadeModelManager:
             'training_timestamp': datetime.now().isoformat(),
             'data_shape': df_clean.shape,
             'model_save_path': self.model_save_path,
-            'mill_number': self.mill_number
+            'mill_number': self.mill_number,
+            'feature_configuration': {
+                'mv_features': self.configured_features['mvs'],
+                'cv_features': self.configured_features['cvs'],
+                'dv_features': self.configured_features['dvs'],
+                'target_variable': self.configured_features['target'],
+                'using_custom_features': any([self.configured_features['mvs'], self.configured_features['cvs'], 
+                                            self.configured_features['dvs'], self.configured_features['target']])
+            }
         }
         
         # Save training results
@@ -414,19 +490,21 @@ class CascadeModelManager:
         if not self.process_models or not self.quality_model:
             raise ValueError("Models not trained. Call train_all_models() first.")
         
-        mvs = [mv.id for mv in self.classifier.get_mvs()]
-        cvs = [cv.id for cv in self.classifier.get_cvs()]
-        dvs = [dv.id for dv in self.classifier.get_dvs()]
+        # Use configured features if available, otherwise fall back to classifier defaults
+        mvs = self.configured_features['mvs'] or [mv.id for mv in self.classifier.get_mvs()]
+        cvs = self.configured_features['cvs'] or [cv.id for cv in self.classifier.get_cvs()]
+        dvs = self.configured_features['dvs'] or [dv.id for dv in self.classifier.get_dvs()]
         
         # Step 1: Predict CVs from MVs using process models
-        mv_array = np.array([mv_values[mv_id] for mv_id in mvs]).reshape(1, -1)
+        # Create DataFrame with proper feature names to avoid sklearn warnings
+        mv_df = pd.DataFrame([[mv_values[mv_id] for mv_id in mvs]], columns=mvs)
         predicted_cvs = {}
         
         for cv_id in cvs:
             if cv_id in self.process_models:
-                # Scale input
+                # Scale input using DataFrame with feature names
                 scaler = self.scalers[f"mv_to_{cv_id}"]
-                mv_scaled = scaler.transform(mv_array)
+                mv_scaled = scaler.transform(mv_df)
                 
                 # Predict
                 cv_pred = self.process_models[cv_id].predict(mv_scaled)[0]
@@ -457,10 +535,11 @@ class CascadeModelManager:
             for dv_id in dvs:
                 quality_features.append(dv_values[dv_id])
             
-            # Scale and predict
-            quality_array = np.array(quality_features).reshape(1, -1)
+            # Scale and predict using DataFrame with feature names
+            feature_cols = cvs + dvs
+            quality_df = pd.DataFrame([quality_features], columns=feature_cols)
             quality_scaler = self.scalers['quality_model']
-            quality_scaled = quality_scaler.transform(quality_array)
+            quality_scaled = quality_scaler.transform(quality_df)
             
             predicted_target = self.quality_model.predict(quality_scaled)[0]
         else:
@@ -497,26 +576,37 @@ class CascadeModelManager:
         actuals = []
         
         for idx, row in test_data.iterrows():
-            # Get actual MV and DV values
-            mv_values = {mv_id: row[mv_id] for mv_id in mvs}
-            dv_values = {dv_id: row[dv_id] for dv_id in dvs}
-            
-            # Predict using cascade
-            result = self.predict_cascade(mv_values, dv_values)
-            
-            predictions.append(result['predicted_target'])
-            actuals.append(row['PSI200'])  # Primary target
+            try:
+                # Get actual MV and DV values
+                mv_values = {mv_id: row[mv_id] for mv_id in mvs}
+                dv_values = {dv_id: row[dv_id] for dv_id in dvs}  # Empty dict if no DVs
+                
+                # Predict using cascade
+                result = self.predict_cascade(mv_values, dv_values)
+                
+                predictions.append(result['predicted_target'])
+                actuals.append(row['PSI200'])  # Primary target
+            except Exception as e:
+                print(f"Warning: Validation failed for sample {idx}: {e}")
+                # Skip this sample and continue
+                continue
         
-        # Calculate chain performance
-        r2 = r2_score(actuals, predictions)
-        rmse = np.sqrt(mean_squared_error(actuals, predictions))
-        mae = np.mean(np.abs(np.array(actuals) - np.array(predictions)))
+        # Calculate chain performance (only if we have predictions)
+        if len(predictions) == 0:
+            print("Warning: No successful predictions in chain validation")
+            r2, rmse, mae = 0.0, 999.0, 999.0
+        else:
+            r2 = r2_score(actuals, predictions)
+            rmse = np.sqrt(mean_squared_error(actuals, predictions))
+            mae = np.mean(np.abs(np.array(actuals) - np.array(predictions)))
+            print(f"Chain validation completed with {len(predictions)} successful predictions")
         
         results = {
             'r2_score': r2,
             'rmse': rmse,
             'mae': mae,
-            'n_samples': n_samples,
+            'n_samples': len(predictions),  # Actual successful samples
+            'n_requested': n_samples,  # Originally requested samples
             'predictions': predictions,
             'actuals': actuals
         }

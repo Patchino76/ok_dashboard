@@ -6,7 +6,7 @@ Database-only cascade optimization system for mill process control.
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import pandas as pd
 import os
 
@@ -57,6 +57,11 @@ class TrainingRequest(BaseModel):
     test_size: float = Field(0.2, description="Test set fraction")
     resample_freq: str = Field("1min", description="Resampling frequency")
     model_suffix: Optional[str] = Field(None, description="Optional model name suffix for versioning")
+    # Feature selection fields
+    mv_features: Optional[List[str]] = Field(None, description="Selected manipulated variables")
+    cv_features: Optional[List[str]] = Field(None, description="Selected controlled variables")
+    dv_features: Optional[List[str]] = Field(None, description="Selected disturbance variables")
+    target_variable: Optional[str] = Field(None, description="Selected target variable")
 
 class CascadeOptimizationRequest(BaseModel):
     mv_bounds: Dict[str, tuple] = Field(..., description="MV bounds as {name: [min, max]}")
@@ -99,6 +104,23 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
         base_model_path = os.path.abspath(base_model_path)
         model_manager = CascadeModelManager(base_model_path, mill_number=request.mill_number)
         
+        # Configure features if provided by user
+        if any([request.mv_features, request.cv_features, request.dv_features, request.target_variable]):
+            print(f"🎯 Configuring custom features for training:")
+            print(f"   MVs: {request.mv_features}")
+            print(f"   CVs: {request.cv_features}")
+            print(f"   DVs: {request.dv_features}")
+            print(f"   Target: {request.target_variable}")
+            
+            model_manager.configure_features(
+                mv_features=request.mv_features,
+                cv_features=request.cv_features,
+                dv_features=request.dv_features,
+                target_variable=request.target_variable
+            )
+        else:
+            print(f"📋 Using default feature classification from VariableClassifier")
+        
         # Get data from database
         df = await _get_database_training_data(
             mill_number=request.mill_number,
@@ -132,7 +154,14 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
             "mill_number": request.mill_number,
             "date_range": f"{request.start_date} to {request.end_date}",
             "model_save_path": model_manager.model_save_path,
-            "model_suffix": request.model_suffix
+            "model_suffix": request.model_suffix,
+            "feature_configuration": {
+                "mv_features": request.mv_features,
+                "cv_features": request.cv_features,
+                "dv_features": request.dv_features,
+                "target_variable": request.target_variable,
+                "using_custom_features": any([request.mv_features, request.cv_features, request.dv_features, request.target_variable])
+            }
         }
         
     except HTTPException:
@@ -336,11 +365,23 @@ async def get_mill_model_info(mill_number: int):
             metadata = temp_manager.load_metadata()
             
             if metadata:
-                # Get feature classification from the variable classifier
-                mvs = [mv.id for mv in temp_manager.classifier.get_mvs()]
-                cvs = [cv.id for cv in temp_manager.classifier.get_cvs()]
-                dvs = [dv.id for dv in temp_manager.classifier.get_dvs()]
-                targets = [target.id for target in temp_manager.classifier.get_targets()]
+                # Check if custom features were configured during training
+                configured_features = metadata.get("training_config", {}).get("configured_features", {})
+                
+                if configured_features.get("using_custom_features", False):
+                    # Use configured features from training
+                    mvs = configured_features.get("mv_features", [])
+                    cvs = configured_features.get("cv_features", [])
+                    dvs = configured_features.get("dv_features", [])
+                    targets = [configured_features.get("target_variable")] if configured_features.get("target_variable") else []
+                    print(f"🎯 Using custom features from training metadata for Mill {mill_number}")
+                else:
+                    # Fall back to classifier defaults
+                    mvs = [mv.id for mv in temp_manager.classifier.get_mvs()]
+                    cvs = [cv.id for cv in temp_manager.classifier.get_cvs()]
+                    dvs = [dv.id for dv in temp_manager.classifier.get_dvs()]
+                    targets = [target.id for target in temp_manager.classifier.get_targets()]
+                    print(f"📋 Using default classifier features for Mill {mill_number}")
                 
                 # Add feature classification to model info
                 model_info["feature_classification"] = {
@@ -349,6 +390,10 @@ async def get_mill_model_info(mill_number: int):
                     "dv_features": dvs,
                     "target_features": targets
                 }
+                
+                # Add training configuration info
+                if "configured_features" in metadata.get("training_config", {}):
+                    model_info["training_feature_config"] = configured_features
                 
                 # Add model performance and training info
                 if "model_performance" in metadata:
