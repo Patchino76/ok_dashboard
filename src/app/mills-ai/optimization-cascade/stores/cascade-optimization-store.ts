@@ -107,11 +107,7 @@ export interface CascadeOptimizationState {
   currentPV: number
   targetData: TargetData[]
   
-  // Real-time data state
-  isRealTimeActive: boolean
-  isFetching: boolean
-  displayHours: number
-  dataUpdateInterval: number
+  // Real-time data state (removed - using XGBoost store instead)
   
   // Actions - Configuration
   setMillNumber: (mill: number) => void
@@ -162,14 +158,9 @@ export interface CascadeOptimizationState {
   setPredictedTarget: (value: number) => void
   addTargetDataPoint: (pv: number, sp?: number) => void
   
-  // Real-time data actions
-  startRealTimeUpdates: () => () => void
-  stopRealTimeUpdates: () => void
-  fetchRealTimeData: () => Promise<void>
-  setDisplayHours: (hours: number) => void
+  // Real-time data actions (removed - using XGBoost store instead)
   
-  // Prediction actions
-  predictWithCurrentValues: () => Promise<void>
+  // Prediction actions (removed - using hardcoded defaults instead)
   
   // Utility functions
   getOptimizationConfig: () => CascadeOptimizationConfig
@@ -231,11 +222,7 @@ const initialState = {
   currentPV: 0,
   targetData: [],
   
-  // Real-time data state
-  isRealTimeActive: false,
-  isFetching: false,
-  displayHours: 4,
-  dataUpdateInterval: 10000, // 10 seconds
+  // Real-time data state (removed - using XGBoost store instead)
 }
 
 export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
@@ -559,136 +546,9 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         }, false, 'addTargetDataPoint')
       },
 
-      // Real-time data actions
-      startRealTimeUpdates: () => {
-        const { dataUpdateInterval, fetchRealTimeData } = get();
-        
-        set({ isRealTimeActive: true }, false, 'startRealTimeUpdates');
-        
-        const intervalId = setInterval(async () => {
-          const state = get();
-          if (state.isRealTimeActive && !state.isFetching) {
-            try {
-              await fetchRealTimeData();
-            } catch (error) {
-              console.error('Real-time data fetch error:', error);
-            }
-          }
-        }, dataUpdateInterval);
+      // Real-time data actions (removed - using XGBoost store instead)
 
-        // Return cleanup function
-        return () => {
-          clearInterval(intervalId);
-          set({ isRealTimeActive: false }, false, 'stopRealTimeUpdates');
-        };
-      },
-
-      stopRealTimeUpdates: () => {
-        set({ isRealTimeActive: false }, false, 'stopRealTimeUpdates')
-      },
-
-      fetchRealTimeData: async () => {
-        const state = get();
-        if (state.isFetching || !state.modelFeatures.length) return;
-
-        set({ isFetching: true }, false, 'fetchRealTimeData:start');
-
-        try {
-          // This would be implemented with actual API calls
-          // For now, we'll simulate the data fetching
-          console.log('🔄 Cascade: Fetching real-time data for features:', state.modelFeatures);
-          
-          // Simulate API delay
-          await new Promise(resolve => setTimeout(resolve, 100));
-          
-          // Update parameters with simulated data
-          const now = Date.now();
-          const updatedParameters = state.parameters.map(param => {
-            if (state.modelFeatures.includes(param.id)) {
-              const simulatedValue = param.value + (Math.random() - 0.5) * 2;
-              const newTrendPoint = { timestamp: now, value: simulatedValue };
-              const updatedTrend = [...param.trend, newTrendPoint].slice(-50);
-              
-              return {
-                ...param,
-                trend: updatedTrend,
-              };
-            }
-            return param;
-          });
-
-          set({ parameters: updatedParameters }, false, 'fetchRealTimeData:updateParameters');
-
-          // Add target data point
-          const targetValue = state.currentPV + (Math.random() - 0.5) * 1;
-          const newTargetData = [...state.targetData, {
-            timestamp: now,
-            value: targetValue,
-            target: state.currentTarget,
-            pv: targetValue,
-            sp: state.currentTarget,
-          }].slice(-50);
-
-          set({ 
-            targetData: newTargetData,
-            currentPV: targetValue,
-          }, false, 'fetchRealTimeData:updateTarget');
-
-        } catch (error) {
-          console.error('Error fetching real-time data:', error);
-        } finally {
-          set({ isFetching: false }, false, 'fetchRealTimeData:end');
-        }
-      },
-
-      setDisplayHours: (hours: number) => {
-        set({ displayHours: hours }, false, 'setDisplayHours')
-        // Trigger data refresh
-        const { fetchRealTimeData } = get();
-        fetchRealTimeData();
-      },
-
-      // Prediction actions
-      predictWithCurrentValues: async () => {
-        const state = get();
-        if (!state.modelFeatures.length) return;
-
-        try {
-          console.log('🔮 Cascade: Making prediction with current values');
-          
-          // Build prediction data from current slider values or parameter values
-          const predictionData: Record<string, number> = {};
-          state.modelFeatures.forEach(featureId => {
-            const param = state.parameters.find(p => p.id === featureId);
-            if (param) {
-              predictionData[featureId] = state.sliderValues[featureId] || param.value || 0;
-            }
-          });
-
-          console.log('🔮 Cascade: Prediction data:', predictionData);
-
-          // This would call the cascade prediction API
-          // For now, simulate a prediction
-          const simulatedPrediction = 45 + Math.random() * 10;
-          
-          set({ currentTarget: simulatedPrediction }, false, 'predictWithCurrentValues');
-
-          // Add target data point with prediction
-          const now = Date.now();
-          const newTargetData = [...state.targetData, {
-            timestamp: now,
-            value: state.currentPV,
-            target: simulatedPrediction,
-            pv: state.currentPV,
-            sp: simulatedPrediction,
-          }].slice(-50);
-
-          set({ targetData: newTargetData }, false, 'predictWithCurrentValues:addTargetData');
-
-        } catch (error) {
-          console.error('Error making prediction:', error);
-        }
-      },
+      // Prediction actions (removed - using hardcoded defaults instead)
 
       // Utility function to get tag ID
       getTagId: (millNumber: number, featureName: string): string | null => {

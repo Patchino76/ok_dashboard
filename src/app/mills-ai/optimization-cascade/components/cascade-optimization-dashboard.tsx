@@ -33,6 +33,7 @@ import { CascadeFlowDiagram } from "./cascade-flow-diagram";
 import { CascadeSimulationInterface } from "./cascade-simulation-interface";
 import { useCascadeOptimization } from "../../hooks/useCascadeOptimization";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
+import { useXgboostStore } from "../../stores/xgboost-store";
 import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization";
 import { useOptimizationResults } from "../../hooks/useOptimizationResults";
 import { useCascadeTraining } from "../../hooks/useCascadeTraining";
@@ -46,6 +47,9 @@ import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 export default function CascadeOptimizationDashboard() {
   // Cascade optimization store
   const cascadeStore = useCascadeOptimizationStore();
+  
+  // XGBoost store for real-time data and trends
+  const xgboostStore = useXgboostStore();
 
   // Cascade model loader hook
   const {
@@ -147,23 +151,15 @@ export default function CascadeOptimizationDashboard() {
     }));
   }, [cascadeStore.parameters]);
 
-  // Destructure cascade store values with proper types
+  // Destructure cascade store values (optimization-only)
   const {
     parameterBounds,
-    currentTarget,
-    currentPV,
-    targetData,
     availableModels,
     millNumber: currentMill,
     sliderValues,
     updateSliderValue,
-    setPredictedTarget,
-    addTargetDataPoint,
-    stopRealTimeUpdates,
-    startRealTimeUpdates,
     resetFeatures,
     resetSliders,
-    predictWithCurrentValues,
     // Optimization-specific properties
     targetSetpoint,
     maximize,
@@ -181,8 +177,40 @@ export default function CascadeOptimizationDashboard() {
     setMillNumber,
   } = cascadeStore;
   
-  // Use computed values instead of store values to avoid infinite loops
-  const parameters = parametersWithTypes;
+  // Get real-time data and trends from XGBoost store
+  const {
+    parameters: xgboostParameters,
+    currentTarget,
+    currentPV,
+    targetData,
+    displayHours,
+    isFetching,
+    startRealTimeUpdates,
+    stopRealTimeUpdates,
+    fetchRealTimeData,
+    setDisplayHours,
+    predictWithCurrentValues,
+    setCurrentMill: setXgboostMill,
+  } = xgboostStore;
+  
+  // Map XGBoost parameters to cascade parameters with varTypes
+  const parameters = useMemo(() => {
+    if (!modelInfo?.featureClassification) return xgboostParameters;
+    
+    return xgboostParameters.map((param) => {
+      let varType: "MV" | "CV" | "DV" | undefined;
+      
+      if (modelInfo.featureClassification.mv_features?.includes(param.id)) {
+        varType = "MV";
+      } else if (modelInfo.featureClassification.cv_features?.includes(param.id)) {
+        varType = "CV";
+      } else if (modelInfo.featureClassification.dv_features?.includes(param.id)) {
+        varType = "DV";
+      }
+      
+      return { ...param, varType };
+    });
+  }, [modelInfo?.featureClassification, xgboostParameters]);
   const modelName = modelInfo?.modelName || null;
   const modelFeatures = modelInfo?.features || [];
   const modelTarget = modelInfo?.target || null;
@@ -316,41 +344,39 @@ export default function CascadeOptimizationDashboard() {
     );
   };
 
-  // Debug function to test trend data
   const handleDebugTrendData = async () => {
-    const state = cascadeStore;
     console.log('🔍 CASCADE OPTIMIZATION DEBUG - Current State:', {
-      modelFeatures: state.modelFeatures,
-      modelName: state.modelName,
-      currentMill: state.millNumber,
-      parametersWithTrends: state.parameters.map((p: any) => ({
+      cascadeModelFeatures: getAllFeatures(),
+      cascadeModelName: modelInfo?.modelName,
+      currentMill: currentMill,
+      xgboostParametersWithTrends: xgboostParameters.map((p: any) => ({
         id: p.id,
         name: p.name,
         trendLength: p.trend.length,
-        varType: p.varType
+        varType: parameters.find(cp => cp.id === p.id)?.varType
       })),
-      targetDataLength: state.targetData.length,
-      displayHours: state.displayHours,
-      isFetching: state.isFetching,
+      targetDataLength: targetData.length,
+      displayHours: displayHours,
+      isFetching: isFetching,
       cascadeModelMetadata: modelMetadata,
       cascadeFeatures: getAllFeatures()
     });
     
     // Force restart real-time updates if needed
-    if (!state.modelFeatures || state.modelFeatures.length === 0) {
-      console.log('⚠️ No model features detected, attempting to reload cascade model...');
+    if (!getAllFeatures() || getAllFeatures().length === 0) {
+      console.log('⚠️ No cascade model features detected, attempting to reload cascade model...');
       try {
-        await loadModelForMill(state.millNumber);
+        await loadModelForMill(currentMill);
         console.log('✅ Cascade model reloaded');
       } catch (error) {
         console.error('❌ Failed to reload cascade model:', error);
       }
     }
     
-    // Trigger manual data fetch
-    console.log('🔄 Manually triggering fetchRealTimeData...');
+    // Trigger manual data fetch from XGBoost store
+    console.log('🔄 Manually triggering fetchRealTimeData from XGBoost store...');
     try {
-      await state.fetchRealTimeData();
+      await fetchRealTimeData();
       console.log('✅ Manual data fetch completed');
     } catch (error) {
       console.error('❌ Manual data fetch failed:', error);
@@ -373,29 +399,11 @@ export default function CascadeOptimizationDashboard() {
     return !!(
       modelMetadata &&
       features &&
-      features.length > 0 &&
-      cascadeStore.modelFeatures &&
-      cascadeStore.modelFeatures.length > 0
+      features.length > 0
     );
-  }, [modelMetadata, getAllFeatures, cascadeStore.modelFeatures]);
+  }, [modelMetadata, getAllFeatures]);
 
-  // Debounced prediction effect for slider changes (reuse existing store behavior)
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      // Only predict if cascade model is ready and we have slider values
-      if (isCascadeModelReady && Object.keys(sliderValues).length > 0) {
-        console.log("🔮 Triggering prediction - cascade model is ready");
-        predictWithCurrentValues();
-      } else {
-        console.log("⏳ Skipping prediction:", {
-          isCascadeModelReady,
-          hasSliderValues: Object.keys(sliderValues).length > 0,
-          sliderValuesCount: Object.keys(sliderValues).length,
-        });
-      }
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [sliderValues, predictWithCurrentValues, isCascadeModelReady]);
+  // Removed debounced prediction - using hardcoded defaults instead
 
   // No need for simulation mode in cascade optimization - removed
 
@@ -498,52 +506,51 @@ export default function CascadeOptimizationDashboard() {
       cascadeStore,
     ]);
 
-  // Start real-time data updates when cascade model is loaded
+  // Start XGBoost real-time data updates when cascade model is loaded
   useEffect(() => {
     let cleanup: (() => void) | undefined;
     let retryTimeout: NodeJS.Timeout | undefined;
     
     const setupRealTimeUpdates = async (attempt = 1) => {
       const features = getAllFeatures();
-      console.log(`🔄 Cascade optimization: Setting up real-time updates (attempt ${attempt})`, {
+      console.log(`🔄 Cascade optimization: Setting up XGBoost real-time updates (attempt ${attempt})`, {
         hasModelMetadata: !!modelMetadata,
         featuresLength: features.length,
         features,
-        currentMill: cascadeStore.millNumber
+        currentMill: currentMill
       });
       
       if (modelMetadata && features.length > 0) {
         try {
-          console.log('✅ Starting real-time updates for cascade optimization');
+          console.log('✅ Starting XGBoost real-time updates for cascade optimization');
           const cleanupFn = startRealTimeUpdates();
           if (typeof cleanupFn === "function") {
             cleanup = cleanupFn;
-            console.log('✅ Real-time updates started successfully');
+            console.log('✅ XGBoost real-time updates started successfully');
           }
           
           // Wait a moment for the store to be fully updated, then trigger data fetch
           setTimeout(async () => {
-            console.log('📊 Triggering delayed data fetch for trend population');
+            console.log('📊 Triggering delayed XGBoost data fetch for trend population');
             console.log('🔍 State before fetchRealTimeData:', {
-              modelFeatures: cascadeStore.modelFeatures,
-              modelTarget: cascadeStore.modelTarget,
-              currentMill: cascadeStore.millNumber,
-              isFetching: cascadeStore.isFetching
+              modelFeatures: features,
+              currentMill: currentMill,
+              isFetching: isFetching
             });
             
             try {
-              await cascadeStore.fetchRealTimeData();
-              console.log('✅ Initial trend data fetch completed');
+              await fetchRealTimeData();
+              console.log('✅ Initial XGBoost trend data fetch completed');
             } catch (error) {
-              console.error('❌ Error in delayed fetchRealTimeData:', error);
+              console.error('❌ Error in delayed XGBoost fetchRealTimeData:', error);
             }
           }, 1000); // 1 second delay to ensure everything is ready
           
         } catch (error) {
-          console.error("Error starting real-time updates:", error);
+          console.error("Error starting XGBoost real-time updates:", error);
         }
       } else {
-        console.log(`⏳ Cascade optimization: Not ready for real-time updates (attempt ${attempt})`, {
+        console.log(`⏳ Cascade optimization: Not ready for XGBoost real-time updates (attempt ${attempt})`, {
           hasModelMetadata: !!modelMetadata,
           featuresLength: features.length,
           willRetry: attempt < 3
@@ -552,7 +559,7 @@ export default function CascadeOptimizationDashboard() {
         // Retry up to 3 times with increasing delay
         if (attempt < 3) {
           const delay = attempt * 2000; // 2s, 4s delays
-          console.log(`🔄 Retrying real-time setup in ${delay}ms...`);
+          console.log(`🔄 Retrying XGBoost real-time setup in ${delay}ms...`);
           retryTimeout = setTimeout(() => {
             setupRealTimeUpdates(attempt + 1);
           }, delay);
@@ -564,14 +571,14 @@ export default function CascadeOptimizationDashboard() {
     
     return () => {
       if (cleanup) {
-        console.log('🧹 Cleaning up real-time updates for cascade optimization');
+        console.log('🧹 Cleaning up XGBoost real-time updates for cascade optimization');
         cleanup();
       }
       if (retryTimeout) {
         clearTimeout(retryTimeout);
       }
     };
-  }, [modelMetadata, getAllFeatures, startRealTimeUpdates]);
+  }, [modelMetadata, getAllFeatures, startRealTimeUpdates, fetchRealTimeData, isFetching, currentMill]);
 
   const handleModelChange = async (newModelName: string) => {
     // For cascade optimization, model changes are handled through mill changes
@@ -593,14 +600,14 @@ export default function CascadeOptimizationDashboard() {
 
     try {
       console.log(`🛑 Stopping real-time updates for mill ${currentMill}`);
-      await stopRealTimeUpdates();
+      stopRealTimeUpdates();
       
       console.log(`📝 Setting mill number to ${newMill}`);
-      setMillNumber(newMill);
+      setMillNumber(newMill); // Cascade store
+      setXgboostMill(newMill); // XGBoost store
 
       // Reset state for new mill
       console.log(`🔄 Resetting state for mill ${newMill}`);
-      setPredictedTarget(0);
       resetFeatures(); // Reset parameters to default values
 
       // Auto-load cascade models for the new mill

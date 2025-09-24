@@ -52,16 +52,13 @@ export function CascadeTargetTrend({
   showOptimizationTarget = false,
 }: // modelName is intentionally not destructured to avoid unused vars
 TargetFractionDisplayProps) {
-  // Get display hours and data fetching functions from store
+  // Get display hours and data fetching functions from XGBoost store
   const displayHours = useXgboostStore((state) => state.displayHours);
   const setDisplayHours = useXgboostStore((state) => state.setDisplayHours);
   const fetchRealTimeData = useXgboostStore((state) => state.fetchRealTimeData);
 
-  // Connect to cascade optimization store for target SP control
-  const targetSetpoint = useCascadeOptimizationStore((state) => state.targetSetpoint);
-  const setTargetSetpoint = useCascadeOptimizationStore(
-    (state) => state.setTargetSetpoint
-  );
+  // Use hardcoded default target setpoint (no prediction binding)
+  const [targetSetpoint, setTargetSetpoint] = useState<number>(50.0); // Hardcoded default
 
   // Resolve target default bounds from configuration
   const targetParam = useMemo(() => {
@@ -143,7 +140,7 @@ TargetFractionDisplayProps) {
   };
 
   const pvPercent = toPercent(currentPV);
-  const spPercent = toPercent(currentTarget);
+  // Removed spPercent calculation - using targetSetpoint directly
 
   return (
     <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm overflow-hidden">
@@ -221,12 +218,8 @@ TargetFractionDisplayProps) {
                     Setpoint Target (SP)
                   </div>
                   <div className="mt-1 flex items-end">
-                    <span
-                      className={`text-4xl font-bold ${
-                        isSimulationMode ? "text-red-600" : "text-blue-600"
-                      }`}
-                    >
-                      {currentTarget?.toFixed(1) || "N/A"}
+                    <span className="text-4xl font-bold text-orange-600">
+                      {targetSetpoint?.toFixed(1) || "50.0"}
                     </span>
                     <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">
                       {targetUnit}
@@ -236,10 +229,8 @@ TargetFractionDisplayProps) {
                   <div className="mt-2">
                     <div className="relative h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700">
                       <div
-                        className={`absolute left-0 top-0 h-full rounded-full ${
-                          isSimulationMode ? "bg-red-500" : "bg-blue-500"
-                        }`}
-                        style={{ width: `${spPercent}%` }}
+                        className="absolute left-0 top-0 h-full rounded-full bg-orange-500"
+                        style={{ width: `${toPercent(targetSetpoint)}%` }}
                       />
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
@@ -311,15 +302,8 @@ TargetFractionDisplayProps) {
                     <span>Process Variable (PV)</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        isSimulationMode ? "bg-red-500" : "bg-blue-500"
-                      }`}
-                    ></div>
-                    <span>
-                      Setpoint (SP){" "}
-                      {isSimulationMode ? "(Simulation)" : "(Real-time)"}
-                    </span>
+                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                    <span>Target Setpoint (Manual)</span>
                   </div>
                   {showOptimizationTarget && (
                     <div className="flex items-center gap-1">
@@ -430,14 +414,10 @@ TargetFractionDisplayProps) {
                         ) => {
                           const isPV = name === "Process Variable (PV)";
                           const displayValue = isPV ? props.payload.pv : value;
-                          const color = isPV
-                            ? "#10b981"
-                            : isSimulationMode
-                            ? "#dc2626"
-                            : "#3b82f6";
+                          const color = isPV ? "#10b981" : "#f97316";
                           return [
                             <span key="value" style={{ color }}>{`${
-                              isPV ? "PV" : "SP"
+                              isPV ? "PV" : "Target"
                             }: ${formatTooltipValue(
                               displayValue
                             )}${targetUnit}`}</span>,
@@ -482,13 +462,9 @@ TargetFractionDisplayProps) {
                       />
                       <Line
                         type="monotone"
-                        dataKey="sp"
-                        name={
-                          isSimulationMode
-                            ? "Setpoint (SP) (Simulation)"
-                            : "Setpoint (SP) (Real-time)"
-                        }
-                        stroke={isSimulationMode ? "#dc2626" : "#3b82f6"}
+                        dataKey={() => targetSetpoint}
+                        name="Target Setpoint (Manual)"
+                        stroke="#f97316"
                         strokeWidth={2}
                         strokeDasharray="5 5"
                         dot={false}
