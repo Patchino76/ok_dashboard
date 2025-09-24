@@ -760,13 +760,16 @@ export const useXgboostStore = create<XgboostState>()(
 
             // Use our new clean dual data source prediction logic
             const validFeatureResults = featureResults.filter(result => result !== null);
-            if (validFeatureResults.length > 0 && !state.isSimulationMode) {
+            const isCascadeModel = state.modelName && state.modelName.includes('cascade_mill_');
+            
+            if (validFeatureResults.length > 0 && !state.isSimulationMode && !isCascadeModel) {
               console.log('Real-time data updated, triggering prediction with current values (real-time mode)');
-              // Only trigger automatic predictions in real-time mode
-              // In simulation mode, predictions are triggered manually by user
+              // Only trigger automatic predictions in real-time mode and for non-cascade models
               await state.predictWithCurrentValues();
             } else if (state.isSimulationMode) {
               console.log('Real-time data updated, but skipping automatic prediction (simulation mode)');
+            } else if (isCascadeModel) {
+              console.log('🚫 CASCADE MODEL: Skipping basic XGBoost predictions - cascade models should use cascade predictions only');
             }
 
               // Update target PV and add to target data

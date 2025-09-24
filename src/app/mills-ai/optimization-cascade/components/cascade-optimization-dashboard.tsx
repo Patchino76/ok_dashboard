@@ -191,18 +191,14 @@ export default function CascadeOptimizationDashboard() {
     modelTarget: xgboostModelTarget,
     setSimulationMode: setXgboostSimulationMode,
     startRealTimeUpdates,
+    resetFeatures: resetXgboostFeatures,
   } = xgboostStore;
 
-  // Set XGBoost store to simulation mode to prevent automatic predictions
+  // Keep XGBoost store in real-time mode to allow PV value updates
+  // We prevent predictions by not calling predictWithCurrentValues, not by simulation mode
   useEffect(() => {
-    console.log("🚫 Cascade UI: Setting XGBoost store to simulation mode to prevent basic model predictions");
-    setXgboostSimulationMode(true);
-
-    // Cleanup: Reset to real-time mode when component unmounts
-    return () => {
-      console.log("🔄 Cascade UI: Resetting XGBoost store to real-time mode on unmount");
-      setXgboostSimulationMode(false);
-    };
+    console.log("✅ Cascade UI: Keeping XGBoost store in real-time mode for PV updates (predictions disabled separately)");
+    setXgboostSimulationMode(false); // Real-time mode for PV updates
   }, [setXgboostSimulationMode]);
 
   // Use hardcoded constant instead of prediction-based currentTarget
@@ -653,11 +649,25 @@ export default function CascadeOptimizationDashboard() {
 
       // Reset state for new mill
       console.log(`🔄 Resetting state for mill ${newMill}`);
-      resetFeatures(); // Reset parameters to default values
+      resetFeatures(); // Reset cascade store parameters to default values
+      resetXgboostFeatures(); // Reset XGBoost store parameters to default values
 
       // Auto-load cascade models for the new mill
       console.log(`📥 Loading cascade model for mill ${newMill}`);
       await loadModelForMill(newMill);
+
+      // Wait a moment for model to load, then restart real-time updates
+      setTimeout(async () => {
+        console.log(`🔄 Restarting real-time updates for mill ${newMill}`);
+        try {
+          const cleanupFn = startRealTimeUpdates();
+          // Trigger immediate data fetch for the new mill
+          await fetchRealTimeData();
+          console.log(`✅ Real-time updates restarted for mill ${newMill}`);
+        } catch (error) {
+          console.error(`❌ Failed to restart real-time updates for mill ${newMill}:`, error);
+        }
+      }, 2000); // 2 second delay to ensure model is loaded
 
       console.log(`✅ Successfully switched to Mill ${newMill}`);
       toast.success(`Switched to Mill ${newMill}`);
