@@ -14,6 +14,7 @@ from sklearn.preprocessing import StandardScaler
 import joblib
 import os
 import json
+import math
 from datetime import datetime
 
 from .variable_classifier import VariableClassifier, VariableType
@@ -362,20 +363,33 @@ class CascadeModelManager:
         print(f"Final cleaned data shape: {df_clean.shape}")
         return df_clean
     
-    def _convert_for_json(self, obj):
-        """Convert numpy types to native Python types for JSON serialization"""
+    def sanitize_json_data(self, obj):
+        """
+        Recursively sanitize data to ensure JSON compliance.
+        Converts NaN, Infinity, and other non-JSON-compliant values to None.
+        """
         if isinstance(obj, dict):
-            return {key: self._convert_for_json(value) for key, value in obj.items()}
+            return {key: self.sanitize_json_data(value) for key, value in obj.items()}
         elif isinstance(obj, list):
-            return [self._convert_for_json(item) for item in obj]
+            return [self.sanitize_json_data(item) for item in obj]
         elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, (np.float32, np.float64)):
+            # Convert numpy array to list and sanitize each element
+            return [self.sanitize_json_data(item) for item in obj.tolist()]
+        elif isinstance(obj, (np.floating, float)):
+            # Handle numpy float types and regular floats
+            if math.isnan(obj) or math.isinf(obj):
+                return None
             return float(obj)
-        elif isinstance(obj, (np.int32, np.int64)):
+        elif isinstance(obj, (np.integer, int)):
             return int(obj)
+        elif obj is None:
+            return None
         else:
             return obj
+    
+    def _convert_for_json(self, obj):
+        """Convert numpy types to native Python types for JSON serialization with sanitization"""
+        return self.sanitize_json_data(obj)
     
     def train_all_models(self, df: pd.DataFrame, test_size: float = 0.2) -> Dict[str, Any]:
         """
@@ -696,17 +710,28 @@ class CascadeModelManager:
                         with open(metadata_path, 'r') as f:
                             metadata = json.load(f)
                         
+                        # Sanitize metadata to handle NaN/Infinity values
+                        temp_manager = cls()  # Create temporary instance for sanitization
+                        sanitized_metadata = temp_manager.sanitize_json_data(metadata)
+                        
                         # Check for model files
                         model_files = [f for f in os.listdir(item_path) if f.endswith('.pkl')]
                         
                         mill_models[mill_number] = {
                             "path": item_path,
-                            "metadata": metadata,
+                            "metadata": sanitized_metadata,
                             "model_files": model_files,
                             "has_complete_cascade": len([f for f in model_files if f.startswith('process_model_')]) > 0 and 'quality_model.pkl' in model_files
                         }
                 except (ValueError, json.JSONDecodeError) as e:
                     print(f"Error processing mill folder {item}: {e}")
+                    # Include mills with failed metadata but with error information
+                    mill_models[mill_number] = {
+                        "path": item_path,
+                        "metadata": {"error": f"Failed to load metadata: {e}"},
+                        "model_files": [],
+                        "has_complete_cascade": False
+                    }
                     continue
         
         return mill_models

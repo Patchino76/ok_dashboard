@@ -1,0 +1,39 @@
+{
+  "features": [
+    "Ore",
+    "WaterMill",
+    "WaterZumpf",
+    "MotorAmp"
+  ],
+  "target_col": "PressureHC",
+  "model_params": {
+    "n_estimators": 50,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "early_stopping_rounds": 30,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "objective": "reg:squarederror"
+  },
+  "feature_importance": {
+    "Feature": {
+      "3": "MotorAmp",
+      "0": "Ore",
+      "2": "WaterZumpf",
+      "1": "WaterMill"
+    },
+    "Importance": {
+      "3": 0.5046976208686829,
+      "0": 0.37216511368751526,
+      "2": 0.10712148249149323,
+      "1": 0.016015809029340744
+    }
+  },
+  "training_history": {
+    "best_iteration": 49,
+    "best_score": 0.00624676631595786
+  },
+  "last_trained": "2025-09-03T12:22:28.905033"
+}

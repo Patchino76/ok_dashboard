@@ -1,0 +1,104 @@
+{
+  "mill_number": 6,
+  "created_at": "2025-09-17T15:39:39.852350",
+  "model_version": "1.0.0",
+  "training_config": {
+    "test_size": 0.2,
+    "data_shape": [
+      20751,
+      8
+    ],
+    "training_timestamp": "2025-09-17T15:39:43.278195"
+  },
+  "model_performance": {
+    "process_model_PulpHC": {
+      "r2_score": 0.971292777535952,
+      "rmse": 8.201651591542804,
+      "feature_importance": {
+        "Ore": 0.03683273121714592,
+        "WaterMill": 0.22028274834156036,
+        "WaterZumpf": 0.08854010701179504,
+        "MotorAmp": 0.654344379901886
+      },
+      "input_vars": [
+        "Ore",
+        "WaterMill",
+        "WaterZumpf",
+        "MotorAmp"
+      ],
+      "output_var": "PulpHC"
+    },
+    "process_model_DensityHC": {
+      "r2_score": 0.8921640938511886,
+      "rmse": 5.716158035494191,
+      "feature_importance": {
+        "Ore": 0.1479152888059616,
+        "WaterMill": 0.12300373613834381,
+        "WaterZumpf": 0.33679863810539246,
+        "MotorAmp": 0.39228230714797974
+      },
+      "input_vars": [
+        "Ore",
+        "WaterMill",
+        "WaterZumpf",
+        "MotorAmp"
+      ],
+      "output_var": "DensityHC"
+    },
+    "process_model_PressureHC": {
+      "r2_score": 0.9079123283263526,
+      "rmse": 0.007754400596809825,
+      "feature_importance": {
+        "Ore": 0.21607369184494019,
+        "WaterMill": 0.1627509444952011,
+        "WaterZumpf": 0.25389209389686584,
+        "MotorAmp": 0.36728328466415405
+      },
+      "input_vars": [
+        "Ore",
+        "WaterMill",
+        "WaterZumpf",
+        "MotorAmp"
+      ],
+      "output_var": "PressureHC"
+    },
+    "quality_model": {
+      "r2_score": -0.15760152572673958,
+      "rmse": 1.2901522080627115,
+      "feature_importance": {
+        "PulpHC": 0.420248806476593,
+        "DensityHC": 0.4120337665081024,
+        "PressureHC": 0.16771739721298218
+      },
+      "input_vars": [
+        "PulpHC",
+        "DensityHC",
+        "PressureHC"
+      ],
+      "output_var": "PSI200",
+      "cv_vars": [
+        "PulpHC",
+        "DensityHC",
+        "PressureHC"
+      ],
+      "dv_vars": []
+    },
+    "chain_validation": {
+      "r2_score": 0.5615314426928614,
+      "rmse": 1.056153714127386,
+      "mae": 0.7672857615356432,
+      "n_samples": 200
+    }
+  },
+  "data_info": {
+    "original_shape": [
+      28730,
+      22
+    ],
+    "cleaned_shape": [
+      20751,
+      8
+    ],
+    "data_reduction": "27.8%"
+  }
+}

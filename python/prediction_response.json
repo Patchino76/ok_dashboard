@@ -1,0 +1,6 @@
+{
+  "prediction": 53.201717376708984,
+  "model_id": "xgboost_PSI80_mill8",
+  "target_col": "PSI80",
+  "timestamp": "2025-07-10T16:08:38.891020"
+}

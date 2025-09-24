@@ -1,0 +1,39 @@
+{
+  "features": [
+    "Ore",
+    "WaterMill",
+    "WaterZumpf",
+    "MotorAmp"
+  ],
+  "target_col": "PulpHC",
+  "model_params": {
+    "n_estimators": 50,
+    "learning_rate": 0.05,
+    "max_depth": 3,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "early_stopping_rounds": 30,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "objective": "reg:squarederror"
+  },
+  "feature_importance": {
+    "Feature": {
+      "1": "WaterMill",
+      "3": "MotorAmp",
+      "0": "Ore",
+      "2": "WaterZumpf"
+    },
+    "Importance": {
+      "1": 0.7062869668006897,
+      "3": 0.2361631840467453,
+      "0": 0.038924239575862885,
+      "2": 0.018625633791089058
+    }
+  },
+  "training_history": {
+    "best_iteration": 48,
+    "best_score": 15.469471666581342
+  },
+  "last_trained": "2025-09-03T12:25:31.320544"
+}

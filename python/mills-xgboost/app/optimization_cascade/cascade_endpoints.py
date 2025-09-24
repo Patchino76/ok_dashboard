@@ -337,12 +337,19 @@ async def list_mill_models():
         base_path = os.path.abspath(base_path)
         mill_models = CascadeModelManager.list_mill_models(base_path)
         
+        # Additional sanitization to ensure JSON compliance
+        temp_manager = CascadeModelManager()
+        sanitized_mill_models = temp_manager.sanitize_json_data(mill_models)
+        
         return {
             "status": "success",
-            "mill_models": mill_models,
-            "total_mills": len(mill_models)
+            "mill_models": sanitized_mill_models,
+            "total_mills": len(sanitized_mill_models)
         }
     except Exception as e:
+        import traceback
+        print(f"Error in list_mill_models: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @cascade_router.get("/models/{mill_number}")
@@ -415,10 +422,14 @@ async def get_mill_model_info(mill_number: int):
             # Fallback to basic info only
             pass
         
+        # Sanitize the response to handle any remaining NaN/Infinity values
+        temp_manager = CascadeModelManager()
+        sanitized_model_info = temp_manager.sanitize_json_data(model_info)
+        
         return {
             "status": "success",
             "mill_number": mill_number,
-            "model_info": model_info
+            "model_info": sanitized_model_info
         }
     except HTTPException:
         raise
