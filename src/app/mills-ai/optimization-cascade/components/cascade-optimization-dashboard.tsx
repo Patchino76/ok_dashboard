@@ -32,8 +32,6 @@ import { CascadeTargetTrend } from "./target-cascade-trend";
 import { CascadeFlowDiagram } from "./cascade-flow-diagram";
 import { CascadeSimulationInterface } from "./cascade-simulation-interface";
 import { ModelSelection } from "../../components/model-selection";
-import { useXgboostStore } from "../../stores/xgboost-store";
-import { useOptimizationStore } from "../../stores/optimization-store";
 import { useCascadeOptimization } from "../../hooks/useCascadeOptimization";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization";
@@ -48,8 +46,8 @@ import { EnhancedModelTraining } from "./enhanced-model-training";
 import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 
 export default function CascadeOptimizationDashboard() {
-  // Get the store instance
-  const store = useXgboostStore();
+  // Cascade optimization store
+  const cascadeStore = useCascadeOptimizationStore();
 
   // Cascade model loader hook
   const {
@@ -72,9 +70,9 @@ export default function CascadeOptimizationDashboard() {
       
       // Always ensure we start with mill 7 for cascade optimization
       const targetMill = 7;
-      if (store.currentMill !== targetMill) {
-        console.log(`🔄 Setting current mill from ${store.currentMill} to ${targetMill}`);
-        store.setCurrentMill(targetMill);
+      if (cascadeStore.millNumber !== targetMill) {
+        console.log(`🔄 Setting current mill from ${cascadeStore.millNumber} to ${targetMill}`);
+        cascadeStore.setMillNumber(targetMill);
       }
       
       // Auto-load cascade models for the target mill on page load
@@ -88,91 +86,118 @@ export default function CascadeOptimizationDashboard() {
     };
 
     initializeCascade();
-  }, [loadModelForMill]); // Add loadModelForMill as dependency
+  }, [loadModelForMill, cascadeStore.millNumber]);
 
-  // One-time guard to apply optimization-specific default model
-  const appliedOptimizationDefaultModel = useRef(false);
+  // Track processed model metadata to prevent infinite loops
+  const processedModelRef = useRef<string | null>(null);
+
+  // COMPLETELY REMOVED THE PROBLEMATIC useEffect
+  // Model metadata updates are now handled through useMemo to avoid infinite loops
+  
+  // Compute model information without triggering store updates
+  const modelInfo = useMemo(() => {
+    if (!modelMetadata) return null;
+    
+    const features = getAllFeatures();
+    const target = getTargetVariable();
+    const lastTrained = modelMetadata.model_info.metadata?.created_at || "Unknown";
+    const modelName = `cascade_mill_${modelMetadata.mill_number}`;
+    
+    return {
+      features,
+      target,
+      lastTrained,
+      modelName,
+      featureClassification: getFeatureClassification(),
+    };
+  }, [modelMetadata, getAllFeatures, getTargetVariable, getFeatureClassification]);
+  
+  // Update parameter types only when model info changes (without store updates)
+  const parametersWithTypes = useMemo(() => {
+    if (!modelInfo?.featureClassification) return cascadeStore.parameters;
+    
+    return cascadeStore.parameters.map((param) => {
+      let varType: "MV" | "CV" | "DV" | undefined;
+      
+      if (modelInfo.featureClassification.mv_features?.includes(param.id)) {
+        varType = "MV";
+      } else if (modelInfo.featureClassification.cv_features?.includes(param.id)) {
+        varType = "CV";
+      } else if (modelInfo.featureClassification.dv_features?.includes(param.id)) {
+        varType = "DV";
+      }
+      
+      return { ...param, varType };
+    });
+  }, [modelInfo?.featureClassification, cascadeStore.parameters]);
 
   // Function to update parameter types based on cascade model classification
   const updateParameterTypes = useCallback((featureClassification: any) => {
-    console.log(
-      "🏷️ Updating parameter types with classification:",
-      featureClassification
-    );
+    console.log("🏷️ Updating parameter types with classification:", featureClassification);
 
-    // Update the store parameters with correct varType based on cascade model
-    useXgboostStore.setState((state) => ({
+    const updatedParameters = cascadeStore.parameters.map((param) => {
+      let varType: "MV" | "CV" | "DV" | undefined;
+
+      if (featureClassification.mv_features?.includes(param.id)) {
+        varType = "MV";
+      } else if (featureClassification.cv_features?.includes(param.id)) {
+        varType = "CV";
+      } else if (featureClassification.dv_features?.includes(param.id)) {
+        varType = "DV";
+      }
+
+      return { ...param, varType };
+    });
+
+    useCascadeOptimizationStore.setState((state) => ({
       ...state,
-      parameters: state.parameters.map((param) => {
-        let varType: "MV" | "CV" | "DV" | undefined;
-
-        if (featureClassification.mv_features?.includes(param.id)) {
-          varType = "MV";
-        } else if (featureClassification.cv_features?.includes(param.id)) {
-          varType = "CV";
-        } else if (featureClassification.dv_features?.includes(param.id)) {
-          varType = "DV";
-        }
-
-        console.log(`📊 Parameter ${param.id}: ${param.varType} → ${varType}`);
-
-        return {
-          ...param,
-          varType,
-        };
-      }),
+      parameters: updatedParameters,
     }));
-  }, []);
+  }, [cascadeStore.parameters]);
 
-  // Destructure store values with proper types
+  // Destructure cascade store values with proper types
   const {
-    parameters,
     parameterBounds,
     currentTarget,
     currentPV,
     targetData,
-    modelName,
     availableModels,
-    modelFeatures,
-    modelTarget,
-    lastTrained,
-    currentMill,
+    millNumber: currentMill,
     sliderValues,
     updateSliderValue,
     setPredictedTarget,
     addTargetDataPoint,
-    setModelName,
-    setAvailableModels,
-    setModelMetadata,
     stopRealTimeUpdates,
-    setCurrentMill,
     startRealTimeUpdates,
     resetFeatures,
     resetSliders,
-    resetSlidersToPVs,
     predictWithCurrentValues,
-  } = store;
-
-  // Optimization store and hooks
-  const {
+    // Optimization-specific properties
     targetSetpoint,
-    parameterBounds: optimizationBounds,
-    iterations,
     maximize,
-    proposedSetpoints,
     setTargetSetpoint,
-    updateParameterBounds,
-    setParameterBounds,
     setMaximize,
-    getOptimizationConfig,
+    proposedSetpoints,
+    setProposedSetpoints,
     clearProposedSetpoints,
     clearResults,
-    autoApplyProposals,
-    setAutoApplyProposals,
-  } = useOptimizationStore();
+    autoApplyResults,
+    setAutoApplyResults,
+    mvBounds: optimizationBounds,
+    updateMVBounds: updateParameterBounds,
+    setMVBounds: setParameterBounds,
+    setMillNumber,
+  } = cascadeStore;
+  
+  // Use computed values instead of store values to avoid infinite loops
+  const parameters = parametersWithTypes;
+  const modelName = modelInfo?.modelName || null;
+  const modelFeatures = modelInfo?.features || [];
+  const modelTarget = modelInfo?.target || null;
+  const lastTrained = modelInfo?.lastTrained || null;
 
-  // Cascade optimization store
-  const cascadeOptStore = useCascadeOptimizationStore();
+  // Additional cascade optimization store reference for specific operations
+  const cascadeOptStore = cascadeStore;
 
   const { startCascadeOptimization, isOptimizing, error } =
     useCascadeOptimization();
@@ -246,7 +271,7 @@ export default function CascadeOptimizationDashboard() {
     if (!modelMetadata) return;
 
     const allModelFeatures = getAllFeatures();
-    const filteredParameters = parameters.filter((p) =>
+    const filteredParameters = parameters.filter((p: any) =>
       allModelFeatures.includes(p.id)
     );
 
@@ -303,12 +328,12 @@ export default function CascadeOptimizationDashboard() {
 
   // Debug function to test trend data
   const handleDebugTrendData = async () => {
-    const state = useXgboostStore.getState();
+    const state = cascadeStore;
     console.log('🔍 CASCADE OPTIMIZATION DEBUG - Current State:', {
       modelFeatures: state.modelFeatures,
       modelName: state.modelName,
-      currentMill: state.currentMill,
-      parametersWithTrends: state.parameters.map(p => ({
+      currentMill: state.millNumber,
+      parametersWithTrends: state.parameters.map((p: any) => ({
         id: p.id,
         name: p.name,
         trendLength: p.trend.length,
@@ -325,7 +350,7 @@ export default function CascadeOptimizationDashboard() {
     if (!state.modelFeatures || state.modelFeatures.length === 0) {
       console.log('⚠️ No model features detected, attempting to reload cascade model...');
       try {
-        await loadModelForMill(state.currentMill);
+        await loadModelForMill(state.millNumber);
         console.log('✅ Cascade model reloaded');
       } catch (error) {
         console.error('❌ Failed to reload cascade model:', error);
@@ -343,12 +368,11 @@ export default function CascadeOptimizationDashboard() {
     
     toast.info('Debug info logged to console. Check browser dev tools.');
   };
-
   const targetUnit = useMemo(() => {
     const targetVariable = getTargetVariable();
     if (!targetVariable) return "%";
     const targetParam = millsParameters.find(
-      (param) => param.id === targetVariable
+      (param: any) => param.id === targetVariable
     );
     return targetParam?.unit || "%";
   }, [getTargetVariable]);
@@ -356,15 +380,14 @@ export default function CascadeOptimizationDashboard() {
   // Check if cascade model is ready for predictions
   const isCascadeModelReady = useMemo(() => {
     const features = getAllFeatures();
-    const currentState = useXgboostStore.getState();
     return !!(
       modelMetadata &&
       features &&
       features.length > 0 &&
-      currentState.modelFeatures &&
-      currentState.modelFeatures.length > 0
+      cascadeStore.modelFeatures &&
+      cascadeStore.modelFeatures.length > 0
     );
-  }, [modelMetadata, getAllFeatures]);
+  }, [modelMetadata, getAllFeatures, cascadeStore.modelFeatures]);
 
   // Debounced prediction effect for slider changes (reuse existing store behavior)
   useEffect(() => {
@@ -384,18 +407,12 @@ export default function CascadeOptimizationDashboard() {
     return () => clearTimeout(timeoutId);
   }, [sliderValues, predictWithCurrentValues, isCascadeModelReady]);
 
-  // Force simulation mode OFF for optimization page to enable PV-based predictions
-  useEffect(() => {
-    try {
-      const setSimulationMode = useXgboostStore.getState().setSimulationMode;
-      setSimulationMode(false); // Use real-time mode for PV-based predictions
-    } catch (e) {
-      console.warn("Failed to set simulation mode on mount:", e);
-    }
-  }, []);
+  // No need for simulation mode in cascade optimization - removed
 
   // Update store metadata when cascade model is loaded
   useEffect(() => {
+    // DISABLED TO PREVENT INFINITE LOOPS - Model metadata now handled via useMemo
+    return;
     if (modelMetadata) {
       console.log("🔍 Raw cascade model metadata:", modelMetadata);
 
@@ -419,9 +436,8 @@ export default function CascadeOptimizationDashboard() {
 
       // Only proceed if we have features
       if (features && features.length > 0) {
-        // Update the store with cascade model metadata
-        setModelMetadata(features, target, lastTrained);
-        setModelName(`cascade_mill_${modelMetadata.mill_number}`);
+        // Model metadata is now computed via useMemo - no store updates needed
+        console.log("✅ Model metadata computed via useMemo:", { features, target, lastTrained });
 
         // Update parameter varTypes based on cascade model classification
         if (
@@ -437,18 +453,17 @@ export default function CascadeOptimizationDashboard() {
         }
 
         console.log(
-          "✅ Successfully updated XGBoost store with cascade model metadata"
+          "✅ Successfully updated cascade store with cascade model metadata"
         );
 
         // Wait a moment for the store to be fully updated, then verify
         setTimeout(() => {
-          const currentState = useXgboostStore.getState();
-          console.log("🔍 Verifying XGBoost store state after update:", {
-            modelFeatures: currentState.modelFeatures,
-            modelFeaturesLength: currentState.modelFeatures?.length,
-            modelName: currentState.modelName,
-            modelTarget: currentState.modelTarget,
-            parametersCount: currentState.parameters?.length,
+          console.log("🔍 Verifying cascade store state after update:", {
+            modelFeatures: cascadeStore.modelFeatures,
+            modelFeaturesLength: cascadeStore.modelFeatures?.length,
+            modelName: cascadeStore.modelName,
+            modelTarget: cascadeStore.modelTarget,
+            parametersCount: cascadeStore.parameters?.length,
           });
         }, 100);
       } else {
@@ -471,22 +486,21 @@ export default function CascadeOptimizationDashboard() {
               "🔄 Using fallback features from classification:",
               fallbackFeatures
             );
-            setModelMetadata(fallbackFeatures, target, lastTrained);
-            setModelName(`cascade_mill_${modelMetadata.mill_number}`);
+            // Fallback features are now handled via useMemo - no store updates needed
+            console.log("✅ Fallback features computed via useMemo:", fallbackFeatures);
             updateParameterTypes(featureClassification);
           }
         }
       }
     }
   }, [
-    modelMetadata,
-    getAllFeatures,
-    getTargetVariable,
-    getFeatureClassification,
-    setModelMetadata,
-    setModelName,
-    updateParameterTypes,
-  ]);
+      modelMetadata,
+      getAllFeatures,
+      getTargetVariable,
+      getFeatureClassification,
+      updateParameterTypes,
+      cascadeStore,
+    ]);
 
   // Start real-time data updates when cascade model is loaded
   useEffect(() => {
@@ -499,7 +513,7 @@ export default function CascadeOptimizationDashboard() {
         hasModelMetadata: !!modelMetadata,
         featuresLength: features.length,
         features,
-        currentMill: store.currentMill
+        currentMill: cascadeStore.millNumber
       });
       
       if (modelMetadata && features.length > 0) {
@@ -514,16 +528,15 @@ export default function CascadeOptimizationDashboard() {
           // Wait a moment for the store to be fully updated, then trigger data fetch
           setTimeout(async () => {
             console.log('📊 Triggering delayed data fetch for trend population');
-            const state = useXgboostStore.getState();
             console.log('🔍 State before fetchRealTimeData:', {
-              modelFeatures: state.modelFeatures,
-              modelTarget: state.modelTarget,
-              currentMill: state.currentMill,
-              isFetching: state.isFetching
+              modelFeatures: cascadeStore.modelFeatures,
+              modelTarget: cascadeStore.modelTarget,
+              currentMill: cascadeStore.millNumber,
+              isFetching: cascadeStore.isFetching
             });
             
             try {
-              await state.fetchRealTimeData();
+              await cascadeStore.fetchRealTimeData();
               console.log('✅ Initial trend data fetch completed');
             } catch (error) {
               console.error('❌ Error in delayed fetchRealTimeData:', error);
@@ -579,7 +592,7 @@ export default function CascadeOptimizationDashboard() {
 
     try {
       await stopRealTimeUpdates();
-      setCurrentMill(newMill);
+      setMillNumber(newMill);
 
       // Reset state for new mill
       setPredictedTarget(0);
@@ -665,15 +678,13 @@ export default function CascadeOptimizationDashboard() {
           });
         }
 
-        // Apply proposed setpoints to the optimization store
+        // Apply proposed setpoints to the cascade store
         if (Object.keys(newProposedSetpoints).length > 0) {
-          useOptimizationStore
-            .getState()
-            .setProposedSetpoints(newProposedSetpoints);
+          cascadeOptStore.setProposedSetpoints(newProposedSetpoints);
         }
 
         // Auto-apply if enabled
-        if (autoApplyProposals) {
+        if (autoApplyResults) {
           applyOptimizedParameters();
         }
 
@@ -1009,7 +1020,7 @@ export default function CascadeOptimizationDashboard() {
               <CardContent>
                 <EnhancedModelTraining
                   currentMill={currentMill}
-                  onMillChange={setCurrentMill}
+                  onMillChange={cascadeStore.setMillNumber}
                   onTrainModel={handleTrainModel}
                   isTraining={isTraining}
                   trainingProgress={trainingProgress}
@@ -1086,7 +1097,7 @@ export default function CascadeOptimizationDashboard() {
                       <div className="flex items-center gap-2">
                         <span
                           className={`text-xs ${
-                            !autoApplyProposals
+                            !autoApplyResults
                               ? "text-slate-900 font-medium"
                               : "text-slate-500"
                           }`}
@@ -1094,13 +1105,13 @@ export default function CascadeOptimizationDashboard() {
                           Manual
                         </span>
                         <Switch
-                          checked={autoApplyProposals}
-                          onCheckedChange={setAutoApplyProposals}
+                          checked={autoApplyResults}
+                          onCheckedChange={setAutoApplyResults}
                           disabled={isOptimizing}
                         />
                         <span
                           className={`text-xs ${
-                            autoApplyProposals
+                            autoApplyResults
                               ? "text-slate-900 font-medium"
                               : "text-slate-500"
                           }`}
@@ -1175,7 +1186,7 @@ export default function CascadeOptimizationDashboard() {
               targetData={targetData}
               isOptimizing={isOptimizing}
               isSimulationMode={isSimulationMode}
-              modelName={modelName}
+              modelName={modelName || undefined}
               targetVariable={getTargetVariable()}
               targetUnit={targetUnit}
               spOptimize={

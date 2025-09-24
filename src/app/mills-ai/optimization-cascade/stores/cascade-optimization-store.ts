@@ -1,5 +1,28 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { millsParameters } from '../../data/mills-parameters'
+
+// Parameter interface for cascade store
+export interface CascadeParameter {
+  id: string
+  name: string
+  unit: string
+  value: number
+  trend: Array<{ timestamp: number; value: number }>
+  color: string
+  icon: string
+  varType?: 'MV' | 'CV' | 'DV'
+  isLab?: boolean
+}
+
+// Target data interface - compatible with CascadeTargetTrend component
+export interface TargetData {
+  timestamp: number
+  value: number  // Current PV value
+  target: number // Target/setpoint value
+  pv: number     // Process variable (same as value)
+  sp?: number | null // Setpoint (same as target)
+}
 
 // Cascade-specific optimization interfaces
 export interface CascadeOptimizationConfig {
@@ -66,6 +89,30 @@ export interface CascadeOptimizationState {
   bestMVValues: Record<string, number> | null
   proposedSetpoints: Record<string, number> | null
   
+  // CASCADE-SPECIFIC STATE (migrated from xgboost-store)
+  // Model state
+  modelName: string | null
+  modelFeatures: string[]
+  modelTarget: string | null
+  lastTrained: string | null
+  availableModels: Record<string, any>
+  
+  // Parameter state
+  parameters: CascadeParameter[]
+  parameterBounds: Record<string, [number, number]>
+  sliderValues: Record<string, number>
+  
+  // Target state
+  currentTarget: number
+  currentPV: number
+  targetData: TargetData[]
+  
+  // Real-time data state
+  isRealTimeActive: boolean
+  isFetching: boolean
+  displayHours: number
+  dataUpdateInterval: number
+  
   // Actions - Configuration
   setMillNumber: (mill: number) => void
   setTargetVariable: (variable: string) => void
@@ -99,10 +146,36 @@ export interface CascadeOptimizationState {
   clearProposedSetpoints: () => void
   setAutoApplyResults: (auto: boolean) => void
   
+  // CASCADE-SPECIFIC ACTIONS (migrated from xgboost-store)
+  // Model actions
+  setModelName: (name: string) => void
+  setModelMetadata: (features: string[], target: string, lastTrained: string) => void
+  setAvailableModels: (models: Record<string, any>) => void
+  
+  // Parameter actions
+  updateSliderValue: (id: string, value: number) => void
+  updateParameterFromRealData: (id: string, value: number, trend: Array<{ timestamp: number; value: number }>) => void
+  resetFeatures: () => void
+  resetSliders: () => void
+  
+  // Target actions
+  setPredictedTarget: (value: number) => void
+  addTargetDataPoint: (pv: number, sp?: number) => void
+  
+  // Real-time data actions
+  startRealTimeUpdates: () => () => void
+  stopRealTimeUpdates: () => void
+  fetchRealTimeData: () => Promise<void>
+  setDisplayHours: (hours: number) => void
+  
+  // Prediction actions
+  predictWithCurrentValues: () => Promise<void>
+  
   // Utility functions
   getOptimizationConfig: () => CascadeOptimizationConfig
   resetToDefaults: () => void
   hasValidConfiguration: () => boolean
+  getTagId: (millNumber: number, featureName: string) => string | null
 }
 
 const initialState = {
@@ -132,6 +205,37 @@ const initialState = {
   optimizationHistory: [],
   bestMVValues: null,
   proposedSetpoints: null,
+  
+  // CASCADE-SPECIFIC STATE (migrated from xgboost-store)
+  // Model state
+  modelName: null,
+  modelFeatures: [],
+  modelTarget: null,
+  lastTrained: null,
+  availableModels: {},
+  
+  // Parameter state
+  parameters: millsParameters.map(param => ({
+    ...param,
+    trend: [],
+    varType: undefined,
+  })),
+  parameterBounds: millsParameters.reduce((acc, param) => {
+    acc[param.id] = [param.min, param.max];
+    return acc;
+  }, {} as Record<string, [number, number]>),
+  sliderValues: {},
+  
+  // Target state
+  currentTarget: 0,
+  currentPV: 0,
+  targetData: [],
+  
+  // Real-time data state
+  isRealTimeActive: false,
+  isFetching: false,
+  displayHours: 4,
+  dataUpdateInterval: 10000, // 10 seconds
 }
 
 export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
@@ -353,6 +457,244 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
           cvBounds: {},
           dvValues: {},
         }, false, 'resetToDefaults')
+      },
+
+      // CASCADE-SPECIFIC ACTIONS IMPLEMENTATION
+      // Model actions
+      setModelName: (name: string) => {
+        set({ modelName: name }, false, 'setModelName')
+      },
+
+      setModelMetadata: (features: string[], target: string, lastTrained: string) => {
+        set({ 
+          modelFeatures: features, 
+          modelTarget: target, 
+          lastTrained 
+        }, false, 'setModelMetadata')
+      },
+
+      setAvailableModels: (models: Record<string, any>) => {
+        set({ availableModels: models }, false, 'setAvailableModels')
+      },
+
+      // Parameter actions
+      updateSliderValue: (id: string, value: number) => {
+        set((state) => ({
+          sliderValues: {
+            ...state.sliderValues,
+            [id]: value,
+          },
+          parameters: state.parameters.map(param =>
+            param.id === id ? { ...param, value } : param
+          ),
+        }), false, 'updateSliderValue')
+      },
+
+      updateParameterFromRealData: (id: string, value: number, trend: Array<{ timestamp: number; value: number }>) => {
+        set((state) => ({
+          parameters: state.parameters.map(param =>
+            param.id === id ? { ...param, trend } : param
+          ),
+        }), false, 'updateParameterFromRealData')
+      },
+
+      resetFeatures: () => {
+        set((state) => {
+          const resetParameters = state.parameters.map(param => {
+            const bounds = state.parameterBounds[param.id] || [param.value, param.value];
+            const defaultValue = (bounds[0] + bounds[1]) / 2;
+            return {
+              ...param,
+              value: defaultValue,
+            };
+          });
+
+          const resetSliderValues = resetParameters.reduce((acc, param) => {
+            acc[param.id] = param.value;
+            return acc;
+          }, {} as Record<string, number>);
+
+          return {
+            parameters: resetParameters,
+            sliderValues: resetSliderValues,
+          };
+        }, false, 'resetFeatures')
+      },
+
+      resetSliders: () => {
+        set((state) => {
+          const resetSliderValues = state.parameters.reduce((acc, param) => {
+            const bounds = state.parameterBounds[param.id] || [param.value, param.value];
+            acc[param.id] = (bounds[0] + bounds[1]) / 2;
+            return acc;
+          }, {} as Record<string, number>);
+
+          return { sliderValues: resetSliderValues };
+        }, false, 'resetSliders')
+      },
+
+      // Target actions
+      setPredictedTarget: (value: number) => {
+        set({ currentTarget: value }, false, 'setPredictedTarget')
+      },
+
+      addTargetDataPoint: (pv: number, sp?: number) => {
+        set((state) => {
+          const target = sp || state.currentTarget;
+          const newDataPoint: TargetData = {
+            timestamp: Date.now(),
+            value: pv,
+            target: target,
+            pv: pv,
+            sp: sp,
+          };
+
+          const updatedTargetData = [...state.targetData, newDataPoint].slice(-50); // Keep last 50 points
+
+          return {
+            targetData: updatedTargetData,
+            currentPV: pv,
+            currentTarget: target,
+          };
+        }, false, 'addTargetDataPoint')
+      },
+
+      // Real-time data actions
+      startRealTimeUpdates: () => {
+        const { dataUpdateInterval, fetchRealTimeData } = get();
+        
+        set({ isRealTimeActive: true }, false, 'startRealTimeUpdates');
+        
+        const intervalId = setInterval(async () => {
+          const state = get();
+          if (state.isRealTimeActive && !state.isFetching) {
+            try {
+              await fetchRealTimeData();
+            } catch (error) {
+              console.error('Real-time data fetch error:', error);
+            }
+          }
+        }, dataUpdateInterval);
+
+        // Return cleanup function
+        return () => {
+          clearInterval(intervalId);
+          set({ isRealTimeActive: false }, false, 'stopRealTimeUpdates');
+        };
+      },
+
+      stopRealTimeUpdates: () => {
+        set({ isRealTimeActive: false }, false, 'stopRealTimeUpdates')
+      },
+
+      fetchRealTimeData: async () => {
+        const state = get();
+        if (state.isFetching || !state.modelFeatures.length) return;
+
+        set({ isFetching: true }, false, 'fetchRealTimeData:start');
+
+        try {
+          // This would be implemented with actual API calls
+          // For now, we'll simulate the data fetching
+          console.log('🔄 Cascade: Fetching real-time data for features:', state.modelFeatures);
+          
+          // Simulate API delay
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Update parameters with simulated data
+          const now = Date.now();
+          const updatedParameters = state.parameters.map(param => {
+            if (state.modelFeatures.includes(param.id)) {
+              const simulatedValue = param.value + (Math.random() - 0.5) * 2;
+              const newTrendPoint = { timestamp: now, value: simulatedValue };
+              const updatedTrend = [...param.trend, newTrendPoint].slice(-50);
+              
+              return {
+                ...param,
+                trend: updatedTrend,
+              };
+            }
+            return param;
+          });
+
+          set({ parameters: updatedParameters }, false, 'fetchRealTimeData:updateParameters');
+
+          // Add target data point
+          const targetValue = state.currentPV + (Math.random() - 0.5) * 1;
+          const newTargetData = [...state.targetData, {
+            timestamp: now,
+            value: targetValue,
+            target: state.currentTarget,
+            pv: targetValue,
+            sp: state.currentTarget,
+          }].slice(-50);
+
+          set({ 
+            targetData: newTargetData,
+            currentPV: targetValue,
+          }, false, 'fetchRealTimeData:updateTarget');
+
+        } catch (error) {
+          console.error('Error fetching real-time data:', error);
+        } finally {
+          set({ isFetching: false }, false, 'fetchRealTimeData:end');
+        }
+      },
+
+      setDisplayHours: (hours: number) => {
+        set({ displayHours: hours }, false, 'setDisplayHours')
+        // Trigger data refresh
+        const { fetchRealTimeData } = get();
+        fetchRealTimeData();
+      },
+
+      // Prediction actions
+      predictWithCurrentValues: async () => {
+        const state = get();
+        if (!state.modelFeatures.length) return;
+
+        try {
+          console.log('🔮 Cascade: Making prediction with current values');
+          
+          // Build prediction data from current slider values or parameter values
+          const predictionData: Record<string, number> = {};
+          state.modelFeatures.forEach(featureId => {
+            const param = state.parameters.find(p => p.id === featureId);
+            if (param) {
+              predictionData[featureId] = state.sliderValues[featureId] || param.value || 0;
+            }
+          });
+
+          console.log('🔮 Cascade: Prediction data:', predictionData);
+
+          // This would call the cascade prediction API
+          // For now, simulate a prediction
+          const simulatedPrediction = 45 + Math.random() * 10;
+          
+          set({ currentTarget: simulatedPrediction }, false, 'predictWithCurrentValues');
+
+          // Add target data point with prediction
+          const now = Date.now();
+          const newTargetData = [...state.targetData, {
+            timestamp: now,
+            value: state.currentPV,
+            target: simulatedPrediction,
+            pv: state.currentPV,
+            sp: simulatedPrediction,
+          }].slice(-50);
+
+          set({ targetData: newTargetData }, false, 'predictWithCurrentValues:addTargetData');
+
+        } catch (error) {
+          console.error('Error making prediction:', error);
+        }
+      },
+
+      // Utility function to get tag ID
+      getTagId: (millNumber: number, featureName: string): string | null => {
+        // This would implement the tag ID lookup logic
+        // For now, return a simulated tag ID
+        return `Mill${millNumber}_${featureName}`;
       },
     }),
     {
