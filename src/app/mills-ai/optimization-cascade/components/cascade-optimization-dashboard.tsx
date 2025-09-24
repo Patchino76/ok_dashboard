@@ -31,7 +31,6 @@ import { ParameterCascadeOptimizationCard, CascadeParameter } from ".";
 import { CascadeTargetTrend } from "./target-cascade-trend";
 import { CascadeFlowDiagram } from "./cascade-flow-diagram";
 import { CascadeSimulationInterface } from "./cascade-simulation-interface";
-import { ModelSelection } from "../../components/model-selection";
 import { useCascadeOptimization } from "../../hooks/useCascadeOptimization";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization";
@@ -39,7 +38,6 @@ import { useOptimizationResults } from "../../hooks/useOptimizationResults";
 import { useCascadeTraining } from "../../hooks/useCascadeTraining";
 import { useCascadeModelLoader } from "../../hooks/useCascadeModelLoader";
 import { toast } from "sonner";
-import { useGetModels } from "../../hooks/use-get-models";
 import { millsParameters, getTargets } from "../../data/mills-parameters";
 import { classifyParameters } from "../../data/cascade-parameter-classification";
 import { EnhancedModelTraining } from "./enhanced-model-training";
@@ -63,30 +61,24 @@ export default function CascadeOptimizationDashboard() {
     getModelPerformance,
   } = useCascadeModelLoader();
 
-  // Set default mill to 7 and load cascade models on page load
+  // Initialize cascade on component mount (only once)
   useEffect(() => {
     const initializeCascade = async () => {
       console.log("🚀 Initializing cascade optimization dashboard...");
       
-      // Always ensure we start with mill 7 for cascade optimization
-      const targetMill = 7;
-      if (cascadeStore.millNumber !== targetMill) {
-        console.log(`🔄 Setting current mill from ${cascadeStore.millNumber} to ${targetMill}`);
-        cascadeStore.setMillNumber(targetMill);
-      }
-      
-      // Auto-load cascade models for the target mill on page load
-      console.log(`📥 Loading cascade model for mill ${targetMill}...`);
+      // Load cascade model for the current mill (from store's initial state)
+      const currentMill = cascadeStore.millNumber;
+      console.log(`📥 Loading cascade model for mill ${currentMill}...`);
       try {
-        await loadModelForMill(targetMill);
-        console.log(`✅ Cascade model loaded successfully for mill ${targetMill}`);
+        await loadModelForMill(currentMill);
+        console.log(`✅ Cascade model loaded successfully for mill ${currentMill}`);
       } catch (error) {
-        console.error(`❌ Failed to load cascade model for mill ${targetMill}:`, error);
+        console.error(`❌ Failed to load cascade model for mill ${currentMill}:`, error);
       }
     };
 
     initializeCascade();
-  }, [loadModelForMill, cascadeStore.millNumber]);
+  }, []); // Only run once on mount
 
   // Track processed model metadata to prevent infinite loops
   const processedModelRef = useRef<string | null>(null);
@@ -307,9 +299,7 @@ export default function CascadeOptimizationDashboard() {
   }, [targetParameter, setTargetSetpoint]);
 
   const [isPredicting, setIsPredicting] = useState(false);
-  const { models } = useGetModels();
-
-  const selectedModel = modelName && models ? models[modelName] : null;
+  // Removed useGetModels - cascade UI only works with cascade models, not general models
 
   const handleResetOptimization = () => {
     // Clear optimization results
@@ -413,12 +403,14 @@ export default function CascadeOptimizationDashboard() {
   useEffect(() => {
     // DISABLED TO PREVENT INFINITE LOOPS - Model metadata now handled via useMemo
     return;
+    if (!modelMetadata) return; // TypeScript null check for unreachable code
     if (modelMetadata) {
       console.log("🔍 Raw cascade model metadata:", modelMetadata);
 
       const features = getAllFeatures();
       const target = getTargetVariable();
       const lastTrained =
+        // @ts-ignore - Unreachable code, modelMetadata is checked above
         modelMetadata.model_info.metadata?.created_at || "Unknown";
       const featureClassification = getFeatureClassification();
 
@@ -428,9 +420,12 @@ export default function CascadeOptimizationDashboard() {
         featureClassification,
         featuresLength: features?.length,
         featuresArray: features,
+        // @ts-ignore - Unreachable code, modelMetadata is checked above
         modelInfoStructure: Object.keys(modelMetadata.model_info || {}),
+        // @ts-ignore - Unreachable code, modelMetadata is checked above
         hasAllFeatures: !!modelMetadata.model_info?.all_features,
         hasFeatureClassification:
+          // @ts-ignore - Unreachable code, modelMetadata is checked above
           !!modelMetadata.model_info?.feature_classification,
       });
 
@@ -470,6 +465,7 @@ export default function CascadeOptimizationDashboard() {
         console.error("❌ No features found in cascade model metadata");
         console.error(
           "Available model info keys:",
+          // @ts-ignore - Unreachable code, modelMetadata is checked above
           Object.keys(modelMetadata.model_info || {})
         );
 
@@ -588,19 +584,30 @@ export default function CascadeOptimizationDashboard() {
   };
 
   const handleMillChange = async (newMill: number) => {
-    if (newMill === currentMill) return;
+    console.log(`🔄 Mill change requested: ${currentMill} → ${newMill}`);
+    
+    if (newMill === currentMill) {
+      console.log(`⏭️ Mill change skipped - already on mill ${newMill}`);
+      return;
+    }
 
     try {
+      console.log(`🛑 Stopping real-time updates for mill ${currentMill}`);
       await stopRealTimeUpdates();
+      
+      console.log(`📝 Setting mill number to ${newMill}`);
       setMillNumber(newMill);
 
       // Reset state for new mill
+      console.log(`🔄 Resetting state for mill ${newMill}`);
       setPredictedTarget(0);
       resetFeatures(); // Reset parameters to default values
 
       // Auto-load cascade models for the new mill
+      console.log(`📥 Loading cascade model for mill ${newMill}`);
       await loadModelForMill(newMill);
 
+      console.log(`✅ Successfully switched to Mill ${newMill}`);
       toast.success(`Switched to Mill ${newMill}`);
     } catch (error) {
       console.error("Error switching mills:", error);
