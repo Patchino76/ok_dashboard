@@ -50,8 +50,6 @@ export default function CascadeOptimizationDashboard() {
   
   // XGBoost store for real-time data and trends
   const xgboostStore = useXgboostStore();
-
-  // Cascade model loader hook
   const {
     isLoading: isLoadingModel,
     modelMetadata,
@@ -62,13 +60,12 @@ export default function CascadeOptimizationDashboard() {
     getAllFeatures,
     getTargetVariable,
     hasCompleteCascade,
-    getModelPerformance,
   } = useCascadeModelLoader();
 
   // Initialize cascade on component mount (only once)
   useEffect(() => {
     const initializeCascade = async () => {
-      console.log("🚀 Initializing cascade optimization dashboard...");
+      console.log("Initializing cascade optimization dashboard...");
       
       // Load cascade model for the current mill (from store's initial state)
       const currentMill = cascadeStore.millNumber;
@@ -177,21 +174,39 @@ export default function CascadeOptimizationDashboard() {
     setMillNumber,
   } = cascadeStore;
   
-  // Get real-time data and trends from XGBoost store
   const {
     parameters: xgboostParameters,
-    currentTarget,
+    // currentTarget, // REMOVED - using hardcoded constant instead
     currentPV,
     targetData,
     displayHours,
     isFetching,
-    startRealTimeUpdates,
     stopRealTimeUpdates,
     fetchRealTimeData,
     setDisplayHours,
-    predictWithCurrentValues,
+    // predictWithCurrentValues, // REMOVED - cascade UI should not call basic XGBoost models
     setCurrentMill: setXgboostMill,
+    setModelMetadata: setXgboostModelMetadata,
+    modelFeatures: xgboostModelFeatures,
+    modelTarget: xgboostModelTarget,
+    setSimulationMode: setXgboostSimulationMode,
+    startRealTimeUpdates,
   } = xgboostStore;
+
+  // Set XGBoost store to simulation mode to prevent automatic predictions
+  useEffect(() => {
+    console.log("🚫 Cascade UI: Setting XGBoost store to simulation mode to prevent basic model predictions");
+    setXgboostSimulationMode(true);
+
+    // Cleanup: Reset to real-time mode when component unmounts
+    return () => {
+      console.log("🔄 Cascade UI: Resetting XGBoost store to real-time mode on unmount");
+      setXgboostSimulationMode(false);
+    };
+  }, [setXgboostSimulationMode]);
+
+  // Use hardcoded constant instead of prediction-based currentTarget
+  const currentTarget = 50.0; // Hardcoded default target value
   
   // Map XGBoost parameters to cascade parameters with varTypes
   const parameters = useMemo(() => {
@@ -316,7 +331,7 @@ export default function CascadeOptimizationDashboard() {
     if (hasChanges) {
       setParameterBounds(initial);
     }
-  }, [modelMetadata, parameters, parameterBounds, getAllFeatures]); // Added modelMetadata and getAllFeatures
+  }, [modelMetadata]); // Removed parameters and parameterBounds to prevent infinite loops
 
   // Initialize target setpoint to middle of target parameter range when model changes
   useEffect(() => {
@@ -324,7 +339,7 @@ export default function CascadeOptimizationDashboard() {
       // Always update when target parameter changes (model change)
       setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
     }
-  }, [targetParameter, setTargetSetpoint]);
+  }, [targetParameter]); // Removed setTargetSetpoint to prevent infinite loops
 
   const [isPredicting, setIsPredicting] = useState(false);
   // Removed useGetModels - cascade UI only works with cascade models, not general models
@@ -407,10 +422,33 @@ export default function CascadeOptimizationDashboard() {
 
   // No need for simulation mode in cascade optimization - removed
 
-  // Update store metadata when cascade model is loaded
+  // Update XGBoost store metadata when cascade model is loaded
   useEffect(() => {
-    // DISABLED TO PREVENT INFINITE LOOPS - Model metadata now handled via useMemo
-    return;
+    if (!modelMetadata) return;
+    
+    const features = getAllFeatures();
+    const target = getTargetVariable();
+    const lastTrained = modelMetadata.model_info?.metadata?.created_at || "Unknown";
+    
+    console.log("🔧 Configuring XGBoost store with cascade model metadata:", {
+      features,
+      target,
+      lastTrained,
+      featuresLength: features?.length
+    });
+    
+    // Configure XGBoost store with cascade model metadata
+    if (features && features.length > 0 && target) {
+      setXgboostModelMetadata(features, target, lastTrained);
+      console.log("✅ XGBoost store configured with cascade model metadata");
+    } else {
+      console.warn("⚠️ Cannot configure XGBoost store - missing features or target");
+    }
+  }, [modelMetadata]); // Removed function dependencies to prevent infinite loops
+  
+  // DISABLED OLD LOGIC - Model metadata now handled above
+  useEffect(() => {
+    return; // Disabled to prevent infinite loops
     if (!modelMetadata) return; // TypeScript null check for unreachable code
     if (modelMetadata) {
       console.log("🔍 Raw cascade model metadata:", modelMetadata);
@@ -517,10 +555,15 @@ export default function CascadeOptimizationDashboard() {
         hasModelMetadata: !!modelMetadata,
         featuresLength: features.length,
         features,
-        currentMill: currentMill
+        currentMill: currentMill,
+        xgboostModelFeatures: xgboostModelFeatures,
+        xgboostModelTarget: xgboostModelTarget
       });
       
-      if (modelMetadata && features.length > 0) {
+      // Wait for XGBoost store to be configured with cascade model metadata
+      const isXgboostConfigured = xgboostModelFeatures && xgboostModelFeatures.length > 0;
+      
+      if (modelMetadata && features.length > 0 && isXgboostConfigured) {
         try {
           console.log('✅ Starting XGBoost real-time updates for cascade optimization');
           const cleanupFn = startRealTimeUpdates();
@@ -553,6 +596,8 @@ export default function CascadeOptimizationDashboard() {
         console.log(`⏳ Cascade optimization: Not ready for XGBoost real-time updates (attempt ${attempt})`, {
           hasModelMetadata: !!modelMetadata,
           featuresLength: features.length,
+          isXgboostConfigured,
+          xgboostModelFeatures: xgboostModelFeatures,
           willRetry: attempt < 3
         });
         
@@ -578,7 +623,7 @@ export default function CascadeOptimizationDashboard() {
         clearTimeout(retryTimeout);
       }
     };
-  }, [modelMetadata, getAllFeatures, startRealTimeUpdates, fetchRealTimeData, isFetching, currentMill]);
+  }, [modelMetadata, currentMill, xgboostModelFeatures, xgboostModelTarget]); // Removed function dependencies to prevent infinite loops
 
   const handleModelChange = async (newModelName: string) => {
     // For cascade optimization, model changes are handled through mill changes
