@@ -11,6 +11,7 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
+  LabelList,
 } from "recharts";
 import {
   Activity,
@@ -112,6 +113,25 @@ function formatNumber(value?: number, digits = 2) {
   if (value === undefined || value === null || Number.isNaN(value)) return "—";
   return value.toFixed(digits);
 }
+
+const renderImportanceLabel = (props: any) => {
+  const { x, y, width, value } = props;
+  if (value === undefined || value === null) return null;
+
+  const percentage = Math.round((value as number) * 100);
+  return (
+    <text
+      x={x + width / 2}
+      y={(y ?? 0) - 6}
+      fill="hsl(var(--muted-foreground))"
+      fontSize={11}
+      fontWeight={600}
+      textAnchor="middle"
+    >
+      {percentage}%
+    </text>
+  );
+};
 
 export function CascadeModelInsights({
   millNumber,
@@ -343,8 +363,8 @@ export function CascadeModelInsights({
                     </div>
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-56">
+                <CardContent className="pt-4 pb-6">
+                  <div className="mt-6 h-60">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={Object.entries(
@@ -384,7 +404,9 @@ export function CascadeModelInsights({
                           fill="#8b5cf6"
                           radius={[6, 6, 0, 0]}
                           maxBarSize={38}
-                        />
+                        >
+                          <LabelList dataKey="value" content={renderImportanceLabel} />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -421,8 +443,8 @@ export function CascadeModelInsights({
                       </div>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="h-56">
+                  <CardContent className="pt-4 pb-6">
+                    <div className="mt-6 h-60">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={chartData}
@@ -461,7 +483,9 @@ export function CascadeModelInsights({
                             fill="#f97316"
                             radius={[6, 6, 0, 0]}
                             maxBarSize={38}
-                          />
+                          >
+                            <LabelList dataKey="value" content={renderImportanceLabel} />
+                          </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
