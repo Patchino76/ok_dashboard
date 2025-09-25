@@ -923,6 +923,10 @@ export default function CascadeOptimizationDashboard() {
       // Start cascade optimization using the new hook (no parameters needed)
       const result = await startCascadeOptimization();
 
+      console.log("🔍 Optimization result received:", result);
+      console.log("🔍 Result status:", result?.status);
+      console.log("🔍 Feature classification:", featureClassification);
+
       if (result && result.status === "completed") {
         const newProposedSetpoints: Record<string, number> = {};
 
@@ -957,10 +961,15 @@ export default function CascadeOptimizationDashboard() {
           cascadeOptStore.setPredictedTarget(result.predicted_target);
         }
 
+        console.log("🔍 New proposed setpoints:", newProposedSetpoints);
+        console.log("🔍 Proposed setpoints count:", Object.keys(newProposedSetpoints).length);
+
         if (Object.keys(newProposedSetpoints).length > 0) {
           cascadeOptStore.setProposedSetpoints(newProposedSetpoints);
+          console.log("✅ Proposed setpoints set in store");
         } else {
           cascadeOptStore.clearProposedSetpoints();
+          console.log("⚠️ No proposed setpoints to set - clearing store");
         }
 
         // Auto-apply remains optional for legacy flows (no-op for cascade store)

@@ -132,6 +132,7 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
           convergence_data: response.data.convergence_data || [],
           duration_seconds: response.data.duration_seconds || 0,
           status:
+            response.data.status === "success" ? "completed" : 
             (response.data.status as CascadeOptimizationResult["status"]) ||
             "completed",
         };
