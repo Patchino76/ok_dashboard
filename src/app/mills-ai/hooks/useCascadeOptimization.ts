@@ -98,7 +98,7 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
       }
       
       // Call the cascade optimization API
-      const response = await mlApiClient.post<CascadeOptimizationApiResponse>('/api/v1/ml/cascade/optimize', request)
+      const response = await mlApiClient.post<CascadeOptimizationApiResponse>('/cascade/optimize', request)
       
       if (!response.data) {
         throw new Error('No data received from cascade optimization API')
@@ -157,7 +157,7 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
 
   const getCascadeInfo = useCallback(async () => {
     try {
-      const response = await mlApiClient.get('/api/v1/ml/cascade/info')
+      const response = await mlApiClient.get('/cascade/info')
       return response.data
     } catch (err) {
       console.error('Failed to get cascade info:', err)
@@ -167,7 +167,7 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
 
   const trainCascadeModels = useCallback(async (request: CascadeTrainingRequest) => {
     try {
-      const response = await mlApiClient.post('/api/v1/ml/cascade/train', request)
+      const response = await mlApiClient.post('/cascade/train', request)
       return response.data
     } catch (err) {
       console.error('Failed to start cascade training:', err)
@@ -177,7 +177,7 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
 
   const getTrainingStatus = useCallback(async () => {
     try {
-      const response = await mlApiClient.get('/api/v1/ml/cascade/training/status')
+      const response = await mlApiClient.get('/cascade/training/status')
       return response.data
     } catch (err) {
       console.error('Failed to get training status:', err)
