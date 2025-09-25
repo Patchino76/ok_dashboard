@@ -32,6 +32,7 @@ import { CascadeTargetTrend } from "./target-cascade-trend";
 import { CascadeFlowDiagram } from "./cascade-flow-diagram";
 import { CascadeSimulationInterface } from "./cascade-simulation-interface";
 import { useCascadeOptimization } from "../../hooks/useCascadeOptimization";
+import { useCascadePrediction } from "../hooks/useCascadePrediction";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import { useAdvancedCascadeOptimization } from "../../hooks/useAdvancedCascadeOptimization";
@@ -223,6 +224,8 @@ export default function CascadeOptimizationDashboard() {
   }, [modelInfo?.featureClassification, xgboostParameters]);
 
   // Cascade prediction function
+  const { predictCascade, isLoading: isCascadePredicting } = useCascadePrediction();
+
   const predictWithCascadeModel = useCallback(async () => {
     if (!modelInfo?.featureClassification || !parameters || parameters.length === 0) {
       console.warn('⚠️ Cannot make cascade prediction - missing model info or parameters');
@@ -230,51 +233,34 @@ export default function CascadeOptimizationDashboard() {
     }
 
     try {
-      console.log('🎯 Making cascade prediction...');
-      
-      // Prepare MV and DV values from current parameters
+      console.log('🎯 Making cascade prediction via hook...');
+
       const mvValues: Record<string, number> = {};
       const dvValues: Record<string, number> = {};
-      
-      parameters.forEach(param => {
+
+      parameters.forEach((param) => {
         if (param.varType === 'MV') {
           mvValues[param.id] = param.value;
         } else if (param.varType === 'DV') {
           dvValues[param.id] = param.value;
         }
       });
-      
+
       console.log('📊 Cascade prediction data:', { mvValues, dvValues });
-      
-      // Call cascade prediction API
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const response = await fetch(`${apiUrl}/api/v1/ml/cascade/predict`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          mv_values: mvValues,
-          dv_values: dvValues
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+
+      const prediction = await predictCascade(mvValues, dvValues);
+
+      if (prediction && typeof prediction.predicted_target === 'number' && Number.isFinite(prediction.predicted_target)) {
+        setTestPredictionTarget(prediction.predicted_target);
+        toast.success(`Cascade Prediction: ${prediction.predicted_target.toFixed(2)}`);
+      } else {
+        toast.warning('Cascade prediction returned no target');
       }
-      
-      const result = await response.json();
-      console.log('✅ Cascade prediction result:', result);
-      
-      // Log the prediction for debugging
-      toast.success(`Cascade Prediction: ${result.predicted_target?.toFixed(2)} (Mill ${result.mill_number})`);
-      
     } catch (error) {
       console.error('❌ Cascade prediction failed:', error);
       toast.error('Cascade prediction failed');
     }
-  }, [modelInfo, parameters]);
+  }, [modelInfo, parameters, predictCascade]);
 
   const modelName = modelInfo?.modelName || null;
   const modelFeatures = modelInfo?.features || [];
@@ -333,6 +319,7 @@ export default function CascadeOptimizationDashboard() {
   const [isSimulationMode, setIsSimulationMode] = useState(false);
   const [targetVariable, setTargetVariable] = useState("PSI80");
   const [activeTab, setActiveTab] = useState("overview");
+  const [testPredictionTarget, setTestPredictionTarget] = useState<number | null>(null);
 
   // Trigger trend data update when optimization tab is activated
   useEffect(() => {
@@ -1309,10 +1296,17 @@ export default function CascadeOptimizationDashboard() {
                     onClick={predictWithCascadeModel}
                     variant="outline"
                     className="text-green-700 border-green-300 hover:bg-green-50"
-                    disabled={isOptimizing || !isCascadeModelReady}
+                    disabled={isOptimizing || !isCascadeModelReady || isCascadePredicting}
                     title="Test cascade prediction - check console and toast"
                   >
-                    🎯 Test Prediction
+                    {isCascadePredicting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Predicting...
+                      </>
+                    ) : (
+                      "🎯 Test Prediction"
+                    )}
                   </Button>
                 </div>
 
@@ -1348,6 +1342,7 @@ export default function CascadeOptimizationDashboard() {
               modelName={modelName || undefined}
               targetVariable={getTargetVariable()}
               targetUnit={targetUnit}
+              predictionSetpoint={testPredictionTarget}
               spOptimize={
                 hasResults && isSuccessful ? targetSetpoint : undefined
               }

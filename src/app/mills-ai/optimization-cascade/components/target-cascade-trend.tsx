@@ -38,6 +38,7 @@ interface TargetFractionDisplayProps {
   targetUnit?: string;
   spOptimize?: number | null;
   showOptimizationTarget?: boolean;
+  predictionSetpoint?: number | null;
 }
 
 export function CascadeTargetTrend({
@@ -50,6 +51,7 @@ export function CascadeTargetTrend({
   targetUnit = "%", // Default to % if no unit is provided
   spOptimize = null,
   showOptimizationTarget = false,
+  predictionSetpoint = null,
 }: // modelName is intentionally not destructured to avoid unused vars
 TargetFractionDisplayProps) {
   // Get display hours and data fetching functions from XGBoost store
@@ -59,6 +61,16 @@ TargetFractionDisplayProps) {
 
   // Use hardcoded default target setpoint (no prediction binding)
   const [targetSetpoint, setTargetSetpoint] = useState<number>(50.0); // Hardcoded default
+
+  // Update target setpoint when a new prediction arrives
+  useEffect(() => {
+    if (
+      typeof predictionSetpoint === "number" &&
+      Number.isFinite(predictionSetpoint)
+    ) {
+      setTargetSetpoint(predictionSetpoint);
+    }
+  }, [predictionSetpoint]);
 
   // Resolve target default bounds from configuration
   const targetParam = useMemo(() => {
