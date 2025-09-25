@@ -2,7 +2,6 @@ import { create } from "zustand"
 import { devtools, persist } from "zustand/middleware"
 import { millsTags } from "@/lib/tags/mills-tags"
 import { fetchTagValue } from "@/hooks/useTagValue"
-import { mlApiClient } from "@/lib/api-client"
 import { millsParameters } from "../data/mills-parameters"
 
 interface Parameter {
@@ -14,11 +13,6 @@ interface Parameter {
   color: string
   icon: string
   varType?: "MV" | "CV" | "DV"
-}
-
-interface PredictionResponse {
-  prediction: number;
-  [key: string]: any;
 }
 
 interface TargetData {
@@ -1076,157 +1070,15 @@ export const useXgboostStore = create<XgboostState>()(
 
         predictWithCurrentValues: async () => {
           const state = useXgboostStore.getState();
-          const { modelFeatures, modelName, modelTarget, isSimulationMode, parameters, sliderValues } = state;
-          
-          if (!modelFeatures || modelFeatures.length === 0) {
-            console.error('❌ No model features available for prediction');
-            console.error('🔍 Debug info:', {
-              modelFeatures,
-              modelFeaturesType: typeof modelFeatures,
-              modelFeaturesLength: modelFeatures?.length,
-              modelName,
-              modelTarget,
-              parametersCount: parameters?.length,
-              sliderValuesCount: Object.keys(sliderValues || {}).length
-            });
-            return;
+          const { modelName } = state;
+
+          if (modelName && modelName.includes('cascade_mill_')) {
+            console.log('🚫 CASCADE MODEL: Prediction requests are handled exclusively through cascade endpoints. Skipping legacy /api/v1/ml/predict call.');
+          } else {
+            console.warn('⚠️ Legacy /api/v1/ml/predict endpoint has been disabled. No prediction request was sent.');
           }
-          
-          // CRITICAL FIX: Ensure all model features have slider values initialized
-          const updatedSliderValues = { ...sliderValues };
-          let needsUpdate = false;
-          
-          modelFeatures.forEach(featureName => {
-            if (!(featureName in updatedSliderValues) || updatedSliderValues[featureName] === undefined) {
-              const defaultValue = initialBounds[featureName] ? 
-                (initialBounds[featureName][0] + initialBounds[featureName][1]) / 2 : 0;
-              updatedSliderValues[featureName] = defaultValue;
-              needsUpdate = true;
-              console.log(`🔄 CRITICAL FIX: Initializing missing/undefined slider value for ${featureName}: ${defaultValue}`);
-            }
-          });
-          
-          // Update the store if we added missing slider values
-          if (needsUpdate) {
-            set({ sliderValues: updatedSliderValues });
-            console.log('🔄 Updated slider values in store:', updatedSliderValues);
-          }
-          
-          // DEBUG: Log current model state
-          console.log('🔍 PREDICTION DEBUG:');
-          console.log('Model name:', modelName);
-          console.log('Model features from store:', modelFeatures);
-          console.log('Model features length:', modelFeatures.length);
-          console.log('Is simulation mode:', isSimulationMode);
-          console.log('Available parameters:', parameters.map(p => p.id));
-          console.log('Slider values (after fix):', updatedSliderValues);
-          
-          try {
-            // Build prediction data using hybrid logic
-            const predictionData: Record<string, number> = {};
-            
-            modelFeatures.forEach(featureName => {
-              const parameterConfig = millsParameters.find(p => p.id === featureName);
-              const isLabParameter = parameterConfig?.varType === 'DV';
-              
-              if (isLabParameter) {
-                // Lab parameters: Always use slider values and divide by 100 for the API
-                if (updatedSliderValues[featureName] !== undefined) {
-                  // Convert percentage to decimal for the API (e.g., 35% -> 0.35)
-                  predictionData[featureName] = updatedSliderValues[featureName] / 100;
-                  console.log(`🧪 ${featureName} (Lab): ${updatedSliderValues[featureName]}% -> ${predictionData[featureName]} (converted to decimal) ✅ ADDED`);
-                } else {
-                  console.warn(`⚠️ Missing slider value for lab parameter: ${featureName}`);
-                }
-              } else {
-                // Process parameters: Use slider values in simulation mode, PV values in real-time mode
-                if (isSimulationMode) {
-                  if (updatedSliderValues[featureName] !== undefined) {
-                    predictionData[featureName] = updatedSliderValues[featureName];
-                    console.log(`📊 ${featureName} (Process-Slider): ${updatedSliderValues[featureName]} ✅ ADDED`);
-                  } else {
-                    console.warn(`⚠️ Missing slider value for process parameter in simulation mode: ${featureName}`);
-                  }
-                } else {
-                  // Real-time mode: use PV values
-                  const parameter = parameters.find(p => p.id === featureName);
-                  if (parameter) {
-                    predictionData[featureName] = parameter.value;
-                    console.log(`📊 ${featureName} (Process-PV): ${parameter.value} ✅ ADDED`);
-                  } else {
-                    console.warn(`⚠️ Missing parameter for: ${featureName} ❌ NOT ADDED`);
-                  }
-                }
-              }
-            });
-            
-            console.log('Prediction data (hybrid logic):', predictionData);
-            
-            // Validation: Check for missing features
-            const missingFeatures = modelFeatures.filter(feature => !(feature in predictionData));
-            if (missingFeatures.length > 0) {
-              console.error('❌ Missing features for prediction:', missingFeatures);
-              console.error('Required features:', modelFeatures);
-              console.error('Available data:', Object.keys(predictionData));
-              return;
-            }
-            
-            // Validation: Check for invalid values
-            const invalidValues = Object.entries(predictionData).filter(([key, value]) => 
-              typeof value !== 'number' || isNaN(value)
-            );
-            if (invalidValues.length > 0) {
-              console.error('❌ Invalid values for prediction:', invalidValues);
-              return;
-            }
-            
-            console.log('✅ Validation passed. Calling prediction API...');
-            
-            // Call prediction API with correct payload structure
-            const response = await mlApiClient.post('/api/v1/ml/predict', {
-              model_id: modelName,
-              data: predictionData  // API expects 'data' field, not 'features'
-            });
-            
-            if (response.data && typeof response.data.prediction === 'number') {
-              const prediction = response.data.prediction;
-              console.log('✅ Prediction successful:', prediction);
-              
-              // Update target with prediction
-              set({ currentTarget: prediction });
-              
-              // Add to target data for trending
-              const timestamp = Date.now();
-              console.log('🕐 PREDICTION TIMESTAMP DEBUG:');
-              console.log('Current time (Date.now()):', timestamp, '→', new Date(timestamp).toLocaleString());
-              console.log('Current PV:', state.currentPV);
-              console.log('Prediction value:', prediction);
-              
-              const newPredictionPoint = {
-                timestamp,
-                value: prediction,
-                target: prediction,
-                sp: prediction, // SP represents the new predicted setpoint
-                pv: state.currentPV || prediction // PV is the actual measured value
-              };
-              
-              console.log('Adding prediction data point:', newPredictionPoint);
-              
-              set(state => {
-                const retentionAgo = Date.now() - TREND_RETENTION_HOURS * 60 * 60 * 1000;
-                const merged = [
-                  ...state.targetData,
-                  newPredictionPoint
-                ];
-                const pruned = merged.filter(p => p.timestamp >= retentionAgo);
-                return { targetData: pruned };
-              });
-            } else {
-              console.error('Invalid prediction response:', response.data);
-            }
-          } catch (error) {
-            console.error('❌ Prediction failed:', error);
-          }
+
+          set({ currentTarget: null });
         },
       })
       // {

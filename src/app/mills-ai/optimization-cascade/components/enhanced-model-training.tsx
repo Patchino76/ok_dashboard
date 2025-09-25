@@ -202,7 +202,7 @@ export function EnhancedModelTraining({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[7, 8, 9, 10].map(mill => (
+                {[6, 7, 8].map(mill => (
                   <SelectItem key={mill} value={mill.toString()}>
                     Mill {mill}
                   </SelectItem>
