@@ -961,11 +961,17 @@ export default function CascadeOptimizationDashboard() {
           cascadeOptStore.setPredictedTarget(result.predicted_target);
           // Update the test prediction target for the target trend component
           setTestPredictionTarget(result.predicted_target);
-          console.log("✅ Updated target setpoint to:", result.predicted_target);
+          console.log(
+            "✅ Updated target setpoint to:",
+            result.predicted_target
+          );
         }
 
         console.log("🔍 New proposed setpoints:", newProposedSetpoints);
-        console.log("🔍 Proposed setpoints count:", Object.keys(newProposedSetpoints).length);
+        console.log(
+          "🔍 Proposed setpoints count:",
+          Object.keys(newProposedSetpoints).length
+        );
 
         if (Object.keys(newProposedSetpoints).length > 0) {
           cascadeOptStore.setProposedSetpoints(newProposedSetpoints);
