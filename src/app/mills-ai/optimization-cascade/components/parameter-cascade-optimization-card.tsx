@@ -263,13 +263,16 @@ export function ParameterCascadeOptimizationCard({
           </div>
           <div className="space-y-1">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              Optimization Range
+              Optimization Value
             </div>
-            <div className="text-sm">
-              {range[0].toFixed(2)} - {range[1].toFixed(2)}
-              <span className="text-xs text-slate-500 ml-1">
-                {parameter.unit}
-              </span>
+            <div
+              className="text-2xl font-bold flex items-center gap-1"
+              style={{ color: vt.accentColor }}
+            >
+              {typeof proposedSetpoint === "number"
+                ? proposedSetpoint.toFixed(2)
+                : "--"}
+              <span className="text-xs text-slate-500">{parameter.unit}</span>
             </div>
           </div>
         </div>
@@ -281,19 +284,19 @@ export function ParameterCascadeOptimizationCard({
             console.log(`📊 Parameter ${parameter.id} trend data:`, {
               trendLength: parameter.trend.length,
               displayHours,
-              trendSample: parameter.trend.slice(0, 3)
+              trendSample: parameter.trend.slice(0, 3),
             });
-            
+
             // Filter trend data based on current displayHours
             const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
             const filteredTrend = parameter.trend.filter(
               (item) => item.timestamp >= hoursAgo
             );
-            
+
             console.log(`📊 Filtered trend for ${parameter.id}:`, {
               originalLength: parameter.trend.length,
               filteredLength: filteredTrend.length,
-              hoursAgo: new Date(hoursAgo).toISOString()
+              hoursAgo: new Date(hoursAgo).toISOString(),
             });
 
             // Calculate Y-axis domain to include data, optimization bounds, and proposed setpoint

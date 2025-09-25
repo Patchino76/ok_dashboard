@@ -48,7 +48,7 @@ import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 export default function CascadeOptimizationDashboard() {
   // Cascade optimization store
   const cascadeStore = useCascadeOptimizationStore();
-  
+
   // XGBoost store for real-time data and trends
   const xgboostStore = useXgboostStore();
   const {
@@ -67,15 +67,20 @@ export default function CascadeOptimizationDashboard() {
   useEffect(() => {
     const initializeCascade = async () => {
       console.log("Initializing cascade optimization dashboard...");
-      
+
       // Load cascade model for the current mill (from store's initial state)
       const currentMill = cascadeStore.millNumber;
       console.log(`📥 Loading cascade model for mill ${currentMill}...`);
       try {
         await loadModelForMill(currentMill);
-        console.log(`✅ Cascade model loaded successfully for mill ${currentMill}`);
+        console.log(
+          `✅ Cascade model loaded successfully for mill ${currentMill}`
+        );
       } catch (error) {
-        console.error(`❌ Failed to load cascade model for mill ${currentMill}:`, error);
+        console.error(
+          `❌ Failed to load cascade model for mill ${currentMill}:`,
+          error
+        );
       }
     };
 
@@ -87,16 +92,17 @@ export default function CascadeOptimizationDashboard() {
 
   // COMPLETELY REMOVED THE PROBLEMATIC useEffect
   // Model metadata updates are now handled through useMemo to avoid infinite loops
-  
+
   // Compute model information without triggering store updates
   const modelInfo = useMemo(() => {
     if (!modelMetadata) return null;
-    
+
     const features = getAllFeatures();
     const target = getTargetVariable();
-    const lastTrained = modelMetadata.model_info.metadata?.created_at || "Unknown";
+    const lastTrained =
+      modelMetadata.model_info.metadata?.created_at || "Unknown";
     const modelName = `cascade_mill_${modelMetadata.mill_number}`;
-    
+
     return {
       features,
       target,
@@ -104,50 +110,65 @@ export default function CascadeOptimizationDashboard() {
       modelName,
       featureClassification: getFeatureClassification(),
     };
-  }, [modelMetadata, getAllFeatures, getTargetVariable, getFeatureClassification]);
-  
+  }, [
+    modelMetadata,
+    getAllFeatures,
+    getTargetVariable,
+    getFeatureClassification,
+  ]);
+
   // Update parameter types only when model info changes (without store updates)
   const parametersWithTypes = useMemo(() => {
     if (!modelInfo?.featureClassification) return cascadeStore.parameters;
-    
+
     return cascadeStore.parameters.map((param) => {
       let varType: "MV" | "CV" | "DV" | undefined;
-      
+
       if (modelInfo.featureClassification.mv_features?.includes(param.id)) {
         varType = "MV";
-      } else if (modelInfo.featureClassification.cv_features?.includes(param.id)) {
+      } else if (
+        modelInfo.featureClassification.cv_features?.includes(param.id)
+      ) {
         varType = "CV";
-      } else if (modelInfo.featureClassification.dv_features?.includes(param.id)) {
+      } else if (
+        modelInfo.featureClassification.dv_features?.includes(param.id)
+      ) {
         varType = "DV";
       }
-      
+
       return { ...param, varType };
     });
   }, [modelInfo?.featureClassification, cascadeStore.parameters]);
 
   // Function to update parameter types based on cascade model classification
-  const updateParameterTypes = useCallback((featureClassification: any) => {
-    console.log("🏷️ Updating parameter types with classification:", featureClassification);
+  const updateParameterTypes = useCallback(
+    (featureClassification: any) => {
+      console.log(
+        "🏷️ Updating parameter types with classification:",
+        featureClassification
+      );
 
-    const updatedParameters = cascadeStore.parameters.map((param) => {
-      let varType: "MV" | "CV" | "DV" | undefined;
+      const updatedParameters = cascadeStore.parameters.map((param) => {
+        let varType: "MV" | "CV" | "DV" | undefined;
 
-      if (featureClassification.mv_features?.includes(param.id)) {
-        varType = "MV";
-      } else if (featureClassification.cv_features?.includes(param.id)) {
-        varType = "CV";
-      } else if (featureClassification.dv_features?.includes(param.id)) {
-        varType = "DV";
-      }
+        if (featureClassification.mv_features?.includes(param.id)) {
+          varType = "MV";
+        } else if (featureClassification.cv_features?.includes(param.id)) {
+          varType = "CV";
+        } else if (featureClassification.dv_features?.includes(param.id)) {
+          varType = "DV";
+        }
 
-      return { ...param, varType };
-    });
+        return { ...param, varType };
+      });
 
-    useCascadeOptimizationStore.setState((state) => ({
-      ...state,
-      parameters: updatedParameters,
-    }));
-  }, [cascadeStore.parameters]);
+      useCascadeOptimizationStore.setState((state) => ({
+        ...state,
+        parameters: updatedParameters,
+      }));
+    },
+    [cascadeStore.parameters]
+  );
 
   // Destructure cascade store values (optimization-only)
   const {
@@ -155,7 +176,7 @@ export default function CascadeOptimizationDashboard() {
     availableModels,
     millNumber: currentMill,
     sliderValues,
-    updateSliderValue,
+    updateSliderValue: updateCascadeSliderValue,
     resetFeatures,
     resetSliders,
     // Optimization-specific properties
@@ -173,6 +194,7 @@ export default function CascadeOptimizationDashboard() {
     updateMVBounds: updateParameterBounds,
     setMVBounds: setParameterBounds,
     setMillNumber,
+    currentResults: cascadeCurrentResults,
   } = cascadeStore;
   const {
     parameters: xgboostParameters,
@@ -193,72 +215,107 @@ export default function CascadeOptimizationDashboard() {
     setSimulationMode: setXgboostSimulationMode,
     startRealTimeUpdates,
     resetFeatures: resetXgboostFeatures,
+    updateSliderValue: updateXgboostSliderValue,
   } = xgboostStore;
   // Keep XGBoost store in real-time mode to allow PV value updates
   // We prevent predictions by not calling predictWithCurrentValues, not by simulation mode
   useEffect(() => {
-    console.log("✅ Cascade UI: Keeping XGBoost store in real-time mode for PV updates (predictions disabled separately)");
+    console.log(
+      "✅ Cascade UI: Keeping XGBoost store in real-time mode for PV updates (predictions disabled separately)"
+    );
     setXgboostSimulationMode(false); // Real-time mode for PV updates
   }, [setXgboostSimulationMode]);
 
+  const hasCascadeResults = useMemo(
+    () => cascadeCurrentResults?.status === "completed",
+    [cascadeCurrentResults]
+  );
+
+  const cascadePredictedTarget =
+    hasCascadeResults &&
+    typeof cascadeCurrentResults?.predicted_target === "number" &&
+    Number.isFinite(cascadeCurrentResults?.predicted_target)
+      ? cascadeCurrentResults?.predicted_target || null
+      : null;
+
+  const isOptimizationReady = hasCascadeResults;
+
   // Use hardcoded constant instead of prediction-based currentTarget
-  const currentTarget = 50.0; // Hardcoded default target value
-  
+  const currentTarget =
+    cascadePredictedTarget !== null ? cascadePredictedTarget : 50.0;
+
   // Map XGBoost parameters to cascade parameters with varTypes
   const parameters = useMemo(() => {
     if (!modelInfo?.featureClassification) return xgboostParameters;
-    
+
     return xgboostParameters.map((param) => {
       let varType: "MV" | "CV" | "DV" | undefined;
-      
+
       if (modelInfo.featureClassification.mv_features?.includes(param.id)) {
         varType = "MV";
-      } else if (modelInfo.featureClassification.cv_features?.includes(param.id)) {
+      } else if (
+        modelInfo.featureClassification.cv_features?.includes(param.id)
+      ) {
         varType = "CV";
-      } else if (modelInfo.featureClassification.dv_features?.includes(param.id)) {
+      } else if (
+        modelInfo.featureClassification.dv_features?.includes(param.id)
+      ) {
         varType = "DV";
       }
-      
+
       return { ...param, varType };
     });
   }, [modelInfo?.featureClassification, xgboostParameters]);
 
   // Cascade prediction function
-  const { predictCascade, isLoading: isCascadePredicting } = useCascadePrediction();
+  const { predictCascade, isLoading: isCascadePredicting } =
+    useCascadePrediction();
 
   const predictWithCascadeModel = useCallback(async () => {
-    if (!modelInfo?.featureClassification || !parameters || parameters.length === 0) {
-      console.warn('⚠️ Cannot make cascade prediction - missing model info or parameters');
+    if (
+      !modelInfo?.featureClassification ||
+      !parameters ||
+      parameters.length === 0
+    ) {
+      console.warn(
+        "⚠️ Cannot make cascade prediction - missing model info or parameters"
+      );
       return;
     }
 
     try {
-      console.log('🎯 Making cascade prediction via hook...');
+      console.log("🎯 Making cascade prediction via hook...");
 
       const mvValues: Record<string, number> = {};
       const dvValues: Record<string, number> = {};
 
       parameters.forEach((param) => {
-        if (param.varType === 'MV') {
+        if (param.varType === "MV") {
           mvValues[param.id] = param.value;
-        } else if (param.varType === 'DV') {
+        } else if (param.varType === "DV") {
           dvValues[param.id] = param.value;
         }
       });
 
-      console.log('📊 Cascade prediction data:', { mvValues, dvValues });
+      console.log("📊 Cascade prediction data:", { mvValues, dvValues });
 
       const prediction = await predictCascade(mvValues, dvValues);
 
-      if (prediction && typeof prediction.predicted_target === 'number' && Number.isFinite(prediction.predicted_target)) {
+      if (
+        prediction &&
+        typeof prediction.predicted_target === "number" &&
+        Number.isFinite(prediction.predicted_target)
+      ) {
         setTestPredictionTarget(prediction.predicted_target);
-        toast.success(`Cascade Prediction: ${prediction.predicted_target.toFixed(2)}`);
+        toast.success(
+          `Cascade Prediction: ${prediction.predicted_target.toFixed(2)}`
+        );
       } else {
-        toast.warning('Cascade prediction returned no target');
+        toast.warning("Cascade prediction returned no target");
       }
     } catch (error) {
-      console.error('❌ Cascade prediction failed:', error);
-      toast.error('Cascade prediction failed');
+      console.error("❌ Cascade prediction failed:", error);
+      toast.error("Cascade prediction failed");
     }
   }, [modelInfo, parameters, predictCascade]);
 
@@ -319,39 +376,56 @@ export default function CascadeOptimizationDashboard() {
   const [isSimulationMode, setIsSimulationMode] = useState(false);
   const [targetVariable, setTargetVariable] = useState("PSI80");
   const [activeTab, setActiveTab] = useState("overview");
-  const [testPredictionTarget, setTestPredictionTarget] = useState<number | null>(null);
+  const [testPredictionTarget, setTestPredictionTarget] = useState<
+    number | null
+  >(null);
 
   // Trigger trend data update when optimization tab is activated
   useEffect(() => {
-    if (activeTab === "optimization" && xgboostModelFeatures && xgboostModelFeatures.length > 0) {
-      console.log('🎯 Optimization tab activated, triggering trend data refresh...');
-      
+    if (
+      activeTab === "optimization" &&
+      xgboostModelFeatures &&
+      xgboostModelFeatures.length > 0
+    ) {
+      console.log(
+        "🎯 Optimization tab activated, triggering trend data refresh..."
+      );
+
       // Small delay to ensure tab content is rendered before fetching data
       const timeoutId = setTimeout(async () => {
         try {
           // Trigger immediate data fetch to populate trends
           await fetchRealTimeData();
-          console.log('✅ Trend data refreshed for optimization tab');
-          toast.success('Trend data refreshed for optimization tab');
+          console.log("✅ Trend data refreshed for optimization tab");
+          toast.success("Trend data refreshed for optimization tab");
         } catch (error) {
-          console.error('❌ Error fetching trend data for optimization tab:', error);
-          toast.error('Failed to refresh trend data');
+          console.error(
+            "❌ Error fetching trend data for optimization tab:",
+            error
+          );
+          toast.error("Failed to refresh trend data");
         }
-        
+
         // Also ensure real-time updates are running
         if (!xgboostStore.dataUpdateInterval) {
-          console.log('🔄 Real-time updates not active, starting them...');
+          console.log("🔄 Real-time updates not active, starting them...");
           try {
             startRealTimeUpdates();
           } catch (error) {
-            console.error('❌ Error starting real-time updates:', error);
+            console.error("❌ Error starting real-time updates:", error);
           }
         }
       }, 100); // 100ms delay to ensure UI is ready
-      
+
       return () => clearTimeout(timeoutId);
     }
-  }, [activeTab, xgboostModelFeatures, fetchRealTimeData, startRealTimeUpdates, xgboostStore.dataUpdateInterval]);
+  }, [
+    activeTab,
+    xgboostModelFeatures,
+    fetchRealTimeData,
+    startRealTimeUpdates,
+    xgboostStore.dataUpdateInterval,
+  ]);
 
   // Get target parameter bounds based on cascade model's target
   const targetParameter = useMemo(() => {
@@ -429,7 +503,7 @@ export default function CascadeOptimizationDashboard() {
   };
 
   const handleDebugTrendData = async () => {
-    console.log('🔍 CASCADE OPTIMIZATION DEBUG - Current State:', {
+    console.log("🔍 CASCADE OPTIMIZATION DEBUG - Current State:", {
       activeTab: activeTab,
       cascadeModelFeatures: getAllFeatures(),
       cascadeModelName: modelInfo?.modelName,
@@ -438,7 +512,7 @@ export default function CascadeOptimizationDashboard() {
         id: p.id,
         name: p.name,
         trendLength: p.trend.length,
-        varType: parameters.find(cp => cp.id === p.id)?.varType
+        varType: parameters.find((cp) => cp.id === p.id)?.varType,
       })),
       targetDataLength: targetData.length,
       displayHours: displayHours,
@@ -447,42 +521,52 @@ export default function CascadeOptimizationDashboard() {
       cascadeFeatures: getAllFeatures(),
       xgboostModelFeatures: xgboostModelFeatures,
       xgboostModelTarget: xgboostModelTarget,
-      realTimeUpdatesActive: !!xgboostStore.dataUpdateInterval
+      realTimeUpdatesActive: !!xgboostStore.dataUpdateInterval,
     });
-    
+
     // Force restart real-time updates if needed
     if (!getAllFeatures() || getAllFeatures().length === 0) {
-      console.log('⚠️ No cascade model features detected, attempting to reload cascade model...');
+      console.log(
+        "⚠️ No cascade model features detected, attempting to reload cascade model..."
+      );
       try {
         await loadModelForMill(currentMill);
-        console.log('✅ Cascade model reloaded');
+        console.log("✅ Cascade model reloaded");
       } catch (error) {
-        console.error('❌ Failed to reload cascade model:', error);
+        console.error("❌ Failed to reload cascade model:", error);
       }
     }
-    
+
     // Force restart real-time updates if XGBoost store is configured but not running
-    if (xgboostModelFeatures && xgboostModelFeatures.length > 0 && !xgboostStore.dataUpdateInterval) {
-      console.log('🔄 XGBoost store configured but real-time updates not running, restarting...');
+    if (
+      xgboostModelFeatures &&
+      xgboostModelFeatures.length > 0 &&
+      !xgboostStore.dataUpdateInterval
+    ) {
+      console.log(
+        "🔄 XGBoost store configured but real-time updates not running, restarting..."
+      );
       try {
         stopRealTimeUpdates();
         const cleanupFn = startRealTimeUpdates();
-        console.log('✅ Real-time updates restarted');
+        console.log("✅ Real-time updates restarted");
       } catch (error) {
-        console.error('❌ Failed to restart real-time updates:', error);
+        console.error("❌ Failed to restart real-time updates:", error);
       }
     }
-    
+
     // Trigger manual data fetch from XGBoost store
-    console.log('🔄 Manually triggering fetchRealTimeData from XGBoost store...');
+    console.log(
+      "🔄 Manually triggering fetchRealTimeData from XGBoost store..."
+    );
     try {
       await fetchRealTimeData();
-      console.log('✅ Manual data fetch completed');
+      console.log("✅ Manual data fetch completed");
     } catch (error) {
-      console.error('❌ Manual data fetch failed:', error);
+      console.error("❌ Manual data fetch failed:", error);
     }
-    
-    toast.info('Debug info logged to console. Check browser dev tools.');
+
+    toast.info("Debug info logged to console. Check browser dev tools.");
   };
   const targetUnit = useMemo(() => {
     const targetVariable = getTargetVariable();
@@ -496,11 +580,7 @@ export default function CascadeOptimizationDashboard() {
   // Check if cascade model is ready for predictions
   const isCascadeModelReady = useMemo(() => {
     const features = getAllFeatures();
-    return !!(
-      modelMetadata &&
-      features &&
-      features.length > 0
-    );
+    return !!(modelMetadata && features && features.length > 0);
   }, [modelMetadata, getAllFeatures]);
 
   // Removed debounced prediction - using hardcoded defaults instead
@@ -510,33 +590,38 @@ export default function CascadeOptimizationDashboard() {
   // Update XGBoost store metadata when cascade model is loaded
   useEffect(() => {
     if (!modelMetadata) return;
-    
+
     const features = getAllFeatures();
     const target = getTargetVariable();
-    const lastTrained = modelMetadata.model_info?.metadata?.created_at || "Unknown";
-    
+    const lastTrained =
+      modelMetadata.model_info?.metadata?.created_at || "Unknown";
+
     console.log("🔧 Configuring XGBoost store with cascade model metadata:", {
       features,
       target,
       lastTrained,
-      featuresLength: features?.length
+      featuresLength: features?.length,
     });
-    
+
     // Configure XGBoost store with cascade model metadata
     if (features && features.length > 0 && target) {
       const cascadeModelName = `cascade_mill_${modelMetadata.mill_number}`;
       console.log("🔧 Setting XGBoost store model name to:", cascadeModelName);
-      
+
       // Set both model metadata and model name
       setXgboostModelMetadata(features, target, lastTrained);
       setXgboostModelName(cascadeModelName);
-      
-      console.log("✅ XGBoost store configured with cascade model metadata and name");
+
+      console.log(
+        "✅ XGBoost store configured with cascade model metadata and name"
+      );
     } else {
-      console.warn("⚠️ Cannot configure XGBoost store - missing features or target");
+      console.warn(
+        "⚠️ Cannot configure XGBoost store - missing features or target"
+      );
     }
   }, [modelMetadata]); // Removed function dependencies to prevent infinite loops
-  
+
   // DISABLED OLD LOGIC - Model metadata now handled above
   useEffect(() => {
     return; // Disabled to prevent infinite loops
@@ -569,7 +654,11 @@ export default function CascadeOptimizationDashboard() {
       // Only proceed if we have features
       if (features && features.length > 0) {
         // Model metadata is now computed via useMemo - no store updates needed
-        console.log("✅ Model metadata computed via useMemo:", { features, target, lastTrained });
+        console.log("✅ Model metadata computed via useMemo:", {
+          features,
+          target,
+          lastTrained,
+        });
 
         // Update parameter varTypes based on cascade model classification
         if (
@@ -620,74 +709,102 @@ export default function CascadeOptimizationDashboard() {
               fallbackFeatures
             );
             // Fallback features are now handled via useMemo - no store updates needed
-            console.log("✅ Fallback features computed via useMemo:", fallbackFeatures);
+            console.log(
+              "✅ Fallback features computed via useMemo:",
+              fallbackFeatures
+            );
             updateParameterTypes(featureClassification);
           }
         }
       }
     }
   }, [
-      modelMetadata,
-      getAllFeatures,
-      getTargetVariable,
-      getFeatureClassification,
-      updateParameterTypes,
-      cascadeStore,
-    ]);
+    modelMetadata,
+    getAllFeatures,
+    getTargetVariable,
+    getFeatureClassification,
+    updateParameterTypes,
+    cascadeStore,
+  ]);
 
   // Start XGBoost real-time data updates when cascade model is loaded (simplified approach)
   useEffect(() => {
     let cleanup: (() => void) | undefined;
-    
+
     const setupRealTimeUpdates = () => {
       const features = getAllFeatures();
-      console.log('🔄 Cascade optimization: Setting up XGBoost real-time updates', {
-        hasModelMetadata: !!modelMetadata,
-        featuresLength: features.length,
-        features,
-        currentMill: currentMill,
-        xgboostModelFeatures: xgboostModelFeatures,
-        xgboostModelTarget: xgboostModelTarget
-      });
-      
+      console.log(
+        "🔄 Cascade optimization: Setting up XGBoost real-time updates",
+        {
+          hasModelMetadata: !!modelMetadata,
+          featuresLength: features.length,
+          features,
+          currentMill: currentMill,
+          xgboostModelFeatures: xgboostModelFeatures,
+          xgboostModelTarget: xgboostModelTarget,
+        }
+      );
+
       // Simple condition like working XGBoost optimization dashboard
       if (xgboostModelFeatures && xgboostModelFeatures.length > 0) {
         try {
-          console.log('✅ Starting XGBoost real-time updates for cascade optimization');
+          console.log(
+            "✅ Starting XGBoost real-time updates for cascade optimization"
+          );
           const cleanupFn = startRealTimeUpdates();
           if (typeof cleanupFn === "function") {
             cleanup = cleanupFn;
-            console.log('✅ XGBoost real-time updates started successfully');
-            
+            console.log("✅ XGBoost real-time updates started successfully");
+
             // Trigger immediate data fetch like in the working dashboard
-            console.log('📊 Triggering immediate data fetch for trend population');
-            fetchRealTimeData().catch(error => {
-              console.error('❌ Error in immediate fetchRealTimeData:', error);
+            console.log(
+              "📊 Triggering immediate data fetch for trend population"
+            );
+            fetchRealTimeData().catch((error) => {
+              console.error("❌ Error in immediate fetchRealTimeData:", error);
             });
           }
         } catch (error) {
           console.error("Error starting XGBoost real-time updates:", error);
         }
-      } else if (modelMetadata && features.length > 0 && !xgboostModelFeatures) {
+      } else if (
+        modelMetadata &&
+        features.length > 0 &&
+        !xgboostModelFeatures
+      ) {
         // Configure XGBoost store with cascade model metadata if not already done
-        console.log('🔧 Configuring XGBoost store with cascade model metadata');
+        console.log("🔧 Configuring XGBoost store with cascade model metadata");
         const target = getTargetVariable();
-        const lastTrained = modelMetadata.model_info?.metadata?.created_at || "Unknown";
+        const lastTrained =
+          modelMetadata.model_info?.metadata?.created_at || "Unknown";
         setXgboostModelMetadata(features, target, lastTrained);
         setXgboostModelName(`cascade_mill_${modelMetadata.mill_number}`);
       }
     };
-    
+
     setupRealTimeUpdates();
-    
+
     return () => {
       if (cleanup) {
-        console.log('🧹 Cleaning up XGBoost real-time updates for cascade optimization');
+        console.log(
+          "🧹 Cleaning up XGBoost real-time updates for cascade optimization"
+        );
         cleanup();
       }
       stopRealTimeUpdates();
     };
-  }, [xgboostModelFeatures, modelMetadata, currentMill, startRealTimeUpdates, fetchRealTimeData, setXgboostModelMetadata, setXgboostModelName, getAllFeatures, getTargetVariable, stopRealTimeUpdates]);
+  }, [
+    xgboostModelFeatures,
+    modelMetadata,
+    currentMill,
+    startRealTimeUpdates,
+    fetchRealTimeData,
+    setXgboostModelMetadata,
+    setXgboostModelName,
+    getAllFeatures,
+    getTargetVariable,
+    stopRealTimeUpdates,
+  ]);
 
   const handleModelChange = async (newModelName: string) => {
     // For cascade optimization, model changes are handled through mill changes
@@ -701,7 +818,7 @@ export default function CascadeOptimizationDashboard() {
 
   const handleMillChange = async (newMill: number) => {
     console.log(`🔄 Mill change requested: ${currentMill} → ${newMill}`);
-    
+
     if (newMill === currentMill) {
       console.log(`⏭️ Mill change skipped - already on mill ${newMill}`);
       return;
@@ -710,7 +827,7 @@ export default function CascadeOptimizationDashboard() {
     try {
       console.log(`🛑 Stopping real-time updates for mill ${currentMill}`);
       stopRealTimeUpdates();
-      
+
       console.log(`📝 Setting mill number to ${newMill}`);
       setMillNumber(newMill); // Cascade store
       setXgboostMill(newMill); // XGBoost store
@@ -733,7 +850,10 @@ export default function CascadeOptimizationDashboard() {
           await fetchRealTimeData();
           console.log(`✅ Real-time updates restarted for mill ${newMill}`);
         } catch (error) {
-          console.error(`❌ Failed to restart real-time updates for mill ${newMill}:`, error);
+          console.error(
+            `❌ Failed to restart real-time updates for mill ${newMill}:`,
+            error
+          );
         }
       }, 2000); // 2 second delay to ensure model is loaded
 
@@ -764,7 +884,8 @@ export default function CascadeOptimizationDashboard() {
       // Set MV bounds from optimization bounds
       const mvBounds: Record<string, [number, number]> = {};
       featureClassification.mv_features.forEach((paramId) => {
-        const optBounds = optimizationBounds[paramId] || parameterBounds[paramId] || [0, 100];
+        const optBounds = optimizationBounds[paramId] ||
+          parameterBounds[paramId] || [0, 100];
         mvBounds[paramId] = optBounds;
       });
       cascadeOptStore.setMVBounds(mvBounds);
@@ -796,31 +917,53 @@ export default function CascadeOptimizationDashboard() {
         setpoint: targetSetpoint,
         mvBounds,
         cvBounds,
-        dvValues
+        dvValues,
       });
 
       // Start cascade optimization using the new hook (no parameters needed)
       const result = await startCascadeOptimization();
 
       if (result && result.status === "completed") {
-        // Update proposed setpoints with optimized MV values
         const newProposedSetpoints: Record<string, number> = {};
 
-        // Set proposed setpoints for MV parameters based on optimization result
+        // Capture optimized MV values, update UI state immediately
         if (result.best_mv_values) {
           Object.entries(result.best_mv_values).forEach(([paramId, value]) => {
             if (featureClassification.mv_features.includes(paramId)) {
+              newProposedSetpoints[paramId] = value;
+              updateCascadeSliderValue(paramId, value);
+              updateXgboostSliderValue(paramId, value);
+            }
+          });
+        }
+
+        // Include predicted CV values for display in parameter cards
+        if (result.predicted_cvs) {
+          Object.entries(result.predicted_cvs).forEach(([paramId, value]) => {
+            if (featureClassification.cv_features.includes(paramId)) {
               newProposedSetpoints[paramId] = value;
             }
           });
         }
 
-        // Apply proposed setpoints to the cascade store
-        if (Object.keys(newProposedSetpoints).length > 0) {
-          cascadeOptStore.setProposedSetpoints(newProposedSetpoints);
+        // Store predicted target as part of proposed values for downstream components
+        const cascadeTargetId = getTargetVariable();
+        if (
+          cascadeTargetId &&
+          typeof result.predicted_target === "number" &&
+          Number.isFinite(result.predicted_target)
+        ) {
+          newProposedSetpoints[cascadeTargetId] = result.predicted_target;
+          cascadeOptStore.setPredictedTarget(result.predicted_target);
         }
 
-        // Auto-apply if enabled
+        if (Object.keys(newProposedSetpoints).length > 0) {
+          cascadeOptStore.setProposedSetpoints(newProposedSetpoints);
+        } else {
+          cascadeOptStore.clearProposedSetpoints();
+        }
+
+        // Auto-apply remains optional for legacy flows (no-op for cascade store)
         if (autoApplyResults) {
           applyOptimizedParameters();
         }
@@ -828,7 +971,9 @@ export default function CascadeOptimizationDashboard() {
         toast.success(
           `Cascade optimization completed! Target: ${
             result.predicted_target?.toFixed(3) || "N/A"
-          } ${result.is_feasible ? "✓" : "⚠️"} (${result.duration_seconds?.toFixed(1)}s)`,
+          } ${
+            result.is_feasible ? "✓" : "⚠️"
+          } (${result.duration_seconds?.toFixed(1)}s)`,
           { id: loadingToast }
         );
       } else {
@@ -964,14 +1109,14 @@ export default function CascadeOptimizationDashboard() {
                       className={`rounded-full px-3 py-1 ${
                         isOptimizing
                           ? "bg-amber-100 text-amber-800 border-amber-200"
-                          : hasResults && isSuccessful
+                          : isOptimizationReady
                           ? "bg-green-100 text-green-800 border-green-200"
                           : "bg-slate-100 text-slate-600 border-slate-200"
                       }`}
                     >
                       {isOptimizing
                         ? "OPTIMIZING..."
-                        : hasResults && isSuccessful
+                        : isOptimizationReady
                         ? "READY"
                         : "CONFIGURING"}
                     </Badge>
@@ -1296,7 +1441,11 @@ export default function CascadeOptimizationDashboard() {
                     onClick={predictWithCascadeModel}
                     variant="outline"
                     className="text-green-700 border-green-300 hover:bg-green-50"
-                    disabled={isOptimizing || !isCascadeModelReady || isCascadePredicting}
+                    disabled={
+                      isOptimizing ||
+                      !isCascadeModelReady ||
+                      isCascadePredicting
+                    }
                     title="Test cascade prediction - check console and toast"
                   >
                     {isCascadePredicting ? (
@@ -1344,9 +1493,11 @@ export default function CascadeOptimizationDashboard() {
               targetUnit={targetUnit}
               predictionSetpoint={testPredictionTarget}
               spOptimize={
-                hasResults && isSuccessful ? targetSetpoint : undefined
+                hasCascadeResults
+                  ? cascadePredictedTarget ?? targetSetpoint
+                  : undefined
               }
-              showOptimizationTarget={hasResults && isSuccessful}
+              showOptimizationTarget={hasCascadeResults}
             />
 
             {/* Parameter Optimization Cards - Organized by Variable Type */}
@@ -1436,6 +1587,39 @@ export default function CascadeOptimizationDashboard() {
                             parameter.id
                           ] || [bounds[0], bounds[1]];
 
+                          let proposedValue: number | undefined;
+                          if (hasCascadeResults) {
+                            if (varType === "MV") {
+                              proposedValue =
+                                cascadeCurrentResults?.best_mv_values?.[
+                                  parameter.id
+                                ];
+                            } else if (varType === "CV") {
+                              proposedValue =
+                                cascadeCurrentResults?.predicted_cvs?.[
+                                  parameter.id
+                                ];
+                            } else {
+                              const cascadeTargetId = getTargetVariable();
+                              if (
+                                cascadeTargetId &&
+                                cascadeTargetId === parameter.id
+                              ) {
+                                proposedValue =
+                                  cascadeCurrentResults?.predicted_target;
+                              }
+                            }
+
+                            if (
+                              typeof proposedValue !== "number" ||
+                              !Number.isFinite(proposedValue)
+                            ) {
+                              proposedValue = proposedSetpoints?.[parameter.id];
+                            }
+                          } else {
+                            proposedValue = undefined;
+                          }
+
                           // Create cascade parameter with proper typing
                           const cascadeParameter: CascadeParameter = {
                             id: parameter.id,
@@ -1456,8 +1640,8 @@ export default function CascadeOptimizationDashboard() {
                               rangeValue={rangeValue as [number, number]}
                               isSimulationMode={false}
                               proposedSetpoint={
-                                hasResults && isSuccessful
-                                  ? proposedSetpoints?.[parameter.id]
+                                typeof proposedValue === "number"
+                                  ? proposedValue
                                   : undefined
                               }
                               onRangeChange={(
