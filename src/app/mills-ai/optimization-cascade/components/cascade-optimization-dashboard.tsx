@@ -1054,6 +1054,14 @@ export default function CascadeOptimizationDashboard() {
         }`,
         { id: loadingToast }
       );
+
+      // Attempt to refresh metadata so insights stay in sync
+      try {
+        await loadModelForMill(trainingConfig.mill_number);
+      } catch (refreshError) {
+        console.error("Failed to refresh cascade model metadata", refreshError);
+      }
+      return;
     } catch (error) {
       console.error("Cascade training failed:", error);
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -1319,6 +1327,10 @@ export default function CascadeOptimizationDashboard() {
                   isTraining={isTraining}
                   trainingProgress={trainingProgress}
                   trainingError={trainingError}
+                  modelInfo={modelMetadata?.model_info}
+                  isModelLoading={isLoadingModel}
+                  modelError={modelError}
+                  onRefreshModelInfo={() => loadModelForMill(currentMill)}
                 />
               </CardContent>
             </Card>

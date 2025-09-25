@@ -17,19 +17,26 @@ import {
   Zap,
   Target,
   Wrench,
-  Activity
+  Activity,
+  RefreshCw,
+  Sparkles
 } from "lucide-react"
 import { getMVs, getCVs, getDVs, getTargets, VariableInfo } from "../../data/variable-classifier-helper"
 import { ColorfulFeatureSelect } from "./colorful-feature-select"
+import { CascadeModelInsights } from "./cascade-model-insights"
 
 interface EnhancedModelTrainingProps {
   currentMill: number
   onMillChange: (mill: number) => void
-  onTrainModel: (config: CascadeTrainingConfig) => void
+  onTrainModel: (config: CascadeTrainingConfig) => Promise<void> | void
   isTraining: boolean
   trainingProgress: number
   trainingError: string | null
   trainingSuccess?: boolean
+  modelInfo?: any
+  isModelLoading?: boolean
+  modelError?: string | null
+  onRefreshModelInfo?: () => Promise<void> | void
 }
 
 export interface CascadeTrainingConfig {
@@ -52,7 +59,11 @@ export function EnhancedModelTraining({
   isTraining,
   trainingProgress,
   trainingError,
-  trainingSuccess = false
+  trainingSuccess = false,
+  modelInfo,
+  isModelLoading = false,
+  modelError,
+  onRefreshModelInfo
 }: EnhancedModelTrainingProps) {
   // Training configuration state
   const [startDate, setStartDate] = useState<string>('')
@@ -64,6 +75,7 @@ export function EnhancedModelTraining({
   const [testSize, setTestSize] = useState<number>(0.2)
   const [resampleFreq, setResampleFreq] = useState<string>('1min')
   const [modelNameSuffix, setModelNameSuffix] = useState<string>('')
+  const [isRefreshingInsights, setIsRefreshingInsights] = useState<boolean>(false)
   
   // Initialize dates to last 30 days
   useEffect(() => {
@@ -79,7 +91,7 @@ export function EnhancedModelTraining({
   const dvParameters = getDVs()
   const targetParameters = getTargets()
 
-  const handleTrainModel = () => {
+  const handleTrainModel = async () => {
     const config: CascadeTrainingConfig = {
       mill_number: currentMill,
       start_date: startDate,
@@ -92,7 +104,11 @@ export function EnhancedModelTraining({
       resample_freq: resampleFreq,
       model_name_suffix: modelNameSuffix || undefined
     }
-    onTrainModel(config)
+    try {
+      await onTrainModel(config)
+    } catch (error) {
+      console.error("Cascade training request failed", error)
+    }
   }
 
   const isConfigValid = () => {
@@ -330,6 +346,49 @@ export function EnhancedModelTraining({
               </ul>
             </div>
           )}
+        </div>
+
+        <Separator />
+
+        {/* Model Insights */}
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                Cascade Model Insights
+              </span>
+              <Badge variant="outline" className="text-xs bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300">
+                Mill {currentMill}
+              </Badge>
+            </div>
+            {onRefreshModelInfo && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                onClick={async () => {
+                  try {
+                    setIsRefreshingInsights(true)
+                    await onRefreshModelInfo()
+                  } finally {
+                    setIsRefreshingInsights(false)
+                  }
+                }}
+                disabled={isRefreshingInsights || isModelLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshingInsights ? 'animate-spin' : ''}`} />
+                {isRefreshingInsights ? 'Refreshing' : 'Refresh Insights'}
+              </Button>
+            )}
+          </div>
+
+          <CascadeModelInsights
+            millNumber={currentMill}
+            modelInfo={modelInfo}
+            isLoading={isModelLoading || isRefreshingInsights}
+            error={modelError || undefined}
+          />
         </div>
       </CardContent>
     </Card>
