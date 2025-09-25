@@ -959,6 +959,9 @@ export default function CascadeOptimizationDashboard() {
         ) {
           newProposedSetpoints[cascadeTargetId] = result.predicted_target;
           cascadeOptStore.setPredictedTarget(result.predicted_target);
+          // Update the test prediction target for the target trend component
+          setTestPredictionTarget(result.predicted_target);
+          console.log("✅ Updated target setpoint to:", result.predicted_target);
         }
 
         console.log("🔍 New proposed setpoints:", newProposedSetpoints);
