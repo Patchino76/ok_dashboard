@@ -403,22 +403,6 @@ export function ParameterCascadeOptimizationCard({
             );
           })()}
 
-        {/* Lab parameter info */}
-        {isLabParameter && (
-          <div className="h-14 -mx-2 flex items-center justify-center">
-            <div
-              className={`text-sm text-center p-3 rounded-lg bg-gradient-to-r ${vt.topBar} bg-opacity-10`}
-            >
-              <div className={`${vt.iconColor} font-medium`}>
-                🧪 Lab Parameter
-              </div>
-              <div className="text-xs text-slate-500 mt-1">
-                No historical trending
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Double Range Slider (full width, no duplicate labels) */}
         <div className="pt-2">
           <DoubleRangeSlider
