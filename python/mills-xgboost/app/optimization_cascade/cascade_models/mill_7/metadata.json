@@ -1,6 +1,6 @@
 {
   "mill_number": 7,
-  "created_at": "2025-09-25T10:19:24.795330",
+  "created_at": "2025-09-25T12:52:14.547708",
   "model_version": "1.0.0",
   "training_config": {
     "test_size": 0.2,
@@ -8,7 +8,7 @@
       19378,
       8
     ],
-    "training_timestamp": "2025-09-25T10:19:28.533295",
+    "training_timestamp": "2025-09-25T12:52:18.152189",
     "configured_features": {
       "mv_features": [
         "Ore",
@@ -21,7 +21,11 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_features": [],
+      "dv_features": [
+        "Shisti",
+        "Daiki",
+        "Grano"
+      ],
       "target_variable": "PSI200",
       "using_custom_features": true
     }
@@ -97,13 +101,17 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_vars": []
+      "dv_vars": [
+        "Shisti",
+        "Daiki",
+        "Grano"
+      ]
     },
     "chain_validation": {
-      "r2_score": 0.4747009126141558,
-      "rmse": 0.852612096955783,
-      "mae": 0.6225264767983247,
-      "n_samples": 200,
+      "r2_score": 0.0,
+      "rmse": 999.0,
+      "mae": 999.0,
+      "n_samples": 0,
       "n_requested": 200,
       "validation_error": null
     }

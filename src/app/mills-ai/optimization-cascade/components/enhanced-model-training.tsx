@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 // import { Checkbox } from "@/components/ui/checkbox" // Component not available, using input type checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronDown } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { 
   GraduationCap, 
@@ -21,6 +20,7 @@ import {
   Activity
 } from "lucide-react"
 import { getMVs, getCVs, getDVs, getTargets, VariableInfo } from "../../data/variable-classifier-helper"
+import { ColorfulFeatureSelect } from "./colorful-feature-select"
 
 interface EnhancedModelTrainingProps {
   currentMill: number
@@ -65,16 +65,6 @@ export function EnhancedModelTraining({
   const [resampleFreq, setResampleFreq] = useState<string>('1min')
   const [modelNameSuffix, setModelNameSuffix] = useState<string>('')
   
-  // Dropdown open states
-  const [mvDropdownOpen, setMvDropdownOpen] = useState(false)
-  const [cvDropdownOpen, setCvDropdownOpen] = useState(false)
-  const [dvDropdownOpen, setDvDropdownOpen] = useState(false)
-  
-  // Refs for click outside detection
-  const mvDropdownRef = useRef<HTMLDivElement>(null)
-  const cvDropdownRef = useRef<HTMLDivElement>(null)
-  const dvDropdownRef = useRef<HTMLDivElement>(null)
-
   // Initialize dates to last 30 days
   useEffect(() => {
     const now = new Date()
@@ -83,55 +73,11 @@ export function EnhancedModelTraining({
     setStartDate(thirtyDaysAgo.toISOString().split('T')[0])
   }, [])
 
-  // Click outside to close dropdowns
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (mvDropdownRef.current && !mvDropdownRef.current.contains(event.target as Node)) {
-        setMvDropdownOpen(false)
-      }
-      if (cvDropdownRef.current && !cvDropdownRef.current.contains(event.target as Node)) {
-        setCvDropdownOpen(false)
-      }
-      if (dvDropdownRef.current && !dvDropdownRef.current.contains(event.target as Node)) {
-        setDvDropdownOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [])
-
   // Available parameters for each category from VariableClassifier
   const mvParameters = getMVs()
   const cvParameters = getCVs()
   const dvParameters = getDVs()
   const targetParameters = getTargets()
-
-  const handleFeatureToggle = (
-    featureId: string, 
-    category: 'MV' | 'CV' | 'DV',
-    isChecked: boolean
-  ) => {
-    switch (category) {
-      case 'MV':
-        setSelectedMVs(prev => 
-          isChecked ? [...prev, featureId] : prev.filter(id => id !== featureId)
-        )
-        break
-      case 'CV':
-        setSelectedCVs(prev => 
-          isChecked ? [...prev, featureId] : prev.filter(id => id !== featureId)
-        )
-        break
-      case 'DV':
-        setSelectedDVs(prev => 
-          isChecked ? [...prev, featureId] : prev.filter(id => id !== featureId)
-        )
-        break
-    }
-  }
 
   const handleTrainModel = () => {
     const config: CascadeTrainingConfig = {
@@ -267,199 +213,70 @@ export function EnhancedModelTraining({
           </h3>
           
           {/* Manipulated Variables (MVs) */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Wrench className="h-4 w-4 text-blue-600" />
-              <Label className="text-base font-medium">Manipulated Variables (MVs)</Label>
-              <Badge variant="secondary" className="text-xs">
-                {selectedMVs.length} selected
-              </Badge>
-            </div>
-            <div className="relative" ref={mvDropdownRef}>
-              <button
-                type="button"
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => setMvDropdownOpen(!mvDropdownOpen)}
-                disabled={isTraining}
-              >
-                <span className="text-muted-foreground">Select manipulated variables</span>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </button>
-              {mvDropdownOpen && (
-                <div className="absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 mt-1 w-full">
-                  {mvParameters.map((param: VariableInfo) => (
-                    <div
-                      key={param.id}
-                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                      onClick={() => {
-                        if (selectedMVs.includes(param.id)) {
-                          setSelectedMVs(selectedMVs.filter(id => id !== param.id))
-                        } else {
-                          setSelectedMVs([...selectedMVs, param.id])
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        {selectedMVs.includes(param.id) ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <div className="h-4 w-4" />
-                        )}
-                        <Wrench className="h-4 w-4 text-blue-600" />
-                        {param.name} ({param.unit})
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {selectedMVs.length > 0 && (
-              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Selected Manipulated Variables:</div>
-                <div className="flex flex-wrap gap-2">
-                  {selectedMVs.map(id => {
-                    const param = mvParameters.find(p => p.id === id)
-                    return param ? (
-                      <Badge key={id} variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-100">
-                        <Wrench className="h-3 w-3 mr-1" />
-                        {param.name}
-                      </Badge>
-                    ) : null
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <ColorfulFeatureSelect
+            label="Manipulated Variables (MVs)"
+            placeholder="Select manipulated variables"
+            selectedLabel="Selected Manipulated Variables:"
+            options={mvParameters}
+            selectedValues={selectedMVs}
+            onChange={setSelectedMVs}
+            icon={Wrench}
+            colorTheme={{
+              icon: "text-blue-600",
+              triggerBg: "bg-blue-50/70 dark:bg-blue-950/30",
+              triggerBorder: "border border-blue-200 dark:border-blue-800",
+              triggerText: "text-blue-900 dark:text-blue-100",
+              dropdownBg: "bg-blue-50 dark:bg-blue-950/20",
+              dropdownBorder: "border-blue-200 dark:border-blue-800",
+              badge: "bg-blue-100 dark:bg-blue-900",
+              badgeText: "text-blue-800 dark:text-blue-100"
+            }}
+            disabled={isTraining}
+          />
 
           {/* Controlled Variables (CVs) */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-purple-600" />
-              <Label className="text-base font-medium">Controlled Variables (CVs)</Label>
-              <Badge variant="secondary" className="text-xs">
-                {selectedCVs.length} selected
-              </Badge>
-            </div>
-            <div className="relative" ref={cvDropdownRef}>
-              <button
-                type="button"
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => setCvDropdownOpen(!cvDropdownOpen)}
-                disabled={isTraining}
-              >
-                <span className="text-muted-foreground">Select controlled variables</span>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </button>
-              {cvDropdownOpen && (
-                <div className="absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800 p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 mt-1 w-full">
-                  {cvParameters.map((param: VariableInfo) => (
-                    <div
-                      key={param.id}
-                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                      onClick={() => {
-                        if (selectedCVs.includes(param.id)) {
-                          setSelectedCVs(selectedCVs.filter(id => id !== param.id))
-                        } else {
-                          setSelectedCVs([...selectedCVs, param.id])
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        {selectedCVs.includes(param.id) ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <div className="h-4 w-4" />
-                        )}
-                        <Activity className="h-4 w-4 text-purple-600" />
-                        {param.name} ({param.unit})
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {selectedCVs.length > 0 && (
-              <div className="mt-3 p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-800">
-                <div className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-2">Selected Controlled Variables:</div>
-                <div className="flex flex-wrap gap-2">
-                  {selectedCVs.map(id => {
-                    const param = cvParameters.find(p => p.id === id)
-                    return param ? (
-                      <Badge key={id} variant="secondary" className="bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900 dark:text-purple-100">
-                        <Activity className="h-3 w-3 mr-1" />
-                        {param.name}
-                      </Badge>
-                    ) : null
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <ColorfulFeatureSelect
+            label="Controlled Variables (CVs)"
+            placeholder="Select controlled variables"
+            selectedLabel="Selected Controlled Variables:"
+            options={cvParameters}
+            selectedValues={selectedCVs}
+            onChange={setSelectedCVs}
+            icon={Activity}
+            colorTheme={{
+              icon: "text-purple-600",
+              triggerBg: "bg-purple-50/70 dark:bg-purple-950/30",
+              triggerBorder: "border border-purple-200 dark:border-purple-800",
+              triggerText: "text-purple-900 dark:text-purple-100",
+              dropdownBg: "bg-purple-50 dark:bg-purple-950/20",
+              dropdownBorder: "border-purple-200 dark:border-purple-800",
+              badge: "bg-purple-100 dark:bg-purple-900",
+              badgeText: "text-purple-800 dark:text-purple-100"
+            }}
+            disabled={isTraining}
+          />
 
           {/* Disturbance Variables (DVs) */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Zap className="h-4 w-4 text-orange-600" />
-              <Label className="text-base font-medium">Disturbance Variables (DVs)</Label>
-              <Badge variant="secondary" className="text-xs">
-                {selectedDVs.length} selected
-              </Badge>
-            </div>
-            <div className="relative" ref={dvDropdownRef}>
-              <button
-                type="button"
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => setDvDropdownOpen(!dvDropdownOpen)}
-                disabled={isTraining}
-              >
-                <span className="text-muted-foreground">Select disturbance variables</span>
-                <ChevronDown className="h-4 w-4 opacity-50" />
-              </button>
-              {dvDropdownOpen && (
-                <div className="absolute z-50 min-w-[8rem] overflow-hidden rounded-md border bg-orange-50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800 p-1 text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 mt-1 w-full">
-                  {dvParameters.map((param: VariableInfo) => (
-                    <div
-                      key={param.id}
-                      className="relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                      onClick={() => {
-                        if (selectedDVs.includes(param.id)) {
-                          setSelectedDVs(selectedDVs.filter(id => id !== param.id))
-                        } else {
-                          setSelectedDVs([...selectedDVs, param.id])
-                        }
-                      }}
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        {selectedDVs.includes(param.id) ? (
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <div className="h-4 w-4" />
-                        )}
-                        <Zap className="h-4 w-4 text-orange-600" />
-                        {param.name} ({param.unit})
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            {selectedDVs.length > 0 && (
-              <div className="mt-3 p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg border border-orange-200 dark:border-orange-800">
-                <div className="text-sm font-medium text-orange-900 dark:text-orange-100 mb-2">Selected Disturbance Variables:</div>
-                <div className="flex flex-wrap gap-2">
-                  {selectedDVs.map(id => {
-                    const param = dvParameters.find(p => p.id === id)
-                    return param ? (
-                      <Badge key={id} variant="secondary" className="bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-100">
-                        <Zap className="h-3 w-3 mr-1" />
-                        {param.name}
-                      </Badge>
-                    ) : null
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <ColorfulFeatureSelect
+            label="Disturbance Variables (DVs)"
+            placeholder="Select disturbance variables"
+            selectedLabel="Selected Disturbance Variables:"
+            options={dvParameters}
+            selectedValues={selectedDVs}
+            onChange={setSelectedDVs}
+            icon={Zap}
+            colorTheme={{
+              icon: "text-orange-600",
+              triggerBg: "bg-orange-50/70 dark:bg-orange-950/30",
+              triggerBorder: "border border-orange-200 dark:border-orange-800",
+              triggerText: "text-orange-900 dark:text-orange-100",
+              dropdownBg: "bg-orange-50 dark:bg-orange-950/20",
+              dropdownBorder: "border-orange-200 dark:border-orange-800",
+              badge: "bg-orange-100 dark:bg-orange-900",
+              badgeText: "text-orange-800 dark:text-orange-100"
+            }}
+            disabled={isTraining}
+          />
         </div>
 
 
