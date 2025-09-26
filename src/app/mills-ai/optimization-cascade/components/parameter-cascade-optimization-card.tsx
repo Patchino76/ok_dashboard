@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import {
   LineChart,
   Line,
@@ -13,7 +14,6 @@ import {
   ReferenceArea,
   ReferenceLine,
 } from "recharts";
-import { millsParameters } from "../../data/mills-parameters";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import { DoubleRangeSlider } from "../../components/double-range-slider";
 
@@ -49,11 +49,34 @@ export function ParameterCascadeOptimizationCard({
 
   // Local state for range values
   const [range, setRange] = useState<[number, number]>(rangeValue);
+  const [sliderValue, setSliderValue] = useState<number>(parameter.value);
 
   // Update local state when prop changes
   useEffect(() => {
     setRange(rangeValue);
   }, [rangeValue]);
+
+  // Reset slider when parameter changes
+  useEffect(() => {
+    setSliderValue(parameter.value);
+  }, [parameter.id]);
+
+  // Prevent slider from drifting outside updated range
+  useEffect(() => {
+    setSliderValue((prev) => {
+      const clamped = Math.min(Math.max(prev, range[0]), range[1]);
+      return Number.isFinite(clamped) ? clamped : range[0];
+    });
+  }, [range]);
+
+  // Memoized step for slider to avoid division by zero
+  const sliderStep = useMemo(() => {
+    const delta = range[1] - range[0];
+    if (!Number.isFinite(delta) || delta <= 0) {
+      return 0.01;
+    }
+    return delta / 100;
+  }, [range]);
 
   const isInRange = parameter.value >= range[0] && parameter.value <= range[1];
 
@@ -166,42 +189,48 @@ export function ParameterCascadeOptimizationCard({
 
   // Enhanced background styles based on varType for better cascade visualization
   const getVarTypeStyles = () => {
-    switch (parameter.varType) {
-      // MV: Warm Orange/Amber - Manipulated Variables (What we control)
-      case "MV":
-        return {
-          cardBg:
-            "bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-800 dark:to-amber-900/30",
-          topBar: "from-amber-500 to-orange-500",
-          ring: "ring-2 ring-amber-200/80 dark:ring-amber-900/60",
-          badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
-          iconColor: "text-amber-600",
-          accentColor: "#f97316", // orange-500
-        };
-      // CV: Cool Blue - Controlled Variables (What we measure and predict)
-      case "CV":
-        return {
-          cardBg:
-            "bg-gradient-to-br from-white to-blue-50/90 dark:from-slate-800 dark:to-blue-900/30",
-          topBar: "from-blue-500 to-cyan-500",
-          ring: "ring-2 ring-blue-200/80 dark:ring-blue-900/60",
-          badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
-          iconColor: "text-blue-600",
-          accentColor: "#3b82f6", // blue-500
-        };
-      // DV: Soft Green - Disturbance Variables (External factors/Lab parameters)
-      case "DV":
-      default:
-        return {
-          cardBg:
-            "bg-gradient-to-br from-white to-emerald-50/90 dark:from-slate-800 dark:to-emerald-900/30",
-          topBar: "from-emerald-500 to-green-500",
-          ring: "ring-2 ring-emerald-200/80 dark:ring-emerald-900/60",
-          badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
-          iconColor: "text-emerald-600",
-          accentColor: "#10b981", // emerald-500
-        };
+    if (parameter.varType === "MV") {
+      return {
+        cardBg:
+          "bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-800 dark:to-amber-900/30",
+        topBar: "from-amber-500 to-orange-500",
+        ring: "ring-2 ring-amber-200/80 dark:ring-amber-900/60",
+        badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+        iconColor: "text-amber-600",
+        accentColor: "#f97316", // orange-500
+        sliderAccent: "accent-orange-500",
+        sliderLabel: "text-amber-700",
+        sliderThumbColor: "#f97316",
+      } as const;
     }
+
+    if (parameter.varType === "CV") {
+      return {
+        cardBg:
+          "bg-gradient-to-br from-white to-blue-50/90 dark:from-slate-800 dark:to-blue-900/30",
+        topBar: "from-blue-500 to-cyan-500",
+        ring: "ring-2 ring-blue-200/80 dark:ring-blue-900/60",
+        badgeColor: "bg-blue-100 text-blue-800 border-blue-200",
+        iconColor: "text-blue-600",
+        accentColor: "#3b82f6", // blue-500
+        sliderAccent: "accent-blue-500",
+        sliderLabel: "text-blue-700",
+        sliderThumbColor: "#3b82f6",
+      } as const;
+    }
+
+    return {
+      cardBg:
+        "bg-gradient-to-br from-white to-emerald-50/90 dark:from-slate-800 dark:to-emerald-900/30",
+      topBar: "from-emerald-500 to-green-500",
+      ring: "ring-2 ring-emerald-200/80 dark:ring-emerald-900/60",
+      badgeColor: "bg-emerald-100 text-emerald-800 border-emerald-200",
+      iconColor: "text-emerald-600",
+      accentColor: "#10b981", // emerald-500
+      sliderAccent: "accent-emerald-500",
+      sliderLabel: "text-emerald-700",
+      sliderThumbColor: "#10b981",
+    } as const;
   };
 
   const vt = getVarTypeStyles();
@@ -342,11 +371,29 @@ export function ParameterCascadeOptimizationCard({
             ];
 
             return (
-              <div className="h-24 -mx-2">
+              <div className="flex h-32 -mx-2 sm:h-40">
+                <div className="flex flex-col items-center justify-center w-12 px-1 gap-1">
+                  <div className="flex items-center h-full">
+                    <div className="h-32 flex items-center">
+                      <Slider
+                        orientation="vertical"
+                        min={range[0]}
+                        max={range[1]}
+                        step={sliderStep}
+                        value={[sliderValue]}
+                        onValueChange={([value]) => setSliderValue(value)}
+                        className="h-full"
+                      />
+                      <div className="ml--3 w-10 text-sm text-center font-medium">
+                        {sliderValue.toFixed(1)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={filteredTrend}
-                    margin={{ top: 5, right: 10, bottom: 5, left: 40 }}
+                    margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
                   >
                     <XAxis dataKey="timestamp" hide={true} />
                     <YAxis
@@ -449,6 +496,61 @@ export function ParameterCascadeOptimizationCard({
           )}
         </div>
       </CardContent>
+      <style jsx>{`
+        input.vertical-slider {
+          appearance: none;
+          width: 100%;
+          height: 100%;
+          padding: 0;
+          cursor: pointer;
+        }
+
+        input.vertical-slider::-webkit-slider-runnable-track {
+          width: 100%;
+          height: 4px;
+          background: rgba(148, 163, 184, 0.6);
+          border-radius: 9999px;
+          box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
+        }
+
+        input.vertical-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 18px;
+          height: 18px;
+          border-radius: 9999px;
+          background: var(--slider-thumb-color, #475569);
+          border: 2px solid #ffffff;
+          box-shadow: 0 0 0 1px rgba(30, 41, 59, 0.2);
+          margin-top: -7px;
+          cursor: grab;
+        }
+
+        input.vertical-slider::-moz-range-track {
+          width: 100%;
+          height: 4px;
+          background: rgba(148, 163, 184, 0.6);
+          border-radius: 9999px;
+          box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
+        }
+
+        input.vertical-slider::-moz-range-thumb {
+          width: 18px;
+          height: 18px;
+          border-radius: 9999px;
+          background: var(--slider-thumb-color, #475569);
+          border: 2px solid #ffffff;
+          box-shadow: 0 0 0 1px rgba(30, 41, 59, 0.2);
+          cursor: grab;
+        }
+
+        input.vertical-slider:active::-webkit-slider-thumb {
+          cursor: grabbing;
+        }
+
+        input.vertical-slider:active::-moz-range-thumb {
+          cursor: grabbing;
+        }
+      `}</style>
     </Card>
   );
 }
