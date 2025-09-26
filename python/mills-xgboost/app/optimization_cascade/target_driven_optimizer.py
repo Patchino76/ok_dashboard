@@ -113,16 +113,34 @@ class TargetDrivenCascadeOptimizer:
         # Run optimization
         study.optimize(objective, n_trials=request.n_trials, timeout=request.timeout)
         
-        # Calculate tolerance band
-        tolerance_band = request.target_value * request.tolerance
+        # Calculate tolerance threshold (absolute distance from target)
+        tolerance_threshold = request.target_value * request.tolerance
+        
+        # Debug: Log tolerance calculation
+        logger.info(f"Target: {request.target_value}, Tolerance: {request.tolerance*100:.1f}%, Threshold: {tolerance_threshold:.4f}")
         
         # Extract successful trials (within tolerance)
+        # trial.value represents the distance from target, so it should be <= tolerance_threshold
         successful_trials = [
             trial for trial in study.trials 
-            if trial.value is not None and trial.value <= tolerance_band
+            if trial.value is not None and trial.value <= tolerance_threshold
         ]
         
+        # Debug: Log trial distances
+        if study.trials:
+            trial_distances = [t.value for t in study.trials if t.value is not None]
+            logger.info(f"Best distance: {min(trial_distances):.4f}, Worst: {max(trial_distances):.4f}")
+            logger.info(f"Trials within tolerance ({tolerance_threshold:.4f}): {len(successful_trials)}")
+        
         logger.info(f"Successful trials: {len(successful_trials)}/{len(study.trials)}")
+        
+        # Fallback: If no trials meet strict tolerance, use best 10% of trials for distributions
+        if len(successful_trials) == 0 and len(study.trials) > 0:
+            logger.info("No trials within strict tolerance, using best 10% of trials for distributions")
+            sorted_trials = sorted([t for t in study.trials if t.value is not None], key=lambda t: t.value)
+            top_10_percent = max(1, len(sorted_trials) // 10)
+            successful_trials = sorted_trials[:top_10_percent]
+            logger.info(f"Using top {len(successful_trials)} trials for distributions")
         
         # Get best trial
         best_trial = study.best_trial
