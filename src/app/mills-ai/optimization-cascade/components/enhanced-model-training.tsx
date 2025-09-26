@@ -1,55 +1,67 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 // import { Checkbox } from "@/components/ui/checkbox" // Component not available, using input type checkbox"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { 
-  GraduationCap, 
-  Settings, 
-  CheckCircle2, 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import {
+  GraduationCap,
+  Settings,
+  CheckCircle2,
   AlertCircle,
   Zap,
   Target,
   Wrench,
   Activity,
   RefreshCw,
-  Sparkles
-} from "lucide-react"
-import { getMVs, getCVs, getDVs, getTargets, VariableInfo } from "../../data/variable-classifier-helper"
-import { ColorfulFeatureSelect } from "./colorful-feature-select"
-import { CascadeModelInsights } from "./cascade-model-insights"
+  Sparkles,
+} from "lucide-react";
+import {
+  getMVs,
+  getCVs,
+  getDVs,
+  getTargets,
+  VariableInfo,
+} from "../../data/variable-classifier-helper";
+import { ColorfulFeatureSelect } from "./colorful-feature-select";
+import { CascadeModelInsights } from "./cascade-model-insights";
 
 interface EnhancedModelTrainingProps {
-  currentMill: number
-  onMillChange: (mill: number) => void
-  onTrainModel: (config: CascadeTrainingConfig) => Promise<void> | void
-  isTraining: boolean
-  trainingProgress: number
-  trainingError: string | null
-  trainingSuccess?: boolean
-  modelInfo?: any
-  isModelLoading?: boolean
-  modelError?: string | null
-  onRefreshModelInfo?: () => Promise<void> | void
+  currentMill: number;
+  onMillChange: (mill: number) => void;
+  onTrainModel: (config: CascadeTrainingConfig) => Promise<void> | void;
+  isTraining: boolean;
+  trainingProgress: number;
+  trainingError: string | null;
+  trainingSuccess?: boolean;
+  modelInfo?: any;
+  isModelLoading?: boolean;
+  modelError?: string | null;
+  onRefreshModelInfo?: () => Promise<void> | void;
 }
 
 export interface CascadeTrainingConfig {
-  mill_number: number
-  start_date: string
-  end_date: string
-  mv_features: string[]
-  cv_features: string[]
-  dv_features: string[]
-  target_variable: string
-  test_size: number
-  resample_freq: string
-  model_name_suffix?: string
+  mill_number: number;
+  start_date: string;
+  end_date: string;
+  mv_features: string[];
+  cv_features: string[];
+  dv_features: string[];
+  target_variable: string;
+  test_size: number;
+  resample_freq: string;
+  model_name_suffix?: string;
 }
 
 export function EnhancedModelTraining({
@@ -63,33 +75,47 @@ export function EnhancedModelTraining({
   modelInfo,
   isModelLoading = false,
   modelError,
-  onRefreshModelInfo
+  onRefreshModelInfo,
 }: EnhancedModelTrainingProps) {
   // Training configuration state
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  const [selectedMVs, setSelectedMVs] = useState<string[]>(['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp'])
-  const [selectedCVs, setSelectedCVs] = useState<string[]>(['PulpHC', 'DensityHC', 'PressureHC'])
-  const [selectedDVs, setSelectedDVs] = useState<string[]>(['Shisti', 'Daiki', 'Grano'])
-  const [targetVariable, setTargetVariable] = useState<string>('PSI200')
-  const [testSize, setTestSize] = useState<number>(0.2)
-  const [resampleFreq, setResampleFreq] = useState<string>('1min')
-  const [modelNameSuffix, setModelNameSuffix] = useState<string>('')
-  const [isRefreshingInsights, setIsRefreshingInsights] = useState<boolean>(false)
-  
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [selectedMVs, setSelectedMVs] = useState<string[]>([
+    "Ore",
+    "WaterMill",
+    "WaterZumpf",
+    "MotorAmp",
+  ]);
+  const [selectedCVs, setSelectedCVs] = useState<string[]>([
+    "PulpHC",
+    "DensityHC",
+    "PressureHC",
+  ]);
+  const [selectedDVs, setSelectedDVs] = useState<string[]>([
+    "Shisti",
+    "Daiki",
+    "Grano",
+  ]);
+  const [targetVariable, setTargetVariable] = useState<string>("PSI200");
+  const [testSize, setTestSize] = useState<number>(0.2);
+  const [resampleFreq, setResampleFreq] = useState<string>("1min");
+  const [modelNameSuffix, setModelNameSuffix] = useState<string>("");
+  const [isRefreshingInsights, setIsRefreshingInsights] =
+    useState<boolean>(false);
+
   // Initialize dates to last 30 days
   useEffect(() => {
-    const now = new Date()
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    setEndDate(now.toISOString().split('T')[0])
-    setStartDate(thirtyDaysAgo.toISOString().split('T')[0])
-  }, [])
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    setEndDate(now.toISOString().split("T")[0]);
+    setStartDate(thirtyDaysAgo.toISOString().split("T")[0]);
+  }, []);
 
   // Available parameters for each category from VariableClassifier
-  const mvParameters = getMVs()
-  const cvParameters = getCVs()
-  const dvParameters = getDVs()
-  const targetParameters = getTargets()
+  const mvParameters = getMVs();
+  const cvParameters = getCVs();
+  const dvParameters = getDVs();
+  const targetParameters = getTargets();
 
   const handleTrainModel = async () => {
     const config: CascadeTrainingConfig = {
@@ -102,14 +128,14 @@ export function EnhancedModelTraining({
       target_variable: targetVariable,
       test_size: testSize,
       resample_freq: resampleFreq,
-      model_name_suffix: modelNameSuffix || undefined
-    }
+      model_name_suffix: modelNameSuffix || undefined,
+    };
     try {
-      await onTrainModel(config)
+      await onTrainModel(config);
     } catch (error) {
-      console.error("Cascade training request failed", error)
+      console.error("Cascade training request failed", error);
     }
-  }
+  };
 
   const isConfigValid = () => {
     return (
@@ -120,12 +146,12 @@ export function EnhancedModelTraining({
       selectedCVs.length > 0 &&
       targetVariable &&
       new Date(startDate) < new Date(endDate)
-    )
-  }
+    );
+  };
 
   const getFeatureCount = () => {
-    return selectedMVs.length + selectedCVs.length + selectedDVs.length
-  }
+    return selectedMVs.length + selectedCVs.length + selectedDVs.length;
+  };
 
   return (
     <Card className="shadow-lg border-0 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm">
@@ -135,21 +161,30 @@ export function EnhancedModelTraining({
           Enhanced Cascade Model Training
         </CardTitle>
         <div className="flex gap-2">
-          <Badge variant="outline" className="rounded-full px-3 py-1 bg-green-100 text-green-800 border-green-200">
+          <Badge
+            variant="outline"
+            className="rounded-full px-3 py-1 bg-green-100 text-green-800 border-green-200"
+          >
             Mill {currentMill}
           </Badge>
-          <Badge variant="outline" className="rounded-full px-3 py-1 bg-blue-100 text-blue-800 border-blue-200">
+          <Badge
+            variant="outline"
+            className="rounded-full px-3 py-1 bg-blue-100 text-blue-800 border-blue-200"
+          >
             {getFeatureCount()} Features Selected
           </Badge>
           {isConfigValid() && (
-            <Badge variant="outline" className="rounded-full px-3 py-1 bg-emerald-100 text-emerald-800 border-emerald-200 flex items-center gap-1">
+            <Badge
+              variant="outline"
+              className="rounded-full px-3 py-1 bg-emerald-100 text-emerald-800 border-emerald-200 flex items-center gap-1"
+            >
               <CheckCircle2 className="h-3 w-3" />
               Ready
             </Badge>
           )}
         </div>
       </CardHeader>
-      
+
       <CardContent className="space-y-6">
         {/* Mill Selection and Basic Config */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -164,7 +199,7 @@ export function EnhancedModelTraining({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {[6, 7, 8].map(mill => (
+                {[6, 7, 8].map((mill) => (
                   <SelectItem key={mill} value={mill.toString()}>
                     Mill {mill}
                   </SelectItem>
@@ -172,7 +207,7 @@ export function EnhancedModelTraining({
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="space-y-2">
             <Label>Target Variable</Label>
             <Select
@@ -227,7 +262,7 @@ export function EnhancedModelTraining({
             <Settings className="h-4 w-4" />
             Feature Selection for Cascade Model
           </h3>
-          
+
           {/* Manipulated Variables (MVs) */}
           <ColorfulFeatureSelect
             label="Manipulated Variables (MVs)"
@@ -245,7 +280,7 @@ export function EnhancedModelTraining({
               dropdownBg: "bg-blue-50 dark:bg-blue-950/20",
               dropdownBorder: "border-blue-200 dark:border-blue-800",
               badge: "bg-blue-100 dark:bg-blue-900",
-              badgeText: "text-blue-800 dark:text-blue-100"
+              badgeText: "text-blue-800 dark:text-blue-100",
             }}
             disabled={isTraining}
           />
@@ -267,7 +302,7 @@ export function EnhancedModelTraining({
               dropdownBg: "bg-purple-50 dark:bg-purple-950/20",
               dropdownBorder: "border-purple-200 dark:border-purple-800",
               badge: "bg-purple-100 dark:bg-purple-900",
-              badgeText: "text-purple-800 dark:text-purple-100"
+              badgeText: "text-purple-800 dark:text-purple-100",
             }}
             disabled={isTraining}
           />
@@ -289,12 +324,11 @@ export function EnhancedModelTraining({
               dropdownBg: "bg-orange-50 dark:bg-orange-950/20",
               dropdownBorder: "border-orange-200 dark:border-orange-800",
               badge: "bg-orange-100 dark:bg-orange-900",
-              badgeText: "text-orange-800 dark:text-orange-100"
+              badgeText: "text-orange-800 dark:text-orange-100",
             }}
             disabled={isTraining}
           />
         </div>
-
 
         {/* Training Button and Status */}
         <div className="space-y-3">
@@ -316,21 +350,22 @@ export function EnhancedModelTraining({
               </>
             )}
           </Button>
-          
+
           {trainingSuccess && !isTraining && (
             <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-3 rounded-lg">
               <CheckCircle2 className="h-4 w-4" />
-              Model trained successfully! Ready for predictions and optimization.
+              Model trained successfully! Ready for predictions and
+              optimization.
             </div>
           )}
-          
+
           {trainingError && (
             <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
               <AlertCircle className="h-4 w-4" />
               {trainingError}
             </div>
           )}
-          
+
           {!isConfigValid() && !isTraining && (
             <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded-lg">
               <div className="flex items-center gap-2 mb-2">
@@ -338,11 +373,19 @@ export function EnhancedModelTraining({
                 <span className="font-medium">Configuration Required</span>
               </div>
               <ul className="text-xs space-y-1 ml-6">
-                {selectedMVs.length === 0 && <li>• Select at least one Manipulated Variable (MV)</li>}
-                {selectedCVs.length === 0 && <li>• Select at least one Controlled Variable (CV)</li>}
+                {selectedMVs.length === 0 && (
+                  <li>• Select at least one Manipulated Variable (MV)</li>
+                )}
+                {selectedCVs.length === 0 && (
+                  <li>• Select at least one Controlled Variable (CV)</li>
+                )}
                 {!startDate && <li>• Set start date</li>}
                 {!endDate && <li>• Set end date</li>}
-                {startDate && endDate && new Date(startDate) >= new Date(endDate) && <li>• Start date must be before end date</li>}
+                {startDate &&
+                  endDate &&
+                  new Date(startDate) >= new Date(endDate) && (
+                    <li>• Start date must be before end date</li>
+                  )}
               </ul>
             </div>
           )}
@@ -358,7 +401,10 @@ export function EnhancedModelTraining({
               <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                 Cascade Model Insights
               </span>
-              <Badge variant="outline" className="text-xs bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300">
+              <Badge
+                variant="outline"
+                className="text-xs bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-300"
+              >
                 Mill {currentMill}
               </Badge>
             </div>
@@ -369,16 +415,20 @@ export function EnhancedModelTraining({
                 className="flex items-center gap-2"
                 onClick={async () => {
                   try {
-                    setIsRefreshingInsights(true)
-                    await onRefreshModelInfo()
+                    setIsRefreshingInsights(true);
+                    await onRefreshModelInfo();
                   } finally {
-                    setIsRefreshingInsights(false)
+                    setIsRefreshingInsights(false);
                   }
                 }}
                 disabled={isRefreshingInsights || isModelLoading}
               >
-                <RefreshCw className={`h-4 w-4 ${isRefreshingInsights ? 'animate-spin' : ''}`} />
-                {isRefreshingInsights ? 'Refreshing' : 'Refresh Insights'}
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    isRefreshingInsights ? "animate-spin" : ""
+                  }`}
+                />
+                {isRefreshingInsights ? "Refreshing" : "Refresh Insights"}
               </Button>
             )}
           </div>
@@ -392,5 +442,5 @@ export function EnhancedModelTraining({
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
