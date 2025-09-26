@@ -1778,6 +1778,7 @@ export default function CascadeOptimizationDashboard() {
                                     dist.percentiles["95.0"] || dist.max_value,
                                   ] as [number, number],
                                   median: dist.median,
+                                  mean: dist.mean,
                                 };
                               }
                             }
@@ -1798,6 +1799,7 @@ export default function CascadeOptimizationDashboard() {
                               }
                               distributionBounds={distributionData?.bounds}
                               distributionMedian={distributionData?.median}
+                              distributionMean={distributionData?.mean}
                               onRangeChange={(
                                 id: string,
                                 newRange: [number, number]

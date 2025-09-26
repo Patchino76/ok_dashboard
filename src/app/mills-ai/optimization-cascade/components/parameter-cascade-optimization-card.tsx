@@ -27,6 +27,7 @@ interface ParameterCascadeOptimizationCardProps {
   proposedSetpoint?: number;
   distributionBounds?: [number, number]; // 90% confidence interval from target-driven optimization
   distributionMedian?: number; // Median value from target-driven optimization
+  distributionMean?: number; // Mean value from target-driven optimization
   onRangeChange: (id: string, range: [number, number]) => void;
 }
 
@@ -38,6 +39,7 @@ export function ParameterCascadeOptimizationCard({
   proposedSetpoint,
   distributionBounds,
   distributionMedian,
+  distributionMean,
   onRangeChange,
 }: ParameterCascadeOptimizationCardProps) {
   // Get displayHours from the store to filter trend data
@@ -273,7 +275,9 @@ export function ParameterCascadeOptimizationCard({
               className="text-2xl font-bold flex items-center gap-1"
               style={{ color: vt.accentColor }}
             >
-              {typeof proposedSetpoint === "number"
+              {typeof distributionMean === "number"
+                ? distributionMean.toFixed(2)
+                : typeof proposedSetpoint === "number"
                 ? proposedSetpoint.toFixed(2)
                 : "--"}
               <span className="text-xs text-slate-500">{parameter.unit}</span>
