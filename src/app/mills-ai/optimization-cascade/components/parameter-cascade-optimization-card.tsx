@@ -61,10 +61,8 @@ export function ParameterCascadeOptimizationCard({
   const handleRangeChange = (newRange: [number, number]) => {
     // Always reflect local UI state
     setRange(newRange);
-    // Only propagate changes when interaction is allowed
-    if (isSimulationMode) {
-      onRangeChange(parameter.id, newRange);
-    }
+    // Always propagate to parent so bounds stay in sync with sliders
+    onRangeChange(parameter.id, newRange);
   };
 
   // Format time for tooltip
