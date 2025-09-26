@@ -25,6 +25,7 @@ interface ParameterCascadeOptimizationCardProps {
   rangeValue: [number, number];
   isSimulationMode?: boolean;
   proposedSetpoint?: number;
+  distributionBounds?: [number, number]; // 90% confidence interval from target-driven optimization
   onRangeChange: (id: string, range: [number, number]) => void;
 }
 
@@ -34,6 +35,7 @@ export function ParameterCascadeOptimizationCard({
   rangeValue,
   isSimulationMode = true,
   proposedSetpoint,
+  distributionBounds,
   onRangeChange,
 }: ParameterCascadeOptimizationCardProps) {
   // Get displayHours from the store to filter trend data
@@ -382,6 +384,19 @@ export function ParameterCascadeOptimizationCard({
                       fillOpacity={0.15}
                       ifOverflow="extendDomain"
                     />
+                    {/* Distribution Bounds Shading - 90% confidence interval from target-driven optimization */}
+                    {distributionBounds && (
+                      <ReferenceArea
+                        y1={distributionBounds[0]}
+                        y2={distributionBounds[1]}
+                        fill={parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"} // amber for MV, blue for CV
+                        fillOpacity={0.25}
+                        ifOverflow="extendDomain"
+                        stroke={parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"}
+                        strokeWidth={1}
+                        strokeDasharray="3 3"
+                      />
+                    )}
                     <Line
                       type="monotone"
                       dataKey="value"

@@ -327,8 +327,13 @@ export default function CascadeOptimizationDashboard() {
   // Additional cascade optimization store reference for specific operations
   const cascadeOptStore = cascadeStore;
 
-  const { startCascadeOptimization, isOptimizing, error } =
-    useCascadeOptimization();
+  const { 
+    startCascadeOptimization, 
+    startTargetDrivenOptimization,
+    isOptimizing, 
+    error,
+    currentTargetResults 
+  } = useCascadeOptimization();
 
   // Advanced optimization hook
   const {
@@ -447,7 +452,12 @@ export default function CascadeOptimizationDashboard() {
         isPredictingFromRealTimeRef.current = false;
       }
     })();
-  }, [modelInfo?.featureClassification, parameters, predictCascade, targetData]);
+  }, [
+    modelInfo?.featureClassification,
+    parameters,
+    predictCascade,
+    targetData,
+  ]);
 
   // Trigger trend data update when optimization tab is activated
   useEffect(() => {
@@ -937,18 +947,19 @@ export default function CascadeOptimizationDashboard() {
   const handleStartOptimization = async () => {
     if (isOptimizing || !modelMetadata) return;
 
-    const loadingToast = toast.loading("Starting Cascade optimization...");
+    const loadingToast = toast.loading("Starting target-driven optimization...");
 
     try {
       // Get feature classification from loaded cascade model
       const featureClassification = getFeatureClassification();
       const targetVariable = getTargetVariable();
 
-      // Configure the cascade optimization store
+      // Configure the cascade optimization store for target-driven mode
       cascadeOptStore.setMillNumber(currentMill);
       cascadeOptStore.setTargetVariable(targetVariable);
-      cascadeOptStore.setTargetSetpoint(targetSetpoint);
-      cascadeOptStore.setMaximize(maximize);
+      cascadeOptStore.setTargetValue(targetSetpoint); // Use slider SP as target value
+      cascadeOptStore.setTolerance(0.01); // ±1% tolerance
+      cascadeOptStore.setTargetDrivenMode(true);
 
       // Set MV bounds from optimization bounds
       const mvBounds: Record<string, [number, number]> = {};
@@ -980,17 +991,20 @@ export default function CascadeOptimizationDashboard() {
       });
       cascadeOptStore.setDVValues(dvValues);
 
-      console.log("Cascade optimization store configured:", {
+      console.log("🎯 Target-driven optimization configured:", {
         mill: currentMill,
         target: targetVariable,
-        setpoint: targetSetpoint,
+        targetValue: targetSetpoint,
+        tolerance: 0.01,
         mvBounds,
         cvBounds,
         dvValues,
+        nTrials: cascadeOptStore.nTrials,
+        confidenceLevel: cascadeOptStore.confidenceLevel,
       });
 
-      // Start cascade optimization using the new hook (no parameters needed)
-      const result = await startCascadeOptimization();
+      // Start target-driven cascade optimization
+      const result = await startTargetDrivenOptimization();
 
       console.log("🔍 Optimization result received:", result);
       console.log("🔍 Result status:", result?.status);
@@ -1011,10 +1025,10 @@ export default function CascadeOptimizationDashboard() {
         }
 
         // Include predicted CV values for display in parameter cards
-        if (result.predicted_cvs) {
-          Object.entries(result.predicted_cvs).forEach(([paramId, value]) => {
+        if (result.best_cv_values) {
+          Object.entries(result.best_cv_values).forEach(([paramId, value]) => {
             if (featureClassification.cv_features.includes(paramId)) {
-              newProposedSetpoints[paramId] = value;
+              newProposedSetpoints[paramId] = value as number;
             }
           });
         }
@@ -1023,16 +1037,16 @@ export default function CascadeOptimizationDashboard() {
         const cascadeTargetId = getTargetVariable();
         if (
           cascadeTargetId &&
-          typeof result.predicted_target === "number" &&
-          Number.isFinite(result.predicted_target)
+          typeof result.best_target_value === "number" &&
+          Number.isFinite(result.best_target_value)
         ) {
-          newProposedSetpoints[cascadeTargetId] = result.predicted_target;
-          cascadeOptStore.setPredictedTarget(result.predicted_target);
+          newProposedSetpoints[cascadeTargetId] = result.best_target_value;
+          cascadeOptStore.setPredictedTarget(result.best_target_value);
           // Update the test prediction target for the target trend component
-          setTestPredictionTarget(result.predicted_target);
+          setTestPredictionTarget(result.best_target_value);
           console.log(
             "✅ Updated target setpoint to:",
-            result.predicted_target
+            result.best_target_value
           );
         }
 
@@ -1056,11 +1070,7 @@ export default function CascadeOptimizationDashboard() {
         }
 
         toast.success(
-          `Cascade optimization completed! Target: ${
-            result.predicted_target?.toFixed(3) || "N/A"
-          } ${
-            result.is_feasible ? "✓" : "⚠️"
-          } (${result.duration_seconds?.toFixed(1)}s)`,
+          `Target-driven optimization completed! Success rate: ${(result.success_rate * 100).toFixed(1)}% (${result.successful_trials}/${result.total_trials} trials) - Target: ${result.best_target_value?.toFixed(3)} ${result.target_achieved ? "✓" : "⚠️"} (${result.optimization_time?.toFixed(1)}s)`,
           { id: loadingToast }
         );
       } else {
@@ -1731,9 +1741,27 @@ export default function CascadeOptimizationDashboard() {
                             varType: varType,
                           };
 
+                          // Get distribution bounds for shading if available
+                          const distributionBounds = (() => {
+                            if (currentTargetResults) {
+                              const mvDist = cascadeOptStore.parameterDistributions.mv_distributions[parameter.id];
+                              const cvDist = cascadeOptStore.parameterDistributions.cv_distributions[parameter.id];
+                              const dist = mvDist || cvDist;
+                              
+                              if (dist && dist.percentiles) {
+                                // Use 90% confidence interval (5th to 95th percentile)
+                                return [
+                                  dist.percentiles['5.0'] || dist.min_value,
+                                  dist.percentiles['95.0'] || dist.max_value
+                                ] as [number, number];
+                              }
+                            }
+                            return undefined;
+                          })();
+
                           return (
                             <ParameterCascadeOptimizationCard
-                              key={`${modelName}-${parameter.id}`}
+                              key={parameter.id}
                               parameter={cascadeParameter}
                               bounds={bounds as [number, number]}
                               rangeValue={rangeValue as [number, number]}
@@ -1743,6 +1771,7 @@ export default function CascadeOptimizationDashboard() {
                                   ? proposedValue
                                   : undefined
                               }
+                              distributionBounds={distributionBounds}
                               onRangeChange={(
                                 id: string,
                                 newRange: [number, number]
