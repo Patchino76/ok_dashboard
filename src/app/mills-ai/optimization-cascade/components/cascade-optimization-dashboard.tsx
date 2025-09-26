@@ -957,7 +957,12 @@ export default function CascadeOptimizationDashboard() {
       // Configure the cascade optimization store for target-driven mode
       cascadeOptStore.setMillNumber(currentMill);
       cascadeOptStore.setTargetVariable(targetVariable);
+      
+      // CRITICAL: Ensure we use the current slider value as the target
+      console.log("🎯 Current targetSetpoint from slider:", targetSetpoint);
+      console.log("🎯 Current store targetValue before update:", useCascadeOptimizationStore.getState().targetValue);
       cascadeOptStore.setTargetValue(targetSetpoint); // Use slider SP as target value
+      console.log("🎯 Store targetValue after update:", useCascadeOptimizationStore.getState().targetValue);
       cascadeOptStore.setTolerance(0.01); // ±1% tolerance
       cascadeOptStore.setTargetDrivenMode(true);
 
@@ -1741,19 +1746,21 @@ export default function CascadeOptimizationDashboard() {
                             varType: varType,
                           };
 
-                          // Get distribution bounds for shading if available
-                          const distributionBounds = (() => {
+                          // Get distribution bounds and median for shading if available
+                          const distributionData = (() => {
                             if (currentTargetResults) {
                               const mvDist = cascadeOptStore.parameterDistributions.mv_distributions[parameter.id];
                               const cvDist = cascadeOptStore.parameterDistributions.cv_distributions[parameter.id];
                               const dist = mvDist || cvDist;
                               
                               if (dist && dist.percentiles) {
-                                // Use 90% confidence interval (5th to 95th percentile)
-                                return [
-                                  dist.percentiles['5.0'] || dist.min_value,
-                                  dist.percentiles['95.0'] || dist.max_value
-                                ] as [number, number];
+                                return {
+                                  bounds: [
+                                    dist.percentiles['5.0'] || dist.min_value,
+                                    dist.percentiles['95.0'] || dist.max_value
+                                  ] as [number, number],
+                                  median: dist.median
+                                };
                               }
                             }
                             return undefined;
@@ -1771,7 +1778,8 @@ export default function CascadeOptimizationDashboard() {
                                   ? proposedValue
                                   : undefined
                               }
-                              distributionBounds={distributionBounds}
+                              distributionBounds={distributionData?.bounds}
+                              distributionMedian={distributionData?.median}
                               onRangeChange={(
                                 id: string,
                                 newRange: [number, number]

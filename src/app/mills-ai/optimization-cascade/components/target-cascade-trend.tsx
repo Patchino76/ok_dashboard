@@ -65,18 +65,33 @@ TargetFractionDisplayProps) {
   const setDisplayHours = useXgboostStore((state) => state.setDisplayHours);
   const fetchRealTimeData = useXgboostStore((state) => state.fetchRealTimeData);
 
-  const [targetSetpoint, setTargetSetpoint] = useState<number>(() => {
-    const targets = getTargets();
-    const id = targetVariable || "PSI80";
-    let target = targets.find((t) => t.id === id);
-    if (!target) {
-      target = (millsParameters as any).find((p: any) => p.id === id);
+  // Get target setpoint from cascade store instead of local state
+  const targetSetpoint = useCascadeOptimizationStore((state) => state.targetSetpoint);
+  const setTargetSetpoint = useCascadeOptimizationStore((state) => state.setTargetSetpoint);
+
+  // Initialize target setpoint in store if needed
+  const [isInitialized, setIsInitialized] = useState(false);
+  useEffect(() => {
+    if (!isInitialized) {
+      const targets = getTargets();
+      const id = targetVariable || "PSI80";
+      let target = targets.find((t) => t.id === id);
+      if (!target) {
+        target = (millsParameters as any).find((p: any) => p.id === id);
+      }
+      
+      let initialValue = 50.0;
+      if (target && typeof target.min === "number" && typeof target.max === "number") {
+        initialValue = (target.min + target.max) / 2;
+      }
+      
+      // Only set if the store value is still default
+      if (targetSetpoint === 50.0) {
+        setTargetSetpoint(initialValue);
+      }
+      setIsInitialized(true);
     }
-    if (target && typeof target.min === "number" && typeof target.max === "number") {
-      return (target.min + target.max) / 2;
-    }
-    return 50.0;
-  });
+  }, [targetVariable, isInitialized, targetSetpoint, setTargetSetpoint]);
 
   // Resolve target default bounds from configuration
   const targetParam = useMemo(() => {
@@ -331,7 +346,10 @@ TargetFractionDisplayProps) {
                   value={[
                     typeof targetSetpoint === "number" ? targetSetpoint : 0,
                   ]}
-                  onValueChange={(v) => setTargetSetpoint(v[0])}
+                  onValueChange={(v) => {
+                    console.log("🎯 Slider changed to:", v[0]);
+                    setTargetSetpoint(v[0]);
+                  }}
                   min={
                     typeof targetParam?.min === "number" ? targetParam.min : 0
                   }

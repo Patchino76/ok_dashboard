@@ -26,6 +26,7 @@ interface ParameterCascadeOptimizationCardProps {
   isSimulationMode?: boolean;
   proposedSetpoint?: number;
   distributionBounds?: [number, number]; // 90% confidence interval from target-driven optimization
+  distributionMedian?: number; // Median value from target-driven optimization
   onRangeChange: (id: string, range: [number, number]) => void;
 }
 
@@ -36,6 +37,7 @@ export function ParameterCascadeOptimizationCard({
   isSimulationMode = true,
   proposedSetpoint,
   distributionBounds,
+  distributionMedian,
   onRangeChange,
 }: ParameterCascadeOptimizationCardProps) {
   // Get displayHours from the store to filter trend data
@@ -376,14 +378,6 @@ export function ParameterCascadeOptimizationCard({
                       }}
                       itemStyle={{ color: "#e5e7eb" }}
                     />
-                    {/* Optimization Range Shaded Area - Use variable type color */}
-                    <ReferenceArea
-                      y1={range[0]}
-                      y2={range[1]}
-                      fill={vt.accentColor}
-                      fillOpacity={0.15}
-                      ifOverflow="extendDomain"
-                    />
                     {/* Distribution Bounds Shading - 90% confidence interval from target-driven optimization */}
                     {distributionBounds && (
                       <ReferenceArea
@@ -392,9 +386,16 @@ export function ParameterCascadeOptimizationCard({
                         fill={parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"} // amber for MV, blue for CV
                         fillOpacity={0.25}
                         ifOverflow="extendDomain"
-                        stroke={parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"}
-                        strokeWidth={1}
-                        strokeDasharray="3 3"
+                      />
+                    )}
+                    {/* Distribution Median Line - thin dotted line darker than shading */}
+                    {typeof distributionMedian === "number" && (
+                      <ReferenceLine
+                        y={distributionMedian}
+                        stroke={parameter.varType === "MV" ? "#d97706" : "#2563eb"} // darker amber/blue than shading
+                        strokeWidth={1.5}
+                        strokeDasharray="2 2"
+                        ifOverflow="extendDomain"
                       />
                     )}
                     <Line

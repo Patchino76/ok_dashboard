@@ -248,7 +248,8 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
 
         // Get target optimization configuration from store
         const config = getTargetOptimizationConfig();
-        console.log("Starting target-driven optimization with config:", config);
+        console.log("🎯 Starting target-driven optimization with config:", config);
+        console.log("🎯 Target value from config:", config.target_value);
 
         // Start target optimization in store
         startTargetOptimization(config);
@@ -265,6 +266,9 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
           n_trials: config.n_trials,
           confidence_level: config.confidence_level,
         };
+
+        console.log("🎯 Sending target-driven optimization request to API:", request);
+        console.log("🎯 API request target_value:", request.target_value);
 
         // Call the target-driven optimization API
         const response = await mlApiClient.post<TargetDrivenOptimizationApiResponse>(
