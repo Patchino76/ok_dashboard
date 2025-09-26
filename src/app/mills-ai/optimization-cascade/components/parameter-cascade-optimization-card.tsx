@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
@@ -48,9 +48,13 @@ export default function ParameterCascadeOptimizationCard({
   // Local state for range values
   const [range, setRange] = useState<[number, number]>(rangeValue);
   const [sliderValue, setSliderValue] = useState<number>(parameter.sliderSP || parameter.value);
+  const [isPredicting, setIsPredicting] = useState(false);
   
   // Check if this is a lab parameter (DV = Disturbance Variable)
   const isLabParameter = parameter.varType === "DV";
+  
+  // Debounce timer ref
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Update local state when prop changes
   useEffect(() => {
@@ -89,7 +93,40 @@ export default function ParameterCascadeOptimizationCard({
     onRangeChange(parameter.id, newRange);
   };
 
-  // Handle slider SP change - this is the key event handler for our simulation
+  // Cascade prediction function
+  const callCascadePrediction = async (mvValues: Record<string, number>) => {
+    try {
+      setIsPredicting(true);
+      console.log("🔮 Calling cascade prediction with MV values:", mvValues);
+      
+      // TODO: Replace with actual cascade prediction API call
+      // For now, simulate prediction with a mock response
+      const mockPrediction = {
+        predicted_target: 23.5 + Math.random() * 3, // Simulate PSI200 prediction
+        predicted_cvs: {
+          PressureHC: 450 + Math.random() * 50,
+          DensityHC: 1.2 + Math.random() * 0.3,
+          PulpHC: 500 + Math.random() * 100
+        }
+      };
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      console.log("✅ Cascade prediction result:", mockPrediction);
+      
+      // TODO: Update SP display with prediction result
+      // This will be connected to the SP display component
+      
+      return mockPrediction;
+    } catch (error) {
+      console.error("❌ Cascade prediction failed:", error);
+    } finally {
+      setIsPredicting(false);
+    }
+  };
+
+  // Handle slider SP change with debounced prediction
   const handleSliderChange = (value: number) => {
     // Update local state immediately for smooth UI
     setSliderValue(value);
@@ -97,15 +134,39 @@ export default function ParameterCascadeOptimizationCard({
     // Update the store with the new slider SP value
     updateSliderSP(parameter.id, value);
     
-    // If this is an MV parameter, log all MV slider values
+    // If this is an MV parameter, trigger debounced prediction
     if (parameter.varType === "MV") {
-      // Get all current MV slider values after this update
-      setTimeout(() => {
+      // Clear existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      // Set new timer for debounced prediction
+      debounceTimerRef.current = setTimeout(async () => {
         const mvValues = getMVSliderValues();
-        console.log("🎛️ MV Slider Values:", mvValues);
-      }, 0); // Use setTimeout to ensure store is updated first
+        console.log("🎛️ MV Slider Values (triggering prediction):", mvValues);
+        
+        // Only call prediction if we have all required MV values
+        const requiredMVs = ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"];
+        const hasAllMVs = requiredMVs.every(mv => mvValues[mv] !== undefined);
+        
+        if (hasAllMVs) {
+          await callCascadePrediction(mvValues);
+        } else {
+          console.warn("⚠️ Missing some MV values, skipping prediction");
+        }
+      }, 500); // 500ms debounce delay
     }
   };
+  
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   // Format time for tooltip
   const formatTime = (timestamp: number) => {
@@ -314,14 +375,19 @@ export default function ParameterCascadeOptimizationCard({
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              Optimization Value
+            <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              Setpoint Target (SP)
+              {isPredicting && (
+                <div className="animate-spin h-3 w-3 border border-slate-400 border-t-transparent rounded-full"></div>
+              )}
             </div>
             <div
               className="text-2xl font-bold flex items-center gap-1"
               style={{ color: vt.accentColor }}
             >
-              {typeof distributionMedian === "number"
+              {isPredicting 
+                ? "..." 
+                : typeof distributionMedian === "number"
                 ? distributionMedian.toFixed(2)
                 : typeof proposedSetpoint === "number"
                 ? proposedSetpoint.toFixed(2)
