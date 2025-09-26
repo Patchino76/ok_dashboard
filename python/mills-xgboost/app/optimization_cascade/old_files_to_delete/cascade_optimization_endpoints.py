@@ -62,8 +62,8 @@ class OptimizationRequest(BaseModel):
     adaptive_bounds: bool = Field(True, description="Enable adaptive parameter bounds")
     
     # Target bounds
-    target_min: Optional[float] = Field(10.0, description="Minimum target value")
-    target_max: Optional[float] = Field(40.0, description="Maximum target value")
+    target_min: Optional[float] = Field(15, description="Minimum target value")
+    target_max: Optional[float] = Field(35, description="Maximum target value")
 
 class OptimizationResponse(BaseModel):
     """Response model for optimization results"""

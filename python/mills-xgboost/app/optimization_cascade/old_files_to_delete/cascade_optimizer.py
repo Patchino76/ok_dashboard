@@ -78,7 +78,7 @@ class CascadeOptimizationObjective:
         self.model_manager = model_manager
         self.config = config
         self.dv_values = dv_values
-        self.target_bounds = target_bounds or (10.0, 40.0)  # PSI200 bounds
+        self.target_bounds = target_bounds or (15, 35)  # PSI200 bounds
         
         self.classifier = VariableClassifier()
         self.mvs = [mv.id for mv in self.classifier.get_mvs()]

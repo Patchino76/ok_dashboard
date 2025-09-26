@@ -3,8 +3,8 @@
 import React, {
   useState,
   useEffect,
-  useRef,
   useMemo,
+  useRef,
   useCallback,
 } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -351,6 +351,9 @@ export default function CascadeOptimizationDashboard() {
     improvementScore,
   } = useOptimizationResults();
 
+  const lastPredictionTimestampRef = useRef<number | null>(null);
+  const isPredictingFromRealTimeRef = useRef(false);
+
   // Job history state for advanced optimization
   const [jobHistory, setJobHistory] = useState<OptimizationJob[]>([]);
 
@@ -379,6 +382,72 @@ export default function CascadeOptimizationDashboard() {
   const [testPredictionTarget, setTestPredictionTarget] = useState<
     number | null
   >(null);
+
+  useEffect(() => {
+    if (
+      !modelInfo?.featureClassification ||
+      !parameters ||
+      parameters.length === 0 ||
+      !targetData ||
+      targetData.length === 0
+    ) {
+      return;
+    }
+
+    const latestPoint = targetData[targetData.length - 1];
+    if (!latestPoint || typeof latestPoint.timestamp !== "number") {
+      return;
+    }
+
+    if (
+      lastPredictionTimestampRef.current &&
+      latestPoint.timestamp <= lastPredictionTimestampRef.current
+    ) {
+      return;
+    }
+
+    if (isPredictingFromRealTimeRef.current) {
+      return;
+    }
+
+    const mvValues: Record<string, number> = {};
+    const dvValues: Record<string, number> = {};
+
+    parameters.forEach((param) => {
+      if (param.varType === "MV") {
+        mvValues[param.id] = param.value;
+      } else if (param.varType === "DV") {
+        dvValues[param.id] = param.value;
+      }
+    });
+
+    if (Object.keys(mvValues).length === 0) {
+      return;
+    }
+
+    isPredictingFromRealTimeRef.current = true;
+
+    (async () => {
+      try {
+        const prediction = await predictCascade(mvValues, dvValues);
+        if (
+          prediction &&
+          typeof prediction.predicted_target === "number" &&
+          Number.isFinite(prediction.predicted_target)
+        ) {
+          setTestPredictionTarget(prediction.predicted_target);
+          lastPredictionTimestampRef.current = latestPoint.timestamp;
+        }
+      } catch (error) {
+        console.error(
+          "❌ Failed to update cascade prediction from real-time PV data:",
+          error
+        );
+      } finally {
+        isPredictingFromRealTimeRef.current = false;
+      }
+    })();
+  }, [modelInfo?.featureClassification, parameters, predictCascade, targetData]);
 
   // Trigger trend data update when optimization tab is activated
   useEffect(() => {

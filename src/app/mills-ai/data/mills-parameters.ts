@@ -1,6 +1,6 @@
 // mills-parameters.ts - Unified parameter definitions and utilities for Mills-AI components
-import { create } from "zustand"
-import { ModelParameter } from "../types/parameters"
+import { create } from "zustand";
+import { ModelParameter } from "../types/parameters";
 
 /**
  * Default list of model parameters with Bulgarian names and descriptions
@@ -23,7 +23,7 @@ export const parameterIcons: Record<string, string> = {
   FE: "🔢",
   PSI80: "🎯",
   PSI200: "🎯",
-}
+};
 
 // Colors for parameters
 export const parameterColors: Record<string, string> = {
@@ -41,8 +41,8 @@ export const parameterColors: Record<string, string> = {
   Class_15: "rose",
   FE: "rose",
   PSI80: "green",
-  PSI200: "green"
-}
+  PSI200: "green",
+};
 
 // Helper function to calculate 10% inside ranges
 const calculateDefaultRange = (min: number, max: number): [number, number] => {
@@ -256,7 +256,7 @@ export const millsParameters: ModelParameter[] = [
     enabled: false,
     filterEnabled: true, // Enabled by default for targets
     min: 40,
-    max: 60.0,
+    max: 60,
     currentMin: calculateDefaultRange(40.0, 60.0)[0],
     currentMax: calculateDefaultRange(40.0, 60.0)[1],
     unit: "%",
@@ -269,15 +269,15 @@ export const millsParameters: ModelParameter[] = [
     type: "target",
     enabled: true,
     filterEnabled: true, // Enabled by default for targets
-    min: 10,
-    max: 40,
+    min: 15,
+    max: 35,
     currentMin: calculateDefaultRange(10, 40)[0],
     currentMax: calculateDefaultRange(10, 40)[1],
     unit: "%",
     varType: "MV",
     description: "Основна целева стойност - финност на смилане +200 микрона",
   },
-]
+];
 
 // Helper functions for parameters
 export const getParameterDefaultValues = () => {
@@ -295,20 +295,24 @@ export const getParameterBounds = () => {
 };
 
 // Extract just the features or targets
-export const getFeatures = () => millsParameters.filter(p => p.type === "feature");
-export const getTargets = () => millsParameters.filter(p => p.type === "target");
+export const getFeatures = () =>
+  millsParameters.filter((p) => p.type === "feature");
+export const getTargets = () =>
+  millsParameters.filter((p) => p.type === "target");
 
 // Helper to map parameters to the XGBoost store format
 export const mapToStoreParameters = () => {
-  return millsParameters.filter(p => p.type === "feature").map(param => ({
-    id: param.id,
-    name: param.name,
-    unit: param.unit,
-    value: (param.currentMin + param.currentMax) / 2,
-    trend: [] as Array<{ timestamp: number; value: number }>,
-    color: parameterColors[param.id] || "gray",
-    icon: parameterIcons[param.id] || "📊"
-  }));
+  return millsParameters
+    .filter((p) => p.type === "feature")
+    .map((param) => ({
+      id: param.id,
+      name: param.name,
+      unit: param.unit,
+      value: (param.currentMin + param.currentMax) / 2,
+      trend: [] as Array<{ timestamp: number; value: number }>,
+      color: parameterColors[param.id] || "gray",
+      icon: parameterIcons[param.id] || "📊",
+    }));
 };
 
 // Custom hook to use parameters with state

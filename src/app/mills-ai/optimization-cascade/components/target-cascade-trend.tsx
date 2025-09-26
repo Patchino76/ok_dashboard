@@ -13,7 +13,13 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { CheckCircle, AlertTriangle, Target, TrendingUp, RefreshCw } from "lucide-react";
+import {
+  CheckCircle,
+  AlertTriangle,
+  Target,
+  TrendingUp,
+  RefreshCw,
+} from "lucide-react";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import { Slider } from "@/components/ui/slider";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
@@ -59,18 +65,18 @@ TargetFractionDisplayProps) {
   const setDisplayHours = useXgboostStore((state) => state.setDisplayHours);
   const fetchRealTimeData = useXgboostStore((state) => state.fetchRealTimeData);
 
-  // Use hardcoded default target setpoint (no prediction binding)
-  const [targetSetpoint, setTargetSetpoint] = useState<number>(50.0); // Hardcoded default
-
-  // Update target setpoint when a new prediction arrives
-  useEffect(() => {
-    if (
-      typeof predictionSetpoint === "number" &&
-      Number.isFinite(predictionSetpoint)
-    ) {
-      setTargetSetpoint(predictionSetpoint);
+  const [targetSetpoint, setTargetSetpoint] = useState<number>(() => {
+    const targets = getTargets();
+    const id = targetVariable || "PSI80";
+    let target = targets.find((t) => t.id === id);
+    if (!target) {
+      target = (millsParameters as any).find((p: any) => p.id === id);
     }
-  }, [predictionSetpoint]);
+    if (target && typeof target.min === "number" && typeof target.max === "number") {
+      return (target.min + target.max) / 2;
+    }
+    return 50.0;
+  });
 
   // Resolve target default bounds from configuration
   const targetParam = useMemo(() => {
@@ -152,6 +158,15 @@ TargetFractionDisplayProps) {
   };
 
   const pvPercent = toPercent(currentPV);
+  const hasPrediction =
+    typeof predictionSetpoint === "number" &&
+    Number.isFinite(predictionSetpoint);
+  const predictionPercent = hasPrediction
+    ? toPercent(predictionSetpoint)
+    : pvPercent;
+  const predictionDisplayValue = hasPrediction
+    ? predictionSetpoint?.toFixed(1)
+    : currentPV?.toFixed(1) ?? null;
   // Removed spPercent calculation - using targetSetpoint directly
 
   return (
@@ -192,24 +207,60 @@ TargetFractionDisplayProps) {
               <div className="space-y-4">
                 {/* Process Variable (PV) */}
                 <div>
-                  <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Process Variable (PV)
-                  </div>
-                  <div className="mt-1 flex items-end">
-                    <span className="text-4xl font-bold text-emerald-600">
-                      {currentPV?.toFixed(1) || "N/A"}
-                    </span>
-                    <span className="text-lg font-medium text-slate-500 dark:text-slate-400 ml-1">
-                      {targetUnit}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      <span className="text-xs tracking-wide text-slate-500 dark:text-slate-400">
+                        Process Variable (PV)
+                      </span>
+                    </div>
+                    <span className="text-2xl font-semibold leading-none text-emerald-600">
+                      {currentPV?.toFixed(1) || "--"}
+                      <span className="ml-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                        {targetUnit}
+                      </span>
                     </span>
                   </div>
                   {/* PV horizontal gauge */}
-                  <div className="mt-2">
-                    <div className="relative h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700">
-                      <div
-                        className="absolute left-0 top-0 h-full rounded-full bg-emerald-500"
-                        style={{ width: `${pvPercent}%` }}
-                      />
+                  <div className="mt-3">
+                    <div className="flex flex-col gap-1">
+                      <div className="relative h-3 w-full rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                        <div
+                          className="absolute left-0 top-0 h-full bg-emerald-500"
+                          style={{ width: `${pvPercent}%` }}
+                        />
+                      </div>
+                      <div className="h-px w-full bg-slate-200 dark:bg-slate-600" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                          <span className="text-xs tracking-wide text-slate-500 dark:text-slate-400">
+                            Cascade Prediction
+                          </span>
+                        </div>
+                        <span
+                          className={`text-2xl font-semibold leading-none ${
+                            hasPrediction ? "text-amber-600" : "text-slate-400"
+                          }`}
+                        >
+                          {predictionDisplayValue ? (
+                            <>
+                              {predictionDisplayValue}
+                              <span className="ml-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                {targetUnit}
+                              </span>
+                            </>
+                          ) : (
+                            "--"
+                          )}
+                        </span>
+                      </div>
+                      <div className="relative h-3 w-full rounded-full bg-slate-200/80 dark:bg-slate-700/70 overflow-hidden">
+                        <div
+                          className="absolute left-0 top-0 h-full bg-amber-400"
+                          style={{ width: `${predictionPercent}%` }}
+                        />
+                      </div>
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
                       <span>
@@ -329,7 +380,9 @@ TargetFractionDisplayProps) {
                     variant="outline"
                     className="px-2"
                     onClick={() => {
-                      console.log('🔄 Manual refresh triggered from cascade target trend');
+                      console.log(
+                        "🔄 Manual refresh triggered from cascade target trend"
+                      );
                       fetchRealTimeData();
                     }}
                   >
