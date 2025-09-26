@@ -327,12 +327,12 @@ export default function CascadeOptimizationDashboard() {
   // Additional cascade optimization store reference for specific operations
   const cascadeOptStore = cascadeStore;
 
-  const { 
-    startCascadeOptimization, 
+  const {
+    startCascadeOptimization,
     startTargetDrivenOptimization,
-    isOptimizing, 
+    isOptimizing,
     error,
-    currentTargetResults 
+    currentTargetResults,
   } = useCascadeOptimization();
 
   // Advanced optimization hook
@@ -947,7 +947,9 @@ export default function CascadeOptimizationDashboard() {
   const handleStartOptimization = async () => {
     if (isOptimizing || !modelMetadata) return;
 
-    const loadingToast = toast.loading("Starting target-driven optimization...");
+    const loadingToast = toast.loading(
+      "Starting target-driven optimization..."
+    );
 
     try {
       // Get feature classification from loaded cascade model
@@ -957,12 +959,18 @@ export default function CascadeOptimizationDashboard() {
       // Configure the cascade optimization store for target-driven mode
       cascadeOptStore.setMillNumber(currentMill);
       cascadeOptStore.setTargetVariable(targetVariable);
-      
+
       // CRITICAL: Ensure we use the current slider value as the target
       console.log("🎯 Current targetSetpoint from slider:", targetSetpoint);
-      console.log("🎯 Current store targetValue before update:", useCascadeOptimizationStore.getState().targetValue);
+      console.log(
+        "🎯 Current store targetValue before update:",
+        useCascadeOptimizationStore.getState().targetValue
+      );
       cascadeOptStore.setTargetValue(targetSetpoint); // Use slider SP as target value
-      console.log("🎯 Store targetValue after update:", useCascadeOptimizationStore.getState().targetValue);
+      console.log(
+        "🎯 Store targetValue after update:",
+        useCascadeOptimizationStore.getState().targetValue
+      );
       cascadeOptStore.setTolerance(0.01); // ±1% tolerance
       cascadeOptStore.setTargetDrivenMode(true);
 
@@ -1075,7 +1083,13 @@ export default function CascadeOptimizationDashboard() {
         }
 
         toast.success(
-          `Target-driven optimization completed! Success rate: ${(result.success_rate * 100).toFixed(1)}% (${result.successful_trials}/${result.total_trials} trials) - Target: ${result.best_target_value?.toFixed(3)} ${result.target_achieved ? "✓" : "⚠️"} (${result.optimization_time?.toFixed(1)}s)`,
+          `Target-driven optimization completed! Success rate: ${(
+            result.success_rate * 100
+          ).toFixed(1)}% (${result.successful_trials}/${
+            result.total_trials
+          } trials) - Target: ${result.best_target_value?.toFixed(3)} ${
+            result.target_achieved ? "✓" : "⚠️"
+          } (${result.optimization_time?.toFixed(1)}s)`,
           { id: loadingToast }
         );
       } else {
@@ -1749,17 +1763,21 @@ export default function CascadeOptimizationDashboard() {
                           // Get distribution bounds and median for shading if available
                           const distributionData = (() => {
                             if (currentTargetResults) {
-                              const mvDist = cascadeOptStore.parameterDistributions.mv_distributions[parameter.id];
-                              const cvDist = cascadeOptStore.parameterDistributions.cv_distributions[parameter.id];
+                              const mvDist =
+                                cascadeOptStore.parameterDistributions
+                                  .mv_distributions[parameter.id];
+                              const cvDist =
+                                cascadeOptStore.parameterDistributions
+                                  .cv_distributions[parameter.id];
                               const dist = mvDist || cvDist;
-                              
+
                               if (dist && dist.percentiles) {
                                 return {
                                   bounds: [
-                                    dist.percentiles['5.0'] || dist.min_value,
-                                    dist.percentiles['95.0'] || dist.max_value
+                                    dist.percentiles["5.0"] || dist.min_value,
+                                    dist.percentiles["95.0"] || dist.max_value,
                                   ] as [number, number],
-                                  median: dist.median
+                                  median: dist.median,
                                 };
                               }
                             }

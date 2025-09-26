@@ -383,7 +383,9 @@ export function ParameterCascadeOptimizationCard({
                       <ReferenceArea
                         y1={distributionBounds[0]}
                         y2={distributionBounds[1]}
-                        fill={parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"} // amber for MV, blue for CV
+                        fill={
+                          parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"
+                        } // amber for MV, blue for CV
                         fillOpacity={0.25}
                         ifOverflow="extendDomain"
                       />
@@ -392,7 +394,9 @@ export function ParameterCascadeOptimizationCard({
                     {typeof distributionMedian === "number" && (
                       <ReferenceLine
                         y={distributionMedian}
-                        stroke={parameter.varType === "MV" ? "#d97706" : "#2563eb"} // darker amber/blue than shading
+                        stroke={
+                          parameter.varType === "MV" ? "#d97706" : "#2563eb"
+                        } // darker amber/blue than shading
                         strokeWidth={1.5}
                         strokeDasharray="2 2"
                         ifOverflow="extendDomain"
