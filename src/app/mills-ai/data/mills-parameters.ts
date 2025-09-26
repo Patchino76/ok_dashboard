@@ -260,7 +260,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(40.0, 60.0)[0],
     currentMax: calculateDefaultRange(40.0, 60.0)[1],
     unit: "%",
-    varType: "MV",
+    varType: "TARGET", // Target variable, not MV
     description: "Класификация на размерите на частиците при 80 микрона",
   },
   {
@@ -274,7 +274,7 @@ export const millsParameters: ModelParameter[] = [
     currentMin: calculateDefaultRange(10, 40)[0],
     currentMax: calculateDefaultRange(10, 40)[1],
     unit: "%",
-    varType: "MV",
+    varType: "TARGET", // Target variable, not MV
     description: "Основна целева стойност - финност на смилане +200 микрона",
   },
 ];

@@ -15,6 +15,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useXgboostStore } from "../../stores/xgboost-store";
+import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { DoubleRangeSlider } from "../../components/double-range-slider";
 
 import { CascadeParameter } from ".";
@@ -25,41 +26,41 @@ interface ParameterCascadeOptimizationCardProps {
   rangeValue: [number, number];
   isSimulationMode?: boolean;
   proposedSetpoint?: number;
-  distributionBounds?: [number, number]; // 90% confidence interval from target-driven optimization
+  distributionBounds?: [number, number]; // Distribution bounds for shading
   distributionMedian?: number; // Median value from target-driven optimization
-  distributionMean?: number; // Mean value from target-driven optimization
   onRangeChange: (id: string, range: [number, number]) => void;
 }
 
-export function ParameterCascadeOptimizationCard({
+export default function ParameterCascadeOptimizationCard({
   parameter,
   bounds,
   rangeValue,
-  isSimulationMode = true,
+  isSimulationMode = false,
   proposedSetpoint,
+  onRangeChange,
   distributionBounds,
   distributionMedian,
-  distributionMean,
-  onRangeChange,
 }: ParameterCascadeOptimizationCardProps) {
-  // Get displayHours from the store to filter trend data
+  // Store hooks
+  const { updateSliderSP, getMVSliderValues } = useCascadeOptimizationStore();
   const displayHours = useXgboostStore((state) => state.displayHours);
-  // Check if this is a lab parameter (DV = Disturbance Variable)
-  const isLabParameter = parameter.varType === "DV";
-
+  
   // Local state for range values
   const [range, setRange] = useState<[number, number]>(rangeValue);
-  const [sliderValue, setSliderValue] = useState<number>(parameter.value);
+  const [sliderValue, setSliderValue] = useState<number>(parameter.sliderSP || parameter.value);
+  
+  // Check if this is a lab parameter (DV = Disturbance Variable)
+  const isLabParameter = parameter.varType === "DV";
 
   // Update local state when prop changes
   useEffect(() => {
     setRange(rangeValue);
   }, [rangeValue]);
 
-  // Reset slider when parameter changes
+  // Reset slider when parameter changes - use sliderSP if available
   useEffect(() => {
-    setSliderValue(parameter.value);
-  }, [parameter.id]);
+    setSliderValue(parameter.sliderSP || parameter.value);
+  }, [parameter.id, parameter.sliderSP]);
 
   // Prevent slider from drifting outside updated range
   useEffect(() => {
@@ -86,6 +87,24 @@ export function ParameterCascadeOptimizationCard({
     setRange(newRange);
     // Always propagate to parent so bounds stay in sync with sliders
     onRangeChange(parameter.id, newRange);
+  };
+
+  // Handle slider SP change - this is the key event handler for our simulation
+  const handleSliderChange = (value: number) => {
+    // Update local state immediately for smooth UI
+    setSliderValue(value);
+    
+    // Update the store with the new slider SP value
+    updateSliderSP(parameter.id, value);
+    
+    // If this is an MV parameter, log all MV slider values
+    if (parameter.varType === "MV") {
+      // Get all current MV slider values after this update
+      setTimeout(() => {
+        const mvValues = getMVSliderValues();
+        console.log("🎛️ MV Slider Values:", mvValues);
+      }, 0); // Use setTimeout to ensure store is updated first
+    }
   };
 
   // Format time for tooltip
@@ -302,8 +321,8 @@ export function ParameterCascadeOptimizationCard({
               className="text-2xl font-bold flex items-center gap-1"
               style={{ color: vt.accentColor }}
             >
-              {typeof distributionMean === "number"
-                ? distributionMean.toFixed(2)
+              {typeof distributionMedian === "number"
+                ? distributionMedian.toFixed(2)
                 : typeof proposedSetpoint === "number"
                 ? proposedSetpoint.toFixed(2)
                 : "--"}
@@ -315,24 +334,11 @@ export function ParameterCascadeOptimizationCard({
         {/* Trend Chart - Show for process parameters even if no trend points to keep SP/shading visible */}
         {!isLabParameter &&
           (() => {
-            // Debug trend data
-            console.log(`📊 Parameter ${parameter.id} trend data:`, {
-              trendLength: parameter.trend.length,
-              displayHours,
-              trendSample: parameter.trend.slice(0, 3),
-            });
-
             // Filter trend data based on current displayHours
             const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
             const filteredTrend = parameter.trend.filter(
               (item) => item.timestamp >= hoursAgo
             );
-
-            console.log(`📊 Filtered trend for ${parameter.id}:`, {
-              originalLength: parameter.trend.length,
-              filteredLength: filteredTrend.length,
-              hoursAgo: new Date(hoursAgo).toISOString(),
-            });
 
             // Calculate Y-axis domain to include data, optimization bounds, and proposed setpoint
             let yMin: number;
@@ -381,7 +387,7 @@ export function ParameterCascadeOptimizationCard({
                         max={range[1]}
                         step={sliderStep}
                         value={[sliderValue]}
-                        onValueChange={([value]) => setSliderValue(value)}
+                        onValueChange={([value]) => handleSliderChange(value)}
                         className="h-full"
                       />
                       <div className="ml--3 w-10 text-sm text-center font-medium">

@@ -12,7 +12,7 @@ interface Parameter {
   trend: Array<{ timestamp: number; value: number }>;
   color: string;
   icon: string;
-  varType?: "MV" | "CV" | "DV";
+  varType?: "MV" | "CV" | "DV" | "TARGET";
 }
 
 interface TargetData {

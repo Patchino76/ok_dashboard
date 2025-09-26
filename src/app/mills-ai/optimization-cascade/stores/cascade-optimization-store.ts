@@ -8,6 +8,7 @@ export interface CascadeParameter {
   name: string;
   unit: string;
   value: number;
+  sliderSP: number; // Slider setpoint value for simulation
   trend: Array<{ timestamp: number; value: number }>;
   color: string;
   icon: string;
@@ -161,7 +162,7 @@ export interface CascadeOptimizationState {
   // Parameter state
   parameters: CascadeParameter[];
   parameterBounds: Record<string, [number, number]>;
-  sliderValues: Record<string, number>;
+  sliderValues: Record<string, number>; // Legacy - keeping for compatibility
 
   // Target state
   currentTarget: number;
@@ -232,6 +233,7 @@ export interface CascadeOptimizationState {
 
   // Parameter actions
   updateSliderValue: (id: string, value: number) => void;
+  updateSliderSP: (id: string, value: number) => void; // New action for slider SP
   updateParameterFromRealData: (
     id: string,
     value: number,
@@ -239,6 +241,7 @@ export interface CascadeOptimizationState {
   ) => void;
   resetFeatures: () => void;
   resetSliders: () => void;
+  getMVSliderValues: () => Record<string, number>; // Get all MV slider values
 
   // Target actions
   setPredictedTarget: (value: number) => void;
@@ -312,11 +315,15 @@ const initialState = {
   availableModels: {},
 
   // Parameter state
-  parameters: millsParameters.map((param) => ({
-    ...param,
-    trend: [],
-    varType: undefined,
-  })),
+  parameters: millsParameters.map((param) => {
+    const midValue = (param.min + param.max) / 2;
+    return {
+      ...param,
+      trend: [],
+      // Keep the original varType from millsParameters (MV, CV, DV)
+      sliderSP: midValue, // Initialize slider SP to midpoint
+    };
+  }),
   parameterBounds: millsParameters.reduce((acc, param) => {
     acc[param.id] = [param.min, param.max];
     return acc;
@@ -819,6 +826,18 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         );
       },
 
+      updateSliderSP: (id: string, value: number) => {
+        set(
+          (state) => ({
+            parameters: state.parameters.map((param) =>
+              param.id === id ? { ...param, sliderSP: value } : param
+            ),
+          }),
+          false,
+          "updateSliderSP"
+        );
+      },
+
       updateParameterFromRealData: (
         id: string,
         value: number,
@@ -877,11 +896,37 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
               return acc;
             }, {} as Record<string, number>);
 
-            return { sliderValues: resetSliderValues };
+            // Also reset sliderSP values
+            const resetParameters = state.parameters.map((param) => {
+              const bounds = state.parameterBounds[param.id] || [
+                param.value,
+                param.value,
+              ];
+              const midValue = (bounds[0] + bounds[1]) / 2;
+              return { ...param, sliderSP: midValue };
+            });
+
+            return { 
+              sliderValues: resetSliderValues,
+              parameters: resetParameters
+            };
           },
           false,
           "resetSliders"
         );
+      },
+
+      getMVSliderValues: (): Record<string, number> => {
+        const { parameters } = get();
+        const mvSliderValues: Record<string, number> = {};
+        
+        parameters.forEach((param) => {
+          if (param.varType === "MV") {
+            mvSliderValues[param.id] = param.sliderSP;
+          }
+        });
+        
+        return mvSliderValues;
       },
 
       // Target actions

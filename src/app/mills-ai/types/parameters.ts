@@ -21,8 +21,8 @@ export interface ModelParameter {
   currentMin: number;
   /** Current maximum value selected for training/prediction */
   currentMax: number;
-  /** Variable type: MV (Manipulated), CV (Controlled), DV (Disturbance) */
-  varType: "MV" | "CV" | "DV";
+  /** Variable type: MV (Manipulated), CV (Controlled), DV (Disturbance), TARGET (Target/Output) */
+  varType: "MV" | "CV" | "DV" | "TARGET";
   /** Measurement unit (e.g., t/h, m³/h) */
   unit: string;
   /** Description of the parameter in Bulgarian */
