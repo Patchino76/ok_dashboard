@@ -265,15 +265,15 @@ const initialState = {
   // Configuration defaults
   millNumber: 7,
   targetVariable: "PSI200",
-  targetSetpoint: 50.0,
+  targetSetpoint: 25.0,
   maximize: false, // Typically minimize PSI for better quality
-  nTrials: 50,
+  nTrials: 300,
   timeoutSeconds: 300, // 5 minutes
 
   // Target-driven optimization defaults
   targetValue: 23.0, // Default target PSI200 value
   tolerance: 0.01, // ±1% tolerance
-  confidenceLevel: 0.90, // 90% confidence intervals
+  confidenceLevel: 0.9, // 90% confidence intervals
   isTargetDrivenMode: false, // Start with regular optimization
 
   // Parameter bounds (will be populated from model metadata)
@@ -570,10 +570,10 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
       addToTargetHistory: (results: TargetDrivenOptimizationResult) => {
         set(
           (state) => ({
-            targetOptimizationHistory: [results, ...state.targetOptimizationHistory].slice(
-              0,
-              50
-            ), // Keep last 50 results
+            targetOptimizationHistory: [
+              results,
+              ...state.targetOptimizationHistory,
+            ].slice(0, 50), // Keep last 50 results
           }),
           false,
           "addToTargetHistory"
@@ -584,7 +584,11 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         mv_distributions: Record<string, ParameterDistribution>;
         cv_distributions: Record<string, ParameterDistribution>;
       }) => {
-        set({ parameterDistributions: distributions }, false, "setParameterDistributions");
+        set(
+          { parameterDistributions: distributions },
+          false,
+          "setParameterDistributions"
+        );
       },
 
       clearTargetResults: () => {
@@ -682,7 +686,14 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
       },
 
       hasValidTargetConfiguration: (): boolean => {
-        const { mvBounds, cvBounds, dvValues, targetVariable, targetValue, tolerance } = get();
+        const {
+          mvBounds,
+          cvBounds,
+          dvValues,
+          targetVariable,
+          targetValue,
+          tolerance,
+        } = get();
         return (
           Object.keys(mvBounds).length > 0 &&
           Object.keys(cvBounds).length > 0 &&
@@ -694,31 +705,48 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
       },
 
       getParameterBoundsFromDistributions: (confidenceLevel?: number) => {
-        const { parameterDistributions, confidenceLevel: defaultConfidence } = get();
+        const { parameterDistributions, confidenceLevel: defaultConfidence } =
+          get();
         const level = confidenceLevel || defaultConfidence;
-        
+
         // Calculate percentile keys for confidence level
         const alpha = 1 - level;
         const lowerKey = ((alpha / 2) * 100).toFixed(1);
         const upperKey = ((1 - alpha / 2) * 100).toFixed(1);
-        
+
         const mv_bounds: Record<string, [number, number]> = {};
         const cv_bounds: Record<string, [number, number]> = {};
-        
+
         // Extract MV bounds from distributions
-        Object.entries(parameterDistributions.mv_distributions).forEach(([param, dist]) => {
-          if (dist.percentiles[lowerKey] !== undefined && dist.percentiles[upperKey] !== undefined) {
-            mv_bounds[param] = [dist.percentiles[lowerKey], dist.percentiles[upperKey]];
+        Object.entries(parameterDistributions.mv_distributions).forEach(
+          ([param, dist]) => {
+            if (
+              dist.percentiles[lowerKey] !== undefined &&
+              dist.percentiles[upperKey] !== undefined
+            ) {
+              mv_bounds[param] = [
+                dist.percentiles[lowerKey],
+                dist.percentiles[upperKey],
+              ];
+            }
           }
-        });
-        
+        );
+
         // Extract CV bounds from distributions
-        Object.entries(parameterDistributions.cv_distributions).forEach(([param, dist]) => {
-          if (dist.percentiles[lowerKey] !== undefined && dist.percentiles[upperKey] !== undefined) {
-            cv_bounds[param] = [dist.percentiles[lowerKey], dist.percentiles[upperKey]];
+        Object.entries(parameterDistributions.cv_distributions).forEach(
+          ([param, dist]) => {
+            if (
+              dist.percentiles[lowerKey] !== undefined &&
+              dist.percentiles[upperKey] !== undefined
+            ) {
+              cv_bounds[param] = [
+                dist.percentiles[lowerKey],
+                dist.percentiles[upperKey],
+              ];
+            }
           }
-        });
-        
+        );
+
         return { mv_bounds, cv_bounds };
       },
 
@@ -728,7 +756,7 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
             targetSetpoint: 50.0,
             targetValue: 23.0,
             tolerance: 0.01,
-            confidenceLevel: 0.90,
+            confidenceLevel: 0.9,
             isTargetDrivenMode: false,
             maximize: false,
             nTrials: 50,
