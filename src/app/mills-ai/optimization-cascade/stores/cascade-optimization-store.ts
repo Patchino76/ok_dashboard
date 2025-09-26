@@ -24,6 +24,17 @@ export interface TargetData {
   sp?: number | null; // Setpoint (same as target)
 }
 
+// Parameter distribution interface for target-driven optimization
+export interface ParameterDistribution {
+  mean: number;
+  std: number;
+  median: number;
+  percentiles: Record<string, number>; // {5: val, 25: val, 50: val, 75: val, 95: val}
+  min_value: number;
+  max_value: number;
+  sample_count: number;
+}
+
 // Cascade-specific optimization interfaces
 export interface CascadeOptimizationConfig {
   mill_number: number;
@@ -35,6 +46,19 @@ export interface CascadeOptimizationConfig {
   maximize?: boolean;
   n_trials?: number;
   timeout_seconds?: number;
+}
+
+// Target-driven optimization configuration
+export interface TargetDrivenOptimizationConfig {
+  mill_number: number;
+  target_value: number;
+  target_variable: string;
+  tolerance: number; // ±1% = 0.01
+  mv_bounds: Record<string, [number, number]>;
+  cv_bounds: Record<string, [number, number]>;
+  dv_values: Record<string, number>;
+  n_trials: number;
+  confidence_level: number; // 0.90 for 90%
 }
 
 export interface CascadeOptimizationResult {
@@ -61,6 +85,29 @@ export interface CascadeOptimizationResult {
   error_message?: string;
 }
 
+// Target-driven optimization result with distributions
+export interface TargetDrivenOptimizationResult {
+  id: string;
+  timestamp: number;
+  config: TargetDrivenOptimizationConfig;
+  target_achieved: boolean;
+  best_distance: number;
+  target_value: number;
+  tolerance: number;
+  best_mv_values: Record<string, number>;
+  best_cv_values: Record<string, number>;
+  best_target_value: number;
+  mv_distributions: Record<string, ParameterDistribution>;
+  cv_distributions: Record<string, ParameterDistribution>;
+  successful_trials: number;
+  total_trials: number;
+  success_rate: number;
+  confidence_level: number;
+  optimization_time: number;
+  status: "running" | "completed" | "failed" | "cancelled";
+  error_message?: string;
+}
+
 export interface CascadeOptimizationState {
   // Configuration
   millNumber: number;
@@ -69,6 +116,12 @@ export interface CascadeOptimizationState {
   maximize: boolean;
   nTrials: number;
   timeoutSeconds: number;
+
+  // Target-driven optimization configuration
+  targetValue: number;
+  tolerance: number; // ±1% = 0.01
+  confidenceLevel: number; // 0.90 for 90%
+  isTargetDrivenMode: boolean; // Switch between regular and target-driven optimization
 
   // Parameter bounds for optimization
   mvBounds: Record<string, [number, number]>; // Manipulated variables bounds
@@ -88,6 +141,14 @@ export interface CascadeOptimizationState {
   optimizationHistory: CascadeOptimizationResult[];
   bestMVValues: Record<string, number> | null;
   proposedSetpoints: Record<string, number> | null;
+
+  // Target-driven optimization results
+  currentTargetResults: TargetDrivenOptimizationResult | null;
+  targetOptimizationHistory: TargetDrivenOptimizationResult[];
+  parameterDistributions: {
+    mv_distributions: Record<string, ParameterDistribution>;
+    cv_distributions: Record<string, ParameterDistribution>;
+  };
 
   // CASCADE-SPECIFIC STATE (migrated from xgboost-store)
   // Model state
@@ -117,6 +178,12 @@ export interface CascadeOptimizationState {
   setNTrials: (trials: number) => void;
   setTimeoutSeconds: (seconds: number) => void;
 
+  // Actions - Target-driven optimization configuration
+  setTargetValue: (value: number) => void;
+  setTolerance: (tolerance: number) => void;
+  setConfidenceLevel: (level: number) => void;
+  setTargetDrivenMode: (enabled: boolean) => void;
+
   // Actions - Parameter bounds
   updateMVBounds: (id: string, bounds: [number, number]) => void;
   setMVBounds: (bounds: Record<string, [number, number]>) => void;
@@ -127,6 +194,7 @@ export interface CascadeOptimizationState {
 
   // Actions - Optimization control
   startOptimization: (config: CascadeOptimizationConfig) => void;
+  startTargetOptimization: (config: TargetDrivenOptimizationConfig) => void;
   stopOptimization: () => void;
   updateProgress: (progress: number) => void;
   setOptimizationId: (id: string) => void;
@@ -136,6 +204,16 @@ export interface CascadeOptimizationState {
   addToHistory: (results: CascadeOptimizationResult) => void;
   clearResults: () => void;
   clearHistory: () => void;
+
+  // Actions - Target-driven results management
+  setTargetResults: (results: TargetDrivenOptimizationResult) => void;
+  addToTargetHistory: (results: TargetDrivenOptimizationResult) => void;
+  setParameterDistributions: (distributions: {
+    mv_distributions: Record<string, ParameterDistribution>;
+    cv_distributions: Record<string, ParameterDistribution>;
+  }) => void;
+  clearTargetResults: () => void;
+  clearTargetHistory: () => void;
 
   // Actions - Proposed setpoints management
   setProposedSetpoints: (setpoints: Record<string, number>) => void;
@@ -172,8 +250,14 @@ export interface CascadeOptimizationState {
 
   // Utility functions
   getOptimizationConfig: () => CascadeOptimizationConfig;
+  getTargetOptimizationConfig: () => TargetDrivenOptimizationConfig;
   resetToDefaults: () => void;
   hasValidConfiguration: () => boolean;
+  hasValidTargetConfiguration: () => boolean;
+  getParameterBoundsFromDistributions: (confidenceLevel?: number) => {
+    mv_bounds: Record<string, [number, number]>;
+    cv_bounds: Record<string, [number, number]>;
+  };
   getTagId: (millNumber: number, featureName: string) => string | null;
 }
 
@@ -185,6 +269,12 @@ const initialState = {
   maximize: false, // Typically minimize PSI for better quality
   nTrials: 50,
   timeoutSeconds: 300, // 5 minutes
+
+  // Target-driven optimization defaults
+  targetValue: 23.0, // Default target PSI200 value
+  tolerance: 0.01, // ±1% tolerance
+  confidenceLevel: 0.90, // 90% confidence intervals
+  isTargetDrivenMode: false, // Start with regular optimization
 
   // Parameter bounds (will be populated from model metadata)
   mvBounds: {},
@@ -204,6 +294,14 @@ const initialState = {
   optimizationHistory: [],
   bestMVValues: null,
   proposedSetpoints: null,
+
+  // Target-driven optimization results
+  currentTargetResults: null,
+  targetOptimizationHistory: [],
+  parameterDistributions: {
+    mv_distributions: {},
+    cv_distributions: {},
+  },
 
   // CASCADE-SPECIFIC STATE (migrated from xgboost-store)
   // Model state
@@ -269,6 +367,31 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
           false,
           "setTimeoutSeconds"
         );
+      },
+
+      // Target-driven optimization configuration actions
+      setTargetValue: (value: number) => {
+        set({ targetValue: value }, false, "setTargetValue");
+      },
+
+      setTolerance: (tolerance: number) => {
+        set(
+          { tolerance: Math.max(0.001, Math.min(0.1, tolerance)) }, // 0.1% to 10%
+          false,
+          "setTolerance"
+        );
+      },
+
+      setConfidenceLevel: (level: number) => {
+        set(
+          { confidenceLevel: Math.max(0.5, Math.min(0.99, level)) }, // 50% to 99%
+          false,
+          "setConfidenceLevel"
+        );
+      },
+
+      setTargetDrivenMode: (enabled: boolean) => {
+        set({ isTargetDrivenMode: enabled }, false, "setTargetDrivenMode");
       },
 
       // Parameter bounds actions
@@ -337,6 +460,22 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
           },
           false,
           "startOptimization"
+        );
+      },
+
+      startTargetOptimization: (config: TargetDrivenOptimizationConfig) => {
+        const optimizationId = `target_opt_${Date.now()}_${Math.random()
+          .toString(36)
+          .substr(2, 9)}`;
+        set(
+          {
+            isOptimizing: true,
+            optimizationProgress: 0,
+            currentOptimizationId: optimizationId,
+            currentTargetResults: null,
+          },
+          false,
+          "startTargetOptimization"
         );
       },
 
@@ -409,6 +548,63 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         set({ optimizationHistory: [] }, false, "clearHistory");
       },
 
+      // Target-driven results management
+      setTargetResults: (results: TargetDrivenOptimizationResult) => {
+        set(
+          {
+            currentTargetResults: results,
+            bestMVValues: results.best_mv_values,
+            parameterDistributions: {
+              mv_distributions: results.mv_distributions,
+              cv_distributions: results.cv_distributions,
+            },
+            isOptimizing: results.status === "running",
+            optimizationProgress:
+              results.status === "completed" ? 100 : get().optimizationProgress,
+          },
+          false,
+          "setTargetResults"
+        );
+      },
+
+      addToTargetHistory: (results: TargetDrivenOptimizationResult) => {
+        set(
+          (state) => ({
+            targetOptimizationHistory: [results, ...state.targetOptimizationHistory].slice(
+              0,
+              50
+            ), // Keep last 50 results
+          }),
+          false,
+          "addToTargetHistory"
+        );
+      },
+
+      setParameterDistributions: (distributions: {
+        mv_distributions: Record<string, ParameterDistribution>;
+        cv_distributions: Record<string, ParameterDistribution>;
+      }) => {
+        set({ parameterDistributions: distributions }, false, "setParameterDistributions");
+      },
+
+      clearTargetResults: () => {
+        set(
+          {
+            currentTargetResults: null,
+            parameterDistributions: {
+              mv_distributions: {},
+              cv_distributions: {},
+            },
+          },
+          false,
+          "clearTargetResults"
+        );
+      },
+
+      clearTargetHistory: () => {
+        set({ targetOptimizationHistory: [] }, false, "clearTargetHistory");
+      },
+
       // Proposed setpoints management
       setProposedSetpoints: (setpoints: Record<string, number>) => {
         set({ proposedSetpoints: setpoints }, false, "setProposedSetpoints");
@@ -449,6 +645,32 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         };
       },
 
+      getTargetOptimizationConfig: (): TargetDrivenOptimizationConfig => {
+        const {
+          millNumber,
+          targetValue,
+          targetVariable,
+          tolerance,
+          mvBounds,
+          cvBounds,
+          dvValues,
+          nTrials,
+          confidenceLevel,
+        } = get();
+
+        return {
+          mill_number: millNumber,
+          target_value: targetValue,
+          target_variable: targetVariable,
+          tolerance,
+          mv_bounds: mvBounds,
+          cv_bounds: cvBounds,
+          dv_values: dvValues,
+          n_trials: nTrials,
+          confidence_level: confidenceLevel,
+        };
+      },
+
       hasValidConfiguration: (): boolean => {
         const { mvBounds, cvBounds, dvValues, targetVariable } = get();
         return (
@@ -459,10 +681,55 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         );
       },
 
+      hasValidTargetConfiguration: (): boolean => {
+        const { mvBounds, cvBounds, dvValues, targetVariable, targetValue, tolerance } = get();
+        return (
+          Object.keys(mvBounds).length > 0 &&
+          Object.keys(cvBounds).length > 0 &&
+          Object.keys(dvValues).length > 0 &&
+          targetVariable.length > 0 &&
+          targetValue > 0 &&
+          tolerance > 0
+        );
+      },
+
+      getParameterBoundsFromDistributions: (confidenceLevel?: number) => {
+        const { parameterDistributions, confidenceLevel: defaultConfidence } = get();
+        const level = confidenceLevel || defaultConfidence;
+        
+        // Calculate percentile keys for confidence level
+        const alpha = 1 - level;
+        const lowerKey = ((alpha / 2) * 100).toFixed(1);
+        const upperKey = ((1 - alpha / 2) * 100).toFixed(1);
+        
+        const mv_bounds: Record<string, [number, number]> = {};
+        const cv_bounds: Record<string, [number, number]> = {};
+        
+        // Extract MV bounds from distributions
+        Object.entries(parameterDistributions.mv_distributions).forEach(([param, dist]) => {
+          if (dist.percentiles[lowerKey] !== undefined && dist.percentiles[upperKey] !== undefined) {
+            mv_bounds[param] = [dist.percentiles[lowerKey], dist.percentiles[upperKey]];
+          }
+        });
+        
+        // Extract CV bounds from distributions
+        Object.entries(parameterDistributions.cv_distributions).forEach(([param, dist]) => {
+          if (dist.percentiles[lowerKey] !== undefined && dist.percentiles[upperKey] !== undefined) {
+            cv_bounds[param] = [dist.percentiles[lowerKey], dist.percentiles[upperKey]];
+          }
+        });
+        
+        return { mv_bounds, cv_bounds };
+      },
+
       resetToDefaults: () => {
         set(
           {
             targetSetpoint: 50.0,
+            targetValue: 23.0,
+            tolerance: 0.01,
+            confidenceLevel: 0.90,
+            isTargetDrivenMode: false,
             maximize: false,
             nTrials: 50,
             timeoutSeconds: 300,
@@ -470,6 +737,11 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
             mvBounds: {},
             cvBounds: {},
             dvValues: {},
+            currentTargetResults: null,
+            parameterDistributions: {
+              mv_distributions: {},
+              cv_distributions: {},
+            },
           },
           false,
           "resetToDefaults"

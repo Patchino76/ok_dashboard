@@ -5,6 +5,9 @@ import { useCascadeOptimizationStore } from "../optimization-cascade/stores/casc
 import type {
   CascadeOptimizationConfig,
   CascadeOptimizationResult,
+  TargetDrivenOptimizationConfig,
+  TargetDrivenOptimizationResult,
+  ParameterDistribution,
 } from "../optimization-cascade/stores/cascade-optimization-store";
 
 // API request/response interfaces
@@ -18,6 +21,19 @@ export interface CascadeOptimizationRequest {
   maximize?: boolean;
   n_trials?: number;
   timeout_seconds?: number;
+}
+
+// Target-driven optimization API interfaces
+export interface TargetDrivenOptimizationRequest {
+  mill_number: number;
+  target_value: number;
+  target_variable: string;
+  tolerance: number;
+  mv_bounds: Record<string, [number, number]>;
+  cv_bounds: Record<string, [number, number]>;
+  dv_values: Record<string, number>;
+  n_trials: number;
+  confidence_level: number;
 }
 
 export interface CascadeOptimizationApiResponse {
@@ -43,14 +59,56 @@ export interface CascadeOptimizationApiResponse {
   status?: string;
 }
 
+// Target-driven optimization API response
+export interface TargetDrivenOptimizationApiResponse {
+  status: string;
+  target_achieved: boolean;
+  best_distance: number;
+  target_value: number;
+  tolerance: number;
+  best_mv_values: Record<string, number>;
+  best_cv_values: Record<string, number>;
+  best_target_value: number;
+  mv_distributions: Record<string, ParameterDistribution>;
+  cv_distributions: Record<string, ParameterDistribution>;
+  successful_trials: number;
+  total_trials: number;
+  success_rate: number;
+  confidence_level: number;
+  optimization_time: number;
+  mill_number: number;
+  optimization_config: {
+    target_variable: string;
+    target_value: number;
+    tolerance: number;
+    n_trials: number;
+    confidence_level: number;
+  };
+}
+
 export interface UseCascadeOptimizationReturn {
+  // Regular optimization
   startCascadeOptimization: () => Promise<CascadeOptimizationResult | null>;
+  
+  // Target-driven optimization
+  startTargetDrivenOptimization: () => Promise<TargetDrivenOptimizationResult | null>;
+  
+  // Common functions
   getCascadeInfo: () => Promise<any>;
   trainCascadeModels: (request: CascadeTrainingRequest) => Promise<any>;
   getTrainingStatus: () => Promise<any>;
+  
+  // State
   isOptimizing: boolean;
   error: string | null;
   currentResults: CascadeOptimizationResult | null;
+  currentTargetResults: TargetDrivenOptimizationResult | null;
+  
+  // Utility functions
+  getParameterBoundsFromDistributions: (confidenceLevel?: number) => {
+    mv_bounds: Record<string, [number, number]>;
+    cv_bounds: Record<string, [number, number]>;
+  };
 }
 
 export interface CascadeTrainingRequest {
@@ -68,11 +126,17 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
   const {
     isOptimizing,
     currentResults,
+    currentTargetResults,
     getOptimizationConfig,
+    getTargetOptimizationConfig,
     startOptimization,
+    startTargetOptimization,
     stopOptimization,
     setResults,
     addToHistory,
+    setTargetResults,
+    addToTargetHistory,
+    getParameterBoundsFromDistributions,
   } = useCascadeOptimizationStore();
 
   const startCascadeOptimization =
@@ -177,6 +241,115 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
       }
     }, [getOptimizationConfig, startOptimization, setResults, addToHistory]);
 
+  const startTargetDrivenOptimization =
+    useCallback(async (): Promise<TargetDrivenOptimizationResult | null> => {
+      try {
+        setError(null);
+
+        // Get target optimization configuration from store
+        const config = getTargetOptimizationConfig();
+        console.log("Starting target-driven optimization with config:", config);
+
+        // Start target optimization in store
+        startTargetOptimization(config);
+
+        // Prepare API request
+        const request: TargetDrivenOptimizationRequest = {
+          mill_number: config.mill_number,
+          target_value: config.target_value,
+          target_variable: config.target_variable,
+          tolerance: config.tolerance,
+          mv_bounds: config.mv_bounds,
+          cv_bounds: config.cv_bounds,
+          dv_values: config.dv_values,
+          n_trials: config.n_trials,
+          confidence_level: config.confidence_level,
+        };
+
+        // Call the target-driven optimization API
+        const response = await mlApiClient.post<TargetDrivenOptimizationApiResponse>(
+          "/cascade/optimize-target",
+          request
+        );
+
+        if (!response.data) {
+          throw new Error("No data received from target-driven optimization API");
+        }
+
+        // Create target optimization result object
+        const targetResult: TargetDrivenOptimizationResult = {
+          id: `target_opt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: Date.now(),
+          config,
+          target_achieved: response.data.target_achieved,
+          best_distance: response.data.best_distance,
+          target_value: response.data.target_value,
+          tolerance: response.data.tolerance,
+          best_mv_values: response.data.best_mv_values,
+          best_cv_values: response.data.best_cv_values,
+          best_target_value: response.data.best_target_value,
+          mv_distributions: response.data.mv_distributions,
+          cv_distributions: response.data.cv_distributions,
+          successful_trials: response.data.successful_trials,
+          total_trials: response.data.total_trials,
+          success_rate: response.data.success_rate,
+          confidence_level: response.data.confidence_level,
+          optimization_time: response.data.optimization_time,
+          status: response.data.status === "success" ? "completed" : "failed",
+        };
+
+        // Update store with results
+        setTargetResults(targetResult);
+        addToTargetHistory(targetResult);
+
+        console.log(
+          "Target-driven optimization completed successfully:",
+          targetResult
+        );
+        
+        toast.success(
+          `Target optimization completed! ${targetResult.successful_trials}/${targetResult.total_trials} trials successful (${(targetResult.success_rate * 100).toFixed(1)}%)`
+        );
+        
+        return targetResult;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Unknown target-driven optimization error";
+        console.error("Target-driven optimization failed:", err);
+
+        setError(errorMessage);
+        toast.error(`Target optimization failed: ${errorMessage}`);
+
+        // Create failed result
+        const failedResult: TargetDrivenOptimizationResult = {
+          id: `target_opt_failed_${Date.now()}`,
+          timestamp: Date.now(),
+          config: getTargetOptimizationConfig(),
+          target_achieved: false,
+          best_distance: Infinity,
+          target_value: 0,
+          tolerance: 0,
+          best_mv_values: {},
+          best_cv_values: {},
+          best_target_value: 0,
+          mv_distributions: {},
+          cv_distributions: {},
+          successful_trials: 0,
+          total_trials: 0,
+          success_rate: 0,
+          confidence_level: 0.90,
+          optimization_time: 0,
+          status: "failed",
+          error_message: errorMessage,
+        };
+
+        setTargetResults(failedResult);
+        return null;
+      }
+    }, [getTargetOptimizationConfig, startTargetOptimization, setTargetResults, addToTargetHistory]);
+
   const getCascadeInfo = useCallback(async () => {
     try {
       const response = await mlApiClient.get("/cascade/info");
@@ -211,12 +384,24 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
   }, []);
 
   return {
+    // Regular optimization
     startCascadeOptimization,
+    
+    // Target-driven optimization
+    startTargetDrivenOptimization,
+    
+    // Common functions
     getCascadeInfo,
     trainCascadeModels,
     getTrainingStatus,
+    
+    // State
     isOptimizing,
     error,
     currentResults,
+    currentTargetResults,
+    
+    // Utility functions
+    getParameterBoundsFromDistributions,
   };
 }

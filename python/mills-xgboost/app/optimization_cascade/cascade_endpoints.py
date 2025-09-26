@@ -12,6 +12,7 @@ import os
 
 from .cascade_models import CascadeModelManager
 from .simple_cascade_optimizer import SimpleCascadeOptimizer, OptimizationRequest, OptimizationResult
+from .target_driven_optimizer import TargetDrivenCascadeOptimizer, TargetOptimizationRequest, TargetOptimizationResult
 
 # Import variable classifier with error handling
 try:
@@ -39,7 +40,7 @@ except ImportError:
     settings = Settings()
 
 # Create router with clean prefix for direct integration
-cascade_router = APIRouter(prefix="/api/v1/cascade", tags=["cascade_optimization"])
+cascade_router = APIRouter(prefix="", tags=["cascade_optimization"])
 
 # Global instances
 classifier = VariableClassifier()
@@ -71,6 +72,16 @@ class CascadeOptimizationRequest(BaseModel):
     maximize: bool = Field(False, description="True to maximize, False to minimize")
     n_trials: int = Field(100, description="Number of optimization trials")
 
+class TargetDrivenOptimizationRequest(BaseModel):
+    target_value: float = Field(..., description="Desired target value to achieve")
+    target_variable: str = Field("PSI200", description="Target variable name")
+    tolerance: float = Field(0.01, description="Tolerance as fraction (±1% = 0.01)")
+    mv_bounds: Dict[str, tuple] = Field(..., description="MV bounds as {name: [min, max]}")
+    cv_bounds: Dict[str, tuple] = Field(..., description="CV bounds as {name: [min, max]}")
+    dv_values: Dict[str, float] = Field(..., description="Fixed DV values")
+    n_trials: int = Field(500, description="Number of optimization trials")
+    confidence_level: float = Field(0.90, description="Confidence level for distributions (0.90 = 90%)")
+
 # API Endpoints
 
 @cascade_router.get("/info")
@@ -87,6 +98,7 @@ async def get_cascade_info():
             "training": "/api/v1/cascade/train",
             "prediction": "/api/v1/cascade/predict",
             "optimization": "/api/v1/cascade/optimize",
+            "target_optimization": "/api/v1/cascade/optimize-target",
             "models": "/api/v1/cascade/models",
             "load_model": "/api/v1/cascade/models/{mill_number}/load",
             "model_info": "/api/v1/cascade/models/{mill_number}"
@@ -298,6 +310,108 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Optimization failed: {str(e)}")
+
+@cascade_router.post("/optimize-target")
+async def optimize_for_target(request: TargetDrivenOptimizationRequest):
+    """Run target-driven optimization to find parameter distributions that achieve a specific target value"""
+    if not model_manager or not model_manager.process_models:
+        raise HTTPException(status_code=400, detail="Models not trained. Load or train models first.")
+    
+    try:
+        # Add debug logging
+        print(f"🎯 Target-driven optimization request received")
+        print(f"   Target value: {request.target_value}")
+        print(f"   Target variable: {request.target_variable}")
+        print(f"   Tolerance: ±{request.tolerance*100:.1f}%")
+        print(f"   Trials: {request.n_trials}")
+        print(f"   Confidence level: {request.confidence_level*100:.0f}%")
+        
+        # Convert tuple bounds to proper format
+        print(f"   Converting bounds...")
+        mv_bounds = {k: tuple(v) for k, v in request.mv_bounds.items()}
+        cv_bounds = {k: tuple(v) for k, v in request.cv_bounds.items()}
+        print(f"   MV bounds converted: {mv_bounds}")
+        print(f"   CV bounds converted: {cv_bounds}")
+        
+        # Create target optimization request
+        print(f"   Creating target optimization request...")
+        target_opt_request = TargetOptimizationRequest(
+            target_value=request.target_value,
+            target_variable=request.target_variable,
+            tolerance=request.tolerance,
+            mv_bounds=mv_bounds,
+            cv_bounds=cv_bounds,
+            dv_values=request.dv_values,
+            n_trials=request.n_trials,
+            confidence_level=request.confidence_level
+        )
+        
+        # Run target-driven optimization
+        print(f"   Starting target-driven optimization...")
+        optimizer = TargetDrivenCascadeOptimizer(model_manager)
+        result = optimizer.optimize_for_target(target_opt_request)
+        print(f"   Target optimization completed successfully!")
+        
+        # Convert numpy types to Python native types for JSON serialization
+        def convert_numpy_types(obj):
+            """Convert numpy types to Python native types"""
+            if hasattr(obj, 'item'):  # numpy scalar
+                return obj.item()
+            elif isinstance(obj, dict):
+                return {k: convert_numpy_types(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [convert_numpy_types(item) for item in obj]
+            else:
+                return obj
+        
+        # Convert distributions to JSON-serializable format
+        def convert_distribution(dist):
+            """Convert ParameterDistribution to dict"""
+            return {
+                "mean": float(dist.mean),
+                "std": float(dist.std),
+                "median": float(dist.median),
+                "percentiles": {k: float(v) for k, v in dist.percentiles.items()},
+                "min_value": float(dist.min_value),
+                "max_value": float(dist.max_value),
+                "sample_count": int(dist.sample_count)
+            }
+        
+        # Convert distributions
+        mv_distributions = {k: convert_distribution(v) for k, v in result.mv_distributions.items()}
+        cv_distributions = {k: convert_distribution(v) for k, v in result.cv_distributions.items()}
+        
+        return {
+            "status": "success",
+            "target_achieved": bool(result.target_achieved),
+            "best_distance": float(result.best_distance),
+            "target_value": float(result.target_value),
+            "tolerance": float(result.tolerance),
+            "best_mv_values": convert_numpy_types(result.best_mv_values),
+            "best_cv_values": convert_numpy_types(result.best_cv_values),
+            "best_target_value": float(result.best_target_value),
+            "mv_distributions": mv_distributions,
+            "cv_distributions": cv_distributions,
+            "successful_trials": int(result.successful_trials),
+            "total_trials": int(result.total_trials),
+            "success_rate": float(result.success_rate),
+            "confidence_level": float(result.confidence_level),
+            "optimization_time": float(result.optimization_time),
+            "mill_number": int(model_manager.mill_number),
+            "optimization_config": {
+                "target_variable": str(request.target_variable),
+                "target_value": float(request.target_value),
+                "tolerance": float(request.tolerance),
+                "n_trials": int(request.n_trials),
+                "confidence_level": float(request.confidence_level)
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ Target optimization error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Target optimization failed: {str(e)}")
 
 async def _get_database_training_data(
     mill_number: int = 8,
