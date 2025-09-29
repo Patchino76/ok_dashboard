@@ -1,9 +1,5 @@
 {
   "features": [
-    "Ore",
-    "WaterMill",
-    "WaterZumpf",
-    "MotorAmp",
     "PulpHC",
     "DensityHC",
     "PressureHC"
@@ -22,27 +18,19 @@
   },
   "feature_importance": {
     "Feature": {
-      "6": "PressureHC",
-      "0": "Ore",
-      "5": "DensityHC",
-      "1": "WaterMill",
-      "4": "PulpHC",
-      "2": "WaterZumpf",
-      "3": "MotorAmp"
+      "2": "PressureHC",
+      "1": "DensityHC",
+      "0": "PulpHC"
     },
     "Importance": {
-      "6": 0.2830122411251068,
-      "0": 0.2735947370529175,
-      "5": 0.16072802245616913,
-      "1": 0.09229665994644165,
-      "4": 0.08184343576431274,
-      "2": 0.06816666573286057,
-      "3": 0.040358275175094604
+      "2": 0.4284917414188385,
+      "1": 0.4179348349571228,
+      "0": 0.1535734087228775
     }
   },
   "training_history": {
-    "best_iteration": 17,
-    "best_score": 0.8021600159718498
+    "best_iteration": 16,
+    "best_score": 1.2184545758801082
   },
-  "last_trained": "2025-09-16T10:27:24.201717"
+  "last_trained": "2025-09-29T11:43:20.777859"
 }

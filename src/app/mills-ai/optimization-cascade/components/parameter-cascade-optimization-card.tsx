@@ -444,6 +444,8 @@ export default function ParameterCascadeOptimizationCard({
               yMax + pad * 0.05,
             ];
 
+            const isMVParameter = parameter.varType === "MV";
+
             return (
               <div className="flex h-32 -mx-2 sm:h-40">
                 <div className="flex flex-col items-center justify-center w-12 px-1 gap-1">
@@ -457,6 +459,21 @@ export default function ParameterCascadeOptimizationCard({
                         value={[sliderValue]}
                         onValueChange={([value]) => handleSliderChange(value)}
                         className="h-full"
+                        trackClassName={
+                          isMVParameter
+                            ? "bg-purple-100 dark:bg-purple-950/50"
+                            : undefined
+                        }
+                        rangeClassName={
+                          isMVParameter
+                            ? "bg-purple-500 dark:bg-purple-400"
+                            : undefined
+                        }
+                        thumbClassName={
+                          isMVParameter
+                            ? "border-purple-600 bg-white focus-visible:ring-purple-300 dark:border-purple-300 dark:bg-purple-900"
+                            : undefined
+                        }
                       />
                       <div className="ml--3 w-10 text-sm text-center font-medium">
                         {sliderValue.toFixed(1)}
