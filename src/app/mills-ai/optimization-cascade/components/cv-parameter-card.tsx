@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +15,30 @@ import {
 } from "recharts";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import type { CascadeParameter } from "../stores/cascade-optimization-store";
+
+// Global prediction cache to store CV predictions
+const predictionCache = new Map<string, { timestamp: number; value: number; parameterId: string }[]>();
+
+// Global function to add predictions
+(window as any).addCVPrediction = (parameterId: string, value: number) => {
+  const timestamp = Date.now();
+  const existing = predictionCache.get(parameterId) || [];
+  const updated = [...existing, { timestamp, value, parameterId }].slice(-50);
+  predictionCache.set(parameterId, updated);
+  
+  // Trigger re-render by dispatching custom event
+  window.dispatchEvent(new CustomEvent('cvPredictionUpdate', { detail: { parameterId, value, timestamp } }));
+  console.log(`🔮 Added prediction for ${parameterId}:`, value, "Cache size:", updated.length);
+};
+
+// Test function to verify the approach works
+(window as any).testCVPredictions = () => {
+  console.log("🧪 Testing CV predictions...");
+  (window as any).addCVPrediction("PulpHC", 455.83);
+  (window as any).addCVPrediction("DensityHC", 1724.88);
+  (window as any).addCVPrediction("PressureHC", 0.295);
+  console.log("✅ Test predictions sent. Check CV cards for purple lines!");
+};
 
 interface CVParameterCardProps {
   parameter: CascadeParameter;
@@ -33,22 +57,55 @@ export function CVParameterCard({
   distributionMedian,
 }: CVParameterCardProps) {
   const displayHours = useXgboostStore((state) => state.displayHours);
+  const [predictions, setPredictions] = useState<{ timestamp: number; value: number }[]>([]);
+  const [latestPrediction, setLatestPrediction] = useState<number | null>(null);
+
+  // Listen for prediction updates
+  useEffect(() => {
+    const handlePredictionUpdate = (event: CustomEvent) => {
+      const { parameterId, value, timestamp } = event.detail;
+      if (parameterId === parameter.id) {
+        console.log(`🎯 CV ${parameter.id} received prediction update:`, value);
+        setLatestPrediction(value);
+        setPredictions(prev => [...prev, { timestamp, value }].slice(-50));
+      }
+    };
+
+    window.addEventListener('cvPredictionUpdate', handlePredictionUpdate as EventListener);
+    
+    // Load existing predictions from cache
+    const cached = predictionCache.get(parameter.id) || [];
+    if (cached.length > 0) {
+      setPredictions(cached);
+      setLatestPrediction(cached[cached.length - 1].value);
+      console.log(`📥 CV ${parameter.id} loaded ${cached.length} cached predictions`);
+    }
+
+    return () => {
+      window.removeEventListener('cvPredictionUpdate', handlePredictionUpdate as EventListener);
+    };
+  }, [parameter.id]);
 
   const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
   const filteredTrend = parameter.trend.filter(
     (item) => item.timestamp >= hoursAgo
   );
-  const filteredPredictionTrend = (parameter.predictionTrend ?? []).filter(
+  const filteredPredictionTrend = predictions.filter(
     (item) => item.timestamp >= hoursAgo
   );
+
+  console.log(`📊 CV ${parameter.id} - Trends: ${filteredTrend.length} current, ${filteredPredictionTrend.length} predictions`);
+
+  // Use only current trend data for chart (prediction shown as reference line)
+  const chartData = filteredTrend;
 
   const yAxisDomain = useMemo((): [number, number] => {
     const allValues = [
       ...filteredTrend.map((d) => d.value),
-      ...filteredPredictionTrend.map((d) => d.value),
       rangeValue[0],
       rangeValue[1],
       typeof proposedSetpoint === "number" ? proposedSetpoint : undefined,
+      latestPrediction !== null ? latestPrediction : undefined,
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
 
     if (allValues.length === 0) {
@@ -60,7 +117,7 @@ export function CVParameterCard({
     const max = Math.max(...allValues);
     const pad = (max - min || 1) * 0.05;
     return [min - pad, max + pad];
-  }, [filteredTrend, filteredPredictionTrend, proposedSetpoint, rangeValue]);
+  }, [filteredTrend, proposedSetpoint, rangeValue, latestPrediction]);
 
   return (
     <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-blue-50/90 dark:from-slate-800 dark:to-blue-900/30 ring-2 ring-blue-200/80 dark:ring-blue-900/60 backdrop-blur-sm overflow-hidden">
@@ -101,11 +158,11 @@ export function CVParameterCard({
           </div>
           <div className="space-y-1">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              Last Prediction
+              Predicted Value
             </div>
             <div className="text-2xl font-bold flex items-center gap-1 text-purple-600">
-              {filteredPredictionTrend.length > 0
-                ? filteredPredictionTrend[filteredPredictionTrend.length - 1].value.toFixed(2)
+              {latestPrediction !== null
+                ? latestPrediction.toFixed(2)
                 : "--"}
               <span className="text-xs text-slate-500">{parameter.unit}</span>
             </div>
@@ -115,7 +172,7 @@ export function CVParameterCard({
         <div className="flex-1 h-40">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={filteredTrend}
+              data={chartData}
               margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
             >
               <XAxis dataKey="timestamp" hide={true} />
@@ -136,10 +193,12 @@ export function CVParameterCard({
               />
               <Tooltip
                 formatter={(value: number, name, props) => {
-                  const isPrediction = name === "Predicted";
                   const displayValue = value.toFixed(2);
-                  const label = isPrediction ? "Predicted" : parameter.name;
-                  return [displayValue, label];
+                  const color = name === "Predicted" ? "#a855f7" : "#3b82f6";
+                  return [
+                    <span style={{ color }}>{displayValue} {parameter.unit}</span>,
+                    name === "Predicted" ? "🔮 Predicted" : "📊 Current"
+                  ];
                 }}
                 labelFormatter={(timestamp: number) => {
                   const date = new Date(timestamp);
@@ -147,6 +206,12 @@ export function CVParameterCard({
                     .getMinutes()
                     .toString()
                     .padStart(2, "0")}`;
+                }}
+                contentStyle={{
+                  backgroundColor: "rgba(15, 23, 42, 0.95)",
+                  border: "1px solid rgba(148, 163, 184, 0.2)",
+                  borderRadius: "8px",
+                  color: "#e2e8f0"
                 }}
               />
               {distributionBounds && (
@@ -174,18 +239,22 @@ export function CVParameterCard({
                 strokeWidth={2}
                 dot={false}
                 isAnimationActive={false}
+                name="Current Value"
+                connectNulls={false}
               />
-              {filteredPredictionTrend.length > 0 && (
-                <Line
-                  type="monotone"
-                  data={filteredPredictionTrend}
-                  dataKey="value"
-                  name="Predicted"
+              {/* Purple horizontal reference line for predicted value */}
+              {latestPrediction !== null && (
+                <ReferenceLine
+                  y={latestPrediction}
                   stroke="#a855f7"
                   strokeWidth={2}
                   strokeDasharray="6 4"
-                  dot={false}
-                  isAnimationActive={false}
+                  ifOverflow="extendDomain"
+                  label={{ 
+                    value: `Predicted: ${latestPrediction.toFixed(2)}`, 
+                    position: "top",
+                    style: { fill: "#a855f7", fontSize: "10px" }
+                  }}
                 />
               )}
               {typeof proposedSetpoint === "number" && (
@@ -200,6 +269,22 @@ export function CVParameterCard({
             </LineChart>
           </ResponsiveContainer>
         </div>
+
+        {/* Legend for prediction line */}
+        {(filteredPredictionTrend.length > 0 || latestPrediction !== null) && (
+          <div className="mt-3 flex items-center gap-4 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-blue-500 rounded"></div>
+              <span className="text-slate-600">Current Value</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-0.5 bg-purple-500 rounded" style={{
+                backgroundImage: "repeating-linear-gradient(to right, #a855f7 0, #a855f7 3px, transparent 3px, transparent 6px)"
+              }}></div>
+              <span className="text-purple-600">🔮 Predicted from MV</span>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

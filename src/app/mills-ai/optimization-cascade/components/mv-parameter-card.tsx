@@ -154,8 +154,26 @@ export function MVParameterCard({
       const predictionResult = await response.json();
       console.log("✅ Cascade prediction result:", predictionResult);
 
+      // Debug: Check the structure of predicted_cvs
+      console.log("🔍 Predicted CVs structure:", {
+        predicted_cvs: predictionResult.predicted_cvs,
+        keys: Object.keys(predictionResult.predicted_cvs || {}),
+        values: Object.values(predictionResult.predicted_cvs || {})
+      });
+
       // Update store with real prediction results
       setSimulationTarget(predictionResult.predicted_target);
+      
+      // RADICALLY DIFFERENT APPROACH: Direct CV prediction updates
+      if (predictionResult.predicted_cvs) {
+        console.log("🚀 Using direct CV prediction approach");
+        Object.entries(predictionResult.predicted_cvs).forEach(([cvId, value]) => {
+          console.log(`📡 Calling addCVPrediction for ${cvId}:`, value);
+          (window as any).addCVPrediction(cvId, value as number);
+        });
+      }
+      
+      // Keep the old approach as backup
       updateCVPredictions(predictionResult.predicted_cvs);
 
       return predictionResult;

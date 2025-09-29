@@ -863,26 +863,44 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
 
       updateCVPredictions: (predicted: Record<string, number>) => {
         const timestamp = Date.now();
+        console.log("🔮 Updating CV predictions in store:", predicted);
+        
         set(
-          (state) => ({
-            parameters: state.parameters.map((param) => {
-              if (
-                param.varType === "CV" &&
-                predicted[param.id] !== undefined
-              ) {
-                const existingTrend = param.predictionTrend ?? [];
-                const updatedTrend = [...existingTrend, {
-                  timestamp,
-                  value: predicted[param.id]!,
-                }].slice(-50);
-                return {
-                  ...param,
-                  predictionTrend: updatedTrend,
-                };
-              }
-              return param;
-            }),
-          }),
+          (state) => {
+            // Debug: Show all CV parameters in store
+            const cvParams = state.parameters.filter(p => p.varType === "CV");
+            console.log("🔍 CV parameters in store:", cvParams.map(p => ({ id: p.id, name: p.name, varType: p.varType })));
+            console.log("🔍 Predicted CV keys:", Object.keys(predicted));
+            
+            return {
+              parameters: state.parameters.map((param) => {
+                if (
+                  param.varType === "CV" &&
+                  predicted[param.id] !== undefined
+                ) {
+                  const existingTrend = param.predictionTrend ?? [];
+                  const updatedTrend = [...existingTrend, {
+                    timestamp,
+                    value: predicted[param.id]!,
+                  }].slice(-50);
+                  
+                  console.log(`📊 Updated ${param.id} prediction trend:`, {
+                    newValue: predicted[param.id],
+                    trendLength: updatedTrend.length,
+                    latestValue: updatedTrend[updatedTrend.length - 1]
+                  });
+                  
+                  return {
+                    ...param,
+                    predictionTrend: updatedTrend,
+                  };
+                } else if (param.varType === "CV") {
+                  console.log(`⚠️ CV parameter ${param.id} not found in predictions or not CV type`);
+                }
+                return param;
+              }),
+            };
+          },
           false,
           "updateCVPredictions"
         );
