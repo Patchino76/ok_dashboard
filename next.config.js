@@ -27,4 +27,14 @@ module.exports = {
     // This allows server-side code to access the API URL
     API_SERVER_URL: process.env.NEXT_PUBLIC_API_URL,
   },
+
+  // API rewrites to proxy requests to the backend
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:8000/api/:path*',
+      },
+    ];
+  },
 };

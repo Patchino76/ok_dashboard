@@ -27,7 +27,8 @@ import {
   Settings,
   Sliders,
 } from "lucide-react";
-import { ParameterCascadeOptimizationCard, CascadeParameter } from ".";
+import ParameterCascadeOptimizationCard from "./parameter-cascade-optimization-card";
+import type { CascadeParameter } from "../stores/cascade-optimization-store";
 import { CascadeTargetTrend } from "./target-cascade-trend";
 import { CascadeFlowDiagram } from "./cascade-flow-diagram";
 import { CascadeSimulationInterface } from "./cascade-simulation-interface";
@@ -1858,7 +1859,6 @@ export default function CascadeOptimizationDashboard() {
                               parameter={cascadeParameter}
                               bounds={bounds as [number, number]}
                               rangeValue={rangeValue as [number, number]}
-                              isSimulationMode={false}
                               proposedSetpoint={
                                 typeof proposedValue === "number"
                                   ? proposedValue

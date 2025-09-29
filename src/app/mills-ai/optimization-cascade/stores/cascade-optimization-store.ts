@@ -10,6 +10,7 @@ export interface CascadeParameter {
   value: number;
   sliderSP: number; // Slider setpoint value for simulation
   trend: Array<{ timestamp: number; value: number }>;
+  predictionTrend?: Array<{ timestamp: number; value: number }>;
   color: string;
   icon: string;
   varType?: "MV" | "CV" | "DV";
@@ -240,6 +241,7 @@ export interface CascadeOptimizationState {
     value: number,
     trend: Array<{ timestamp: number; value: number }>
   ) => void;
+  updateCVPredictions: (predicted: Record<string, number>) => void;
   resetFeatures: () => void;
   resetSliders: () => void;
   getMVSliderValues: () => Record<string, number>; // Get all MV slider values
@@ -323,6 +325,7 @@ const initialState = {
     return {
       ...param,
       trend: [],
+      predictionTrend: [],
       // Keep the original varType from millsParameters (MV, CV, DV)
       sliderSP: midValue, // Initialize slider SP to midpoint
     };
@@ -858,6 +861,33 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         );
       },
 
+      updateCVPredictions: (predicted: Record<string, number>) => {
+        const timestamp = Date.now();
+        set(
+          (state) => ({
+            parameters: state.parameters.map((param) => {
+              if (
+                param.varType === "CV" &&
+                predicted[param.id] !== undefined
+              ) {
+                const existingTrend = param.predictionTrend ?? [];
+                const updatedTrend = [...existingTrend, {
+                  timestamp,
+                  value: predicted[param.id]!,
+                }].slice(-50);
+                return {
+                  ...param,
+                  predictionTrend: updatedTrend,
+                };
+              }
+              return param;
+            }),
+          }),
+          false,
+          "updateCVPredictions"
+        );
+      },
+
       resetFeatures: () => {
         set(
           (state) => {
@@ -907,12 +937,17 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
                 param.value,
               ];
               const midValue = (bounds[0] + bounds[1]) / 2;
-              return { ...param, sliderSP: midValue };
+              return {
+                ...param,
+                sliderSP: midValue,
+                predictionTrend:
+                  param.varType === "CV" ? [] : param.predictionTrend,
+              };
             });
 
-            return { 
+            return {
               sliderValues: resetSliderValues,
-              parameters: resetParameters
+              parameters: resetParameters,
             };
           },
           false,
@@ -923,29 +958,35 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
       getMVSliderValues: (): Record<string, number> => {
         const { parameters } = get();
         const mvSliderValues: Record<string, number> = {};
-        
+
         parameters.forEach((param) => {
           if (param.varType === "MV") {
             mvSliderValues[param.id] = param.sliderSP;
           }
         });
-        
+
         return mvSliderValues;
       },
 
       initializeMVSlidersWithPVs: (xgboostParameters?: any[]) => {
-        console.log("🔄 Initializing MV slider values with current PV values...");
-        
+        console.log(
+          "🔄 Initializing MV slider values with current PV values..."
+        );
+
         set(
           (state) => {
             const updatedParameters = state.parameters.map((param) => {
               // Only update MV parameters (Manipulated Variables)
               if (param.varType === "MV") {
                 // Find the corresponding parameter in XGBoost store to get current PV value
-                const xgboostParam = xgboostParameters?.find(p => p.id === param.id);
+                const xgboostParam = xgboostParameters?.find(
+                  (p) => p.id === param.id
+                );
                 const currentPV = xgboostParam?.value ?? param.value;
-                
-                console.log(`📊 Setting MV slider ${param.id} from PV: ${currentPV} (XGBoost: ${xgboostParam?.value}, Cascade: ${param.value})`);
+
+                console.log(
+                  `📊 Setting MV slider ${param.id} from PV: ${currentPV} (XGBoost: ${xgboostParam?.value}, Cascade: ${param.value})`
+                );
                 return {
                   ...param,
                   sliderSP: currentPV, // Set slider SP to current PV value from XGBoost store
