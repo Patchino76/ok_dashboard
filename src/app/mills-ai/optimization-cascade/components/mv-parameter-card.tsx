@@ -91,15 +91,20 @@ export function MVParameterCard({
 
       // First, ensure the mill model is loaded
       console.log(`📥 Loading cascade models for Mill ${millNumber}...`);
-      const loadResponse = await fetch(`/api/v1/ml/cascade/models/${millNumber}/load`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const loadResponse = await fetch(
+        `/api/v1/ml/cascade/models/${millNumber}/load`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!loadResponse.ok) {
-        console.warn(`⚠️ Failed to load Mill ${millNumber} models: ${loadResponse.status}`);
+        console.warn(
+          `⚠️ Failed to load Mill ${millNumber} models: ${loadResponse.status}`
+        );
         // Continue anyway - models might already be loaded
       } else {
         const loadResult = await loadResponse.json();
@@ -115,8 +120,13 @@ export function MVParameterCard({
       console.log("📡 Sending cascade prediction request:", predictionRequest);
       console.log(`🏭 Using Mill ${millNumber} models`);
       console.log("🔗 Full API URL:", "/api/v1/ml/cascade/predict");
-      console.log("📋 Request headers:", { "Content-Type": "application/json" });
-      console.log("📦 Request body:", JSON.stringify(predictionRequest, null, 2));
+      console.log("📋 Request headers:", {
+        "Content-Type": "application/json",
+      });
+      console.log(
+        "📦 Request body:",
+        JSON.stringify(predictionRequest, null, 2)
+      );
 
       // Call real cascade prediction API
       const response = await fetch("/api/v1/ml/cascade/predict", {
@@ -134,9 +144,11 @@ export function MVParameterCard({
           statusText: response.statusText,
           url: response.url,
           headers: Object.fromEntries(response.headers.entries()),
-          body: errorText
+          body: errorText,
         });
-        throw new Error(`API request failed: ${response.status} ${response.statusText} - ${errorText}`);
+        throw new Error(
+          `API request failed: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
 
       const predictionResult = await response.json();
@@ -150,7 +162,7 @@ export function MVParameterCard({
     } catch (error) {
       console.error("❌ Cascade prediction failed:", error);
       setSimulationTarget(null);
-      
+
       // Optional: Show user-friendly error message
       if (error instanceof Error) {
         console.error("Error details:", error.message);
