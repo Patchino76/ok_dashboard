@@ -445,128 +445,135 @@ export default function ParameterCascadeOptimizationCard({
             ];
 
             const isMVParameter = parameter.varType === "MV";
+            const showSlider = parameter.varType !== "CV";
 
             return (
-              <div className="flex h-32 -mx-2 sm:h-40">
-                <div className="flex flex-col items-center justify-center w-12 px-1 gap-1">
-                  <div className="flex items-center h-full">
-                    <div className="h-32 flex items-center">
-                      <Slider
-                        orientation="vertical"
-                        min={range[0]}
-                        max={range[1]}
-                        step={sliderStep}
-                        value={[sliderValue]}
-                        onValueChange={([value]) => handleSliderChange(value)}
-                        className="h-full"
-                        trackClassName={
-                          isMVParameter
-                            ? "bg-purple-100 dark:bg-purple-950/50"
-                            : undefined
-                        }
-                        rangeClassName={
-                          isMVParameter
-                            ? "bg-purple-500 dark:bg-purple-400"
-                            : undefined
-                        }
-                        thumbClassName={
-                          isMVParameter
-                            ? "border-purple-600 bg-white focus-visible:ring-purple-300 dark:border-purple-300 dark:bg-purple-900"
-                            : undefined
-                        }
-                      />
-                      <div className="ml--3 w-10 text-sm text-center font-medium">
-                        {sliderValue.toFixed(1)}
+              <div
+                className={
+                  showSlider ? "flex h-32 -mx-2 sm:h-40" : "flex h-32 sm:h-40"
+                }
+              >
+                {showSlider && (
+                  <div className="flex flex-col items-center justify-center w-12 px-1 gap-1">
+                    <div className="flex items-center h-full">
+                      <div className="h-32 flex items-center">
+                        <Slider
+                          orientation="vertical"
+                          min={range[0]}
+                          max={range[1]}
+                          step={sliderStep}
+                          value={[sliderValue]}
+                          onValueChange={([value]) => handleSliderChange(value)}
+                          className="h-full"
+                          trackClassName={
+                            isMVParameter
+                              ? "bg-purple-100 dark:bg-purple-950/50"
+                              : undefined
+                          }
+                          rangeClassName={
+                            isMVParameter
+                              ? "bg-purple-500 dark:bg-purple-400"
+                              : undefined
+                          }
+                          thumbClassName={
+                            isMVParameter
+                              ? "border-purple-600 bg-white focus-visible:ring-purple-300 dark:border-purple-300 dark:bg-purple-900"
+                              : undefined
+                          }
+                        />
+                        <div className="ml--3 w-10 text-sm text-center font-medium">
+                          {sliderValue.toFixed(1)}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={filteredTrend}
-                    margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
-                  >
-                    <XAxis dataKey="timestamp" hide={true} />
-                    <YAxis
-                      domain={yAxisDomain}
-                      hide={false}
-                      width={40}
-                      tick={{ fontSize: 10 }}
-                      tickFormatter={(value) =>
-                        value >= 1 ? value.toFixed(0) : value.toFixed(2)
-                      }
-                      interval={0}
-                      allowDataOverflow={false}
-                      axisLine={true}
-                      tickLine={true}
-                      tickMargin={3}
-                      orientation="left"
-                    />
-                    <Tooltip
-                      formatter={(value: number) => [
-                        formatValue(value),
-                        parameter.name,
-                      ]}
-                      labelFormatter={(timestamp: number) =>
-                        formatTime(timestamp)
-                      }
-                      contentStyle={{
-                        background: "#1f2937",
-                        borderColor: "#374151",
-                        color: "#e5e7eb",
-                        fontSize: "12px",
-                      }}
-                      itemStyle={{ color: "#e5e7eb" }}
-                    />
-                    {/* Distribution Bounds Shading - 90% confidence interval from target-driven optimization */}
-                    {distributionBounds && (
-                      <ReferenceArea
-                        y1={distributionBounds[0]}
-                        y2={distributionBounds[1]}
-                        fill={
-                          parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"
-                        } // amber for MV, blue for CV
-                        fillOpacity={0.25}
-                        ifOverflow="extendDomain"
+                )}
+                <div className="flex-1 h-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={filteredTrend}
+                      margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
+                    >
+                      <XAxis dataKey="timestamp" hide={true} />
+                      <YAxis
+                        domain={yAxisDomain}
+                        hide={false}
+                        width={40}
+                        tick={{ fontSize: 10 }}
+                        tickFormatter={(value) =>
+                          value >= 1 ? value.toFixed(0) : value.toFixed(2)
+                        }
+                        interval={0}
+                        allowDataOverflow={false}
+                        axisLine={true}
+                        tickLine={true}
+                        tickMargin={3}
+                        orientation="left"
                       />
-                    )}
-                    {/* Distribution Median Line - thin dotted line darker than shading */}
-                    {typeof distributionMedian === "number" && (
-                      <ReferenceLine
-                        y={distributionMedian}
-                        stroke={
-                          parameter.varType === "MV" ? "#d97706" : "#2563eb"
-                        } // darker amber/blue than shading
-                        strokeWidth={1.5}
-                        strokeDasharray="2 2"
-                        ifOverflow="extendDomain"
+                      <Tooltip
+                        formatter={(value: number) => [
+                          formatValue(value),
+                          parameter.name,
+                        ]}
+                        labelFormatter={(timestamp: number) =>
+                          formatTime(timestamp)
+                        }
+                        contentStyle={{
+                          background: "#1f2937",
+                          borderColor: "#374151",
+                          color: "#e5e7eb",
+                          fontSize: "12px",
+                        }}
+                        itemStyle={{ color: "#e5e7eb" }}
                       />
-                    )}
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke={vt.accentColor}
-                      strokeWidth={2}
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                    {/* Proposed Setpoint horizontal dashed line (only shown after optimization) */}
-                    {typeof proposedSetpoint === "number" && (
-                      <ReferenceLine
-                        y={proposedSetpoint}
-                        stroke="#f97316"
+                      {/* Distribution Bounds Shading - 90% confidence interval from target-driven optimization */}
+                      {distributionBounds && (
+                        <ReferenceArea
+                          y1={distributionBounds[0]}
+                          y2={distributionBounds[1]}
+                          fill={
+                            parameter.varType === "MV" ? "#f59e0b" : "#3b82f6"
+                          }
+                          fillOpacity={0.25}
+                          ifOverflow="extendDomain"
+                        />
+                      )}
+                      {/* Distribution Median Line - thin dotted line darker than shading */}
+                      {typeof distributionMedian === "number" && (
+                        <ReferenceLine
+                          y={distributionMedian}
+                          stroke={
+                            parameter.varType === "MV" ? "#d97706" : "#2563eb"
+                          }
+                          strokeWidth={1.5}
+                          strokeDasharray="2 2"
+                          ifOverflow="extendDomain"
+                        />
+                      )}
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={vt.accentColor}
                         strokeWidth={2}
-                        strokeDasharray="8 4"
-                        ifOverflow="extendDomain"
+                        dot={false}
+                        isAnimationActive={false}
                       />
-                    )}
-                  </LineChart>
-                </ResponsiveContainer>
+                      {/* Proposed Setpoint horizontal dashed line (only shown after optimization) */}
+                      {typeof proposedSetpoint === "number" && (
+                        <ReferenceLine
+                          y={proposedSetpoint}
+                          stroke="#f97316"
+                          strokeWidth={2}
+                          strokeDasharray="8 4"
+                          ifOverflow="extendDomain"
+                        />
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             );
           })()}
-
-        {/* Double Range Slider (full width, no duplicate labels) */}
         <div className="pt-2">
           <DoubleRangeSlider
             min={bounds[0]}
@@ -587,61 +594,6 @@ export default function ParameterCascadeOptimizationCard({
           )}
         </div>
       </CardContent>
-      <style jsx>{`
-        input.vertical-slider {
-          appearance: none;
-          width: 100%;
-          height: 100%;
-          padding: 0;
-          cursor: pointer;
-        }
-
-        input.vertical-slider::-webkit-slider-runnable-track {
-          width: 100%;
-          height: 4px;
-          background: rgba(148, 163, 184, 0.6);
-          border-radius: 9999px;
-          box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
-        }
-
-        input.vertical-slider::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          width: 18px;
-          height: 18px;
-          border-radius: 9999px;
-          background: var(--slider-thumb-color, #475569);
-          border: 2px solid #ffffff;
-          box-shadow: 0 0 0 1px rgba(30, 41, 59, 0.2);
-          margin-top: -7px;
-          cursor: grab;
-        }
-
-        input.vertical-slider::-moz-range-track {
-          width: 100%;
-          height: 4px;
-          background: rgba(148, 163, 184, 0.6);
-          border-radius: 9999px;
-          box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
-        }
-
-        input.vertical-slider::-moz-range-thumb {
-          width: 18px;
-          height: 18px;
-          border-radius: 9999px;
-          background: var(--slider-thumb-color, #475569);
-          border: 2px solid #ffffff;
-          box-shadow: 0 0 0 1px rgba(30, 41, 59, 0.2);
-          cursor: grab;
-        }
-
-        input.vertical-slider:active::-webkit-slider-thumb {
-          cursor: grabbing;
-        }
-
-        input.vertical-slider:active::-moz-range-thumb {
-          cursor: grabbing;
-        }
-      `}</style>
     </Card>
   );
 }
