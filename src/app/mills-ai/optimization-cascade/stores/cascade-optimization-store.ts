@@ -243,6 +243,7 @@ export interface CascadeOptimizationState {
   resetFeatures: () => void;
   resetSliders: () => void;
   getMVSliderValues: () => Record<string, number>; // Get all MV slider values
+  initializeMVSlidersWithPVs: (xgboostParameters?: any[]) => void; // Initialize MV slider values with current PV values
 
   // Target actions
   setPredictedTarget: (value: number) => void;
@@ -930,6 +931,40 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         });
         
         return mvSliderValues;
+      },
+
+      initializeMVSlidersWithPVs: (xgboostParameters?: any[]) => {
+        console.log("🔄 Initializing MV slider values with current PV values...");
+        
+        set(
+          (state) => {
+            const updatedParameters = state.parameters.map((param) => {
+              // Only update MV parameters (Manipulated Variables)
+              if (param.varType === "MV") {
+                // Find the corresponding parameter in XGBoost store to get current PV value
+                const xgboostParam = xgboostParameters?.find(p => p.id === param.id);
+                const currentPV = xgboostParam?.value ?? param.value;
+                
+                console.log(`📊 Setting MV slider ${param.id} from PV: ${currentPV} (XGBoost: ${xgboostParam?.value}, Cascade: ${param.value})`);
+                return {
+                  ...param,
+                  sliderSP: currentPV, // Set slider SP to current PV value from XGBoost store
+                };
+              }
+              return param;
+            });
+
+            return {
+              parameters: updatedParameters,
+            };
+          },
+          false,
+          "initializeMVSlidersWithPVs"
+        );
+
+        // Log the updated MV slider values
+        const mvValues = get().getMVSliderValues();
+        console.log("✅ MV sliders initialized with PV values:", mvValues);
       },
 
       // Target actions

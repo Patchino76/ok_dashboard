@@ -179,6 +179,7 @@ export default function CascadeOptimizationDashboard() {
     updateSliderValue: updateCascadeSliderValue,
     resetFeatures,
     resetSliders,
+    initializeMVSlidersWithPVs,
     // Optimization-specific properties
     targetSetpoint,
     maximize,
@@ -318,6 +319,54 @@ export default function CascadeOptimizationDashboard() {
       toast.error("Cascade prediction failed");
     }
   }, [modelInfo, parameters, predictCascade]);
+
+  const predictWithMVSliderValues = useCallback(async () => {
+    if (
+      !modelInfo?.featureClassification ||
+      !parameters ||
+      parameters.length === 0
+    ) {
+      console.warn(
+        "⚠️ Cannot make cascade prediction - missing model info or parameters"
+      );
+      return;
+    }
+
+    try {
+      console.log("🎯 Making cascade prediction with MV slider values...");
+
+      // Get MV slider values from cascade store
+      const mvSliderValues = cascadeStore.getMVSliderValues();
+      const dvValues: Record<string, number> = {};
+
+      // Get DV values from current parameters
+      parameters.forEach((param) => {
+        if (param.varType === "DV") {
+          dvValues[param.id] = param.value;
+        }
+      });
+
+      console.log("📊 Cascade prediction data:", { mvValues: mvSliderValues, dvValues });
+
+      const prediction = await predictCascade(mvSliderValues, dvValues);
+
+      if (
+        prediction &&
+        typeof prediction.predicted_target === "number" &&
+        Number.isFinite(prediction.predicted_target)
+      ) {
+        setTestPredictionTarget(prediction.predicted_target);
+        toast.success(
+          `Cascade Prediction: ${prediction.predicted_target.toFixed(2)}`
+        );
+      } else {
+        toast.warning("Cascade prediction returned no target");
+      }
+    } catch (error) {
+      console.error("❌ Cascade prediction failed:", error);
+      toast.error("Cascade prediction failed");
+    }
+  }, [modelInfo, parameters, predictCascade, cascadeStore]);
 
   const modelName = modelInfo?.modelName || null;
   const modelFeatures = modelInfo?.features || [];
@@ -476,7 +525,13 @@ export default function CascadeOptimizationDashboard() {
           // Trigger immediate data fetch to populate trends
           await fetchRealTimeData();
           console.log("✅ Trend data refreshed for optimization tab");
-          toast.success("Trend data refreshed for optimization tab");
+          
+          // Initialize MV slider values with current PV values
+          console.log("🎯 Initializing MV sliders with current PV values...");
+          const currentXgboostParams = xgboostStore.parameters;
+          initializeMVSlidersWithPVs(currentXgboostParams);
+          
+          toast.success("Trend data refreshed and MV sliders initialized");
         } catch (error) {
           console.error(
             "❌ Error fetching trend data for optimization tab:",
@@ -504,6 +559,7 @@ export default function CascadeOptimizationDashboard() {
     fetchRealTimeData,
     startRealTimeUpdates,
     xgboostStore.dataUpdateInterval,
+    initializeMVSlidersWithPVs,
   ]);
 
   // Get target parameter bounds based on cascade model's target
@@ -575,9 +631,20 @@ export default function CascadeOptimizationDashboard() {
       setTargetSetpoint((targetParameter.min + targetParameter.max) / 2);
     }
 
+    // Initialize MV slider values with current PV values
+    console.log("🔄 Reset button: Initializing MV sliders with current PV values...");
+    const currentXgboostParams = xgboostStore.parameters;
+    initializeMVSlidersWithPVs(currentXgboostParams);
+
+    // After initialization, trigger cascade prediction with the new MV slider values
+    console.log("🎯 Reset button: Triggering cascade prediction with initialized MV values...");
+    setTimeout(() => {
+      predictWithMVSliderValues();
+    }, 100); // Small delay to ensure slider values are updated in store
+
     // Show feedback to user
     toast.success(
-      "Optimization reset: cleared all optimization results and returned to default values"
+      "Optimization reset: cleared results, initialized MV sliders, and triggered prediction"
     );
   };
 
@@ -1754,6 +1821,7 @@ export default function CascadeOptimizationDashboard() {
                             name: parameter.name,
                             unit: parameter.unit,
                             value: parameter.value,
+                            sliderSP: cascadeStore.parameters.find(p => p.id === parameter.id)?.sliderSP || parameter.value,
                             trend: parameter.trend,
                             color: parameter.color,
                             icon: parameter.icon,
@@ -1778,7 +1846,6 @@ export default function CascadeOptimizationDashboard() {
                                     dist.percentiles["95.0"] || dist.max_value,
                                   ] as [number, number],
                                   median: dist.median,
-                                  mean: dist.mean,
                                 };
                               }
                             }
@@ -1799,7 +1866,6 @@ export default function CascadeOptimizationDashboard() {
                               }
                               distributionBounds={distributionData?.bounds}
                               distributionMedian={distributionData?.median}
-                              distributionMean={distributionData?.mean}
                               onRangeChange={(
                                 id: string,
                                 newRange: [number, number]
