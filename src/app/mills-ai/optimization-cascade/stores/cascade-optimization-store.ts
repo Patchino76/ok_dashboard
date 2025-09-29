@@ -168,6 +168,7 @@ export interface CascadeOptimizationState {
   currentTarget: number;
   currentPV: number;
   targetData: TargetData[];
+  simulationTarget: number | null;
 
   // Real-time data state (removed - using XGBoost store instead)
 
@@ -246,6 +247,7 @@ export interface CascadeOptimizationState {
   // Target actions
   setPredictedTarget: (value: number) => void;
   addTargetDataPoint: (pv: number, sp?: number) => void;
+  setSimulationTarget: (value: number | null) => void;
 
   // Real-time data actions (removed - using XGBoost store instead)
 
@@ -334,6 +336,7 @@ const initialState = {
   currentTarget: 0,
   currentPV: 0,
   targetData: [],
+  simulationTarget: null,
 
   // Real-time data state (removed - using XGBoost store instead)
 };
@@ -959,6 +962,10 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
           false,
           "addTargetDataPoint"
         );
+      },
+
+      setSimulationTarget: (value: number | null) => {
+        set({ simulationTarget: value }, false, "setSimulationTarget");
       },
 
       // Real-time data actions (removed - using XGBoost store instead)

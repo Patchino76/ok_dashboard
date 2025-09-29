@@ -66,8 +66,15 @@ TargetFractionDisplayProps) {
   const fetchRealTimeData = useXgboostStore((state) => state.fetchRealTimeData);
 
   // Get target setpoint from cascade store instead of local state
-  const targetSetpoint = useCascadeOptimizationStore((state) => state.targetSetpoint);
-  const setTargetSetpoint = useCascadeOptimizationStore((state) => state.setTargetSetpoint);
+  const targetSetpoint = useCascadeOptimizationStore(
+    (state) => state.targetSetpoint
+  );
+  const setTargetSetpoint = useCascadeOptimizationStore(
+    (state) => state.setTargetSetpoint
+  );
+  const simulationTarget = useCascadeOptimizationStore(
+    (state) => state.simulationTarget
+  );
 
   // Initialize target setpoint in store if needed
   const [isInitialized, setIsInitialized] = useState(false);
@@ -79,12 +86,16 @@ TargetFractionDisplayProps) {
       if (!target) {
         target = (millsParameters as any).find((p: any) => p.id === id);
       }
-      
+
       let initialValue = 50.0;
-      if (target && typeof target.min === "number" && typeof target.max === "number") {
+      if (
+        target &&
+        typeof target.min === "number" &&
+        typeof target.max === "number"
+      ) {
         initialValue = (target.min + target.max) / 2;
       }
-      
+
       // Only set if the store value is still default
       if (targetSetpoint === 50.0) {
         setTargetSetpoint(initialValue);
@@ -182,6 +193,11 @@ TargetFractionDisplayProps) {
   const predictionDisplayValue = hasPrediction
     ? predictionSetpoint?.toFixed(1)
     : currentPV?.toFixed(1) ?? null;
+  const simulationPercent = toPercent(simulationTarget);
+  const simulationDisplayValue =
+    typeof simulationTarget === "number"
+      ? simulationTarget.toFixed(1)
+      : null;
   // Removed spPercent calculation - using targetSetpoint directly
 
   return (
@@ -276,6 +292,35 @@ TargetFractionDisplayProps) {
                           style={{ width: `${predictionPercent}%` }}
                         />
                       </div>
+                      <div className="h-px w-full bg-slate-200 dark:bg-slate-600" />
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                          <span className="text-xs tracking-wide text-slate-500 dark:text-slate-400">
+                            Simulation SP
+                          </span>
+                        </div>
+                        <span
+                          className="text-2xl font-semibold leading-none text-purple-600"
+                        >
+                          {simulationDisplayValue ? (
+                            <>
+                              {simulationDisplayValue}
+                              <span className="ml-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+                                {targetUnit}
+                              </span>
+                            </>
+                          ) : (
+                            "--"
+                          )}
+                        </span>
+                      </div>
+                      <div className="relative h-3 w-full rounded-full bg-slate-200/80 dark:bg-slate-700/70 overflow-hidden">
+                        <div
+                          className="absolute left-0 top-0 h-full bg-purple-500/80"
+                          style={{ width: `${simulationPercent}%` }}
+                        />
+                      </div>
                     </div>
                     <div className="flex justify-between text-xs text-slate-500 mt-1">
                       <span>
@@ -293,7 +338,7 @@ TargetFractionDisplayProps) {
                 {/* Current Target/Setpoint (SP) */}
                 <div>
                   <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                    Setpoint Target (SP)
+                    Target (SP)
                   </div>
                   <div className="mt-1 flex items-end">
                     <span className="text-4xl font-bold text-orange-600">
