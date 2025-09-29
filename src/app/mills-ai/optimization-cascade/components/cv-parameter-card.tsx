@@ -151,7 +151,7 @@ export function CVParameterCard({
             <div className="text-sm text-slate-500 dark:text-slate-400">
               Current Value (PV)
             </div>
-            <div className="text-2xl font-bold flex items-center gap-1 text-blue-600">
+            <div className="text-lg font-bold flex items-center gap-1 text-blue-600">
               {parameter.value.toFixed(2)}
               <span className="text-xs text-slate-500">{parameter.unit}</span>
             </div>
@@ -160,7 +160,7 @@ export function CVParameterCard({
             <div className="text-sm text-slate-500 dark:text-slate-400">
               Predicted Value
             </div>
-            <div className="text-2xl font-bold flex items-center gap-1 text-purple-600">
+            <div className="text-lg font-bold flex items-center gap-1 text-purple-600">
               {latestPrediction !== null
                 ? latestPrediction.toFixed(2)
                 : "--"}
@@ -250,11 +250,6 @@ export function CVParameterCard({
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   ifOverflow="extendDomain"
-                  label={{ 
-                    value: `Predicted: ${latestPrediction.toFixed(2)}`, 
-                    position: "top",
-                    style: { fill: "#a855f7", fontSize: "10px" }
-                  }}
                 />
               )}
               {typeof proposedSetpoint === "number" && (
@@ -270,21 +265,6 @@ export function CVParameterCard({
           </ResponsiveContainer>
         </div>
 
-        {/* Legend for prediction line */}
-        {(filteredPredictionTrend.length > 0 || latestPrediction !== null) && (
-          <div className="mt-3 flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-blue-500 rounded"></div>
-              <span className="text-slate-600">Current Value</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-purple-500 rounded" style={{
-                backgroundImage: "repeating-linear-gradient(to right, #a855f7 0, #a855f7 3px, transparent 3px, transparent 6px)"
-              }}></div>
-              <span className="text-purple-600">🔮 Predicted from MV</span>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
