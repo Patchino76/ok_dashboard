@@ -27,6 +27,13 @@ interface CommonParameterProps {
   onRangeChange: (id: string, range: [number, number]) => void;
   distributionBounds?: [number, number];
   distributionMedian?: number;
+  distributionPercentiles?: {
+    p5: number;
+    p25: number;
+    p50: number;
+    p75: number;
+    p95: number;
+  };
 }
 
 export function MVParameterCard({
@@ -37,6 +44,7 @@ export function MVParameterCard({
   onRangeChange,
   distributionBounds,
   distributionMedian,
+  distributionPercentiles,
 }: CommonParameterProps) {
   const {
     updateSliderSP,
@@ -60,6 +68,18 @@ export function MVParameterCard({
   useEffect(() => {
     setSliderValue(parameter.sliderSP || parameter.value);
   }, [parameter.id, parameter.sliderSP]);
+
+  // Debug: Log distribution data
+  useEffect(() => {
+    console.log(`🔍 MV ${parameter.id} DISTRIBUTION DEBUG:`, {
+      hasBounds: !!distributionBounds,
+      bounds: distributionBounds,
+      hasPercentiles: !!distributionPercentiles,
+      percentiles: distributionPercentiles,
+      hasMedian: distributionMedian !== undefined,
+      median: distributionMedian
+    });
+  }, [distributionBounds, distributionPercentiles, distributionMedian, parameter.id]);
 
   useEffect(() => {
     setSliderValue((prev) => {
@@ -158,21 +178,23 @@ export function MVParameterCard({
       console.log("🔍 Predicted CVs structure:", {
         predicted_cvs: predictionResult.predicted_cvs,
         keys: Object.keys(predictionResult.predicted_cvs || {}),
-        values: Object.values(predictionResult.predicted_cvs || {})
+        values: Object.values(predictionResult.predicted_cvs || {}),
       });
 
       // Update store with real prediction results
       setSimulationTarget(predictionResult.predicted_target);
-      
+
       // RADICALLY DIFFERENT APPROACH: Direct CV prediction updates
       if (predictionResult.predicted_cvs) {
         console.log("🚀 Using direct CV prediction approach");
-        Object.entries(predictionResult.predicted_cvs).forEach(([cvId, value]) => {
-          console.log(`📡 Calling addCVPrediction for ${cvId}:`, value);
-          (window as any).addCVPrediction(cvId, value as number);
-        });
+        Object.entries(predictionResult.predicted_cvs).forEach(
+          ([cvId, value]) => {
+            console.log(`📡 Calling addCVPrediction for ${cvId}:`, value);
+            (window as any).addCVPrediction(cvId, value as number);
+          }
+        );
       }
-      
+
       // Keep the old approach as backup
       updateCVPredictions(predictionResult.predicted_cvs);
 
@@ -251,12 +273,19 @@ export function MVParameterCard({
       range[0],
       range[1],
       typeof proposedSetpoint === "number" ? proposedSetpoint : values[0],
-    ];
+      distributionBounds ? distributionBounds[0] : undefined,
+      distributionBounds ? distributionBounds[1] : undefined,
+      distributionMedian,
+    ].filter((v): v is number => v !== undefined && Number.isFinite(v));
+    
     const min = Math.min(...extremes);
     const max = Math.max(...extremes);
     const pad = max - min || 1;
+    
+    console.log(`📏 MV ${parameter.id} Y-axis domain:`, { min, max, pad, final: [min - pad * 0.05, max + pad * 0.05], distributionBounds });
+    
     return [min - pad * 0.05, max + pad * 0.05];
-  }, [filteredTrend, proposedSetpoint, range]);
+  }, [filteredTrend, proposedSetpoint, range, distributionBounds, distributionMedian, parameter.id]);
 
   const isInRange = parameter.value >= range[0] && parameter.value <= range[1];
 
@@ -353,7 +382,33 @@ export function MVParameterCard({
               <LineChart
                 data={filteredTrend}
                 margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
+                key={`chart-${parameter.id}-${distributionBounds ? `${distributionBounds[0]}-${distributionBounds[1]}` : 'no-dist'}`}
               >
+                {/* Gradient definitions for beautiful distribution shading */}
+                <defs>
+                  <linearGradient
+                    id="gradientOuter"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.1} />
+                    <stop offset="50%" stopColor="#f59e0b" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.1} />
+                  </linearGradient>
+                  <linearGradient
+                    id="gradientMiddle"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
+                    <stop offset="50%" stopColor="#d97706" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.3} />
+                  </linearGradient>
+                </defs>
                 <XAxis dataKey="timestamp" hide={true} />
                 <YAxis
                   domain={yAxisDomain}
@@ -410,15 +465,37 @@ export function MVParameterCard({
                   dot={false}
                   isAnimationActive={false}
                 />
-                {distributionMedian === undefined && distributionBounds && (
-                  <ReferenceArea
-                    y1={distributionBounds[0]}
-                    y2={distributionBounds[1]}
-                    fill="#f59e0b"
-                    fillOpacity={0.25}
-                    ifOverflow="extendDomain"
-                  />
-                )}
+                {/* Distribution shading - MUST be after Line in Recharts */}
+                {distributionBounds && distributionBounds[0] !== undefined && distributionBounds[1] !== undefined ? (
+                  <>
+                    {console.log(`🎨 RENDERING SHADING for ${parameter.id}:`, distributionBounds)}
+                    <ReferenceArea
+                      y1={distributionBounds[0]}
+                      y2={distributionBounds[1]}
+                      fill="#ff6b00"
+                      fillOpacity={0.5}
+                      stroke="none"
+                      ifOverflow="extendDomain"
+                      isFront={false}
+                    />
+                    <ReferenceLine
+                      y={distributionBounds[1]}
+                      stroke="#ff0000"
+                      strokeWidth={3}
+                      strokeDasharray="5 5"
+                      ifOverflow="extendDomain"
+                      label={{ value: `MAX: ${distributionBounds[1].toFixed(1)}`, position: 'insideTopRight', fill: '#ff0000', fontSize: 14, fontWeight: 'bold' }}
+                    />
+                    <ReferenceLine
+                      y={distributionBounds[0]}
+                      stroke="#0000ff"
+                      strokeWidth={3}
+                      strokeDasharray="5 5"
+                      ifOverflow="extendDomain"
+                      label={{ value: `MIN: ${distributionBounds[0].toFixed(1)}`, position: 'insideBottomRight', fill: '#0000ff', fontSize: 14, fontWeight: 'bold' }}
+                    />
+                  </>
+                ) : console.log(`❌ NO SHADING for ${parameter.id} - bounds missing`)}
               </LineChart>
             </ResponsiveContainer>
           </div>

@@ -1,14 +1,14 @@
 {
   "mill_number": 8,
-  "created_at": "2025-09-29T11:39:56.586062",
+  "created_at": "2025-09-30T09:33:51.785126",
   "model_version": "1.0.0",
   "training_config": {
     "test_size": 0.2,
     "data_shape": [
-      30081,
+      27204,
       8
     ],
-    "training_timestamp": "2025-09-29T11:39:59.782180",
+    "training_timestamp": "2025-09-30T09:33:54.597962",
     "configured_features": {
       "mv_features": [
         "Ore",
@@ -21,20 +21,24 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_features": [],
+      "dv_features": [
+        "Shisti",
+        "Daiki",
+        "Grano"
+      ],
       "target_variable": "PSI200",
       "using_custom_features": true
     }
   },
   "model_performance": {
     "process_model_PulpHC": {
-      "r2_score": 0.977609828259333,
-      "rmse": 4.036439522513745,
+      "r2_score": 0.9045939972183444,
+      "rmse": 5.900263469056327,
       "feature_importance": {
-        "Ore": 0.34689056873321533,
-        "WaterMill": 0.25846123695373535,
-        "WaterZumpf": 0.1955895572900772,
-        "MotorAmp": 0.19905872642993927
+        "Ore": 0.1546754390001297,
+        "WaterMill": 0.12255964428186417,
+        "WaterZumpf": 0.4432224929332733,
+        "MotorAmp": 0.2795424461364746
       },
       "input_vars": [
         "Ore",
@@ -45,13 +49,13 @@
       "output_var": "PulpHC"
     },
     "process_model_DensityHC": {
-      "r2_score": 0.9637988537504609,
-      "rmse": 5.399464430260579,
+      "r2_score": 0.8975885472733846,
+      "rmse": 6.330142393465086,
       "feature_importance": {
-        "Ore": 0.2708573341369629,
-        "WaterMill": 0.08187438547611237,
-        "WaterZumpf": 0.4968242347240448,
-        "MotorAmp": 0.15044404566287994
+        "Ore": 0.15273423492908478,
+        "WaterMill": 0.15569454431533813,
+        "WaterZumpf": 0.3497762978076935,
+        "MotorAmp": 0.3417949676513672
       },
       "input_vars": [
         "Ore",
@@ -62,13 +66,13 @@
       "output_var": "DensityHC"
     },
     "process_model_PressureHC": {
-      "r2_score": 0.9685713476243727,
-      "rmse": 0.005866196171599814,
+      "r2_score": 0.9322573076564311,
+      "rmse": 0.002911419831044709,
       "feature_importance": {
-        "Ore": 0.28791093826293945,
-        "WaterMill": 0.22494269907474518,
-        "WaterZumpf": 0.38362523913383484,
-        "MotorAmp": 0.10352107882499695
+        "Ore": 0.16641119122505188,
+        "WaterMill": 0.14035600423812866,
+        "WaterZumpf": 0.6461026072502136,
+        "MotorAmp": 0.04713018238544464
       },
       "input_vars": [
         "Ore",
@@ -79,12 +83,12 @@
       "output_var": "PressureHC"
     },
     "quality_model": {
-      "r2_score": -15.049154288817167,
-      "rmse": 2.936349762524317,
+      "r2_score": -1.3436569010553425,
+      "rmse": 1.2345795614054222,
       "feature_importance": {
-        "PulpHC": 0.429147869348526,
-        "DensityHC": 0.28066039085388184,
-        "PressureHC": 0.2901916801929474
+        "PulpHC": 0.3470703959465027,
+        "DensityHC": 0.38574662804603577,
+        "PressureHC": 0.26718297600746155
       },
       "input_vars": [
         "PulpHC",
@@ -97,26 +101,30 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_vars": []
+      "dv_vars": [
+        "Shisti",
+        "Daiki",
+        "Grano"
+      ]
     },
     "chain_validation": {
-      "r2_score": -51263.65984569234,
-      "rmse": 482.36146839717327,
-      "mae": 239.41311549773272,
-      "n_samples": 200,
+      "r2_score": -8323825.8218558,
+      "rmse": 973.9231251687941,
+      "mae": 973.9230666666666,
+      "n_samples": 3,
       "n_requested": 200,
       "validation_error": null
     }
   },
   "data_info": {
     "original_shape": [
-      55681,
+      37928,
       22
     ],
     "cleaned_shape": [
-      30081,
+      27204,
       8
     ],
-    "data_reduction": "46.0%"
+    "data_reduction": "28.3%"
   }
 }

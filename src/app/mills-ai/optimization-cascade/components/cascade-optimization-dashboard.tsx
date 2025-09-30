@@ -347,7 +347,10 @@ export default function CascadeOptimizationDashboard() {
         }
       });
 
-      console.log("📊 Cascade prediction data:", { mvValues: mvSliderValues, dvValues });
+      console.log("📊 Cascade prediction data:", {
+        mvValues: mvSliderValues,
+        dvValues,
+      });
 
       const prediction = await predictCascade(mvSliderValues, dvValues);
 
@@ -526,12 +529,12 @@ export default function CascadeOptimizationDashboard() {
           // Trigger immediate data fetch to populate trends
           await fetchRealTimeData();
           console.log("✅ Trend data refreshed for optimization tab");
-          
+
           // Initialize MV slider values with current PV values
           console.log("🎯 Initializing MV sliders with current PV values...");
           const currentXgboostParams = xgboostStore.parameters;
           initializeMVSlidersWithPVs(currentXgboostParams);
-          
+
           toast.success("Trend data refreshed and MV sliders initialized");
         } catch (error) {
           console.error(
@@ -633,12 +636,16 @@ export default function CascadeOptimizationDashboard() {
     }
 
     // Initialize MV slider values with current PV values
-    console.log("🔄 Reset button: Initializing MV sliders with current PV values...");
+    console.log(
+      "🔄 Reset button: Initializing MV sliders with current PV values..."
+    );
     const currentXgboostParams = xgboostStore.parameters;
     initializeMVSlidersWithPVs(currentXgboostParams);
 
     // After initialization, trigger cascade prediction with the new MV slider values
-    console.log("🎯 Reset button: Triggering cascade prediction with initialized MV values...");
+    console.log(
+      "🎯 Reset button: Triggering cascade prediction with initialized MV values..."
+    );
     setTimeout(() => {
       predictWithMVSliderValues();
     }, 100); // Small delay to ensure slider values are updated in store
@@ -1822,14 +1829,17 @@ export default function CascadeOptimizationDashboard() {
                             name: parameter.name,
                             unit: parameter.unit,
                             value: parameter.value,
-                            sliderSP: cascadeStore.parameters.find(p => p.id === parameter.id)?.sliderSP || parameter.value,
+                            sliderSP:
+                              cascadeStore.parameters.find(
+                                (p) => p.id === parameter.id
+                              )?.sliderSP || parameter.value,
                             trend: parameter.trend,
                             color: parameter.color,
                             icon: parameter.icon,
                             varType: varType,
                           };
 
-                          // Get distribution bounds and median for shading if available
+                          // Get distribution bounds, median, and percentiles for beautiful gradient shading
                           const distributionData = (() => {
                             if (currentTargetResults) {
                               const mvDist =
@@ -1840,14 +1850,36 @@ export default function CascadeOptimizationDashboard() {
                                   .cv_distributions[parameter.id];
                               const dist = mvDist || cvDist;
 
-                              if (dist && dist.percentiles) {
-                                return {
-                                  bounds: [
-                                    dist.percentiles["5.0"] || dist.min_value,
-                                    dist.percentiles["95.0"] || dist.max_value,
-                                  ] as [number, number],
-                                  median: dist.median,
-                                };
+                              if (dist) {
+                                // Use min_value and max_value directly from distribution
+                                const minVal = dist.min_value;
+                                const maxVal = dist.max_value;
+                                const median = dist.median;
+
+                                console.log(`📊 Distribution for ${parameter.id}:`, {
+                                  min: minVal,
+                                  max: maxVal,
+                                  median: median,
+                                  sample_count: dist.sample_count
+                                });
+
+                                // Validate values
+                                if (typeof minVal === 'number' && typeof maxVal === 'number' && 
+                                    !isNaN(minVal) && !isNaN(maxVal) && minVal < maxVal) {
+                                  return {
+                                    bounds: [minVal, maxVal] as [number, number],
+                                    median: median,
+                                    percentiles: {
+                                      p5: minVal,
+                                      p25: minVal + (maxVal - minVal) * 0.25,
+                                      p50: median,
+                                      p75: minVal + (maxVal - minVal) * 0.75,
+                                      p95: maxVal,
+                                    },
+                                  };
+                                } else {
+                                  console.warn(`⚠️ Invalid distribution values for ${parameter.id}`);
+                                }
                               }
                             }
                             return undefined;
@@ -1866,6 +1898,9 @@ export default function CascadeOptimizationDashboard() {
                               }
                               distributionBounds={distributionData?.bounds}
                               distributionMedian={distributionData?.median}
+                              distributionPercentiles={
+                                distributionData?.percentiles
+                              }
                               onRangeChange={(
                                 id: string,
                                 newRange: [number, number]
