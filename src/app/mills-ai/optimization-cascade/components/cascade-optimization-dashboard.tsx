@@ -1494,7 +1494,7 @@ export default function CascadeOptimizationDashboard() {
               <CardContent>
                 <EnhancedModelTraining
                   currentMill={currentMill}
-                  onMillChange={cascadeStore.setMillNumber}
+                  onMillChange={handleMillChange}
                   onTrainModel={handleTrainModel}
                   isTraining={isTraining}
                   trainingProgress={trainingProgress}
