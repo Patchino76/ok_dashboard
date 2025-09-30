@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import {
-  LineChart,
+  Area,
+  ComposedChart,
   Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  ReferenceArea,
   ReferenceLine,
 } from "recharts";
 import { DoubleRangeSlider } from "../../components/double-range-slider";
@@ -77,9 +77,14 @@ export function MVParameterCard({
       hasPercentiles: !!distributionPercentiles,
       percentiles: distributionPercentiles,
       hasMedian: distributionMedian !== undefined,
-      median: distributionMedian
+      median: distributionMedian,
     });
-  }, [distributionBounds, distributionPercentiles, distributionMedian, parameter.id]);
+  }, [
+    distributionBounds,
+    distributionPercentiles,
+    distributionMedian,
+    parameter.id,
+  ]);
 
   useEffect(() => {
     setSliderValue((prev) => {
@@ -277,15 +282,60 @@ export function MVParameterCard({
       distributionBounds ? distributionBounds[1] : undefined,
       distributionMedian,
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
-    
+
     const min = Math.min(...extremes);
     const max = Math.max(...extremes);
     const pad = max - min || 1;
-    
-    console.log(`📏 MV ${parameter.id} Y-axis domain:`, { min, max, pad, final: [min - pad * 0.05, max + pad * 0.05], distributionBounds });
-    
+
+    console.log(`📏 MV ${parameter.id} Y-axis domain:`, {
+      min,
+      max,
+      pad,
+      final: [min - pad * 0.05, max + pad * 0.05],
+      distributionBounds,
+    });
+
     return [min - pad * 0.05, max + pad * 0.05];
-  }, [filteredTrend, proposedSetpoint, range, distributionBounds, distributionMedian, parameter.id]);
+  }, [
+    filteredTrend,
+    proposedSetpoint,
+    range,
+    distributionBounds,
+    distributionMedian,
+    parameter.id,
+  ]);
+
+  const lowerBound =
+    distributionBounds && distributionBounds[0] !== undefined
+      ? distributionBounds[0]
+      : range[0];
+  const upperBound =
+    distributionBounds && distributionBounds[1] !== undefined
+      ? distributionBounds[1]
+      : range[1];
+  const medianValue =
+    typeof distributionMedian === "number"
+      ? distributionMedian
+      : typeof proposedSetpoint === "number"
+      ? proposedSetpoint
+      : (lowerBound + upperBound) / 2;
+
+  const shadingData = filteredTrend.map((point) => ({
+    ...point,
+    hiValue: upperBound,
+    loValue: lowerBound,
+  }));
+
+  const chartData = shadingData.length
+    ? shadingData
+    : [
+        {
+          timestamp: Date.now(),
+          value: parameter.value,
+          hiValue: upperBound,
+          loValue: lowerBound,
+        },
+      ];
 
   const isInRange = parameter.value >= range[0] && parameter.value <= range[1];
 
@@ -379,37 +429,30 @@ export function MVParameterCard({
           </div>
           <div className="flex-1 h-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={filteredTrend}
+              <ComposedChart
+                data={chartData}
                 margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
-                key={`chart-${parameter.id}-${distributionBounds ? `${distributionBounds[0]}-${distributionBounds[1]}` : 'no-dist'}`}
+                key={`chart-${parameter.id}-${lowerBound}-${upperBound}`}
               >
-                {/* Gradient definitions for beautiful distribution shading */}
                 <defs>
                   <linearGradient
-                    id="gradientOuter"
+                    id={`mv-shading-${parameter.id}`}
                     x1="0"
                     y1="0"
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor="#fbbf24" stopOpacity={0.1} />
-                    <stop offset="50%" stopColor="#f59e0b" stopOpacity={0.2} />
-                    <stop offset="100%" stopColor="#fbbf24" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient
-                    id="gradientMiddle"
-                    x1="0"
-                    y1="0"
-                    x2="0"
-                    y2="1"
-                  >
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
-                    <stop offset="50%" stopColor="#d97706" stopOpacity={0.4} />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.3} />
+                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.05} />
+                    <stop offset="50%" stopColor="#f97316" stopOpacity={0.45} />
+                    <stop offset="100%" stopColor="#f97316" stopOpacity={0.05} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="timestamp" hide={true} />
+                <XAxis
+                  dataKey="timestamp"
+                  hide={false}
+                  tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  tickFormatter={formatTime}
+                />
                 <YAxis
                   domain={yAxisDomain}
                   hide={false}
@@ -439,64 +482,46 @@ export function MVParameterCard({
                   }}
                   itemStyle={{ color: "#e5e7eb" }}
                 />
-                {distributionMedian !== undefined && (
-                  <ReferenceLine
-                    y={distributionMedian}
-                    stroke="#d97706"
-                    strokeWidth={1.5}
-                    strokeDasharray="2 2"
-                    ifOverflow="extendDomain"
-                  />
-                )}
-                {typeof proposedSetpoint === "number" && (
-                  <ReferenceLine
-                    y={proposedSetpoint}
-                    stroke="#f97316"
-                    strokeWidth={2}
-                    strokeDasharray="8 4"
-                    ifOverflow="extendDomain"
-                  />
-                )}
+                <Area
+                  type="monotone"
+                  dataKey="hiValue"
+                  stroke="none"
+                  fill={`url(#mv-shading-${parameter.id})`}
+                  fillOpacity={1}
+                  baseValue={lowerBound}
+                  isAnimationActive={false}
+                />
+                <ReferenceLine
+                  y={lowerBound}
+                  stroke="#fcd34d"
+                  strokeWidth={1}
+                  strokeDasharray="6 4"
+                  ifOverflow="extendDomain"
+                />
+                <ReferenceLine
+                  y={medianValue}
+                  stroke="#fbbf24"
+                  strokeWidth={1}
+                  strokeDasharray="6 4"
+                  ifOverflow="extendDomain"
+                />
+                <ReferenceLine
+                  y={upperBound}
+                  stroke="#fcd34d"
+                  strokeWidth={1}
+                  strokeDasharray="6 4"
+                  ifOverflow="extendDomain"
+                />
                 <Line
                   type="monotone"
                   dataKey="value"
                   stroke="#f97316"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                   dot={false}
                   isAnimationActive={false}
+                  name={parameter.name}
                 />
-                {/* Distribution shading - MUST be after Line in Recharts */}
-                {distributionBounds && distributionBounds[0] !== undefined && distributionBounds[1] !== undefined ? (
-                  <>
-                    {console.log(`🎨 RENDERING SHADING for ${parameter.id}:`, distributionBounds)}
-                    <ReferenceArea
-                      y1={distributionBounds[0]}
-                      y2={distributionBounds[1]}
-                      fill="#ff6b00"
-                      fillOpacity={0.5}
-                      stroke="none"
-                      ifOverflow="extendDomain"
-                      isFront={false}
-                    />
-                    <ReferenceLine
-                      y={distributionBounds[1]}
-                      stroke="#ff0000"
-                      strokeWidth={3}
-                      strokeDasharray="5 5"
-                      ifOverflow="extendDomain"
-                      label={{ value: `MAX: ${distributionBounds[1].toFixed(1)}`, position: 'insideTopRight', fill: '#ff0000', fontSize: 14, fontWeight: 'bold' }}
-                    />
-                    <ReferenceLine
-                      y={distributionBounds[0]}
-                      stroke="#0000ff"
-                      strokeWidth={3}
-                      strokeDasharray="5 5"
-                      ifOverflow="extendDomain"
-                      label={{ value: `MIN: ${distributionBounds[0].toFixed(1)}`, position: 'insideBottomRight', fill: '#0000ff', fontSize: 14, fontWeight: 'bold' }}
-                    />
-                  </>
-                ) : console.log(`❌ NO SHADING for ${parameter.id} - bounds missing`)}
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </div>

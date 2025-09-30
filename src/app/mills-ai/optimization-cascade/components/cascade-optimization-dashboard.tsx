@@ -1839,6 +1839,79 @@ export default function CascadeOptimizationDashboard() {
                             varType: varType,
                           };
 
+                          // Helper to validate numeric tuple
+                          const validateTuple = (
+                            tuple: [number, number] | undefined
+                          ): [number, number] | null => {
+                            if (!tuple) return null;
+                            const [lo, hi] = tuple;
+                            if (
+                              typeof lo === "number" &&
+                              typeof hi === "number" &&
+                              Number.isFinite(lo) &&
+                              Number.isFinite(hi) &&
+                              lo < hi
+                            ) {
+                              return [lo, hi];
+                            }
+                            return null;
+                          };
+
+                          const getFallbackMedian = (
+                            bounds: [number, number] | null
+                          ): number | null => {
+                            const sliderSP = cascadeStore.parameters.find(
+                              (p) => p.id === parameter.id
+                            )?.sliderSP;
+
+                            if (
+                              typeof proposedValue === "number" &&
+                              Number.isFinite(proposedValue)
+                            ) {
+                              return proposedValue;
+                            }
+
+                            if (
+                              typeof sliderSP === "number" &&
+                              Number.isFinite(sliderSP)
+                            ) {
+                              return sliderSP;
+                            }
+
+                            if (bounds) {
+                              return (bounds[0] + bounds[1]) / 2;
+                            }
+
+                            const currentValue = parameter.value;
+                            return Number.isFinite(currentValue) ? currentValue : null;
+                          };
+
+                          const createPercentiles = (
+                            bounds: [number, number],
+                            median: number | null
+                          ) => {
+                            const [minVal, maxVal] = bounds;
+                            const mid = median ?? (minVal + maxVal) / 2;
+                            const span = maxVal - minVal;
+
+                            return {
+                              p5: minVal,
+                              p25: minVal + span * 0.25,
+                              p50: mid,
+                              p75: minVal + span * 0.75,
+                              p95: maxVal,
+                            } as const;
+                          };
+
+                          // Determine base bounds from current optimization ranges
+                          const optimizedBounds = validateTuple(
+                            rangeValue as [number, number]
+                          );
+                          const parameterDefaultBounds = validateTuple(
+                            parameterBounds[parameter.id]
+                          );
+                          const fallbackBounds = optimizedBounds ?? parameterDefaultBounds;
+
                           // Get distribution bounds, median, and percentiles for beautiful gradient shading
                           const distributionData = (() => {
                             if (currentTargetResults) {
@@ -1851,37 +1924,83 @@ export default function CascadeOptimizationDashboard() {
                               const dist = mvDist || cvDist;
 
                               if (dist) {
-                                // Use min_value and max_value directly from distribution
-                                const minVal = dist.min_value;
-                                const maxVal = dist.max_value;
-                                const median = dist.median;
+                                const { min_value, max_value, median, sample_count } = dist;
 
                                 console.log(`📊 Distribution for ${parameter.id}:`, {
-                                  min: minVal,
-                                  max: maxVal,
-                                  median: median,
-                                  sample_count: dist.sample_count
+                                  min: min_value,
+                                  max: max_value,
+                                  median,
+                                  sample_count,
+                                  percentiles: dist.percentiles,
                                 });
 
-                                // Validate values
-                                if (typeof minVal === 'number' && typeof maxVal === 'number' && 
-                                    !isNaN(minVal) && !isNaN(maxVal) && minVal < maxVal) {
+                                const validBounds = validateTuple([
+                                  min_value,
+                                  max_value,
+                                ] as [number, number]);
+
+                                if (validBounds) {
+                                  const rawP5 = dist.percentiles?.["5"] ?? dist.percentiles?.["5.0"];
+                                  const rawP95 = dist.percentiles?.["95"] ?? dist.percentiles?.["95.0"];
+                                  const rawP25 = dist.percentiles?.["25"];
+                                  const rawP75 = dist.percentiles?.["75"];
+                                  const rawP50 = dist.percentiles?.["50"] ?? dist.percentiles?.["50.0"] ?? median;
+
+                                  const lowerPercentile =
+                                    typeof rawP5 === "number" && Number.isFinite(rawP5)
+                                      ? rawP5
+                                      : validBounds[0];
+                                  const upperPercentile =
+                                    typeof rawP95 === "number" && Number.isFinite(rawP95)
+                                      ? rawP95
+                                      : validBounds[1];
+
+                                  const medianValue =
+                                    typeof median === "number" && Number.isFinite(median)
+                                      ? median
+                                      : typeof rawP50 === "number" && Number.isFinite(rawP50)
+                                      ? rawP50
+                                      : (lowerPercentile + upperPercentile) / 2;
+
                                   return {
-                                    bounds: [minVal, maxVal] as [number, number],
-                                    median: median,
+                                    bounds: [lowerPercentile, upperPercentile] as [number, number],
+                                    median: medianValue,
                                     percentiles: {
-                                      p5: minVal,
-                                      p25: minVal + (maxVal - minVal) * 0.25,
-                                      p50: median,
-                                      p75: minVal + (maxVal - minVal) * 0.75,
-                                      p95: maxVal,
+                                      p5: lowerPercentile,
+                                      p25:
+                                        typeof rawP25 === "number" && Number.isFinite(rawP25)
+                                          ? rawP25
+                                          : lowerPercentile +
+                                            (upperPercentile - lowerPercentile) * 0.25,
+                                      p50: medianValue,
+                                      p75:
+                                        typeof rawP75 === "number" && Number.isFinite(rawP75)
+                                          ? rawP75
+                                          : lowerPercentile +
+                                            (upperPercentile - lowerPercentile) * 0.75,
+                                      p95: upperPercentile,
                                     },
                                   };
-                                } else {
-                                  console.warn(`⚠️ Invalid distribution values for ${parameter.id}`);
                                 }
+
+                                console.warn(
+                                  `⚠️ Invalid distribution values for ${parameter.id}`
+                                );
                               }
                             }
+
+                            if (fallbackBounds) {
+                              const fallbackMedian = getFallbackMedian(fallbackBounds);
+                              return {
+                                bounds: fallbackBounds,
+                                median: fallbackMedian ?? fallbackBounds[0],
+                                percentiles: createPercentiles(
+                                  fallbackBounds,
+                                  fallbackMedian
+                                ),
+                              };
+                            }
+
                             return undefined;
                           })();
 

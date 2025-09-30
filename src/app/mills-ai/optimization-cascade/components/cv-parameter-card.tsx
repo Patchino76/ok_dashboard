@@ -156,11 +156,25 @@ export function CVParameterCard({
     const min = Math.min(...allValues);
     const max = Math.max(...allValues);
     const pad = (max - min || 1) * 0.05;
-    
-    console.log(`📏 CV ${parameter.id} Y-axis domain:`, { min, max, pad, final: [min - pad, max + pad], distributionBounds });
-    
+
+    console.log(`📏 CV ${parameter.id} Y-axis domain:`, {
+      min,
+      max,
+      pad,
+      final: [min - pad, max + pad],
+      distributionBounds,
+    });
+
     return [min - pad, max + pad];
-  }, [filteredTrend, proposedSetpoint, rangeValue, latestPrediction, distributionBounds, distributionMedian, parameter.id]);
+  }, [
+    filteredTrend,
+    proposedSetpoint,
+    rangeValue,
+    latestPrediction,
+    distributionBounds,
+    distributionMedian,
+    parameter.id,
+  ]);
 
   return (
     <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-blue-50/90 dark:from-slate-800 dark:to-blue-900/30 ring-2 ring-blue-200/80 dark:ring-blue-900/60 backdrop-blur-sm overflow-hidden">
@@ -215,7 +229,11 @@ export function CVParameterCard({
             <LineChart
               data={chartData}
               margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
-              key={`chart-${parameter.id}-${distributionBounds ? `${distributionBounds[0]}-${distributionBounds[1]}` : 'no-dist'}`}
+              key={`chart-${parameter.id}-${
+                distributionBounds
+                  ? `${distributionBounds[0]}-${distributionBounds[1]}`
+                  : "no-dist"
+              }`}
             >
               {/* Gradient definitions for beautiful distribution shading */}
               <defs>
@@ -322,9 +340,14 @@ export function CVParameterCard({
                 />
               )}
               {/* Distribution shading - MUST be after Line in Recharts */}
-              {distributionBounds && distributionBounds[0] !== undefined && distributionBounds[1] !== undefined ? (
+              {distributionBounds &&
+              distributionBounds[0] !== undefined &&
+              distributionBounds[1] !== undefined ? (
                 <>
-                  {console.log(`🎨 RENDERING CV SHADING for ${parameter.id}:`, distributionBounds)}
+                  {console.log(
+                    `🎨 RENDERING CV SHADING for ${parameter.id}:`,
+                    distributionBounds
+                  )}
                   <ReferenceArea
                     y1={distributionBounds[0]}
                     y2={distributionBounds[1]}
@@ -340,7 +363,13 @@ export function CVParameterCard({
                     strokeWidth={3}
                     strokeDasharray="5 5"
                     ifOverflow="extendDomain"
-                    label={{ value: `MAX: ${distributionBounds[1].toFixed(1)}`, position: 'insideTopRight', fill: '#ff0000', fontSize: 14, fontWeight: 'bold' }}
+                    label={{
+                      value: `MAX: ${distributionBounds[1].toFixed(1)}`,
+                      position: "insideTopRight",
+                      fill: "#ff0000",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                    }}
                   />
                   <ReferenceLine
                     y={distributionBounds[0]}
@@ -348,10 +377,20 @@ export function CVParameterCard({
                     strokeWidth={3}
                     strokeDasharray="5 5"
                     ifOverflow="extendDomain"
-                    label={{ value: `MIN: ${distributionBounds[0].toFixed(1)}`, position: 'insideBottomRight', fill: '#0000ff', fontSize: 14, fontWeight: 'bold' }}
+                    label={{
+                      value: `MIN: ${distributionBounds[0].toFixed(1)}`,
+                      position: "insideBottomRight",
+                      fill: "#0000ff",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                    }}
                   />
                 </>
-              ) : console.log(`❌ NO CV SHADING for ${parameter.id} - bounds missing`)}
+              ) : (
+                console.log(
+                  `❌ NO CV SHADING for ${parameter.id} - bounds missing`
+                )
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
