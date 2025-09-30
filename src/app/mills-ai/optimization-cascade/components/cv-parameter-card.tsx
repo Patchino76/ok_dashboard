@@ -4,13 +4,13 @@ import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  LineChart,
+  Area,
+  ComposedChart,
   Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  ReferenceArea,
   ReferenceLine,
 } from "recharts";
 import { useXgboostStore } from "../../stores/xgboost-store";
@@ -125,14 +125,6 @@ export function CVParameterCard({
   const filteredTrend = parameter.trend.filter(
     (item) => item.timestamp >= hoursAgo
   );
-  const filteredPredictionTrend = predictions.filter(
-    (item) => item.timestamp >= hoursAgo
-  );
-
-  console.log(
-    `📊 CV ${parameter.id} - Trends: ${filteredTrend.length} current, ${filteredPredictionTrend.length} predictions`
-  );
-
   // Use only current trend data for chart (prediction shown as reference line)
   const chartData = filteredTrend;
 
@@ -157,14 +149,6 @@ export function CVParameterCard({
     const max = Math.max(...allValues);
     const pad = (max - min || 1) * 0.05;
 
-    console.log(`📏 CV ${parameter.id} Y-axis domain:`, {
-      min,
-      max,
-      pad,
-      final: [min - pad, max + pad],
-      distributionBounds,
-    });
-
     return [min - pad, max + pad];
   }, [
     filteredTrend,
@@ -175,6 +159,38 @@ export function CVParameterCard({
     distributionMedian,
     parameter.id,
   ]);
+
+  const lowerBound =
+    distributionPercentiles?.p5 ?? distributionBounds?.[0] ?? rangeValue[0];
+  const upperBound =
+    distributionPercentiles?.p95 ?? distributionBounds?.[1] ?? rangeValue[1];
+  const medianValue =
+    distributionPercentiles?.p50 ?? distributionMedian ?? (lowerBound + upperBound) / 2;
+
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return `${date.getHours().toString().padStart(2, "0")}:${date
+      .getMinutes()
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  const shadingData = chartData.map((point) => ({
+    ...point,
+    hiValue: upperBound,
+    loValue: lowerBound,
+  }));
+
+  const composedChartData = shadingData.length
+    ? shadingData
+    : [
+        {
+          timestamp: Date.now(),
+          value: parameter.value,
+          hiValue: upperBound,
+          loValue: lowerBound,
+        },
+      ];
 
   return (
     <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-blue-50/90 dark:from-slate-800 dark:to-blue-900/30 ring-2 ring-blue-200/80 dark:ring-blue-900/60 backdrop-blur-sm overflow-hidden">
@@ -226,41 +242,30 @@ export function CVParameterCard({
 
         <div className="flex-1 h-40">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
+            <ComposedChart
+              data={composedChartData}
               margin={{ top: 5, right: 10, bottom: 5, left: 10 }}
-              key={`chart-${parameter.id}-${
-                distributionBounds
-                  ? `${distributionBounds[0]}-${distributionBounds[1]}`
-                  : "no-dist"
-              }`}
+              key={`chart-${parameter.id}-${lowerBound}-${upperBound}`}
             >
-              {/* Gradient definitions for beautiful distribution shading */}
               <defs>
                 <linearGradient
-                  id="cvGradientOuter"
+                  id={`cv-shading-${parameter.id}`}
                   x1="0"
                   y1="0"
                   x2="0"
                   y2="1"
                 >
-                  <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.1} />
-                  <stop offset="50%" stopColor="#3b82f6" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.1} />
-                </linearGradient>
-                <linearGradient
-                  id="cvGradientMiddle"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.3} />
-                  <stop offset="50%" stopColor="#2563eb" stopOpacity={0.4} />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.3} />
+                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.05} />
+                  <stop offset="50%" stopColor="#2563eb" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="timestamp" hide={true} />
+              <XAxis
+                dataKey="timestamp"
+                hide={false}
+                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tickFormatter={formatTime}
+              />
               <YAxis
                 domain={yAxisDomain}
                 hide={false}
@@ -277,23 +282,11 @@ export function CVParameterCard({
                 orientation="left"
               />
               <Tooltip
-                formatter={(value: number, name, props) => {
-                  const displayValue = value.toFixed(2);
-                  const color = name === "Predicted" ? "#a855f7" : "#3b82f6";
-                  return [
-                    <span style={{ color }}>
-                      {displayValue} {parameter.unit}
-                    </span>,
-                    name === "Predicted" ? "🔮 Predicted" : "📊 Current",
-                  ];
-                }}
-                labelFormatter={(timestamp: number) => {
-                  const date = new Date(timestamp);
-                  return `${date.getHours().toString().padStart(2, "0")}:${date
-                    .getMinutes()
-                    .toString()
-                    .padStart(2, "0")}`;
-                }}
+                formatter={(value: number) => [
+                  `${value >= 1 ? value.toFixed(2) : value.toPrecision(3)} ${parameter.unit}`,
+                  parameter.name,
+                ]}
+                labelFormatter={formatTime}
                 contentStyle={{
                   backgroundColor: "rgba(15, 23, 42, 0.95)",
                   border: "1px solid rgba(148, 163, 184, 0.2)",
@@ -301,15 +294,36 @@ export function CVParameterCard({
                   color: "#e2e8f0",
                 }}
               />
-              {typeof distributionMedian === "number" && (
-                <ReferenceLine
-                  y={distributionMedian}
-                  stroke="#2563eb"
-                  strokeWidth={1.5}
-                  strokeDasharray="2 2"
-                  ifOverflow="extendDomain"
-                />
-              )}
+              <Area
+                type="monotone"
+                dataKey="hiValue"
+                stroke="none"
+                fill={`url(#cv-shading-${parameter.id})`}
+                fillOpacity={1}
+                baseValue={lowerBound}
+                isAnimationActive={false}
+              />
+              <ReferenceLine
+                y={lowerBound}
+                stroke="#60a5fa"
+                strokeWidth={1}
+                strokeDasharray="6 4"
+                ifOverflow="extendDomain"
+              />
+              <ReferenceLine
+                y={medianValue}
+                stroke="#3b82f6"
+                strokeWidth={1}
+                strokeDasharray="6 4"
+                ifOverflow="extendDomain"
+              />
+              <ReferenceLine
+                y={upperBound}
+                stroke="#60a5fa"
+                strokeWidth={1}
+                strokeDasharray="6 4"
+                ifOverflow="extendDomain"
+              />
               <Line
                 type="monotone"
                 dataKey="value"
@@ -339,59 +353,7 @@ export function CVParameterCard({
                   ifOverflow="extendDomain"
                 />
               )}
-              {/* Distribution shading - MUST be after Line in Recharts */}
-              {distributionBounds &&
-              distributionBounds[0] !== undefined &&
-              distributionBounds[1] !== undefined ? (
-                <>
-                  {console.log(
-                    `🎨 RENDERING CV SHADING for ${parameter.id}:`,
-                    distributionBounds
-                  )}
-                  <ReferenceArea
-                    y1={distributionBounds[0]}
-                    y2={distributionBounds[1]}
-                    fill="#00bfff"
-                    fillOpacity={0.5}
-                    stroke="none"
-                    ifOverflow="extendDomain"
-                    isFront={false}
-                  />
-                  <ReferenceLine
-                    y={distributionBounds[1]}
-                    stroke="#ff0000"
-                    strokeWidth={3}
-                    strokeDasharray="5 5"
-                    ifOverflow="extendDomain"
-                    label={{
-                      value: `MAX: ${distributionBounds[1].toFixed(1)}`,
-                      position: "insideTopRight",
-                      fill: "#ff0000",
-                      fontSize: 14,
-                      fontWeight: "bold",
-                    }}
-                  />
-                  <ReferenceLine
-                    y={distributionBounds[0]}
-                    stroke="#0000ff"
-                    strokeWidth={3}
-                    strokeDasharray="5 5"
-                    ifOverflow="extendDomain"
-                    label={{
-                      value: `MIN: ${distributionBounds[0].toFixed(1)}`,
-                      position: "insideBottomRight",
-                      fill: "#0000ff",
-                      fontSize: 14,
-                      fontWeight: "bold",
-                    }}
-                  />
-                </>
-              ) : (
-                console.log(
-                  `❌ NO CV SHADING for ${parameter.id} - bounds missing`
-                )
-              )}
-            </LineChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </CardContent>
