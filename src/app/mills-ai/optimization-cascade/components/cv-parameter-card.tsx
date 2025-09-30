@@ -129,26 +129,79 @@ export function CVParameterCard({
   const chartData = filteredTrend;
 
   const yAxisDomain = useMemo((): [number, number] => {
-    const allValues = [
-      ...filteredTrend.map((d) => d.value),
-      rangeValue[0],
-      rangeValue[1],
+    // Smart adaptive Y-axis scaling for better trend visibility
+    
+    // Priority 1: Use actual trend data if available (this is what we want to see clearly)
+    const trendValues = filteredTrend.map((d) => d.value);
+    
+    // Priority 2: Include important reference values
+    const referenceValues = [
       typeof proposedSetpoint === "number" ? proposedSetpoint : undefined,
       latestPrediction !== null ? latestPrediction : undefined,
-      distributionBounds ? distributionBounds[0] : undefined,
-      distributionBounds ? distributionBounds[1] : undefined,
       distributionMedian,
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
-
-    if (allValues.length === 0) {
+    
+    // If we have trend data, focus on it for better zoom
+    if (trendValues.length > 0) {
+      const trendMin = Math.min(...trendValues);
+      const trendMax = Math.max(...trendValues);
+      const trendRange = trendMax - trendMin;
+      
+      // Include reference values in the domain calculation
+      const allRelevantValues = [...trendValues, ...referenceValues];
+      const dataMin = Math.min(...allRelevantValues);
+      const dataMax = Math.max(...allRelevantValues);
+      const dataRange = dataMax - dataMin;
+      
+      // Adaptive padding: smaller padding for tightly clustered data
+      // Use 2% padding if data is very tight, up to 8% for wider ranges
+      const paddingPercent = dataRange < trendRange * 0.1 ? 0.02 : 
+                             dataRange < trendRange * 0.5 ? 0.05 : 0.08;
+      const padding = Math.max(dataRange * paddingPercent, trendRange * 0.02);
+      
+      // Ensure shading bounds are visible if they're close to the data
+      const lowerBound = distributionPercentiles?.p5 ?? distributionBounds?.[0] ?? rangeValue[0];
+      const upperBound = distributionPercentiles?.p95 ?? distributionBounds?.[1] ?? rangeValue[1];
+      
+      let finalMin = dataMin - padding;
+      let finalMax = dataMax + padding;
+      
+      // Only extend domain to include bounds if they're reasonably close to the data
+      if (lowerBound > finalMin && lowerBound < dataMin + dataRange * 0.3) {
+        finalMin = Math.min(finalMin, lowerBound - padding * 0.5);
+      }
+      if (upperBound < finalMax && upperBound > dataMax - dataRange * 0.3) {
+        finalMax = Math.max(finalMax, upperBound + padding * 0.5);
+      }
+      
+      console.log(`📊 CV ${parameter.id} Smart Y-axis:`, {
+        trendRange: trendRange.toFixed(3),
+        dataRange: dataRange.toFixed(3),
+        paddingPercent: (paddingPercent * 100).toFixed(1) + '%',
+        domain: [finalMin.toFixed(3), finalMax.toFixed(3)]
+      });
+      
+      return [finalMin, finalMax];
+    }
+    
+    // Fallback: No trend data, use bounds and references
+    const fallbackValues = [
+      ...referenceValues,
+      rangeValue[0],
+      rangeValue[1],
+      distributionBounds?.[0],
+      distributionBounds?.[1],
+    ].filter((v): v is number => v !== undefined && Number.isFinite(v));
+    
+    if (fallbackValues.length === 0) {
       const mid = (rangeValue[0] + rangeValue[1]) / 2;
       return [mid - 1, mid + 1];
     }
-
-    const min = Math.min(...allValues);
-    const max = Math.max(...allValues);
-    const pad = (max - min || 1) * 0.05;
-
+    
+    const min = Math.min(...fallbackValues);
+    const max = Math.max(...fallbackValues);
+    const pad = (max - min || 1) * 0.1;
+    
     return [min - pad, max + pad];
   }, [
     filteredTrend,
@@ -157,6 +210,7 @@ export function CVParameterCard({
     latestPrediction,
     distributionBounds,
     distributionMedian,
+    distributionPercentiles,
     parameter.id,
   ]);
 
@@ -165,7 +219,9 @@ export function CVParameterCard({
   const upperBound =
     distributionPercentiles?.p95 ?? distributionBounds?.[1] ?? rangeValue[1];
   const medianValue =
-    distributionPercentiles?.p50 ?? distributionMedian ?? (lowerBound + upperBound) / 2;
+    distributionPercentiles?.p50 ??
+    distributionMedian ??
+    (lowerBound + upperBound) / 2;
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -283,7 +339,9 @@ export function CVParameterCard({
               />
               <Tooltip
                 formatter={(value: number) => [
-                  `${value >= 1 ? value.toFixed(2) : value.toPrecision(3)} ${parameter.unit}`,
+                  `${value >= 1 ? value.toFixed(2) : value.toPrecision(3)} ${
+                    parameter.unit
+                  }`,
                   parameter.name,
                 ]}
                 labelFormatter={formatTime}
@@ -328,7 +386,7 @@ export function CVParameterCard({
                 type="monotone"
                 dataKey="value"
                 stroke="#3b82f6"
-                strokeWidth={2}
+                strokeWidth={1.5}
                 dot={false}
                 isAnimationActive={false}
                 name="Current Value"

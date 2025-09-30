@@ -264,38 +264,80 @@ export function MVParameterCard({
   );
 
   const yAxisDomain = useMemo((): [number, number] => {
-    if (filteredTrend.length === 0) {
-      const base =
-        typeof proposedSetpoint === "number"
-          ? proposedSetpoint
-          : (range[0] + range[1]) / 2;
-      return [Math.min(range[0], base), Math.max(range[1], base)];
-    }
-
-    const values = filteredTrend.map((d) => d.value);
-    const extremes = [
-      ...values,
-      range[0],
-      range[1],
-      typeof proposedSetpoint === "number" ? proposedSetpoint : values[0],
-      distributionBounds ? distributionBounds[0] : undefined,
-      distributionBounds ? distributionBounds[1] : undefined,
+    // Smart adaptive Y-axis scaling for better trend visibility
+    
+    // Priority 1: Use actual trend data if available (this is what we want to see clearly)
+    const trendValues = filteredTrend.map((d) => d.value);
+    
+    // Priority 2: Include important reference values
+    const referenceValues = [
+      typeof proposedSetpoint === "number" ? proposedSetpoint : undefined,
       distributionMedian,
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
-
-    const min = Math.min(...extremes);
-    const max = Math.max(...extremes);
-    const pad = max - min || 1;
-
-    console.log(`📏 MV ${parameter.id} Y-axis domain:`, {
-      min,
-      max,
-      pad,
-      final: [min - pad * 0.05, max + pad * 0.05],
-      distributionBounds,
-    });
-
-    return [min - pad * 0.05, max + pad * 0.05];
+    
+    // If we have trend data, focus on it for better zoom
+    if (trendValues.length > 0) {
+      const trendMin = Math.min(...trendValues);
+      const trendMax = Math.max(...trendValues);
+      const trendRange = trendMax - trendMin;
+      
+      // Include reference values in the domain calculation
+      const allRelevantValues = [...trendValues, ...referenceValues];
+      const dataMin = Math.min(...allRelevantValues);
+      const dataMax = Math.max(...allRelevantValues);
+      const dataRange = dataMax - dataMin;
+      
+      // Adaptive padding: smaller padding for tightly clustered data
+      // Use 2% padding if data is very tight, up to 8% for wider ranges
+      const paddingPercent = dataRange < trendRange * 0.1 ? 0.02 : 
+                             dataRange < trendRange * 0.5 ? 0.05 : 0.08;
+      const padding = Math.max(dataRange * paddingPercent, trendRange * 0.02);
+      
+      // Ensure shading bounds are visible if they're close to the data
+      const lowerBound = distributionBounds?.[0] ?? range[0];
+      const upperBound = distributionBounds?.[1] ?? range[1];
+      
+      let finalMin = dataMin - padding;
+      let finalMax = dataMax + padding;
+      
+      // Only extend domain to include bounds if they're reasonably close to the data
+      if (lowerBound > finalMin && lowerBound < dataMin + dataRange * 0.3) {
+        finalMin = Math.min(finalMin, lowerBound - padding * 0.5);
+      }
+      if (upperBound < finalMax && upperBound > dataMax - dataRange * 0.3) {
+        finalMax = Math.max(finalMax, upperBound + padding * 0.5);
+      }
+      
+      console.log(`📊 MV ${parameter.id} Smart Y-axis:`, {
+        trendRange: trendRange.toFixed(3),
+        dataRange: dataRange.toFixed(3),
+        paddingPercent: (paddingPercent * 100).toFixed(1) + '%',
+        domain: [finalMin.toFixed(3), finalMax.toFixed(3)],
+        distributionBounds
+      });
+      
+      return [finalMin, finalMax];
+    }
+    
+    // Fallback: No trend data, use bounds and references
+    const fallbackValues = [
+      ...referenceValues,
+      range[0],
+      range[1],
+      distributionBounds?.[0],
+      distributionBounds?.[1],
+    ].filter((v): v is number => v !== undefined && Number.isFinite(v));
+    
+    if (fallbackValues.length === 0) {
+      const mid = (range[0] + range[1]) / 2;
+      return [mid - 1, mid + 1];
+    }
+    
+    const min = Math.min(...fallbackValues);
+    const max = Math.max(...fallbackValues);
+    const pad = (max - min || 1) * 0.1;
+    
+    return [min - pad, max + pad];
   }, [
     filteredTrend,
     proposedSetpoint,
@@ -516,7 +558,7 @@ export function MVParameterCard({
                   type="monotone"
                   dataKey="value"
                   stroke="#f97316"
-                  strokeWidth={2.5}
+                  strokeWidth={1.5}
                   dot={false}
                   isAnimationActive={false}
                   name={parameter.name}
