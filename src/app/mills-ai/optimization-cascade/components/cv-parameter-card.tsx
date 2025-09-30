@@ -19,26 +19,29 @@ import type { CascadeParameter } from "../stores/cascade-optimization-store";
 // Global prediction cache to store CV predictions
 const predictionCache = new Map<string, { timestamp: number; value: number; parameterId: string }[]>();
 
-// Global function to add predictions
-(window as any).addCVPrediction = (parameterId: string, value: number) => {
-  const timestamp = Date.now();
-  const existing = predictionCache.get(parameterId) || [];
-  const updated = [...existing, { timestamp, value, parameterId }].slice(-50);
-  predictionCache.set(parameterId, updated);
-  
-  // Trigger re-render by dispatching custom event
-  window.dispatchEvent(new CustomEvent('cvPredictionUpdate', { detail: { parameterId, value, timestamp } }));
-  console.log(`🔮 Added prediction for ${parameterId}:`, value, "Cache size:", updated.length);
-};
+// Initialize global functions only on client side
+if (typeof window !== 'undefined') {
+  // Global function to add predictions
+  (window as any).addCVPrediction = (parameterId: string, value: number) => {
+    const timestamp = Date.now();
+    const existing = predictionCache.get(parameterId) || [];
+    const updated = [...existing, { timestamp, value, parameterId }].slice(-50);
+    predictionCache.set(parameterId, updated);
+    
+    // Trigger re-render by dispatching custom event
+    window.dispatchEvent(new CustomEvent('cvPredictionUpdate', { detail: { parameterId, value, timestamp } }));
+    console.log(`🔮 Added prediction for ${parameterId}:`, value, "Cache size:", updated.length);
+  };
 
-// Test function to verify the approach works
-(window as any).testCVPredictions = () => {
-  console.log("🧪 Testing CV predictions...");
-  (window as any).addCVPrediction("PulpHC", 455.83);
-  (window as any).addCVPrediction("DensityHC", 1724.88);
-  (window as any).addCVPrediction("PressureHC", 0.295);
-  console.log("✅ Test predictions sent. Check CV cards for purple lines!");
-};
+  // Test function to verify the approach works
+  (window as any).testCVPredictions = () => {
+    console.log("🧪 Testing CV predictions...");
+    (window as any).addCVPrediction("PulpHC", 455.83);
+    (window as any).addCVPrediction("DensityHC", 1724.88);
+    (window as any).addCVPrediction("PressureHC", 0.295);
+    console.log("✅ Test predictions sent. Check CV cards for purple lines!");
+  };
+}
 
 interface CVParameterCardProps {
   parameter: CascadeParameter;
@@ -62,6 +65,8 @@ export function CVParameterCard({
 
   // Listen for prediction updates
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const handlePredictionUpdate = (event: CustomEvent) => {
       const { parameterId, value, timestamp } = event.detail;
       if (parameterId === parameter.id) {
