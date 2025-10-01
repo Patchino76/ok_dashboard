@@ -33,6 +33,7 @@ export interface CascadeTrainingRequest {
   dv_features?: string[]
   target_variable?: string
   mv_bounds?: Record<string, [number, number]>
+  target_bounds?: Record<string, [number, number]>
 }
 
 export interface CascadeTrainingResponse {

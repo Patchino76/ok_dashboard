@@ -32,11 +32,13 @@ import {
   getCVs,
   getDVs,
   getTargets,
+  getVariableInfo,
   VariableInfo,
 } from "../../data/variable-classifier-helper";
 import { ColorfulFeatureSelect } from "./colorful-feature-select";
 import { CascadeModelInsights } from "./cascade-model-insights";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
+import { DoubleRangeSlider } from "../../components/double-range-slider";
 
 interface EnhancedModelTrainingProps {
   currentMill: number;
@@ -64,6 +66,7 @@ export interface CascadeTrainingConfig {
   resample_freq: string;
   model_name_suffix?: string;
   mv_bounds?: Record<string, [number, number]>;
+  target_bounds?: Record<string, [number, number]>;
 }
 
 export function EnhancedModelTraining({
@@ -104,6 +107,8 @@ export function EnhancedModelTraining({
   const [modelNameSuffix, setModelNameSuffix] = useState<string>("");
   const [isRefreshingInsights, setIsRefreshingInsights] =
     useState<boolean>(false);
+  const [targetBoundsMap, setTargetBoundsMap] =
+    useState<Record<string, [number, number]>>({});
 
   const parameterBounds = useCascadeOptimizationStore(
     (state) => state.parameterBounds
@@ -126,6 +131,54 @@ export function EnhancedModelTraining({
   const cvParameters = getCVs();
   const dvParameters = getDVs();
   const targetParameters = getTargets();
+  const selectedTargetInfo = getVariableInfo(targetVariable);
+
+  useEffect(() => {
+    if (!targetVariable) {
+      return;
+    }
+
+    setTargetBoundsMap((prev) => {
+      if (prev[targetVariable]) {
+        return prev;
+      }
+
+      const storeBounds = parameterBounds[targetVariable];
+      const baseBounds =
+        Array.isArray(storeBounds) && storeBounds.length === 2
+          ? storeBounds
+          : selectedTargetInfo
+          ? [selectedTargetInfo.min_value, selectedTargetInfo.max_value]
+          : null;
+
+      if (
+        baseBounds &&
+        Number.isFinite(baseBounds[0]) &&
+        Number.isFinite(baseBounds[1])
+      ) {
+        return {
+          ...prev,
+          [targetVariable]: [baseBounds[0], baseBounds[1]],
+        };
+      }
+
+      return prev;
+    });
+  }, [parameterBounds, selectedTargetInfo, targetVariable]);
+
+  const currentTargetBounds = targetBoundsMap[targetVariable];
+  const targetBaseBounds =
+    (Array.isArray(parameterBounds[targetVariable]) &&
+      parameterBounds[targetVariable]) ||
+    (selectedTargetInfo
+      ? [selectedTargetInfo.min_value, selectedTargetInfo.max_value]
+      : null);
+  const targetSliderStep = targetBaseBounds
+    ? Math.max(
+        Math.abs(targetBaseBounds[1] - targetBaseBounds[0]) / 100,
+        0.01
+      )
+    : 0.01;
 
   const handleTrainModel = async () => {
     const selectedMvBounds = selectedMVs.reduce<Record<string, [number, number]>>(
@@ -142,6 +195,14 @@ export function EnhancedModelTraining({
       {}
     );
 
+    const selectedTargetBounds =
+      currentTargetBounds &&
+      Number.isFinite(currentTargetBounds[0]) &&
+      Number.isFinite(currentTargetBounds[1]) &&
+      targetVariable
+        ? { [targetVariable]: currentTargetBounds }
+        : undefined;
+
     const config: CascadeTrainingConfig = {
       mill_number: currentMill,
       start_date: startDate,
@@ -155,6 +216,7 @@ export function EnhancedModelTraining({
       model_name_suffix: modelNameSuffix || undefined,
       mv_bounds:
         Object.keys(selectedMvBounds).length > 0 ? selectedMvBounds : undefined,
+      target_bounds: selectedTargetBounds,
     };
     try {
       await onTrainModel(config);
@@ -171,6 +233,10 @@ export function EnhancedModelTraining({
       selectedMVs.length > 0 &&
       selectedCVs.length > 0 &&
       targetVariable &&
+      currentTargetBounds &&
+      Number.isFinite(currentTargetBounds[0]) &&
+      Number.isFinite(currentTargetBounds[1]) &&
+      currentTargetBounds[0] < currentTargetBounds[1] &&
       new Date(startDate) < new Date(endDate)
     );
   };
@@ -292,6 +358,34 @@ export function EnhancedModelTraining({
                 ))}
               </SelectContent>
             </Select>
+            {targetBaseBounds && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3 text-sm dark:border-slate-700 dark:bg-slate-900/30">
+                <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                  <span>Target Bounds</span>
+                  {selectedTargetInfo && (
+                    <span>
+                      {selectedTargetInfo.name} ({selectedTargetInfo.unit})
+                    </span>
+                  )}
+                </div>
+                <DoubleRangeSlider
+                  min={targetBaseBounds[0]}
+                  max={targetBaseBounds[1]}
+                  value={
+                    currentTargetBounds ?? [targetBaseBounds[0], targetBaseBounds[1]]
+                  }
+                  onChange={(value) => {
+                    setTargetBoundsMap((prev) => ({
+                      ...prev,
+                      [targetVariable]: value,
+                    }));
+                  }}
+                  step={targetSliderStep}
+                  disabled={isTraining}
+                  className="mt-2"
+                />
+              </div>
+            )}
           </div>
         </div>
 
