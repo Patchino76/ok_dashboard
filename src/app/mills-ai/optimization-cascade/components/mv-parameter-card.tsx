@@ -67,10 +67,6 @@ export function MVParameterCard({
     setRange(rangeValue);
   }, [rangeValue]);
 
-  useEffect(() => {
-    setSliderValue(parameter.sliderSP || parameter.value);
-  }, [parameter.id, parameter.sliderSP]);
-
   // Debug: Log distribution data
   useEffect(() => {
     console.log(`🔍 MV ${parameter.id} DISTRIBUTION DEBUG:`, {
@@ -87,21 +83,6 @@ export function MVParameterCard({
     distributionMedian,
     parameter.id,
   ]);
-
-  useEffect(() => {
-    setSliderValue((prev) => {
-      const clamped = Math.min(Math.max(prev, range[0]), range[1]);
-      return Number.isFinite(clamped) ? clamped : range[0];
-    });
-  }, [range]);
-
-  const sliderStep = useMemo(() => {
-    const delta = range[1] - range[0];
-    if (!Number.isFinite(delta) || delta <= 0) {
-      return 0.01;
-    }
-    return delta / 100;
-  }, [range]);
 
   const handleRangeChange = (newRange: [number, number]) => {
     setRange(newRange);
@@ -360,6 +341,71 @@ export function MVParameterCard({
     showDistributions,
   ]);
 
+  const [sliderDomainMin, sliderDomainMax] = yAxisDomain;
+
+  useEffect(() => {
+    const rawValue =
+      typeof parameter.sliderSP === "number"
+        ? parameter.sliderSP
+        : parameter.value;
+    if (!Number.isFinite(rawValue)) {
+      return;
+    }
+
+    const clamped = Math.min(
+      Math.max(rawValue, sliderDomainMin),
+      sliderDomainMax
+    );
+
+    setSliderValue((prev) =>
+      Number.isFinite(clamped) && clamped !== prev
+        ? clamped
+        : Number.isFinite(prev)
+        ? prev
+        : clamped
+    );
+  }, [
+    parameter.id,
+    parameter.sliderSP,
+    parameter.value,
+    sliderDomainMin,
+    sliderDomainMax,
+  ]);
+
+  useEffect(() => {
+    setSliderValue((prev) => {
+      const clamped = Math.min(
+        Math.max(prev, sliderDomainMin),
+        sliderDomainMax
+      );
+      if (Number.isFinite(clamped)) {
+        return clamped;
+      }
+
+      if (Number.isFinite(prev)) {
+        return prev;
+      }
+
+      if (Number.isFinite(sliderDomainMin)) {
+        return sliderDomainMin;
+      }
+
+      if (Number.isFinite(sliderDomainMax)) {
+        return sliderDomainMax;
+      }
+
+      return 0;
+    });
+  }, [sliderDomainMin, sliderDomainMax]);
+
+  const sliderStep = useMemo(() => {
+    const delta = sliderDomainMax - sliderDomainMin;
+    if (!Number.isFinite(delta) || delta <= 0) {
+      return 0.01;
+    }
+    return delta / 100;
+  }, [sliderDomainMin, sliderDomainMax]);
+
   const lowerBound =
     distributionBounds && distributionBounds[0] !== undefined
       ? distributionBounds[0]
@@ -470,23 +516,21 @@ export function MVParameterCard({
 
         <div className="flex h-32 -mx-2 sm:h-40">
           <div className="flex flex-col items-center justify-center w-12 px-1 gap-1">
-            <div className="flex items-center h-full">
-              <div className="h-32 flex items-center">
-                <Slider
-                  orientation="vertical"
-                  min={range[0]}
-                  max={range[1]}
-                  step={sliderStep}
-                  value={[sliderValue]}
-                  onValueChange={([value]) => handleSliderChange(value)}
-                  className="h-full"
-                  trackClassName="bg-purple-100 dark:bg-purple-950/50"
-                  rangeClassName="bg-purple-500 dark:bg-purple-400"
-                  thumbClassName="border-purple-600 bg-white focus-visible:ring-purple-300 dark:border-purple-300 dark:bg-purple-900"
-                />
-                <div className="ml--3 w-10 text-sm text-center font-medium">
-                  {sliderValue.toFixed(1)}
-                </div>
+            <div className="flex items-center h-full pt-1 pb-3">
+              <Slider
+                orientation="vertical"
+                min={sliderDomainMin}
+                max={sliderDomainMax}
+                step={sliderStep}
+                value={[sliderValue]}
+                onValueChange={([value]) => handleSliderChange(value)}
+                className="h-[85%]"
+                trackClassName="bg-purple-100 dark:bg-purple-950/50"
+                rangeClassName="bg-purple-500 dark:bg-purple-400"
+                thumbClassName="border-purple-600 bg-white focus-visible:ring-purple-300 dark:border-purple-300 dark:bg-purple-900"
+              />
+              <div className="ml-2 text-sm text-center font-medium w-10">
+                {sliderValue.toFixed(1)}
               </div>
             </div>
           </div>
@@ -579,6 +623,19 @@ export function MVParameterCard({
                   strokeDasharray="6 4"
                   strokeOpacity={showDistributions ? 1 : 0}
                   ifOverflow="extendDomain"
+                />
+                <ReferenceLine
+                  y={sliderValue}
+                  stroke="#a855f7"
+                  strokeWidth={2}
+                  strokeDasharray="4 4"
+                  ifOverflow="extendDomain"
+                  label={{
+                    value: "Slider",
+                    position: "right",
+                    fill: "#a855f7",
+                    fontSize: 10,
+                  }}
                 />
                 <Line
                   type="monotone"
