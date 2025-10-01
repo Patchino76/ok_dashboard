@@ -36,6 +36,7 @@ import {
 } from "../../data/variable-classifier-helper";
 import { ColorfulFeatureSelect } from "./colorful-feature-select";
 import { CascadeModelInsights } from "./cascade-model-insights";
+import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 
 interface EnhancedModelTrainingProps {
   currentMill: number;
@@ -103,6 +104,14 @@ export function EnhancedModelTraining({
   const [isRefreshingInsights, setIsRefreshingInsights] =
     useState<boolean>(false);
 
+  const parameterBounds = useCascadeOptimizationStore(
+    (state) => state.parameterBounds
+  );
+  const mvBounds = useCascadeOptimizationStore((state) => state.mvBounds);
+  const updateMVBounds = useCascadeOptimizationStore(
+    (state) => state.updateMVBounds
+  );
+
   // Initialize dates to last 30 days
   useEffect(() => {
     const now = new Date();
@@ -151,6 +160,43 @@ export function EnhancedModelTraining({
 
   const getFeatureCount = () => {
     return selectedMVs.length + selectedCVs.length + selectedDVs.length;
+  };
+
+  const getMvSliderConfig = (option: VariableInfo) => {
+    const baseBounds = parameterBounds[option.id] ?? [
+      option.min_value,
+      option.max_value,
+    ];
+
+    if (!Array.isArray(baseBounds) || baseBounds.length !== 2) {
+      return null;
+    }
+
+    const [minBound, maxBound] = baseBounds;
+
+    if (!Number.isFinite(minBound) || !Number.isFinite(maxBound)) {
+      return null;
+    }
+
+    const currentRange = mvBounds[option.id] ?? [minBound, maxBound];
+    const sliderValue: [number, number] = [
+      Number.isFinite(currentRange[0]) ? currentRange[0] : minBound,
+      Number.isFinite(currentRange[1]) ? currentRange[1] : maxBound,
+    ];
+
+    const span = maxBound - minBound;
+    const step = span !== 0 ? Math.abs(span) / 100 : 0.01;
+
+    return {
+      min: minBound,
+      max: maxBound,
+      value: sliderValue,
+      step,
+      disabled: isTraining,
+      onChange: (value: [number, number]) => {
+        updateMVBounds(option.id, value);
+      },
+    };
   };
 
   return (
@@ -283,6 +329,7 @@ export function EnhancedModelTraining({
               badgeText: "text-blue-800 dark:text-blue-100",
             }}
             disabled={isTraining}
+            getOptionSliderConfig={getMvSliderConfig}
           />
 
           {/* Controlled Variables (CVs) */}

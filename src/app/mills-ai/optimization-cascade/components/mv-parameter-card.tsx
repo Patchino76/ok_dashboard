@@ -14,7 +14,6 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { DoubleRangeSlider } from "../../components/double-range-slider";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import type { CascadeParameter } from "../stores/cascade-optimization-store";
@@ -39,10 +38,10 @@ interface CommonParameterProps {
 
 export function MVParameterCard({
   parameter,
-  bounds,
+  bounds: _bounds,
   rangeValue,
   proposedSetpoint,
-  onRangeChange,
+  onRangeChange: _onRangeChange,
   distributionBounds,
   distributionMedian,
   distributionPercentiles,
@@ -56,16 +55,11 @@ export function MVParameterCard({
   } = useCascadeOptimizationStore();
   const displayHours = useXgboostStore((state) => state.displayHours);
 
-  const [range, setRange] = useState<[number, number]>(rangeValue);
   const [sliderValue, setSliderValue] = useState<number>(
     parameter.sliderSP || parameter.value
   );
   const [isPredicting, setIsPredicting] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    setRange(rangeValue);
-  }, [rangeValue]);
 
   // Debug: Log distribution data
   useEffect(() => {
@@ -83,11 +77,6 @@ export function MVParameterCard({
     distributionMedian,
     parameter.id,
   ]);
-
-  const handleRangeChange = (newRange: [number, number]) => {
-    setRange(newRange);
-    onRangeChange(parameter.id, newRange);
-  };
 
   const callCascadePrediction = async (mvValues: Record<string, number>) => {
     try {
@@ -277,8 +266,8 @@ export function MVParameterCard({
       const padding = Math.max(dataRange * paddingPercent, trendRange * 0.02);
       
       // Ensure shading bounds are visible if they're close to the data
-      const lowerBound = distributionBounds?.[0] ?? range[0];
-      const upperBound = distributionBounds?.[1] ?? range[1];
+      const lowerBound = distributionBounds?.[0] ?? rangeValue[0];
+      const upperBound = distributionBounds?.[1] ?? rangeValue[1];
       
       let finalMin = dataMin - padding;
       let finalMax = dataMax + padding;
@@ -315,14 +304,14 @@ export function MVParameterCard({
     // Fallback: No trend data, use bounds and references
     const fallbackValues = [
       ...referenceValues,
-      range[0],
-      range[1],
+      rangeValue[0],
+      rangeValue[1],
       distributionBounds?.[0],
       distributionBounds?.[1],
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
     
     if (fallbackValues.length === 0) {
-      const mid = (range[0] + range[1]) / 2;
+      const mid = (rangeValue[0] + rangeValue[1]) / 2;
       return [mid - 1, mid + 1];
     }
     
@@ -334,7 +323,6 @@ export function MVParameterCard({
   }, [
     filteredTrend,
     proposedSetpoint,
-    range,
     distributionBounds,
     distributionMedian,
     parameter.id,
@@ -409,11 +397,11 @@ export function MVParameterCard({
   const lowerBound =
     distributionBounds && distributionBounds[0] !== undefined
       ? distributionBounds[0]
-      : range[0];
+      : sliderDomainMin;
   const upperBound =
     distributionBounds && distributionBounds[1] !== undefined
       ? distributionBounds[1]
-      : range[1];
+      : sliderDomainMax;
   // Use actual distribution median (p50) - don't calculate fallback
   const medianValue = distributionMedian;
 
@@ -425,7 +413,7 @@ export function MVParameterCard({
       upperBound: upperBound.toFixed(2),
       distributionBounds,
       rawMedian: distributionMedian,
-      range,
+      rangeValue,
     });
   }
 
@@ -446,7 +434,8 @@ export function MVParameterCard({
         },
       ];
 
-  const isInRange = parameter.value >= range[0] && parameter.value <= range[1];
+  const isInRange =
+    parameter.value >= sliderDomainMin && parameter.value <= sliderDomainMax;
 
   return (
     <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-800 dark:to-amber-900/30 ring-2 ring-amber-200/80 dark:ring-amber-900/60 backdrop-blur-sm overflow-hidden">
@@ -651,24 +640,14 @@ export function MVParameterCard({
           </div>
         </div>
 
-        <div className="pt-2">
-          <DoubleRangeSlider
-            min={bounds[0]}
-            max={bounds[1]}
-            value={range}
-            onChange={handleRangeChange}
-            step={(bounds[1] - bounds[0]) / 100}
-            className="w-full"
-          />
-          {typeof proposedSetpoint === "number" && (
-            <div className="mt-2 text-sm text-orange-400 font-extrabold flex items-center gap-2">
-              <div className="w-4 h-2 bg-orange-400 rounded"></div>
-              <span className="text-orange-400">
-                Предложение: {proposedSetpoint.toFixed(2)} {parameter.unit}
-              </span>
-            </div>
-          )}
-        </div>
+        {typeof proposedSetpoint === "number" && (
+          <div className="pt-2 text-sm text-orange-400 font-extrabold flex items-center gap-2">
+            <div className="w-4 h-2 bg-orange-400 rounded"></div>
+            <span className="text-orange-400">
+              Предложение: {proposedSetpoint.toFixed(2)} {parameter.unit}
+            </span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, ChevronDown, LucideIcon } from "lucide-react"
 import type { VariableInfo } from "../../data/variable-classifier-helper"
+import { DoubleRangeSlider } from "../../components/double-range-slider"
 
 interface ColorTheme {
   icon: string
@@ -27,6 +28,14 @@ interface ColorfulFeatureSelectProps {
   icon: LucideIcon
   colorTheme: ColorTheme
   disabled?: boolean
+  getOptionSliderConfig?: (option: VariableInfo) => {
+    min: number
+    max: number
+    value: [number, number]
+    step?: number
+    disabled?: boolean
+    onChange: (value: [number, number]) => void
+  } | null
 }
 
 export function ColorfulFeatureSelect({
@@ -38,7 +47,8 @@ export function ColorfulFeatureSelect({
   onChange,
   icon: Icon,
   colorTheme,
-  disabled = false
+  disabled = false,
+  getOptionSliderConfig,
 }: ColorfulFeatureSelectProps) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -114,23 +124,47 @@ export function ColorfulFeatureSelect({
             <div className="space-y-1">
               {options.map(option => {
                 const isSelected = selectedValues.includes(option.id)
+                const sliderConfig = getOptionSliderConfig?.(option) ?? null
+
                 return (
-                  <button
+                  <div
                     key={option.id}
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-black/5 focus:outline-none"
-                    onClick={() => toggleValue(option.id)}
+                    className="rounded-md px-2 py-1.5 transition-colors hover:bg-black/5 focus-within:bg-black/5"
                   >
-                    {isSelected ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <div className="h-4 w-4" />
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 text-left focus:outline-none"
+                      onClick={() => toggleValue(option.id)}
+                    >
+                      {isSelected ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <div className="h-4 w-4" />
+                      )}
+                      <Icon className={`h-4 w-4 ${colorTheme.icon}`} />
+                      <span className="flex-1">
+                        {option.name} <span className="opacity-60">({option.unit})</span>
+                      </span>
+                    </button>
+                    {sliderConfig && (
+                      <div
+                        className="mt-2"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        onTouchStart={(event) => event.stopPropagation()}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <DoubleRangeSlider
+                          min={sliderConfig.min}
+                          max={sliderConfig.max}
+                          value={sliderConfig.value}
+                          onChange={sliderConfig.onChange}
+                          step={sliderConfig.step}
+                          disabled={sliderConfig.disabled}
+                          className="w-full"
+                        />
+                      </div>
                     )}
-                    <Icon className={`h-4 w-4 ${colorTheme.icon}`} />
-                    <span className="flex-1">
-                      {option.name} <span className="opacity-60">({option.unit})</span>
-                    </span>
-                  </button>
+                  </div>
                 )
               })}
             </div>
