@@ -168,12 +168,22 @@ export function CVParameterCard({
       let finalMin = dataMin - padding;
       let finalMax = dataMax + padding;
       
-      // Only extend domain to include bounds if they're reasonably close to the data
-      if (lowerBound > finalMin && lowerBound < dataMin + dataRange * 0.3) {
-        finalMin = Math.min(finalMin, lowerBound - padding * 0.5);
-      }
-      if (upperBound < finalMax && upperBound > dataMax - dataRange * 0.3) {
-        finalMax = Math.max(finalMax, upperBound + padding * 0.5);
+      // If distributions are shown, ALWAYS include shading bounds in domain to prevent overflow
+      if (showDistributions && (distributionBounds || distributionPercentiles)) {
+        finalMin = Math.min(finalMin, lowerBound);
+        finalMax = Math.max(finalMax, upperBound);
+        // Add small padding beyond bounds to ensure they're fully visible
+        const boundsPadding = (upperBound - lowerBound) * 0.02;
+        finalMin -= boundsPadding;
+        finalMax += boundsPadding;
+      } else {
+        // Only extend domain to include bounds if they're reasonably close to the data
+        if (lowerBound > finalMin && lowerBound < dataMin + dataRange * 0.3) {
+          finalMin = Math.min(finalMin, lowerBound - padding * 0.5);
+        }
+        if (upperBound < finalMax && upperBound > dataMax - dataRange * 0.3) {
+          finalMax = Math.max(finalMax, upperBound + padding * 0.5);
+        }
       }
       
       console.log(`📊 CV ${parameter.id} Smart Y-axis:`, {
@@ -214,16 +224,28 @@ export function CVParameterCard({
     distributionMedian,
     distributionPercentiles,
     parameter.id,
+    showDistributions,
   ]);
 
   const lowerBound =
     distributionPercentiles?.p5 ?? distributionBounds?.[0] ?? rangeValue[0];
   const upperBound =
     distributionPercentiles?.p95 ?? distributionBounds?.[1] ?? rangeValue[1];
+  // Use actual distribution median (p50) - don't calculate fallback
   const medianValue =
-    distributionPercentiles?.p50 ??
-    distributionMedian ??
-    (lowerBound + upperBound) / 2;
+    distributionPercentiles?.p50 ?? distributionMedian;
+
+  // Debug logging for distribution values
+  if (showDistributions && (distributionPercentiles || distributionMedian)) {
+    console.log(`📊 CV ${parameter.id} Distribution Values:`, {
+      lowerBound: lowerBound.toFixed(2),
+      medianValue: medianValue?.toFixed(2) ?? 'N/A',
+      upperBound: upperBound.toFixed(2),
+      percentiles: distributionPercentiles,
+      rawMedian: distributionMedian,
+      rangeValue,
+    });
+  }
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -371,14 +393,16 @@ export function CVParameterCard({
                 strokeOpacity={showDistributions ? 1 : 0}
                 ifOverflow="extendDomain"
               />
-              <ReferenceLine
-                y={medianValue}
-                stroke="#3b82f6"
-                strokeWidth={1}
-                strokeDasharray="6 4"
-                strokeOpacity={showDistributions ? 1 : 0}
-                ifOverflow="extendDomain"
-              />
+              {typeof medianValue === "number" && (
+                <ReferenceLine
+                  y={medianValue}
+                  stroke="#3b82f6"
+                  strokeWidth={1}
+                  strokeDasharray="6 4"
+                  strokeOpacity={showDistributions ? 1 : 0}
+                  ifOverflow="extendDomain"
+                />
+              )}
               <ReferenceLine
                 y={upperBound}
                 stroke="#60a5fa"

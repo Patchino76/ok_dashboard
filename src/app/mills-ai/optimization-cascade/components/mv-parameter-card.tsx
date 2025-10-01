@@ -302,12 +302,22 @@ export function MVParameterCard({
       let finalMin = dataMin - padding;
       let finalMax = dataMax + padding;
       
-      // Only extend domain to include bounds if they're reasonably close to the data
-      if (lowerBound > finalMin && lowerBound < dataMin + dataRange * 0.3) {
-        finalMin = Math.min(finalMin, lowerBound - padding * 0.5);
-      }
-      if (upperBound < finalMax && upperBound > dataMax - dataRange * 0.3) {
-        finalMax = Math.max(finalMax, upperBound + padding * 0.5);
+      // If distributions are shown, ALWAYS include shading bounds in domain to prevent overflow
+      if (showDistributions && distributionBounds) {
+        finalMin = Math.min(finalMin, lowerBound);
+        finalMax = Math.max(finalMax, upperBound);
+        // Add small padding beyond bounds to ensure they're fully visible
+        const boundsPadding = (upperBound - lowerBound) * 0.02;
+        finalMin -= boundsPadding;
+        finalMax += boundsPadding;
+      } else {
+        // Only extend domain to include bounds if they're reasonably close to the data
+        if (lowerBound > finalMin && lowerBound < dataMin + dataRange * 0.3) {
+          finalMin = Math.min(finalMin, lowerBound - padding * 0.5);
+        }
+        if (upperBound < finalMax && upperBound > dataMax - dataRange * 0.3) {
+          finalMax = Math.max(finalMax, upperBound + padding * 0.5);
+        }
       }
       
       console.log(`📊 MV ${parameter.id} Smart Y-axis:`, {
@@ -347,6 +357,7 @@ export function MVParameterCard({
     distributionBounds,
     distributionMedian,
     parameter.id,
+    showDistributions,
   ]);
 
   const lowerBound =
@@ -357,12 +368,20 @@ export function MVParameterCard({
     distributionBounds && distributionBounds[1] !== undefined
       ? distributionBounds[1]
       : range[1];
-  const medianValue =
-    typeof distributionMedian === "number"
-      ? distributionMedian
-      : typeof proposedSetpoint === "number"
-      ? proposedSetpoint
-      : (lowerBound + upperBound) / 2;
+  // Use actual distribution median (p50) - don't calculate fallback
+  const medianValue = distributionMedian;
+
+  // Debug logging for distribution values
+  if (showDistributions && distributionMedian) {
+    console.log(`📊 MV ${parameter.id} Distribution Values:`, {
+      lowerBound: lowerBound.toFixed(2),
+      medianValue: medianValue?.toFixed(2) ?? 'N/A',
+      upperBound: upperBound.toFixed(2),
+      distributionBounds,
+      rawMedian: distributionMedian,
+      range,
+    });
+  }
 
   const shadingData = filteredTrend.map((point) => ({
     ...point,
@@ -543,14 +562,16 @@ export function MVParameterCard({
                   strokeOpacity={showDistributions ? 1 : 0}
                   ifOverflow="extendDomain"
                 />
-                <ReferenceLine
-                  y={medianValue}
-                  stroke="#fbbf24"
-                  strokeWidth={1}
-                  strokeDasharray="6 4"
-                  strokeOpacity={showDistributions ? 1 : 0}
-                  ifOverflow="extendDomain"
-                />
+                {typeof medianValue === "number" && (
+                  <ReferenceLine
+                    y={medianValue}
+                    stroke="#fbbf24"
+                    strokeWidth={1}
+                    strokeDasharray="6 4"
+                    strokeOpacity={showDistributions ? 1 : 0}
+                    ifOverflow="extendDomain"
+                  />
+                )}
                 <ReferenceLine
                   y={upperBound}
                   stroke="#fcd34d"
