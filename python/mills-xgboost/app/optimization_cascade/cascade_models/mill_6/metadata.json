@@ -1,14 +1,14 @@
 {
   "mill_number": 6,
-  "created_at": "2025-09-30T12:16:41.511222",
+  "created_at": "2025-10-01T14:25:56.439569",
   "model_version": "1.0.0",
   "training_config": {
     "test_size": 0.2,
     "data_shape": [
-      107127,
-      8
+      16594,
+      20
     ],
-    "training_timestamp": "2025-09-30T12:16:52.120704",
+    "training_timestamp": "2025-10-01T14:26:00.587377",
     "configured_features": {
       "mv_features": [
         "Ore",
@@ -21,20 +21,24 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_features": [],
+      "dv_features": [
+        "Shisti",
+        "Daiki",
+        "Grano"
+      ],
       "target_variable": "PSI200",
       "using_custom_features": true
     }
   },
   "model_performance": {
     "process_model_PulpHC": {
-      "r2_score": 0.8102245527061135,
-      "rmse": 13.80916838215785,
+      "r2_score": 0.9355614753662136,
+      "rmse": 9.659121699519554,
       "feature_importance": {
-        "Ore": 0.2555532455444336,
-        "WaterMill": 0.1933976709842682,
-        "WaterZumpf": 0.26600372791290283,
-        "MotorAmp": 0.285045325756073
+        "Ore": 0.16696497797966003,
+        "WaterMill": 0.3220991790294647,
+        "WaterZumpf": 0.12723752856254578,
+        "MotorAmp": 0.38369834423065186
       },
       "input_vars": [
         "Ore",
@@ -45,13 +49,13 @@
       "output_var": "PulpHC"
     },
     "process_model_DensityHC": {
-      "r2_score": 0.8886812501782476,
-      "rmse": 8.439403668389591,
+      "r2_score": 0.9600636106450137,
+      "rmse": 5.586758495597249,
       "feature_importance": {
-        "Ore": 0.09679731726646423,
-        "WaterMill": 0.1808958798646927,
-        "WaterZumpf": 0.10732873529195786,
-        "MotorAmp": 0.6149780750274658
+        "Ore": 0.08438735455274582,
+        "WaterMill": 0.3381931185722351,
+        "WaterZumpf": 0.13276419043540955,
+        "MotorAmp": 0.4446554183959961
       },
       "input_vars": [
         "Ore",
@@ -62,13 +66,13 @@
       "output_var": "DensityHC"
     },
     "process_model_PressureHC": {
-      "r2_score": 0.745982462015304,
-      "rmse": 0.011017119799888297,
+      "r2_score": 0.9475649510875161,
+      "rmse": 0.006477465598136514,
       "feature_importance": {
-        "Ore": 0.2555975615978241,
-        "WaterMill": 0.2778138220310211,
-        "WaterZumpf": 0.24479646980762482,
-        "MotorAmp": 0.2217921018600464
+        "Ore": 0.1243811845779419,
+        "WaterMill": 0.4321567118167877,
+        "WaterZumpf": 0.10638707876205444,
+        "MotorAmp": 0.33707502484321594
       },
       "input_vars": [
         "Ore",
@@ -79,17 +83,23 @@
       "output_var": "PressureHC"
     },
     "quality_model": {
-      "r2_score": -0.20383338674207763,
-      "rmse": 1.6852808177646081,
+      "r2_score": 0.48153884815744197,
+      "rmse": 1.6966870240561946,
       "feature_importance": {
-        "PulpHC": 0.21581900119781494,
-        "DensityHC": 0.5848186016082764,
-        "PressureHC": 0.1993623524904251
+        "PulpHC": 0.04352620244026184,
+        "DensityHC": 0.20670533180236816,
+        "PressureHC": 0.06008097156882286,
+        "Shisti": 0.1582372933626175,
+        "Daiki": 0.1297578513622284,
+        "Grano": 0.40169239044189453
       },
       "input_vars": [
         "PulpHC",
         "DensityHC",
-        "PressureHC"
+        "PressureHC",
+        "Shisti",
+        "Daiki",
+        "Grano"
       ],
       "output_var": "PSI200",
       "cv_vars": [
@@ -97,12 +107,16 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_vars": []
+      "dv_vars": [
+        "Shisti",
+        "Daiki",
+        "Grano"
+      ]
     },
     "chain_validation": {
-      "r2_score": 0.35144099022580166,
-      "rmse": 1.9596778972007145,
-      "mae": 1.4910169427833144,
+      "r2_score": -3744.9733736915905,
+      "rmse": 97.79527069124097,
+      "mae": 10.36502922685956,
       "n_samples": 200,
       "n_requested": 200,
       "validation_error": null
@@ -110,13 +124,14 @@
   },
   "data_info": {
     "original_shape": [
-      148808,
+      16594,
       22
     ],
     "cleaned_shape": [
-      107127,
-      8
+      16594,
+      20
     ],
-    "data_reduction": "28.0%"
+    "rows_removed": 0,
+    "data_reduction": "0.0%"
   }
 }

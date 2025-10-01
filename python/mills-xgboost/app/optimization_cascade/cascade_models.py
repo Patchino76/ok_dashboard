@@ -314,54 +314,94 @@ class CascadeModelManager:
         
         return results
     
-    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+    def filter_data_by_bounds(
+        self, 
+        df: pd.DataFrame,
+        mv_bounds: Optional[Dict[str, tuple]] = None,
+        cv_bounds: Optional[Dict[str, tuple]] = None,
+        target_bounds: Optional[Dict[str, tuple]] = None
+    ) -> pd.DataFrame:
         """
-        Clean training data by handling missing values and outliers
+        Filter training data based on provided bounds for MV, CV, and target features.
+        Only rows where all values fall within specified bounds are kept.
+        
+        Args:
+            df: Input dataframe to filter
+            mv_bounds: Dictionary of MV bounds as {name: (min, max)}
+            cv_bounds: Dictionary of CV bounds as {name: (min, max)}
+            target_bounds: Dictionary of target bounds as {name: (min, max)}
+            
+        Returns:
+            Filtered dataframe
         """
-        df_clean = df.copy()
+        df_filtered = df.copy()
+        initial_count = len(df_filtered)
         
-        # Get all variable columns
-        all_vars = []
-        for var_type in [VariableType.MV, VariableType.CV, VariableType.DV, VariableType.TARGET]:
-            vars_of_type = [var.id for var in self.classifier.get_variables_by_type(var_type)]
-            all_vars.extend(vars_of_type)
+        print(f"\n=== FILTERING DATA BY BOUNDS ===")
+        print(f"Initial data shape: {df_filtered.shape}")
         
-        # Filter to only include relevant columns (MVs, CVs, DVs, Targets) plus datetime index
-        relevant_columns = all_vars
-        available_columns = [col for col in relevant_columns if col in df_clean.columns]
+        # Apply MV bounds filtering
+        if mv_bounds:
+            print(f"\nApplying MV bounds:")
+            for feature, bounds in mv_bounds.items():
+                if feature in df_filtered.columns:
+                    min_val, max_val = bounds
+                    before_count = len(df_filtered)
+                    df_filtered = df_filtered[
+                        (df_filtered[feature] >= min_val) & 
+                        (df_filtered[feature] <= max_val)
+                    ]
+                    after_count = len(df_filtered)
+                    removed = before_count - after_count
+                    print(f"  {feature}: [{min_val}, {max_val}] - Removed {removed} rows")
+                else:
+                    print(f"  Warning: {feature} not found in dataframe")
         
-        print(f"Original columns: {len(df_clean.columns)}")
-        print(f"Relevant columns found: {available_columns}")
+        # Apply CV bounds filtering
+        if cv_bounds:
+            print(f"\nApplying CV bounds:")
+            for feature, bounds in cv_bounds.items():
+                if feature in df_filtered.columns:
+                    min_val, max_val = bounds
+                    before_count = len(df_filtered)
+                    df_filtered = df_filtered[
+                        (df_filtered[feature] >= min_val) & 
+                        (df_filtered[feature] <= max_val)
+                    ]
+                    after_count = len(df_filtered)
+                    removed = before_count - after_count
+                    print(f"  {feature}: [{min_val}, {max_val}] - Removed {removed} rows")
+                else:
+                    print(f"  Warning: {feature} not found in dataframe")
         
-        # Keep only relevant columns
-        df_clean = df_clean[available_columns]
-        print(f"After filtering to relevant columns: {df_clean.shape}")
+        # Apply target bounds filtering
+        if target_bounds:
+            print(f"\nApplying Target bounds:")
+            for feature, bounds in target_bounds.items():
+                if feature in df_filtered.columns:
+                    min_val, max_val = bounds
+                    before_count = len(df_filtered)
+                    df_filtered = df_filtered[
+                        (df_filtered[feature] >= min_val) & 
+                        (df_filtered[feature] <= max_val)
+                    ]
+                    after_count = len(df_filtered)
+                    removed = before_count - after_count
+                    print(f"  {feature}: [{min_val}, {max_val}] - Removed {removed} rows")
+                else:
+                    print(f"  Warning: {feature} not found in dataframe")
         
-        # Handle missing values first
-        print(df_clean.info())
-        df_clean = df_clean.dropna()
-        print(f"After removing NaN values: {df_clean.shape}")
+        final_count = len(df_filtered)
+        total_removed = initial_count - final_count
+        removal_percentage = (total_removed / initial_count * 100) if initial_count > 0 else 0
         
-        # More conservative outlier removal using IQR method
-        for col in all_vars:
-            if col in df_clean.columns:
-                Q1 = df_clean[col].quantile(0.25)
-                Q3 = df_clean[col].quantile(0.75)
-                IQR = Q3 - Q1
-                lower_bound = Q1 - 1.5 * IQR
-                upper_bound = Q3 + 1.5 * IQR
-                
-                initial_count = len(df_clean)
-                df_clean = df_clean[
-                    (df_clean[col] >= lower_bound) & 
-                    (df_clean[col] <= upper_bound)
-                ]
-                removed_count = initial_count - len(df_clean)
-                if removed_count > 0:
-                    print(f"Removed {removed_count} outliers from {col} (bounds: {lower_bound:.2f} to {upper_bound:.2f})")
+        print(f"\nFiltering summary:")
+        print(f"  Initial rows: {initial_count}")
+        print(f"  Final rows: {final_count}")
+        print(f"  Removed: {total_removed} ({removal_percentage:.1f}%)")
+        print(f"  Final shape: {df_filtered.shape}")
         
-        print(f"Final cleaned data shape: {df_clean.shape}")
-        return df_clean
+        return df_filtered
     
     def sanitize_json_data(self, obj):
         """
@@ -394,13 +434,42 @@ class CascadeModelManager:
     def train_all_models(self, df: pd.DataFrame, test_size: float = 0.2) -> Dict[str, Any]:
         """
         Train complete cascade: process models + quality model
+        Note: Data filtering by bounds should be done before calling this method
         """
         print("=== TRAINING COMPLETE CASCADE MODEL SYSTEM ===")
         
-        # Clean data
+        # Enhanced data cleaning
         print(f"Original data shape: {df.shape}")
-        df_clean = self._clean_data(df)
-        print(f"After cleaning: {df_clean.shape}")
+        
+        # Step 1: Drop columns that are entirely NaN
+        df_clean = df.dropna(axis=1, how='all')
+        print(f"After dropping empty columns: {df_clean.shape}")
+        
+        # Step 2: Drop rows with any remaining NaN values
+        df_clean = df_clean.dropna(axis=0)
+        print(f"After removing rows with NaN: {df_clean.shape}")
+        
+        # Step 3: Remove infinite values
+        numeric_cols = df_clean.select_dtypes(include=[np.number]).columns
+        inf_mask = np.isinf(df_clean[numeric_cols]).any(axis=1)
+        if inf_mask.any():
+            print(f"Removing {inf_mask.sum()} rows with infinite values")
+            df_clean = df_clean[~inf_mask]
+            print(f"After removing infinite values: {df_clean.shape}")
+        
+        # Step 4: Check for duplicate timestamps (if index is datetime)
+        if isinstance(df_clean.index, pd.DatetimeIndex):
+            duplicates = df_clean.index.duplicated()
+            if duplicates.any():
+                print(f"Warning: Found {duplicates.sum()} duplicate timestamps, keeping first occurrence")
+                df_clean = df_clean[~duplicates]
+                print(f"After removing duplicates: {df_clean.shape}")
+        
+        # Step 5: Validate we have enough data
+        if len(df_clean) < 100:
+            raise ValueError(f"Insufficient data after cleaning: {len(df_clean)} rows (minimum 100 required)")
+        
+        print(f"✅ Data cleaning completed: {df_clean.shape}")
         
         # Train process models
         process_results = self.train_process_models(df_clean, test_size)
@@ -442,6 +511,7 @@ class CascadeModelManager:
         self.metadata["data_info"] = {
             "original_shape": df.shape,
             "cleaned_shape": df_clean.shape,
+            "rows_removed": df.shape[0] - df_clean.shape[0],
             "data_reduction": f"{((df.shape[0] - df_clean.shape[0]) / df.shape[0] * 100):.1f}%"
         }
         self.metadata["model_performance"]["chain_validation"] = {

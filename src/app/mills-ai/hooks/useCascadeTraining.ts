@@ -27,6 +27,12 @@ export interface CascadeTrainingRequest {
   end_date: string
   test_size?: number
   resample_freq?: string
+  model_name_suffix?: string
+  mv_features?: string[]
+  cv_features?: string[]
+  dv_features?: string[]
+  target_variable?: string
+  mv_bounds?: Record<string, [number, number]>
 }
 
 export interface CascadeTrainingResponse {

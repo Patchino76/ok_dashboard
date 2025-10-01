@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from typing import Dict, Optional, List
 import pandas as pd
 import os
+from datetime import datetime
 
 from .cascade_models import CascadeModelManager
 from .simple_cascade_optimizer import SimpleCascadeOptimizer, OptimizationRequest, OptimizationResult
@@ -63,6 +64,10 @@ class TrainingRequest(BaseModel):
     cv_features: Optional[List[str]] = Field(None, description="Selected controlled variables")
     dv_features: Optional[List[str]] = Field(None, description="Selected disturbance variables")
     target_variable: Optional[str] = Field(None, description="Selected target variable")
+    # Bounds for filtering training data
+    mv_bounds: Optional[Dict[str, tuple]] = Field(None, description="Optional MV bounds as {name: [min, max]} for data filtering")
+    cv_bounds: Optional[Dict[str, tuple]] = Field(None, description="Optional CV bounds as {name: [min, max]} for data filtering")
+    target_bounds: Optional[Dict[str, tuple]] = Field(None, description="Optional target bounds as {name: [min, max]} for data filtering")
 
 class CascadeOptimizationRequest(BaseModel):
     mv_bounds: Dict[str, tuple] = Field(..., description="MV bounds as {name: [min, max]}")
@@ -144,18 +149,55 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
         if df is None or df.empty:
             raise HTTPException(status_code=400, detail=f"No data found for Mill {request.mill_number}")
         
+        # Apply bounds filtering if provided
+        if any([request.mv_bounds, request.cv_bounds, request.target_bounds]):
+            print(f"🔍 Applying bounds filtering to training data")
+            print(f"   Original data shape: {df.shape}")
+            df = model_manager.filter_data_by_bounds(
+                df=df,
+                mv_bounds=request.mv_bounds,
+                cv_bounds=request.cv_bounds,
+                target_bounds=request.target_bounds
+            )
+            print(f"   Filtered data shape: {df.shape}")
+            
+            if df.empty:
+                raise HTTPException(status_code=400, detail="No data remaining after bounds filtering")
+        
         # Validate data
         try:
             model_manager.prepare_training_data(df)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Data validation failed: {str(e)}")
         
-        # Train models in background
+        # Train models in background with proper error handling
         def train_background():
             try:
-                model_manager.train_all_models(df, test_size=request.test_size)
-            except Exception:
-                pass
+                print(f"🚀 Starting background training for Mill {request.mill_number}")
+                print(f"   Data shape: {df.shape}")
+                print(f"   Test size: {request.test_size}")
+                
+                # Train all models
+                results = model_manager.train_all_models(df, test_size=request.test_size)
+                
+                print(f"✅ Training completed successfully for Mill {request.mill_number}")
+                print(f"   Process models: {len(results.get('process_models', {}))}")
+                print(f"   Quality model trained: {results.get('quality_model') is not None}")
+                print(f"   Models saved to: {model_manager.model_save_path}")
+                
+            except Exception as e:
+                print(f"❌ TRAINING FAILED for Mill {request.mill_number}")
+                print(f"   Error: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                
+                # Save error to file for debugging
+                error_path = os.path.join(model_manager.model_save_path, "training_error.txt")
+                with open(error_path, 'w') as f:
+                    f.write(f"Training failed at {datetime.now().isoformat()}\n")
+                    f.write(f"Error: {str(e)}\n\n")
+                    f.write(traceback.format_exc())
+                print(f"   Error details saved to: {error_path}")
         
         background_tasks.add_task(train_background)
         
@@ -173,6 +215,12 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
                 "dv_features": request.dv_features,
                 "target_variable": request.target_variable,
                 "using_custom_features": any([request.mv_features, request.cv_features, request.dv_features, request.target_variable])
+            },
+            "bounds_filtering": {
+                "mv_bounds": request.mv_bounds,
+                "cv_bounds": request.cv_bounds,
+                "target_bounds": request.target_bounds,
+                "bounds_applied": any([request.mv_bounds, request.cv_bounds, request.target_bounds])
             }
         }
         

@@ -63,6 +63,7 @@ export interface CascadeTrainingConfig {
   test_size: number;
   resample_freq: string;
   model_name_suffix?: string;
+  mv_bounds?: Record<string, [number, number]>;
 }
 
 export function EnhancedModelTraining({
@@ -127,6 +128,20 @@ export function EnhancedModelTraining({
   const targetParameters = getTargets();
 
   const handleTrainModel = async () => {
+    const selectedMvBounds = selectedMVs.reduce<Record<string, [number, number]>>(
+      (acc, mvId) => {
+        const bounds = mvBounds[mvId] ?? parameterBounds[mvId];
+        if (Array.isArray(bounds) && bounds.length === 2) {
+          const [minBound, maxBound] = bounds;
+          if (Number.isFinite(minBound) && Number.isFinite(maxBound)) {
+            acc[mvId] = [minBound, maxBound];
+          }
+        }
+        return acc;
+      },
+      {}
+    );
+
     const config: CascadeTrainingConfig = {
       mill_number: currentMill,
       start_date: startDate,
@@ -138,6 +153,8 @@ export function EnhancedModelTraining({
       test_size: testSize,
       resample_freq: resampleFreq,
       model_name_suffix: modelNameSuffix || undefined,
+      mv_bounds:
+        Object.keys(selectedMvBounds).length > 0 ? selectedMvBounds : undefined,
     };
     try {
       await onTrainModel(config);

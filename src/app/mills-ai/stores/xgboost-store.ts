@@ -276,6 +276,16 @@ export const useXgboostStore = create<XgboostState>()(
           varType: millsParameters.find((p) => p.id === "Daiki")?.varType,
         },
         {
+          id: "Grano",
+          name: "Grano",
+          unit: "%",
+          value: 55,
+          trend: [],
+          color: parameterColors.Grano,
+          icon: parameterIcons.Grano,
+          varType: millsParameters.find((p) => p.id === "Grano")?.varType,
+        },
+        {
           id: "FE",
           name: "Iron",
           unit: "%",
