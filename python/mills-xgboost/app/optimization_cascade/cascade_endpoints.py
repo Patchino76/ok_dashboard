@@ -185,6 +185,12 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
                 print(f"   Quality model trained: {results.get('quality_model') is not None}")
                 print(f"   Models saved to: {model_manager.model_save_path}")
                 
+                # ⭐ AUTO-RELOAD THE MODELS AFTER TRAINING
+                # This ensures the in-memory model_manager uses the latest trained models
+                print(f"🔄 Reloading models into memory...")
+                model_manager.load_models()
+                print(f"✅ Models reloaded successfully - ready for predictions")
+                
             except Exception as e:
                 print(f"❌ TRAINING FAILED for Mill {request.mill_number}")
                 print(f"   Error: {str(e)}")

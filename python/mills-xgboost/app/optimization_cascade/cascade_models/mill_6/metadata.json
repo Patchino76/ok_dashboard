@@ -1,14 +1,14 @@
 {
   "mill_number": 6,
-  "created_at": "2025-10-01T14:25:56.439569",
+  "created_at": "2025-10-01T15:13:56.427132",
   "model_version": "1.0.0",
   "training_config": {
     "test_size": 0.2,
     "data_shape": [
-      16594,
+      40330,
       20
     ],
-    "training_timestamp": "2025-10-01T14:26:00.587377",
+    "training_timestamp": "2025-10-01T15:14:04.483180",
     "configured_features": {
       "mv_features": [
         "Ore",
@@ -21,24 +21,20 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_features": [
-        "Shisti",
-        "Daiki",
-        "Grano"
-      ],
+      "dv_features": [],
       "target_variable": "PSI200",
       "using_custom_features": true
     }
   },
   "model_performance": {
     "process_model_PulpHC": {
-      "r2_score": 0.9355614753662136,
-      "rmse": 9.659121699519554,
+      "r2_score": 0.8699880589034854,
+      "rmse": 15.9818602039956,
       "feature_importance": {
-        "Ore": 0.16696497797966003,
-        "WaterMill": 0.3220991790294647,
-        "WaterZumpf": 0.12723752856254578,
-        "MotorAmp": 0.38369834423065186
+        "Ore": 0.24856339395046234,
+        "WaterMill": 0.28810593485832214,
+        "WaterZumpf": 0.18219606578350067,
+        "MotorAmp": 0.2811346650123596
       },
       "input_vars": [
         "Ore",
@@ -49,13 +45,13 @@
       "output_var": "PulpHC"
     },
     "process_model_DensityHC": {
-      "r2_score": 0.9600636106450137,
-      "rmse": 5.586758495597249,
+      "r2_score": 0.8943040203877023,
+      "rmse": 11.859928874457308,
       "feature_importance": {
-        "Ore": 0.08438735455274582,
-        "WaterMill": 0.3381931185722351,
-        "WaterZumpf": 0.13276419043540955,
-        "MotorAmp": 0.4446554183959961
+        "Ore": 0.14725176990032196,
+        "WaterMill": 0.3506090044975281,
+        "WaterZumpf": 0.09638825058937073,
+        "MotorAmp": 0.40575098991394043
       },
       "input_vars": [
         "Ore",
@@ -66,13 +62,13 @@
       "output_var": "DensityHC"
     },
     "process_model_PressureHC": {
-      "r2_score": 0.9475649510875161,
-      "rmse": 0.006477465598136514,
+      "r2_score": 0.8803448252027455,
+      "rmse": 0.00954087902136446,
       "feature_importance": {
-        "Ore": 0.1243811845779419,
-        "WaterMill": 0.4321567118167877,
-        "WaterZumpf": 0.10638707876205444,
-        "MotorAmp": 0.33707502484321594
+        "Ore": 0.23877190053462982,
+        "WaterMill": 0.3270045816898346,
+        "WaterZumpf": 0.17741143703460693,
+        "MotorAmp": 0.25681203603744507
       },
       "input_vars": [
         "Ore",
@@ -83,23 +79,17 @@
       "output_var": "PressureHC"
     },
     "quality_model": {
-      "r2_score": 0.48153884815744197,
-      "rmse": 1.6966870240561946,
+      "r2_score": -3943.5708168843503,
+      "rmse": 109.94454385077329,
       "feature_importance": {
-        "PulpHC": 0.04352620244026184,
-        "DensityHC": 0.20670533180236816,
-        "PressureHC": 0.06008097156882286,
-        "Shisti": 0.1582372933626175,
-        "Daiki": 0.1297578513622284,
-        "Grano": 0.40169239044189453
+        "PulpHC": 0.6301150321960449,
+        "DensityHC": 0.27201205492019653,
+        "PressureHC": 0.09787292778491974
       },
       "input_vars": [
         "PulpHC",
         "DensityHC",
-        "PressureHC",
-        "Shisti",
-        "Daiki",
-        "Grano"
+        "PressureHC"
       ],
       "output_var": "PSI200",
       "cv_vars": [
@@ -107,16 +97,12 @@
         "DensityHC",
         "PressureHC"
       ],
-      "dv_vars": [
-        "Shisti",
-        "Daiki",
-        "Grano"
-      ]
+      "dv_vars": []
     },
     "chain_validation": {
-      "r2_score": -3744.9733736915905,
-      "rmse": 97.79527069124097,
-      "mae": 10.36502922685956,
+      "r2_score": -386.6528084157727,
+      "rmse": 72.73593996518355,
+      "mae": 8.636696488077586,
       "n_samples": 200,
       "n_requested": 200,
       "validation_error": null
@@ -124,11 +110,11 @@
   },
   "data_info": {
     "original_shape": [
-      16594,
+      40330,
       22
     ],
     "cleaned_shape": [
-      16594,
+      40330,
       20
     ],
     "rows_removed": 0,
