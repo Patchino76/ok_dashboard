@@ -440,6 +440,7 @@ export default function CascadeOptimizationDashboard() {
   const [testPredictionTarget, setTestPredictionTarget] = useState<
     number | null
   >(null);
+  const [showDistributions, setShowDistributions] = useState(true);
 
   useEffect(() => {
     if (
@@ -1632,6 +1633,18 @@ export default function CascadeOptimizationDashboard() {
                     Reset
                   </Button>
                   <Button
+                    onClick={() =>
+                      setShowDistributions((previous) => !previous)
+                    }
+                    variant="outline"
+                    className="text-slate-700 border-slate-300 hover:bg-slate-50"
+                    disabled={isOptimizing}
+                  >
+                    {showDistributions
+                      ? "Hide Distributions"
+                      : "Show Distributions"}
+                  </Button>
+                  <Button
                     onClick={handleDebugTrendData}
                     variant="outline"
                     className="text-blue-700 border-blue-300 hover:bg-blue-50"
@@ -2009,23 +2022,15 @@ export default function CascadeOptimizationDashboard() {
                               key={parameter.id}
                               parameter={cascadeParameter}
                               bounds={bounds as [number, number]}
-                              rangeValue={rangeValue as [number, number]}
-                              proposedSetpoint={
-                                typeof proposedValue === "number"
-                                  ? proposedValue
-                                  : undefined
-                              }
+                              rangeValue={rangeValue}
+                              proposedSetpoint={proposedValue}
                               distributionBounds={distributionData?.bounds}
                               distributionMedian={distributionData?.median}
-                              distributionPercentiles={
-                                distributionData?.percentiles
-                              }
-                              onRangeChange={(
-                                id: string,
-                                newRange: [number, number]
-                              ) => {
+                              distributionPercentiles={distributionData?.percentiles}
+                              onRangeChange={(id, newRange) => {
                                 updateParameterBounds(id, newRange);
                               }}
+                              showDistributions={showDistributions}
                             />
                           );
                         })}

@@ -34,6 +34,7 @@ interface CommonParameterProps {
     p75: number;
     p95: number;
   };
+  showDistributions: boolean;
 }
 
 export function MVParameterCard({
@@ -45,6 +46,7 @@ export function MVParameterCard({
   distributionBounds,
   distributionMedian,
   distributionPercentiles,
+  showDistributions,
 }: CommonParameterProps) {
   const {
     updateSliderSP,
@@ -529,7 +531,7 @@ export function MVParameterCard({
                   dataKey="hiValue"
                   stroke="none"
                   fill={`url(#mv-shading-${parameter.id})`}
-                  fillOpacity={1}
+                  fillOpacity={showDistributions ? 1 : 0}
                   baseValue={lowerBound}
                   isAnimationActive={false}
                 />
@@ -538,6 +540,7 @@ export function MVParameterCard({
                   stroke="#fcd34d"
                   strokeWidth={1}
                   strokeDasharray="6 4"
+                  strokeOpacity={showDistributions ? 1 : 0}
                   ifOverflow="extendDomain"
                 />
                 <ReferenceLine
@@ -545,6 +548,7 @@ export function MVParameterCard({
                   stroke="#fbbf24"
                   strokeWidth={1}
                   strokeDasharray="6 4"
+                  strokeOpacity={showDistributions ? 1 : 0}
                   ifOverflow="extendDomain"
                 />
                 <ReferenceLine
@@ -552,6 +556,7 @@ export function MVParameterCard({
                   stroke="#fcd34d"
                   strokeWidth={1}
                   strokeDasharray="6 4"
+                  strokeOpacity={showDistributions ? 1 : 0}
                   ifOverflow="extendDomain"
                 />
                 <Line

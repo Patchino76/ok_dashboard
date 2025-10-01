@@ -23,6 +23,7 @@ type ParameterCardCommonProps = {
     p95: number;
   };
   onRangeChange: (id: string, range: BoundsTuple) => void;
+  showDistributions: boolean;
 };
 
 const ParameterCascadeOptimizationCard = memo(
@@ -35,6 +36,7 @@ const ParameterCascadeOptimizationCard = memo(
     distributionMedian,
     distributionPercentiles,
     onRangeChange,
+    showDistributions,
   }: ParameterCardCommonProps) => {
     switch (parameter.varType) {
       case "MV":
@@ -48,6 +50,7 @@ const ParameterCascadeOptimizationCard = memo(
             distributionBounds={distributionBounds}
             distributionMedian={distributionMedian}
             distributionPercentiles={distributionPercentiles}
+            showDistributions={showDistributions}
           />
         );
       case "CV":
@@ -60,6 +63,7 @@ const ParameterCascadeOptimizationCard = memo(
             distributionBounds={distributionBounds}
             distributionMedian={distributionMedian}
             distributionPercentiles={distributionPercentiles}
+            showDistributions={showDistributions}
           />
         );
       case "DV":

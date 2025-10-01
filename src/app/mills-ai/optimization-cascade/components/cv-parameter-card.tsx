@@ -69,6 +69,7 @@ interface CVParameterCardProps {
     p75: number;
     p95: number;
   };
+  showDistributions: boolean;
 }
 
 export function CVParameterCard({
@@ -78,6 +79,7 @@ export function CVParameterCard({
   distributionBounds,
   distributionMedian,
   distributionPercentiles,
+  showDistributions,
 }: CVParameterCardProps) {
   const displayHours = useXgboostStore((state) => state.displayHours);
   const [predictions, setPredictions] = useState<
@@ -357,7 +359,7 @@ export function CVParameterCard({
                 dataKey="hiValue"
                 stroke="none"
                 fill={`url(#cv-shading-${parameter.id})`}
-                fillOpacity={1}
+                fillOpacity={showDistributions ? 1 : 0}
                 baseValue={lowerBound}
                 isAnimationActive={false}
               />
@@ -366,6 +368,7 @@ export function CVParameterCard({
                 stroke="#60a5fa"
                 strokeWidth={1}
                 strokeDasharray="6 4"
+                strokeOpacity={showDistributions ? 1 : 0}
                 ifOverflow="extendDomain"
               />
               <ReferenceLine
@@ -373,6 +376,7 @@ export function CVParameterCard({
                 stroke="#3b82f6"
                 strokeWidth={1}
                 strokeDasharray="6 4"
+                strokeOpacity={showDistributions ? 1 : 0}
                 ifOverflow="extendDomain"
               />
               <ReferenceLine
@@ -380,6 +384,7 @@ export function CVParameterCard({
                 stroke="#60a5fa"
                 strokeWidth={1}
                 strokeDasharray="6 4"
+                strokeOpacity={showDistributions ? 1 : 0}
                 ifOverflow="extendDomain"
               />
               <Line
