@@ -431,15 +431,94 @@ class CascadeModelManager:
         """Convert numpy types to native Python types for JSON serialization with sanitization"""
         return self.sanitize_json_data(obj)
     
-    def train_all_models(self, df: pd.DataFrame, test_size: float = 0.2) -> Dict[str, Any]:
+    def train_all_models(
+        self, 
+        df: pd.DataFrame, 
+        test_size: float = 0.2,
+        use_steady_state: bool = False,
+        steady_state_config: Optional[Dict] = None
+    ) -> Dict[str, Any]:
         """
         Train complete cascade: process models + quality model
-        Note: Data filtering by bounds should be done before calling this method
+        
+        Args:
+            df: Input dataframe (already filtered by bounds if needed)
+            test_size: Test split ratio
+            use_steady_state: If True, extract only steady-state samples before training
+            steady_state_config: Configuration for steady-state detection
+                - window_minutes: Window size for stability check (default: 60)
+                - buffer_minutes: Buffer for temporal continuity (default: 30)
+                - save_diagnostics: Save diagnostic reports (default: False)
+        
+        Note: Data filtering by bounds should be done before calling this method.
+              Steady-state extraction (if enabled) happens after bounds filtering.
         """
         print("=== TRAINING COMPLETE CASCADE MODEL SYSTEM ===")
         
+        # Optional: Steady-state extraction (Phase 1 & 2)
+        if use_steady_state:
+            from ..database.steady_state_processor import process_to_steady_state_with_diagnostics
+            from ..database.steady_state_config import SteadyStateConfig
+            
+            print("\n" + "="*60)
+            print("APPLYING STEADY-STATE EXTRACTION")
+            print("="*60)
+            print(f"Input data (after bounds filtering): {len(df)} rows")
+            
+            # Create config from parameters
+            config_params = steady_state_config or {}
+            ss_config = SteadyStateConfig(
+                window_minutes=config_params.get('window_minutes', 60),
+                buffer_minutes=config_params.get('buffer_minutes', 30),
+                min_samples_per_window=config_params.get('min_samples_per_window', 30),
+                enable_quality_filters=config_params.get('enable_quality_filters', True)
+            )
+            
+            # Get variable classification from configured features or defaults
+            variable_classification = {
+                'mvs': self.configured_features['mvs'] or [mv.id for mv in self.classifier.get_mvs()],
+                'cvs': self.configured_features['cvs'] or [cv.id for cv in self.classifier.get_cvs()],
+                'dvs': self.configured_features['dvs'] or [dv.id for dv in self.classifier.get_dvs()],
+                'targets': [self.configured_features['target']] if self.configured_features['target'] 
+                          else [target.id for target in self.classifier.get_targets()]
+            }
+            
+            # Process to steady-state
+            df_processed, ss_diagnostics = process_to_steady_state_with_diagnostics(
+                df=df,
+                config=ss_config,
+                variable_classification=variable_classification,
+                save_diagnostics=config_params.get('save_diagnostics', False)
+            )
+            
+            print(f"\n✅ Steady-state extraction complete:")
+            print(f"   {len(df)} → {len(df_processed)} samples "
+                  f"({len(df_processed)/len(df)*100:.1f}% retained)")
+            print(f"   Mean stability score: {ss_diagnostics['extraction']['mean_stability_score']:.3f}")
+            print("="*60 + "\n")
+            
+            # Use processed data for training
+            df = df_processed
+            
+            # Store diagnostics in metadata
+            self.metadata["steady_state_processing"] = {
+                "enabled": True,
+                "input_rows": ss_diagnostics['pipeline']['input_rows'],
+                "output_samples": ss_diagnostics['pipeline']['output_samples'],
+                "data_reduction_ratio": ss_diagnostics['pipeline']['data_reduction_ratio'],
+                "mean_stability_score": ss_diagnostics['extraction']['mean_stability_score'],
+                "config": {
+                    "window_minutes": ss_config.window_minutes,
+                    "buffer_minutes": ss_config.buffer_minutes,
+                    "total_window_minutes": ss_config.total_window_minutes
+                }
+            }
+        else:
+            print("Steady-state extraction: DISABLED (using raw time-series data)")
+            self.metadata["steady_state_processing"] = {"enabled": False}
+        
         # Enhanced data cleaning
-        print(f"Original data shape: {df.shape}")
+        print(f"\nOriginal data shape: {df.shape}")
         
         # Step 1: Drop columns that are entirely NaN
         df_clean = df.dropna(axis=1, how='all')

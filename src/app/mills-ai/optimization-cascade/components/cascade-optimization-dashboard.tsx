@@ -427,7 +427,6 @@ export default function CascadeOptimizationDashboard() {
 
   // Initialize dates to last 30 days
   useEffect(() => {
-{{ ... }}
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     setEndDate(now.toISOString().split("T")[0]);
