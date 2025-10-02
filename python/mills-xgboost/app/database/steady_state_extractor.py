@@ -245,15 +245,29 @@ class SteadyStateExtractor:
         # Create windows
         windows = list(zip(starts, ends))
         
-        # Filter windows by minimum duration
+        # Filter windows by minimum duration and split long windows
         min_duration = pd.Timedelta(minutes=self.config.window_minutes)
-        valid_windows = [
-            (start, end) for start, end in windows
-            if (end - start) >= min_duration
-        ]
+        max_duration = pd.Timedelta(minutes=self.config.window_minutes * 3)  # Max 3x window size
+        
+        valid_windows = []
+        for start, end in windows:
+            duration = end - start
+            if duration >= min_duration:
+                # If window is too long, split it into multiple independent samples
+                if duration > max_duration:
+                    # Split into non-overlapping chunks of window_minutes size
+                    current = start
+                    while current + min_duration <= end:
+                        chunk_end = min(current + min_duration, end)
+                        valid_windows.append((current, chunk_end))
+                        # Move to next non-overlapping window
+                        current = chunk_end
+                else:
+                    valid_windows.append((start, end))
         
         logger.info(f"Found {len(windows)} stable periods")
         logger.info(f"After duration filter (>={self.config.window_minutes} min): {len(valid_windows)} windows")
+        logger.info(f"  (Long windows split into multiple independent samples)")
         
         if valid_windows:
             durations = [(end - start).total_seconds() / 60 for start, end in valid_windows]
@@ -267,20 +281,24 @@ class SteadyStateExtractor:
         self,
         df: pd.DataFrame,
         stability_mask: pd.Series,
-        variable_classification: Optional[Dict[str, List[str]]] = None
+        variable_classification: Optional[Dict[str, List[str]]] = None,
+        keep_individual_timestamps: bool = True
     ) -> pd.DataFrame:
         """
         Extract steady-state samples from identified stable periods.
         
-        Each row in the output represents ONE steady-state operating point.
+        Two modes:
+        1. keep_individual_timestamps=True: Keep all rows from stable windows with original timestamps
+        2. keep_individual_timestamps=False: Aggregate each window into one row
         
         Args:
             df: Input DataFrame with time-series data
             stability_mask: Boolean mask indicating stable periods
             variable_classification: Dict with 'mvs', 'cvs', 'dvs', 'targets' lists
+            keep_individual_timestamps: If True, keep all rows; if False, aggregate windows
             
         Returns:
-            DataFrame where each row is one steady-state sample
+            DataFrame where each row is one steady-state sample (or timestamp if keep_individual_timestamps=True)
         """
         logger.info(f"\n{'='*60}")
         logger.info(f"PHASE 2: STEADY-STATE EXTRACTION")
@@ -308,7 +326,57 @@ class SteadyStateExtractor:
             logger.warning("No steady-state windows found!")
             return pd.DataFrame()
         
-        # Extract samples from each window
+        # MODE 1: Keep individual timestamps (recommended for XGBoost)
+        if keep_individual_timestamps:
+            logger.info(f"\n  Mode: Keeping individual timestamps from stable windows")
+            logger.info(f"  This preserves all {stability_mask.sum()} stable data points")
+            
+            # Simply filter the original dataframe to stable periods
+            steady_state_df = df[stability_mask].copy()
+            
+            # CRITICAL: Reset index to make timestamp a regular column
+            steady_state_df.reset_index(inplace=True)
+            
+            # Rename the index column to TimeStamp if it doesn't have a name
+            if 'index' in steady_state_df.columns:
+                steady_state_df.rename(columns={'index': 'TimeStamp'}, inplace=True)
+            elif steady_state_df.columns[0] not in ['TimeStamp', 'timestamp', 'Timestamp']:
+                # First column is likely the timestamp
+                steady_state_df.rename(columns={steady_state_df.columns[0]: 'TimeStamp'}, inplace=True)
+            
+            # Add window metadata
+            steady_state_df['is_steady_state'] = True
+            steady_state_df['window_id'] = 0
+            
+            # Assign window IDs using the TimeStamp column
+            current_window_id = 1
+            for window_start, window_end in windows:
+                mask = (steady_state_df['TimeStamp'] >= window_start) & (steady_state_df['TimeStamp'] <= window_end)
+                steady_state_df.loc[mask, 'window_id'] = current_window_id
+                current_window_id += 1
+            
+            # Move TimeStamp to be the first column
+            cols = steady_state_df.columns.tolist()
+            if 'TimeStamp' in cols:
+                cols.remove('TimeStamp')
+                cols = ['TimeStamp'] + cols
+                steady_state_df = steady_state_df[cols]
+            
+            logger.info(f"\n{'='*60}")
+            logger.info(f"EXTRACTION COMPLETE (Individual Timestamps Mode)")
+            logger.info(f"{'='*60}")
+            logger.info(f"Input time-series rows:  {len(df):,}")
+            logger.info(f"Steady-state windows:    {len(windows):,}")
+            logger.info(f"Extracted rows:          {len(steady_state_df):,}")
+            logger.info(f"Data retention:          {len(steady_state_df)} / {len(df)} "
+                       f"({(len(steady_state_df)/len(df)*100):.1f}%)")
+            logger.info(f"Each row has original timestamp preserved")
+            logger.info(f"{'='*60}\n")
+            
+            return steady_state_df
+        
+        # MODE 2: Aggregate windows (original logic)
+        logger.info(f"\n  Mode: Aggregating windows into summary samples")
         samples = []
         
         for i, (window_start, window_end) in enumerate(windows):
@@ -329,7 +397,7 @@ class SteadyStateExtractor:
             # Targets: Median (robust to outliers)
             sample.update(self.aggregate_target_values(df, target_cols, window_start, window_end))
             
-            # Add metadata
+            # Add metadata and timestamps
             all_vars = mv_cols + cv_cols + dv_cols + target_cols
             sample['stability_score'] = self.calculate_stability_score(
                 df, window_start, window_end, all_vars
@@ -337,7 +405,9 @@ class SteadyStateExtractor:
             sample['window_duration_min'] = window_duration
             sample['window_start'] = window_start
             sample['window_end'] = window_end
+            sample['window_center'] = window_start + (window_end - window_start) / 2  # Center timestamp
             sample['regime'] = 1  # Could be enhanced with regime classification
+            sample['sample_id'] = i + 1  # Sequential sample ID
             
             samples.append(sample)
             
@@ -372,7 +442,8 @@ class SteadyStateExtractor:
         self,
         df: pd.DataFrame,
         stability_mask: pd.Series,
-        variable_classification: Optional[Dict[str, List[str]]] = None
+        variable_classification: Optional[Dict[str, List[str]]] = None,
+        keep_individual_timestamps: bool = True
     ) -> Tuple[pd.DataFrame, Dict]:
         """
         Complete extraction pipeline with diagnostics.
@@ -381,13 +452,14 @@ class SteadyStateExtractor:
             df: Input DataFrame
             stability_mask: Boolean mask from detector
             variable_classification: Variable type classification
+            keep_individual_timestamps: If True, keep all rows with original timestamps
             
         Returns:
             Tuple of (steady_state_df, diagnostics_dict)
         """
         # Extract samples
         steady_state_df = self.extract_steady_state_samples(
-            df, stability_mask, variable_classification
+            df, stability_mask, variable_classification, keep_individual_timestamps
         )
         
         # Compile diagnostics
@@ -395,9 +467,10 @@ class SteadyStateExtractor:
             'input_rows': len(df),
             'output_samples': len(steady_state_df),
             'data_reduction_pct': (len(steady_state_df) / len(df) * 100) if len(df) > 0 else 0,
-            'mean_stability_score': steady_state_df['stability_score'].mean() if len(steady_state_df) > 0 else 0,
-            'mean_window_duration_min': steady_state_df['window_duration_min'].mean() if len(steady_state_df) > 0 else 0,
-            'config': self.config
+            'mean_stability_score': steady_state_df['stability_score'].mean() if 'stability_score' in steady_state_df.columns and len(steady_state_df) > 0 else 0,
+            'mean_window_duration_min': steady_state_df['window_duration_min'].mean() if 'window_duration_min' in steady_state_df.columns and len(steady_state_df) > 0 else 0,
+            'config': self.config,
+            'mode': 'individual_timestamps' if keep_individual_timestamps else 'aggregated_windows'
         }
         
         return steady_state_df, diagnostics

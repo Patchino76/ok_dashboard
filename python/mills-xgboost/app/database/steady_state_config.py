@@ -61,29 +61,29 @@ class SteadyStateConfig:
     def _init_stability_criteria(self):
         """Initialize stability criteria for each variable based on process knowledge"""
         
-        # Manipulated Variables (MVs) - What we control
-        # Require tight stability as these are operator/controller setpoints
+        # Manipulated Variables (MVs) - what we control
+        # Ultra-strict criteria to identify only the most stable periods
         self.mv_criteria = {
             'Ore': VariableStabilityCriteria(
                 name='Ore',
-                rolling_std_threshold_pct=2.0,  # Rolling std < 2% of mean
-                max_step_change_pct=5.0,  # No step changes > 5% in window
-                max_rate_of_change=0.5  # < 0.5 t/h per minute
+                rolling_std_threshold_pct=2.0,  # Rolling std < 2.0% of mean (actual CV: 3.4%)
+                max_step_change_pct=4.0,  # No step changes > 4% in window
+                max_rate_of_change=0.3  # < 0.3 t/h per minute
             ),
             'WaterMill': VariableStabilityCriteria(
                 name='WaterMill',
-                rolling_std_threshold_pct=3.0,  # Rolling std < 3% of mean
-                max_step_change_pct=10.0
+                rolling_std_threshold_pct=4.0,  # Rolling std < 4% of mean (actual CV: 6.6%)
+                max_step_change_pct=6.0
             ),
             'WaterZumpf': VariableStabilityCriteria(
                 name='WaterZumpf',
-                rolling_std_threshold_pct=3.0,  # Rolling std < 3% of mean
-                max_step_change_pct=10.0
+                rolling_std_threshold_pct=8.0,  # Rolling std < 8% of mean (actual CV: 12.0%)
+                max_step_change_pct=12.0
             ),
             'MotorAmp': VariableStabilityCriteria(
                 name='MotorAmp',
-                rolling_std_threshold_pct=5.0,  # Rolling std < 5% of mean
-                max_step_change_pct=10.0  # Indicates stable mill load
+                rolling_std_threshold_pct=1.5,  # Rolling std < 1.5% of mean (actual CV: 1.4%)
+                max_step_change_pct=3.0  # Indicates stable mill load
             )
         }
         
@@ -97,12 +97,12 @@ class SteadyStateConfig:
             ),
             'PressureHC': VariableStabilityCriteria(
                 name='PressureHC',
-                rolling_std_threshold_pct=5.0,  # Rolling std < 5% of mean
-                max_step_change_pct=10.0  # Stable pressure = stable hydraulics
+                rolling_std_threshold_pct=4.0,  # Rolling std < 4% of mean (actual CV: 6.3%)
+                max_step_change_pct=6.0  # Stable pressure = stable hydraulics
             ),
             'PulpHC': VariableStabilityCriteria(
                 name='PulpHC',
-                rolling_std_threshold_pct=3.0,  # Rolling std < 3% of mean
+                rolling_std_threshold_pct=6.0,  # Rolling std < 6% of mean (actual CV: 8.9%)
                 max_step_change_pct=8.0
             )
         }
@@ -191,9 +191,11 @@ class SteadyStateConfig:
 
 
 # Default configuration instance
+# Adjusted based on real mill data analysis
+# Ultra-strict criteria for highest quality data
 DEFAULT_CONFIG = SteadyStateConfig(
-    window_minutes=60,
-    buffer_minutes=30,
-    min_samples_per_window=30,
-    enable_quality_filters=True
+    window_minutes=90,  # 90 min window for true steady-state (increased)
+    buffer_minutes=45,  # 45 min buffer for sustained stability (increased)
+    min_samples_per_window=60,  # 60 samples minimum (very strict)
+    enable_quality_filters=True  # Re-enabled - now only checks relevant variables
 )

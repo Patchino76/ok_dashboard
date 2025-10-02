@@ -191,11 +191,26 @@ class SteadyStateProcessor:
             diagnostics_file = os.path.join(diagnostics_path, "diagnostics.json")
             
             # Convert config objects to dict for JSON serialization
-            diagnostics_copy = diagnostics.copy()
-            if 'config' in diagnostics_copy['detection']:
-                diagnostics_copy['detection']['config'] = str(diagnostics_copy['detection']['config'])
-            if 'config' in diagnostics_copy['extraction']:
-                diagnostics_copy['extraction']['config'] = str(diagnostics_copy['extraction']['config'])
+            import numpy as np
+            
+            def convert_to_json_serializable(obj):
+                """Recursively convert numpy types to native Python types"""
+                if isinstance(obj, dict):
+                    return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_to_json_serializable(item) for item in obj]
+                elif isinstance(obj, (np.integer, np.int64, np.int32)):
+                    return int(obj)
+                elif isinstance(obj, (np.floating, np.float64, np.float32)):
+                    return float(obj)
+                elif isinstance(obj, np.ndarray):
+                    return obj.tolist()
+                elif hasattr(obj, '__dict__'):
+                    return str(obj)
+                else:
+                    return obj
+            
+            diagnostics_copy = convert_to_json_serializable(diagnostics)
             
             with open(diagnostics_file, 'w') as f:
                 json.dump(diagnostics_copy, f, indent=2)

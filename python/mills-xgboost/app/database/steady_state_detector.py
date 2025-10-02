@@ -219,19 +219,21 @@ class SteadyStateDetector:
     def filter_quality_issues(
         self,
         df: pd.DataFrame,
-        stability_mask: pd.Series
+        stability_mask: pd.Series,
+        variables_to_check: Optional[List[str]] = None
     ) -> pd.Series:
         """
         Filter out periods with known quality issues.
         
         Removes:
-        - Sensor failures (NaN values)
-        - Extreme outliers (beyond physical limits)
+        - Sensor failures (NaN values) in checked variables only
+        - Extreme outliers (beyond physical limits) in checked variables only
         - Maintenance periods (if flagged)
         
         Args:
             df: Input DataFrame
             stability_mask: Current stability mask
+            variables_to_check: List of variables to check for quality (None = all configured)
             
         Returns:
             Boolean Series with quality filters applied
@@ -242,19 +244,23 @@ class SteadyStateDetector:
         
         logger.info("\nApplying quality filters...")
         
+        # Determine which variables to check for quality
+        if variables_to_check is None:
+            variables_to_check = [col for col in df.columns if col in self.config.all_criteria]
+        
         quality_mask = pd.Series(True, index=df.index)
         initial_count = stability_mask.sum()
         
-        # Filter 1: Remove rows with any NaN values
-        no_nan_mask = ~df.isna().any(axis=1)
+        # Filter 1: Remove rows with NaN values in checked variables ONLY
+        checked_cols = [col for col in variables_to_check if col in df.columns]
+        no_nan_mask = ~df[checked_cols].isna().any(axis=1)
         nan_removed = (~no_nan_mask).sum()
         quality_mask &= no_nan_mask
-        logger.info(f"  NaN filter: removed {nan_removed} rows")
+        logger.info(f"  NaN filter (checked variables only): removed {nan_removed} rows")
         
-        # Filter 2: Remove extreme outliers (beyond 5 sigma)
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
-        for col in numeric_cols:
-            if col in df.columns:
+        # Filter 2: Remove extreme outliers (beyond 5 sigma) in checked variables only
+        for col in checked_cols:
+            if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
                 mean = df[col].mean()
                 std = df[col].std()
                 lower_bound = mean - 5 * std
@@ -311,8 +317,8 @@ class SteadyStateDetector:
         # Step 2: Temporal continuity
         continuous_mask = self.check_temporal_continuity(df, stability_mask)
         
-        # Step 3: Quality filtering
-        final_mask = self.filter_quality_issues(df, continuous_mask)
+        # Step 3: Quality filtering (only check variables we're monitoring)
+        final_mask = self.filter_quality_issues(df, continuous_mask, variables_to_check)
         
         # Compile diagnostics
         diagnostics = {
