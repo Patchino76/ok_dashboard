@@ -1717,7 +1717,7 @@ export default function CascadeOptimizationDashboard() {
             />
 
             {/* Parameter Optimization Cards - Organized by Variable Type */}
-            <div className="space-y-8">
+            <div className="space-y-3">
               {(() => {
                 // Only show parameters if we have a loaded cascade model
                 if (!modelMetadata) {
@@ -1759,7 +1759,7 @@ export default function CascadeOptimizationDashboard() {
 
                 const renderParameterSection = (
                   title: string,
-                  description: string,
+                  description: string | undefined,
                   parameters: typeof filteredParameters,
                   varType: "MV" | "CV" | "DV",
                   iconColor: string,
@@ -1768,14 +1768,16 @@ export default function CascadeOptimizationDashboard() {
                   if (parameters.length === 0) return null;
 
                   return (
-                    <div key={varType} className="space-y-4">
-                      <div className="flex items-center gap-3">
+                    <div key={varType} className="space-y-2">
+                      <div className="flex items-center gap-1.5">
                         <span className={`text-2xl ${iconColor}`}>{icon}</span>
                         <div>
                           <h3 className="text-lg font-semibold">{title}</h3>
-                          <p className="text-sm text-slate-600">
-                            {description}
-                          </p>
+                          {description && (
+                            <p className="text-sm text-slate-600">
+                              {description}
+                            </p>
+                          )}
                         </div>
                         <div className="ml-auto">
                           <Badge
@@ -1794,7 +1796,7 @@ export default function CascadeOptimizationDashboard() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                         {parameters.map((parameter) => {
                           const bounds = parameterBounds[parameter.id] || [
                             0, 100,
@@ -2043,7 +2045,7 @@ export default function CascadeOptimizationDashboard() {
                   <>
                     {renderParameterSection(
                       "Manipulated Variables (MV)",
-                      "Variables that can be controlled and optimized",
+                      undefined,
                       mvParams,
                       "MV",
                       "text-amber-600",
@@ -2051,7 +2053,7 @@ export default function CascadeOptimizationDashboard() {
                     )}
                     {renderParameterSection(
                       "Controlled Variables (CV)",
-                      "Variables that are measured and predicted by the cascade model",
+                      undefined,
                       cvParams,
                       "CV",
                       "text-blue-600",
