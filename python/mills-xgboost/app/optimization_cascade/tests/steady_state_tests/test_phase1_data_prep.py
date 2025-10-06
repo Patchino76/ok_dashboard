@@ -47,7 +47,7 @@ def plot_raw_data(data: pd.DataFrame, title: str, filename: str):
     for idx, col in enumerate(data.columns):
         axes[idx].plot(data.index, data[col], linewidth=0.5, alpha=0.7)
         axes[idx].set_ylabel(col, fontsize=10, fontweight='bold')
-        axes[idx].grid(True, alpha=0.3)
+        axes[idx].grid(True, alpha=0.7)
         axes[idx].set_title(f'{col} - Raw Data', fontsize=10)
     
     axes[-1].set_xlabel('Time', fontsize=10, fontweight='bold')
