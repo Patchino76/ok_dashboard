@@ -68,11 +68,6 @@ class TrainingRequest(BaseModel):
     mv_bounds: Optional[Dict[str, tuple]] = Field(None, description="Optional MV bounds as {name: [min, max]} for data filtering")
     cv_bounds: Optional[Dict[str, tuple]] = Field(None, description="Optional CV bounds as {name: [min, max]} for data filtering")
     target_bounds: Optional[Dict[str, tuple]] = Field(None, description="Optional target bounds as {name: [min, max]} for data filtering")
-    # Stage 2: Steady-state extraction (new)
-    use_steady_state: bool = Field(False, description="Enable steady-state extraction for high-quality training data")
-    steady_state_window_min: int = Field(60, description="Window size for steady-state detection (minutes)")
-    steady_state_buffer_min: int = Field(30, description="Buffer for temporal continuity check (minutes)")
-    save_steady_state_diagnostics: bool = Field(False, description="Save steady-state diagnostic reports")
 
 class CascadeOptimizationRequest(BaseModel):
     mv_bounds: Dict[str, tuple] = Field(..., description="MV bounds as {name: [min, max]}")
@@ -181,41 +176,16 @@ async def train_models(request: TrainingRequest, background_tasks: BackgroundTas
                 print(f"🚀 Starting background training for Mill {request.mill_number}")
                 print(f"   Data shape: {df.shape}")
                 print(f"   Test size: {request.test_size}")
-                print(f"   Steady-state extraction: {'ENABLED' if request.use_steady_state else 'DISABLED'}")
-                
-                # Prepare steady-state config if enabled
-                steady_state_config = None
-                if request.use_steady_state:
-                    steady_state_config = {
-                        'window_minutes': request.steady_state_window_min,
-                        'buffer_minutes': request.steady_state_buffer_min,
-                        'save_diagnostics': request.save_steady_state_diagnostics
-                    }
-                    print(f"   Steady-state window: {request.steady_state_window_min} min")
-                    print(f"   Temporal buffer: {request.steady_state_buffer_min} min")
-                
                 # Train all models (with optional steady-state extraction)
                 results = model_manager.train_all_models(
                     df, 
-                    test_size=request.test_size,
-                    use_steady_state=request.use_steady_state,
-                    steady_state_config=steady_state_config
+                    test_size=request.test_size
                 )
                 
                 print(f"✅ Training completed successfully for Mill {request.mill_number}")
                 print(f"   Process models: {len(results.get('process_models', {}))}")
                 print(f"   Quality model trained: {results.get('quality_model') is not None}")
                 print(f"   Models saved to: {model_manager.model_save_path}")
-                
-                # Log steady-state processing results if enabled
-                if request.use_steady_state and 'steady_state_processing' in model_manager.metadata:
-                    ss_info = model_manager.metadata['steady_state_processing']
-                    if ss_info.get('enabled'):
-                        print(f"   Steady-state processing:")
-                        print(f"      Input rows: {ss_info.get('input_rows', 'N/A')}")
-                        print(f"      Output samples: {ss_info.get('output_samples', 'N/A')}")
-                        print(f"      Data reduction: {ss_info.get('data_reduction_ratio', 0)*100:.1f}%")
-                        print(f"      Stability score: {ss_info.get('mean_stability_score', 'N/A')}")
                 
                 # ⭐ AUTO-RELOAD THE MODELS AFTER TRAINING
                 # This ensures the in-memory model_manager uses the latest trained models
