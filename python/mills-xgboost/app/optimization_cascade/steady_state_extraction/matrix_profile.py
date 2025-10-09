@@ -8,6 +8,7 @@ patterns and anomalies in mill process time series data.
 import pandas as pd
 import numpy as np
 import stumpy
+from stumpy import fluss, motifs, snippets
 from typing import Dict, List, Optional, Tuple
 import logging
 
@@ -25,6 +26,9 @@ class MatrixProfileComputer:
         self.matrix_profile_index = None
         self.window_size = None
         self.feature_names = []
+        self.regime_locations = None
+        self.cac_score = None
+        self.data = None  # Store reference to original data for motifs()
         
     def compute_univariate_mp(self, 
                               data: pd.Series,
@@ -100,6 +104,7 @@ class MatrixProfileComputer:
         self.matrix_profile_index = matrix_profile_index
         self.window_size = window_size
         self.feature_names = list(data_clean.columns)
+        self.data = data_clean  # Store data for motifs()
         
         return matrix_profile, matrix_profile_index
     
@@ -328,3 +333,252 @@ class MatrixProfileComputer:
             logger.info(f"  Discord {i+1}: index={max_idx}, distance={self.matrix_profile[max_idx]:.4f}")
         
         return discord_indices
+    
+    def detect_regimes(self, 
+                      n_regimes: int = 5,
+                      L: Optional[int] = None,
+                      excl_factor: int = 1) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Detect regime changes using FLUSS (semantic segmentation)
+        
+        Args:
+            n_regimes: Number of regimes to detect
+            L: Subsequence length for arc curve (default: window_size // 2)
+            excl_factor: Exclusion zone factor (must be integer, default: 1)
+            
+        Returns:
+            Tuple of (cac_score, regime_locations)
+        """
+        if self.matrix_profile is None:
+            raise ValueError("Matrix profile not computed yet")
+        
+        if L is None:
+            L = max(self.window_size // 2, 10)
+        
+        # Ensure excl_factor is integer for FLUSS
+        excl_factor = int(excl_factor)
+        
+        logger.info(f"\n[FLUSS] Detecting {n_regimes} regimes with L={L}, excl_factor={excl_factor}...")
+        
+        # Compute corrected arc curve and find regime locations
+        cac, regime_locs = fluss(
+            self.matrix_profile_index,
+            L=L,
+            n_regimes=n_regimes,
+            excl_factor=excl_factor
+        )
+        
+        self.cac_score = cac
+        self.regime_locations = regime_locs
+        
+        logger.info(f"✅ Detected {len(regime_locs)} regime change points")
+        for i, loc in enumerate(regime_locs):
+            logger.info(f"  Regime change {i+1}: index={loc}")
+        
+        return cac, regime_locs
+    
+    def extract_steady_segments(self, 
+                               min_segment_length: Optional[int] = None) -> List[Tuple[int, int]]:
+        """
+        Extract steady-state segments between regime changes
+        
+        Args:
+            min_segment_length: Minimum segment length (default: window_size)
+            
+        Returns:
+            List of (start_idx, end_idx) tuples for steady segments
+        """
+        if self.regime_locations is None:
+            raise ValueError("Regimes not detected yet. Run detect_regimes() first.")
+        
+        if min_segment_length is None:
+            min_segment_length = self.window_size
+        
+        logger.info(f"\n[Segment Extraction] Finding steady segments (min length={min_segment_length})...")
+        
+        segments = []
+        regime_locs = sorted(self.regime_locations)
+        
+        # Add boundaries
+        boundaries = [0] + list(regime_locs) + [len(self.matrix_profile)]
+        
+        for i in range(len(boundaries) - 1):
+            start = boundaries[i]
+            end = boundaries[i + 1]
+            segment_length = end - start
+            
+            if segment_length >= min_segment_length:
+                segments.append((start, end))
+                logger.info(f"  Segment {len(segments)}: [{start}:{end}] (length={segment_length})")
+        
+        logger.info(f"✅ Found {len(segments)} steady segments")
+        return segments
+    
+    def find_consensus_motifs(self,
+                             k: int = 3,
+                             min_neighbors: int = 2,
+                             max_distance: Optional[float] = None,
+                             max_matches: int = 10) -> List[List[int]]:
+        """
+        Find consensus motifs (frequently recurring patterns)
+        
+        Args:
+            k: Number of consensus motifs to find
+            min_neighbors: Minimum number of similar patterns required
+            max_distance: Maximum distance threshold (default: motif_threshold)
+            max_matches: Maximum matches per motif
+            
+        Returns:
+            List of motif index sets (each set contains similar pattern locations)
+        """
+        if self.matrix_profile is None or self.data is None:
+            raise ValueError("Matrix profile not computed yet")
+        
+        if max_distance is None:
+            # Use motif threshold from statistics
+            mp_mean = np.mean(self.matrix_profile)
+            mp_std = np.std(self.matrix_profile)
+            max_distance = mp_mean - mp_std
+        
+        logger.info(f"\n[Consensus Motifs] Finding {k} consensus motifs...")
+        logger.info(f"  Min neighbors: {min_neighbors}")
+        logger.info(f"  Max distance: {max_distance:.4f}")
+        logger.info(f"  Window size: {self.window_size}")
+        
+        # Use first feature column for motif discovery
+        T = self.data.iloc[:, 0].values
+        
+        # Call motifs() with the time series data
+        motif_distances, motif_indices = motifs(
+            T,
+            self.matrix_profile,
+            min_neighbors=min_neighbors,
+            max_distance=max_distance,
+            cutoff=np.inf,
+            max_matches=max_matches,
+            max_motifs=k
+        )
+        
+        # Filter for high-consensus motifs
+        consensus_motifs = []
+        for i, idx_set in enumerate(motif_indices):
+            if len(idx_set) >= min_neighbors:
+                consensus_motifs.append(idx_set)
+                # Extract scalar distance value (motif_distances can be 2D)
+                dist_value = float(motif_distances[i]) if np.ndim(motif_distances[i]) == 0 else float(motif_distances[i][0])
+                logger.info(f"  Consensus motif {i+1}: {len(idx_set)} occurrences, avg distance={dist_value:.4f}")
+        
+        logger.info(f"✅ Found {len(consensus_motifs)} consensus motifs")
+        return consensus_motifs
+    
+    def compute_motif_quality_score(self,
+                                   window_data: pd.DataFrame,
+                                   mp_distance: float) -> Tuple[float, Dict]:
+        """
+        Compute quality score for a motif window
+        
+        Args:
+            window_data: DataFrame containing the motif window
+            mp_distance: Matrix profile distance for this window
+            
+        Returns:
+            Tuple of (total_score, component_scores)
+        """
+        # Normalize MP distance (0-1, lower is better)
+        mp_max = np.max(self.matrix_profile)
+        mp_score = 1.0 - (mp_distance / mp_max) if mp_max > 0 else 1.0
+        
+        # Stability score (low coefficient of variation is better)
+        cv_values = window_data.std() / (window_data.mean() + 1e-8)
+        stability_score = 1.0 - np.clip(cv_values.mean(), 0, 1)
+        
+        # Completeness score
+        completeness_score = 1.0 if len(window_data) == self.window_size else 0.0
+        
+        # Range coverage score (normalized)
+        range_coverage = (window_data.max() - window_data.min()).mean()
+        coverage_score = np.clip(range_coverage, 0, 1)
+        
+        # Weighted combination
+        weights = {
+            'mp_distance': 0.4,
+            'stability': 0.3,
+            'completeness': 0.2,
+            'range_coverage': 0.1
+        }
+        
+        scores = {
+            'mp_distance': mp_score,
+            'stability': stability_score,
+            'completeness': completeness_score,
+            'range_coverage': coverage_score
+        }
+        
+        total_score = sum(scores[k] * weights[k] for k in weights)
+        
+        return total_score, scores
+    
+    def extract_snippets(self,
+                        data: pd.DataFrame,
+                        k: int = 3,
+                        normalize: bool = True) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Extract k most representative snippets (golden examples)
+        
+        STUMPY's snippets() works on univariate data, so we use the first feature column.
+        
+        Args:
+            data: Time series data (same as used for MP computation)
+            k: Number of snippets to extract
+            normalize: Whether to normalize data
+            
+        Returns:
+            Tuple of (snippet_indices, snippet_profiles)
+        """
+        if self.window_size is None:
+            raise ValueError("Window size not set. Run compute_mp_with_auto_window first.")
+        
+        logger.info(f"\n[Snippet Extraction] Finding {k} most representative patterns...")
+        
+        # STUMPY's snippets() expects univariate time series (1D array)
+        # Use the first feature column as reference
+        if isinstance(data, pd.DataFrame):
+            T = data.iloc[:, 0].values  # Extract first column as 1D array
+            feature_name = data.columns[0]
+        else:
+            T = np.asarray(data).flatten()
+            feature_name = "Feature 0"
+        
+        logger.info(f"  Using feature '{feature_name}' for snippet extraction")
+        logger.info(f"  Time series length: {len(T)}")
+        logger.info(f"  Window size: {self.window_size}")
+        
+        # Validate that window size is appropriate
+        if self.window_size > len(T) // 2:
+            logger.warning(f"Window size {self.window_size} is too large for {len(T)} timepoints")
+            logger.warning(f"Reducing window size to {len(T) // 2}")
+            effective_window = len(T) // 2
+        else:
+            effective_window = self.window_size
+        
+        # Call snippets with univariate time series
+        # Let's capture all return values and see what we get
+        snippet_result = snippets(
+            T,
+            m=effective_window,
+            k=k,
+            normalize=normalize
+        )
+        
+        # Debug: Check what snippets() actually returns
+        logger.info(f"  Snippets returned {len(snippet_result)} values")
+        
+        # Extract indices and profiles (first two values)
+        snippet_indices = snippet_result[0]
+        snippet_profiles = snippet_result[1]
+        
+        logger.info(f"✅ Extracted {len(snippet_indices)} snippets")
+        for i, idx in enumerate(snippet_indices):
+            logger.info(f"  Snippet {i+1}: index={idx}")
+        
+        return snippet_indices, snippet_profiles

@@ -111,7 +111,10 @@ def plot_overlapped_motifs(data: pd.DataFrame, motif_indices: list, window_size:
     n_features = len(data.columns)
     fig, axes = plt.subplots(n_features, 1, figsize=(16, 3 * n_features), sharex=True)
     axes = [axes] if n_features == 1 else axes
-    color_map = plt.cm.get_cmap('viridis', len(motif_indices))
+    try:
+        color_map = plt.colormaps.get_cmap('viridis')
+    except AttributeError:
+        color_map = plt.cm.get_cmap('viridis')
 
     for motif_idx, start_idx in enumerate(motif_indices):
         subseq = data.iloc[start_idx:start_idx + window_size]
@@ -193,6 +196,78 @@ def plot_mp_histogram(mp_results: dict, title: str, filename: str) -> None:
     plt.close()
 
 
+def plot_regime_changes(data: pd.DataFrame, mp_results: dict, regime_locations: np.ndarray,
+                       title: str, filename: str) -> None:
+    """Plot regime changes detected by FLUSS."""
+    fig, ax = plt.subplots(figsize=(16, 6))
+    
+    first_feature = data.columns[0]
+    ax.plot(data.index, data[first_feature], linewidth=0.8, alpha=0.7, color='blue', label=first_feature)
+    
+    # Mark regime changes
+    for i, loc in enumerate(regime_locations):
+        if loc < len(data):
+            ax.axvline(x=data.index[loc], color='red', linestyle='--', linewidth=2, alpha=0.7,
+                      label='Regime change' if i == 0 else '')
+    
+    ax.set_xlabel('Time', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Normalized Value', fontsize=12, fontweight='bold')
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.legend(loc='upper right')
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=150, bbox_inches='tight')
+    plt.close()
+
+
+def plot_consensus_motifs(data: pd.DataFrame, consensus_motifs: list, window_size: int,
+                          title: str, filename: str) -> None:
+    """Plot consensus motifs with all their occurrences."""
+    if not consensus_motifs:
+        return
+    
+    n_motifs = len(consensus_motifs)
+    n_features = len(data.columns)
+    fig, axes = plt.subplots(n_features, n_motifs, figsize=(5 * n_motifs, 3 * n_features))
+    axes = np.atleast_2d(axes)
+    if n_features == 1:
+        axes = axes.reshape(1, -1)
+    if n_motifs == 1:
+        axes = axes.reshape(-1, 1)
+    
+    try:
+        color_map = plt.colormaps.get_cmap('tab10')
+    except AttributeError:
+        color_map = plt.cm.get_cmap('tab10', 10)
+    
+    for motif_idx, motif_set in enumerate(consensus_motifs):
+        for feat_idx, feature in enumerate(data.columns):
+            ax = axes[feat_idx, motif_idx]
+            
+            # Plot all occurrences of this motif
+            for occ_idx, start_idx in enumerate(motif_set[:5]):  # Max 5 occurrences
+                subseq = data.iloc[start_idx:start_idx + window_size]
+                ax.plot(range(len(subseq)), subseq[feature].values, 
+                       linewidth=2, alpha=0.6, color=color_map(occ_idx),
+                       label=f'Occ {occ_idx+1}')
+            
+            if motif_idx == 0:
+                ax.set_ylabel(feature, fontsize=10, fontweight='bold')
+            if feat_idx == 0:
+                ax.set_title(f'Consensus Motif {motif_idx + 1}\n({len(motif_set)} occurrences)', 
+                           fontsize=10, fontweight='bold')
+            ax.grid(True, alpha=0.3)
+            ax.set_xlabel('Time (min)', fontsize=9)
+            if feat_idx == 0 and motif_idx == 0:
+                ax.legend(fontsize=8)
+    
+    plt.suptitle(title, fontsize=14, fontweight='bold', y=0.995)
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=150, bbox_inches='tight')
+    plt.close()
+
+
 def test_phase2_matrix_profile() -> tuple:
     """Test Phase 2: Matrix Profile Computation."""
 
@@ -202,7 +277,7 @@ def test_phase2_matrix_profile() -> tuple:
 
     MILL_NUMBER = 6
     END_DATE = datetime.now()
-    START_DATE = END_DATE - timedelta(days=114)
+    START_DATE = END_DATE - timedelta(days=115)
     MV_FEATURES = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']
     CV_FEATURES = ['PulpHC', 'DensityHC', 'PressureHC']
     MOTIVE_FEATURES = ['Ore', 'WaterZumpf', 'DensityHC']
@@ -240,7 +315,7 @@ def test_phase2_matrix_profile() -> tuple:
         logger.info(f"Filtered: {initial_rows} → {len(clean_data)} rows (Ore>160, DensityHC>1600, WaterMill>10)")
 
         normalized_motive = normalized_data[MOTIVE_FEATURES]
-        full_features = normalized_data[MV_FEATURES + CV_FEATURES]
+        full_features = normalized_data[MV_FEATURES + CV_FEATURES] 
 
         logger.info("\n[Matrix Profile Computation]")
         mp_computer = MatrixProfileComputer()
@@ -249,7 +324,28 @@ def test_phase2_matrix_profile() -> tuple:
             residence_time_minutes=RESIDENCE_TIME_MINUTES,
             sampling_freq_minutes=1,
         )
+        
+        # Extract window_size from results
+        window_size = mp_results['window_size']
 
+        # Step 1: Detect regime changes with FLUSS
+        logger.info("\n[Step 1: Regime Detection]")
+        cac, regime_locations = mp_computer.detect_regimes(n_regimes=5)
+        
+        # Step 2: Extract steady-state segments
+        logger.info("\n[Step 2: Steady Segment Extraction]")
+        steady_segments = mp_computer.extract_steady_segments(min_segment_length=window_size)
+        
+        # Step 3: Find consensus motifs (recurring patterns)
+        logger.info("\n[Step 3: Consensus Motif Discovery]")
+        consensus_motifs = mp_computer.find_consensus_motifs(k=3, min_neighbors=2)
+        
+        # Step 4: Extract snippets (most representative patterns)
+        logger.info("\n[Step 4: Snippet Extraction]")
+        snippet_indices, snippet_profiles = mp_computer.extract_snippets(normalized_motive, k=3)
+        
+        # Step 5: Traditional motif/discord detection (for comparison)
+        logger.info("\n[Step 5: Traditional Motif/Discord Detection]")
         motif_indices = mp_computer.find_top_motifs(k=10)
         discord_indices = mp_computer.find_top_discords(k=10)
         logger.info(f"Found {len(motif_indices)} motifs, {len(discord_indices)} discords")
@@ -257,9 +353,11 @@ def test_phase2_matrix_profile() -> tuple:
         logger.info("\n[Generating Visualizations]")
         plot_matrix_profile(normalized_motive, mp_results, f'Mill {MILL_NUMBER} - Matrix Profile Overview', 'phase2_matrix_profile_overview.png')
         plot_mp_histogram(mp_results, f'Mill {MILL_NUMBER} - Matrix Profile Distance Distribution', 'phase2_mp_histogram.png')
-        plot_motifs(normalized_motive, motif_indices, mp_results['window_size'], f'Mill {MILL_NUMBER} - Top 5 Motif Patterns', 'phase2_top_motifs.png', max_motifs=5)
-        plot_overlapped_motifs(normalized_motive, motif_indices, mp_results['window_size'], f'Mill {MILL_NUMBER} - Overlapped Motif Windows', 'phase2_motif_overlays.png')
-        plot_discords(normalized_motive, discord_indices, mp_results['window_size'], f'Mill {MILL_NUMBER} - Top 5 Discord Patterns', 'phase2_top_discords.png', max_discords=5)
+        plot_regime_changes(normalized_motive, mp_results, regime_locations, f'Mill {MILL_NUMBER} - Regime Changes (FLUSS)', 'phase2_regime_changes.png')
+        plot_consensus_motifs(normalized_motive, consensus_motifs, window_size, f'Mill {MILL_NUMBER} - Consensus Motifs', 'phase2_consensus_motifs.png')
+        plot_motifs(normalized_motive, motif_indices, window_size, f'Mill {MILL_NUMBER} - Top 5 Motif Patterns', 'phase2_top_motifs.png', max_motifs=5)
+        plot_overlapped_motifs(normalized_motive, motif_indices, window_size, f'Mill {MILL_NUMBER} - Overlapped Motif Windows', 'phase2_motif_overlays.png')
+        plot_discords(normalized_motive, discord_indices, window_size, f'Mill {MILL_NUMBER} - Top 5 Discord Patterns', 'phase2_top_discords.png', max_discords=5)
 
         logger.info("\n[Saving Results]")
         # Save matrix profile
@@ -269,7 +367,45 @@ def test_phase2_matrix_profile() -> tuple:
         })
         mp_df.to_csv(os.path.join(OUTPUT_DIR, 'phase2_matrix_profile.csv'))
 
-        # Save motif indices
+        # Save regime change locations
+        regime_df = pd.DataFrame({
+            'regime_change_index': regime_locations,
+            'timestamp': [normalized_motive.index[loc] if loc < len(normalized_motive) else None for loc in regime_locations]
+        })
+        regime_df.to_csv(os.path.join(OUTPUT_DIR, 'phase2_regime_changes.csv'), index=False)
+        
+        # Save steady segments
+        segments_df = pd.DataFrame(steady_segments, columns=['start_index', 'end_index'])
+        segments_df['start_timestamp'] = segments_df['start_index'].apply(lambda x: normalized_motive.index[x])
+        segments_df['end_timestamp'] = segments_df['end_index'].apply(lambda x: normalized_motive.index[min(x, len(normalized_motive)-1)])
+        segments_df['length'] = segments_df['end_index'] - segments_df['start_index']
+        segments_df.to_csv(os.path.join(OUTPUT_DIR, 'phase2_steady_segments.csv'), index=False)
+        
+        # Save consensus motifs
+        consensus_data = []
+        for motif_idx, motif_set in enumerate(consensus_motifs):
+            for occ_idx, start_idx in enumerate(motif_set):
+                consensus_data.append({
+                    'consensus_motif_id': motif_idx + 1,
+                    'occurrence': occ_idx + 1,
+                    'start_index': start_idx,
+                    'timestamp': normalized_motive.index[start_idx],
+                    'distance': mp_results['matrix_profile'][start_idx]
+                })
+        if consensus_data:
+            consensus_df = pd.DataFrame(consensus_data)
+            consensus_df.to_csv(os.path.join(OUTPUT_DIR, 'phase2_consensus_motifs.csv'), index=False)
+        
+        # Save snippet indices (convert to int and flatten for indexing)
+        snippet_indices_flat = np.asarray(snippet_indices).flatten().astype(int)
+        snippet_df = pd.DataFrame({
+            'snippet_rank': range(1, len(snippet_indices_flat) + 1),
+            'start_index': snippet_indices_flat,
+            'timestamp': [normalized_motive.index[idx] for idx in snippet_indices_flat]
+        })
+        snippet_df.to_csv(os.path.join(OUTPUT_DIR, 'phase2_snippets.csv'), index=False)
+        
+        # Save traditional motif indices
         motif_rank_map = {start_idx: rank for rank, start_idx in enumerate(motif_indices, start=1)}
         motif_df = pd.DataFrame({
             'motif_rank': [motif_rank_map[idx] for idx in motif_indices],
@@ -329,7 +465,23 @@ def test_phase2_matrix_profile() -> tuple:
         logger.info("\n" + "=" * 80)
         logger.info(f"✅ PHASE 2 COMPLETED | Results in: {OUTPUT_DIR}")
         logger.info("=" * 80)
-        return mp_results, motif_indices, discord_indices
+        logger.info("\nEnhanced Features Summary:")
+        logger.info(f"  - Regime changes detected: {len(regime_locations)}")
+        logger.info(f"  - Steady segments found: {len(steady_segments)}")
+        logger.info(f"  - Consensus motifs: {len(consensus_motifs)}")
+        logger.info(f"  - Snippets extracted: {len(snippet_indices)}")
+        logger.info(f"  - Traditional motifs: {len(motif_indices)}")
+        logger.info(f"  - Discords: {len(discord_indices)}")
+        
+        return {
+            'mp_results': mp_results,
+            'regime_locations': regime_locations,
+            'steady_segments': steady_segments,
+            'consensus_motifs': consensus_motifs,
+            'snippet_indices': snippet_indices,
+            'motif_indices': motif_indices,
+            'discord_indices': discord_indices
+        }
 
     except Exception as e:
         logger.error(f"❌ Phase 2 failed: {e}")
