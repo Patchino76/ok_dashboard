@@ -1,19 +1,19 @@
 """
-Test Phase 2: Matrix Profile Computation
 
 Tests the matrix profile computation and generates visualizations
 to show patterns, motifs, and discords in the data.
 """
 
-import sys
-import os
-from pathlib import Path
-from datetime import datetime, timedelta
-import logging
-
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import stumpy
+from datetime import datetime, timedelta
+import logging
+import os
+import sys
+from pathlib import Path
+from scipy.signal import medfilt
+import matplotlib.pyplot as plt
 
 # Setup paths
 MILLS_XGBOOST_ROOT = Path(__file__).resolve().parents[4]
@@ -275,13 +275,13 @@ def test_phase2_matrix_profile() -> tuple:
     logger.info("PHASE 2: MATRIX PROFILE COMPUTATION")
     logger.info("=" * 80)
 
-    MILL_NUMBER = 6
+    MILL_NUMBER = 8
     END_DATE = datetime.now()
     START_DATE = END_DATE - timedelta(days=115)
     MV_FEATURES = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']
     CV_FEATURES = ['PulpHC', 'DensityHC', 'PressureHC']
-    MOTIVE_FEATURES = ['Ore', 'WaterZumpf', 'DensityHC']
-    RESIDENCE_TIME_MINUTES = 60
+    MOTIVE_FEATURES = ['WaterZumpf', 'DensityHC']
+    RESIDENCE_TIME_MINUTES = 480  # 8 hours for longer steady-state patterns
 
     logger.info(f"Mill {MILL_NUMBER} | {START_DATE:%Y-%m-%d} to {END_DATE:%Y-%m-%d} | Residence: {RESIDENCE_TIME_MINUTES}min")
 
@@ -313,6 +313,40 @@ def test_phase2_matrix_profile() -> tuple:
         clean_data = clean_data.loc[filter_mask].copy()
         normalized_data = normalized_data.loc[filter_mask].copy()
         logger.info(f"Filtered: {initial_rows} → {len(clean_data)} rows (Ore>160, DensityHC>1600, WaterMill>10)")
+        
+        # Apply Two-Stage Smoothing for better pattern discovery
+        logger.info("\n[Two-Stage Smoothing]")
+        logger.info("Stage 1: Median filter to remove outlier spikes...")
+        median_kernel = 3  # Must be odd
+        for col in clean_data.columns:
+            clean_data[col] = medfilt(clean_data[col].values, kernel_size=median_kernel)
+        logger.info(f"  Applied median filter (kernel={median_kernel})")
+        
+        logger.info("Stage 2: Rolling mean to smooth sensor noise...")
+        smoothing_window = 5  # 5 minutes
+        for col in clean_data.columns:
+            clean_data[col] = clean_data[col].rolling(
+                window=smoothing_window,
+                center=True,
+                min_periods=1
+            ).mean()
+        logger.info(f"  Applied rolling mean (window={smoothing_window} minutes)")
+        logger.info(f"✅ Smoothing complete - data ready for STUMPY analysis")
+        
+        # Re-normalize after smoothing
+        logger.info("Re-normalizing smoothed data...")
+        from sklearn.preprocessing import StandardScaler
+        scaler_smooth = StandardScaler()
+        normalized_data = pd.DataFrame(
+            scaler_smooth.fit_transform(clean_data),
+            index=clean_data.index,
+            columns=clean_data.columns
+        )
+        logger.info("✅ Re-normalization complete")
+        
+        # Save smoothed data for comparison
+        clean_data.to_csv(os.path.join(OUTPUT_DIR, 'phase2_smoothed_data.csv'), index_label='TimeStamp')
+        logger.info(f"Smoothed data saved to: {os.path.join(OUTPUT_DIR, 'phase2_smoothed_data.csv')}")
 
         normalized_motive = normalized_data[MOTIVE_FEATURES]
         full_features = normalized_data[MV_FEATURES + CV_FEATURES] 
@@ -328,17 +362,47 @@ def test_phase2_matrix_profile() -> tuple:
         # Extract window_size from results
         window_size = mp_results['window_size']
 
-        # Step 1: Detect regime changes with FLUSS
+        # Step 1: Detect regime changes with FLUSS (maximum sensitivity)
         logger.info("\n[Step 1: Regime Detection]")
-        cac, regime_locations = mp_computer.detect_regimes(n_regimes=5)
+        logger.info("  Using maximum sensitivity parameters:")
+        logger.info(f"  - n_regimes: 50 (maximum regime detection)")
+        logger.info(f"  - L: 5 (minimum granularity for maximum sensitivity)")
+        logger.info(f"  - excl_factor: 1 (standard exclusion)")
+        cac, regime_locations = mp_computer.detect_regimes(n_regimes=50, L=5, excl_factor=1)
         
         # Step 2: Extract steady-state segments
         logger.info("\n[Step 2: Steady Segment Extraction]")
-        steady_segments = mp_computer.extract_steady_segments(min_segment_length=window_size)
+        # Reduce minimum to half window size to capture more segments
+        min_segment_length = window_size // 2  # 4 hours minimum
+        logger.info(f"  Minimum segment length: {min_segment_length} minutes ({min_segment_length/60:.1f} hours)")
+        logger.info(f"  This allows segments as short as {min_segment_length/60:.1f} hours")
+        steady_segments = mp_computer.extract_steady_segments(min_segment_length=min_segment_length)
         
-        # Step 3: Find consensus motifs (recurring patterns)
+        # If we still only have 1 segment, add manual segmentation based on time chunks
+        if len(steady_segments) <= 1:
+            logger.warning(f"  ⚠️  Only {len(steady_segments)} segment found by FLUSS")
+            logger.info("  Applying alternative time-based segmentation...")
+            # Split data into 7-day chunks as fallback
+            total_length = len(clean_data)
+            chunk_size = 7 * 24 * 60  # 7 days in minutes
+            manual_segments = []
+            for start in range(0, total_length, chunk_size):
+                end = min(start + chunk_size, total_length)
+                if end - start >= min_segment_length:
+                    manual_segments.append((start, end))
+            logger.info(f"  Created {len(manual_segments)} time-based segments (7-day chunks)")
+            # Combine FLUSS segments with manual segments
+            all_segments = list(set(steady_segments + manual_segments))
+            all_segments.sort()
+            steady_segments = all_segments
+            logger.info(f"  Total segments after combining: {len(steady_segments)}")
+        
+        # Step 3: Find consensus motifs (recurring patterns with stricter criteria)
         logger.info("\n[Step 3: Consensus Motif Discovery]")
-        consensus_motifs = mp_computer.find_consensus_motifs(k=3, min_neighbors=2)
+        logger.info("  Using stricter criteria for higher quality motifs:")
+        logger.info(f"  - k: 5 (find more motif types)")
+        logger.info(f"  - min_neighbors: 3 (require more occurrences)")
+        consensus_motifs = mp_computer.find_consensus_motifs(k=5, min_neighbors=3)
         
         # Step 4: Extract snippets (most representative patterns)
         logger.info("\n[Step 4: Snippet Extraction]")
@@ -465,13 +529,49 @@ def test_phase2_matrix_profile() -> tuple:
         logger.info("\n" + "=" * 80)
         logger.info(f"✅ PHASE 2 COMPLETED | Results in: {OUTPUT_DIR}")
         logger.info("=" * 80)
+        logger.info("\nPreprocessing Summary:")
+        logger.info(f"  - Two-stage smoothing applied:")
+        logger.info(f"    • Median filter (kernel=3) - removed outliers")
+        logger.info(f"    • Rolling mean (window=5 min) - smoothed noise")
+        logger.info(f"  - Data files:")
+        logger.info(f"    • phase2_initial_data.csv - raw filtered data")
+        logger.info(f"    • phase2_smoothed_data.csv - smoothed data")
         logger.info("\nEnhanced Features Summary:")
+        logger.info(f"  - Window size: {window_size} minutes ({window_size/60:.1f} hours)")
         logger.info(f"  - Regime changes detected: {len(regime_locations)}")
         logger.info(f"  - Steady segments found: {len(steady_segments)}")
         logger.info(f"  - Consensus motifs: {len(consensus_motifs)}")
         logger.info(f"  - Snippets extracted: {len(snippet_indices)}")
         logger.info(f"  - Traditional motifs: {len(motif_indices)}")
         logger.info(f"  - Discords: {len(discord_indices)}")
+        
+        # Analyze segment characteristics
+        logger.info("\nSteady Segment Analysis:")
+        for i, (start, end) in enumerate(steady_segments, 1):
+            duration_hours = (end - start) / 60
+            logger.info(f"  Segment {i}: {duration_hours:.1f} hours ({start} to {end})")
+        
+        # Calculate total training data
+        total_motif_windows = sum(len(motif_set) for motif_set in consensus_motifs)
+        total_motif_samples = total_motif_windows * window_size
+        logger.info(f"\nTraining Data Potential:")
+        logger.info(f"  - Consensus motif windows: {total_motif_windows}")
+        logger.info(f"  - Consensus motif samples: {total_motif_samples:,} data points")
+        logger.info(f"  - Average segment length: {sum(end-start for start,end in steady_segments)/len(steady_segments)/60:.1f} hours")
+        
+        # Quality assessment
+        logger.info("\nData Quality Assessment:")
+        if len(steady_segments) >= 10:
+            logger.info("  ✅ Good segmentation: Multiple distinct steady-state periods detected")
+        elif len(steady_segments) >= 5:
+            logger.info("  ⚠️  Moderate segmentation: Consider adjusting FLUSS parameters")
+        else:
+            logger.info("  ❌ Poor segmentation: Too few segments, parameters need tuning")
+        
+        if len(consensus_motifs) >= 3:
+            logger.info(f"  ✅ Good motif diversity: {len(consensus_motifs)} distinct operating modes")
+        else:
+            logger.info(f"  ⚠️  Limited motif diversity: Only {len(consensus_motifs)} operating modes found")
         
         return {
             'mp_results': mp_results,
