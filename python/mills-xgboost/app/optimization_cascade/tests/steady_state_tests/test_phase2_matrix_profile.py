@@ -294,7 +294,7 @@ def test_phase2_matrix_profile() -> tuple:
     # ✓ All outputs include mill_id tracking for analysis
     MILL_NUMBERS = [6, 7, 8]  # Change to [6, 7, 8] for multi-mill processing
     END_DATE = datetime.now()
-    START_DATE = END_DATE - timedelta(days=50)
+    START_DATE = END_DATE - timedelta(days=115)
     MV_FEATURES = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']
     CV_FEATURES = ['PulpHC', 'DensityHC', 'PressureHC']
     MOTIVE_FEATURES = ['WaterZumpf', 'DensityHC', 'PulpHC']
