@@ -280,7 +280,7 @@ def test_phase2_matrix_profile() -> tuple:
     START_DATE = END_DATE - timedelta(days=115)
     MV_FEATURES = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']
     CV_FEATURES = ['PulpHC', 'DensityHC', 'PressureHC']
-    MOTIVE_FEATURES = ['Ore', 'WaterZumpf', 'DensityHC', 'PulpHC', 'PressureHC']
+    MOTIVE_FEATURES = ['WaterZumpf', 'DensityHC', 'PulpHC']
     RESIDENCE_TIME_MINUTES = 240  # 8 hours for longer steady-state patterns
 
     logger.info(f"Mill {MILL_NUMBER} | {START_DATE:%Y-%m-%d} to {END_DATE:%Y-%m-%d} | Residence: {RESIDENCE_TIME_MINUTES}min")
@@ -308,7 +308,7 @@ def test_phase2_matrix_profile() -> tuple:
         # Apply filters
         initial_rows = len(clean_data)
         filter_mask = (clean_data['Ore'] > 160) & (clean_data['DensityHC'] > 1600) & (clean_data['WaterMill'] > 
-                        10) & (clean_data['DensityHC'] < 1800) 
+                        6) & (clean_data['DensityHC'] < 1800) & (clean_data['PressureHC'] > 0.3) & (clean_data['PulpHC'] > 400)
 
         clean_data_filtered = clean_data.loc[filter_mask].copy()
         normalized_data = normalized_data.loc[filter_mask].copy()
