@@ -267,7 +267,7 @@ def plot_consensus_motifs(data: pd.DataFrame, consensus_motifs: list, window_siz
     plt.savefig(os.path.join(OUTPUT_DIR, filename), dpi=150, bbox_inches='tight')
     plt.close()
 
-
+#------------------------------------------------------------------------------------------------------
 def test_phase2_matrix_profile() -> tuple:
     """Test Phase 2: Matrix Profile Computation."""
 
@@ -280,8 +280,8 @@ def test_phase2_matrix_profile() -> tuple:
     START_DATE = END_DATE - timedelta(days=115)
     MV_FEATURES = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']
     CV_FEATURES = ['PulpHC', 'DensityHC', 'PressureHC']
-    MOTIVE_FEATURES = ['WaterZumpf', 'DensityHC']
-    RESIDENCE_TIME_MINUTES = 480  # 8 hours for longer steady-state patterns
+    MOTIVE_FEATURES = ['Ore', 'WaterZumpf', 'DensityHC', 'PulpHC', 'PressureHC']
+    RESIDENCE_TIME_MINUTES = 240  # 8 hours for longer steady-state patterns
 
     logger.info(f"Mill {MILL_NUMBER} | {START_DATE:%Y-%m-%d} to {END_DATE:%Y-%m-%d} | Residence: {RESIDENCE_TIME_MINUTES}min")
 
@@ -308,24 +308,27 @@ def test_phase2_matrix_profile() -> tuple:
         # Apply filters
         initial_rows = len(clean_data)
         filter_mask = (clean_data['Ore'] > 160) & (clean_data['DensityHC'] > 1600) & (clean_data['WaterMill'] > 
-                        10) & (clean_data['DensityHC'] < 1800)
+                        10) & (clean_data['DensityHC'] < 1800) 
 
-        clean_data = clean_data.loc[filter_mask].copy()
+        clean_data_filtered = clean_data.loc[filter_mask].copy()
         normalized_data = normalized_data.loc[filter_mask].copy()
-        logger.info(f"Filtered: {initial_rows} → {len(clean_data)} rows (Ore>160, DensityHC>1600, WaterMill>10)")
         
+        filtered_rows = len(clean_data_filtered)
+        logger.info(f"Filter removed {initial_rows - filtered_rows} rows ({100*(initial_rows-filtered_rows)/initial_rows:.1f}%)")
+        logger.info(f"Remaining rows: {filtered_rows}")
+         
         # Apply Two-Stage Smoothing for better pattern discovery
         logger.info("\n[Two-Stage Smoothing]")
         logger.info("Stage 1: Median filter to remove outlier spikes...")
-        median_kernel = 3  # Must be odd
-        for col in clean_data.columns:
-            clean_data[col] = medfilt(clean_data[col].values, kernel_size=median_kernel)
+        median_kernel = 5  # Must be odd - increased for more smoothing
+        for col in clean_data_filtered.columns:
+            clean_data_filtered[col] = medfilt(clean_data_filtered[col].values, kernel_size=median_kernel)
         logger.info(f"  Applied median filter (kernel={median_kernel})")
         
         logger.info("Stage 2: Rolling mean to smooth sensor noise...")
-        smoothing_window = 5  # 5 minutes
-        for col in clean_data.columns:
-            clean_data[col] = clean_data[col].rolling(
+        smoothing_window = 10  # 10 minutes - increased for more smoothing
+        for col in clean_data_filtered.columns:
+            clean_data_filtered[col] = clean_data_filtered[col].rolling(
                 window=smoothing_window,
                 center=True,
                 min_periods=1
@@ -338,15 +341,16 @@ def test_phase2_matrix_profile() -> tuple:
         from sklearn.preprocessing import StandardScaler
         scaler_smooth = StandardScaler()
         normalized_data = pd.DataFrame(
-            scaler_smooth.fit_transform(clean_data),
-            index=clean_data.index,
-            columns=clean_data.columns
+            scaler_smooth.fit_transform(clean_data_filtered),
+            index=clean_data_filtered.index,
+            columns=clean_data_filtered.columns
         )
         logger.info("✅ Re-normalization complete")
         
         # Save smoothed data for comparison
-        clean_data.to_csv(os.path.join(OUTPUT_DIR, 'phase2_smoothed_data.csv'), index_label='TimeStamp')
+        clean_data_filtered.to_csv(os.path.join(OUTPUT_DIR, 'phase2_smoothed_data.csv'), index_label='TimeStamp')
         logger.info(f"Smoothed data saved to: {os.path.join(OUTPUT_DIR, 'phase2_smoothed_data.csv')}")
+        logger.info(f"Smoothed data rows: {len(clean_data_filtered)} (same as filtered data)")
 
         normalized_motive = normalized_data[MOTIVE_FEATURES]
         full_features = normalized_data[MV_FEATURES + CV_FEATURES] 
@@ -496,35 +500,35 @@ def test_phase2_matrix_profile() -> tuple:
             motifs_df = pd.concat(motif_windows).sort_index()
             motifs_df.to_csv(os.path.join(OUTPUT_DIR, 'phase2_motif_windows.csv'), index_label='TimeStamp')
 
-        # Save normal windows (motifs + low-distance windows)
+        # Save normal windows (non-discord data points only - NO overlapping windows)
+        # This should be SMALLER than smoothed data since we remove anomalies
         matrix_profile = mp_results['matrix_profile']
-        discord_threshold = mp_results['thresholds']['discord'] * 0.55
-        qualifying_indices = {idx for idx, distance in enumerate(matrix_profile) if distance < discord_threshold}
-        qualifying_indices.update(motif_rank_map.keys())
-
-        normal_windows = []
-        last_added_idx = -window_size
-        for start_idx in sorted(idx for idx in qualifying_indices if idx <= len(matrix_profile) - 1):
-            is_motif_window = start_idx in motif_rank_map
-            if not is_motif_window and start_idx - last_added_idx < window_size:
-                continue
-
-            subseq = full_features.iloc[start_idx:start_idx + window_size].copy()
-            if len(subseq) == window_size:
-                subseq['motif_rank'] = motif_rank_map.get(start_idx, pd.NA)
-                subseq['motif_start_index'] = start_idx
-                subseq['motif_start_timestamp'] = normalized_motive.index[start_idx]
-                subseq['time_offset_minutes'] = range(len(subseq))
-                subseq['window_category'] = 'motif' if is_motif_window else 'low_distance'
-                subseq['matrix_profile_distance'] = matrix_profile[start_idx]
-                normal_windows.append(subseq)
-                if not is_motif_window:
-                    last_added_idx = start_idx
-
-        if normal_windows:
-            normal_df = pd.concat(normal_windows).sort_index()
-            normal_df = normal_df[list(full_features.columns) + ['matrix_profile_distance']]
-            normal_df.to_csv(os.path.join(OUTPUT_DIR, 'phase2_normal_windows.csv'), index_label='TimeStamp')
+        discord_threshold = mp_results['thresholds']['discord'] * 0.30
+        
+        # Create a boolean mask for the entire dataset
+        # Matrix profile has fewer points than original data (by window_size - 1)
+        normal_mask = np.zeros(len(full_features), dtype=bool)
+        
+        # Mark all points that are part of low-distance windows as normal
+        for idx, distance in enumerate(matrix_profile):
+            if distance < discord_threshold:
+                # Mark the entire window as normal
+                start = idx
+                end = min(idx + window_size, len(full_features))
+                normal_mask[start:end] = True
+        
+        # Extract only the normal (non-discord) data points
+        normal_data = full_features[normal_mask].copy()
+        normal_data['is_normal'] = True
+        
+        logger.info(f"\nNormal windows extraction:")
+        logger.info(f"  Original data points: {len(full_features):,}")
+        logger.info(f"  Normal data points: {len(normal_data):,}")
+        logger.info(f"  Discord data points removed: {len(full_features) - len(normal_data):,}")
+        logger.info(f"  Percentage kept: {100*len(normal_data)/len(full_features):.1f}%")
+        
+        if len(normal_data) > 0:
+            normal_data.to_csv(os.path.join(OUTPUT_DIR, 'phase2_normal_windows.csv'), index_label='TimeStamp')
 
         logger.info("\n" + "=" * 80)
         logger.info(f"✅ PHASE 2 COMPLETED | Results in: {OUTPUT_DIR}")
