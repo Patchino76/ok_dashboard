@@ -292,7 +292,7 @@ def test_phase2_matrix_profile() -> tuple:
     # ✓ Cross-mill validated patterns (robust generalization)
     # ✓ Captures universal grinding physics, not mill-specific quirks
     # ✓ All outputs include mill_id tracking for analysis
-    MILL_NUMBERS = [6, 7, 8]  # Change to [6, 7, 8] for multi-mill processing
+    MILL_NUMBERS = [8]  # Change to [6, 7, 8] for multi-mill processing
     END_DATE = datetime.now()
     START_DATE = END_DATE - timedelta(days=115)
     MV_FEATURES = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']

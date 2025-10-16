@@ -1,0 +1,10 @@
+Training failed at 2025-10-01T14:15:57.482604
+Error: Insufficient data after cleaning: 0 rows (minimum 100 required)
+
+Traceback (most recent call last):
+  File "c:\Projects\ok_dashboard\python\mills-xgboost\app\optimization_cascade\cascade_endpoints.py", line 181, in train_background
+    results = model_manager.train_all_models(df, test_size=request.test_size)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Projects\ok_dashboard\python\mills-xgboost\app\optimization_cascade\cascade_models.py", line 466, in train_all_models
+    raise ValueError(f"Insufficient data after cleaning: {len(df_clean)} rows (minimum 100 required)")
+ValueError: Insufficient data after cleaning: 0 rows (minimum 100 required)
