@@ -50,7 +50,7 @@ model_manager: Optional[CascadeModelManager] = None
 # Request models
 class PredictionRequest(BaseModel):
     mv_values: Dict[str, float] = Field(..., description="Manipulated variable values")
-    dv_values: Dict[str, float] = Field(..., description="Disturbance variable values")
+    dv_values: Dict[str, float] = Field(default_factory=dict, description="Disturbance variable values")
 
 class TrainingRequest(BaseModel):
     mill_number: int = Field(8, description="Mill number (6, 7, 8, 9, 10, etc.)")

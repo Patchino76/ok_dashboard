@@ -118,6 +118,29 @@ export default function CascadeOptimizationDashboard() {
     getFeatureClassification,
   ]);
 
+  // Initialize DV values when model loads
+  useEffect(() => {
+    if (!modelInfo?.featureClassification) return;
+    
+    const featureClassification = modelInfo.featureClassification;
+    const dvFeatures = featureClassification.dv_features || [];
+    
+    if (dvFeatures.length > 0) {
+      const dvValues: Record<string, number> = {};
+      
+      dvFeatures.forEach((dvId) => {
+        const param = cascadeStore.parameters.find((p) => p.id === dvId);
+        if (param) {
+          // Use sliderSP if available, otherwise use value
+          dvValues[dvId] = param.sliderSP || param.value || 0;
+        }
+      });
+      
+      console.log("🔧 Initializing DV values from model features:", dvValues);
+      useCascadeOptimizationStore.getState().setDVValues(dvValues);
+    }
+  }, [modelInfo?.featureClassification, cascadeStore.parameters]);
+
   // Update parameter types only when model info changes (without store updates)
   const parametersWithTypes = useMemo(() => {
     if (!modelInfo?.featureClassification) return cascadeStore.parameters;
@@ -291,6 +314,8 @@ export default function CascadeOptimizationDashboard() {
       const mvValues: Record<string, number> = {};
       const dvValues: Record<string, number> = {};
 
+      console.log("🔍 All parameters:", parameters.map(p => ({ id: p.id, varType: p.varType, value: p.value })));
+      
       parameters.forEach((param) => {
         if (param.varType === "MV") {
           mvValues[param.id] = param.value;
@@ -300,6 +325,7 @@ export default function CascadeOptimizationDashboard() {
       });
 
       console.log("📊 Cascade prediction data:", { mvValues, dvValues });
+      console.log("🔍 Feature classification:", modelInfo?.featureClassification);
 
       const prediction = await predictCascade(mvValues, dvValues);
 

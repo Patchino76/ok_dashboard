@@ -580,6 +580,10 @@ class CascadeModelManager:
         Returns:
             Dictionary containing predicted CVs, target, and feasibility
         """
+        print(f"🔍 predict_cascade called with:")
+        print(f"   mv_values: {mv_values} (type: {type(mv_values)})")
+        print(f"   dv_values: {dv_values} (type: {type(dv_values)})")
+        
         if not self.process_models or not self.quality_model:
             raise ValueError("Models not trained. Call train_all_models() first.")
         
@@ -621,16 +625,37 @@ class CascadeModelManager:
         
         # Step 3: Predict target quality if feasible
         if is_feasible:
-            # Combine CVs and DVs for quality prediction
-            quality_features = []
-            for cv_id in cvs:
-                quality_features.append(predicted_cvs[cv_id])
-            for dv_id in dvs:
-                quality_features.append(dv_values[dv_id])
+            # Get the exact feature order from metadata (as used during training)
+            if 'quality_model' in self.metadata.get('model_performance', {}):
+                feature_cols = self.metadata['model_performance']['quality_model']['input_vars']
+            else:
+                # Fallback to configured order
+                feature_cols = cvs + dvs
             
-            # Scale and predict using DataFrame with feature names
-            feature_cols = cvs + dvs
+            # Build feature dictionary with all available values
+            # Use predicted CVs and all provided DV values
+            feature_dict = {}
+            
+            # Add all predicted CVs
+            print(f"🔍 Debug - Adding predicted CVs: {predicted_cvs}")
+            feature_dict.update(predicted_cvs)
+            
+            # Add all provided DV values directly (don't filter by dvs list)
+            print(f"🔍 Debug - Adding DV values: {dv_values}")
+            print(f"🔍 Debug - DV values type: {type(dv_values)}")
+            feature_dict.update(dv_values)
+            
+            print(f"🔍 Debug - Feature cols from metadata: {feature_cols}")
+            print(f"🔍 Debug - Feature dict keys after update: {list(feature_dict.keys())}")
+            
+            # Create DataFrame with features in the exact order from training
+            quality_features = [feature_dict[col] for col in feature_cols]
             quality_df = pd.DataFrame([quality_features], columns=feature_cols)
+            
+            print(f"✅ Quality model features (in order): {feature_cols}")
+            print(f"   Feature values: {dict(zip(feature_cols, quality_features))}")
+            
+            # Scale and predict
             quality_scaler = self.scalers['quality_model']
             quality_scaled = quality_scaler.transform(quality_df)
             
@@ -715,6 +740,14 @@ class CascadeModelManager:
     def load_models(self) -> bool:
         """Load trained models from disk"""
         try:
+            # Load metadata first (critical for feature order)
+            loaded_metadata = self.load_metadata()
+            if loaded_metadata:
+                self.metadata = loaded_metadata
+                print(f"✅ Metadata loaded from {self.model_save_path}")
+            else:
+                print(f"⚠️ No metadata found at {self.model_save_path}")
+            
             cvs = [cv.id for cv in self.classifier.get_cvs()]
             
             # Load process models
