@@ -237,41 +237,45 @@ export function MVParameterCard({
 
   const yAxisDomain = useMemo((): [number, number] => {
     // Smart adaptive Y-axis scaling for better trend visibility
-    
+
     // Priority 1: Use actual trend data if available (this is what we want to see clearly)
     const trendValues = filteredTrend.map((d) => d.value);
-    
+
     // Priority 2: Include important reference values
     const referenceValues = [
       typeof proposedSetpoint === "number" ? proposedSetpoint : undefined,
       distributionMedian,
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
-    
+
     // If we have trend data, focus on it for better zoom
     if (trendValues.length > 0) {
       const trendMin = Math.min(...trendValues);
       const trendMax = Math.max(...trendValues);
       const trendRange = trendMax - trendMin;
-      
+
       // Include reference values in the domain calculation
       const allRelevantValues = [...trendValues, ...referenceValues];
       const dataMin = Math.min(...allRelevantValues);
       const dataMax = Math.max(...allRelevantValues);
       const dataRange = dataMax - dataMin;
-      
+
       // Adaptive padding: smaller padding for tightly clustered data
       // Use 2% padding if data is very tight, up to 8% for wider ranges
-      const paddingPercent = dataRange < trendRange * 0.1 ? 0.02 : 
-                             dataRange < trendRange * 0.5 ? 0.05 : 0.08;
+      const paddingPercent =
+        dataRange < trendRange * 0.1
+          ? 0.02
+          : dataRange < trendRange * 0.5
+          ? 0.05
+          : 0.08;
       const padding = Math.max(dataRange * paddingPercent, trendRange * 0.02);
-      
+
       // Ensure shading bounds are visible if they're close to the data
       const lowerBound = distributionBounds?.[0] ?? rangeValue[0];
       const upperBound = distributionBounds?.[1] ?? rangeValue[1];
-      
+
       let finalMin = dataMin - padding;
       let finalMax = dataMax + padding;
-      
+
       // If distributions are shown, ALWAYS include shading bounds in domain to prevent overflow
       if (showDistributions && distributionBounds) {
         finalMin = Math.min(finalMin, lowerBound);
@@ -289,18 +293,18 @@ export function MVParameterCard({
           finalMax = Math.max(finalMax, upperBound + padding * 0.5);
         }
       }
-      
+
       console.log(`📊 MV ${parameter.id} Smart Y-axis:`, {
         trendRange: trendRange.toFixed(3),
         dataRange: dataRange.toFixed(3),
-        paddingPercent: (paddingPercent * 100).toFixed(1) + '%',
+        paddingPercent: (paddingPercent * 100).toFixed(1) + "%",
         domain: [finalMin.toFixed(3), finalMax.toFixed(3)],
-        distributionBounds
+        distributionBounds,
       });
-      
+
       return [finalMin, finalMax];
     }
-    
+
     // Fallback: No trend data, use bounds and references
     const fallbackValues = [
       ...referenceValues,
@@ -309,16 +313,16 @@ export function MVParameterCard({
       distributionBounds?.[0],
       distributionBounds?.[1],
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
-    
+
     if (fallbackValues.length === 0) {
       const mid = (rangeValue[0] + rangeValue[1]) / 2;
       return [mid - 1, mid + 1];
     }
-    
+
     const min = Math.min(...fallbackValues);
     const max = Math.max(...fallbackValues);
     const pad = (max - min || 1) * 0.1;
-    
+
     return [min - pad, max + pad];
   }, [
     filteredTrend,
@@ -409,7 +413,7 @@ export function MVParameterCard({
   if (showDistributions && distributionMedian) {
     console.log(`📊 MV ${parameter.id} Distribution Values:`, {
       lowerBound: lowerBound.toFixed(2),
-      medianValue: medianValue?.toFixed(2) ?? 'N/A',
+      medianValue: medianValue?.toFixed(2) ?? "N/A",
       upperBound: upperBound.toFixed(2),
       distributionBounds,
       rawMedian: distributionMedian,
@@ -538,9 +542,9 @@ export function MVParameterCard({
                     x2="0"
                     y2="1"
                   >
-                    <stop offset="0%" stopColor="#f97316" stopOpacity={0.05} />
-                    <stop offset="50%" stopColor="#f97316" stopOpacity={0.45} />
-                    <stop offset="100%" stopColor="#f97316" stopOpacity={0.05} />
+                    <stop offset="0%" stopColor="#e2e8f0" stopOpacity={0.2} />
+                    <stop offset="50%" stopColor="#cbd5f5" stopOpacity={0.6} />
+                    <stop offset="100%" stopColor="#94a3b8" stopOpacity={0.25} />
                   </linearGradient>
                 </defs>
                 <XAxis
@@ -589,8 +593,8 @@ export function MVParameterCard({
                 />
                 <ReferenceLine
                   y={lowerBound}
-                  stroke="#fcd34d"
-                  strokeWidth={1}
+                  stroke="#475569"
+                  strokeWidth={0.75}
                   strokeDasharray="6 4"
                   strokeOpacity={showDistributions ? 1 : 0}
                   ifOverflow="extendDomain"
@@ -598,7 +602,7 @@ export function MVParameterCard({
                 {typeof medianValue === "number" && (
                   <ReferenceLine
                     y={medianValue}
-                    stroke="#fbbf24"
+                    stroke="#1e293b"
                     strokeWidth={1}
                     strokeDasharray="6 4"
                     strokeOpacity={showDistributions ? 1 : 0}
@@ -607,8 +611,8 @@ export function MVParameterCard({
                 )}
                 <ReferenceLine
                   y={upperBound}
-                  stroke="#fcd34d"
-                  strokeWidth={1}
+                  stroke="#475569"
+                  strokeWidth={0.75}
                   strokeDasharray="6 4"
                   strokeOpacity={showDistributions ? 1 : 0}
                   ifOverflow="extendDomain"
