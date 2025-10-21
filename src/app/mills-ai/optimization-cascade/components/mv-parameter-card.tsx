@@ -426,6 +426,7 @@ export function MVParameterCard({
     ...point,
     hiValue: upperBound,
     loValue: lowerBound,
+    sliderValue: sliderValue, // Add slider value for tooltip binding
   }));
 
   const chartData = shadingData.length
@@ -436,6 +437,7 @@ export function MVParameterCard({
           value: parameter.value,
           hiValue: upperBound,
           loValue: lowerBound,
+          sliderValue: sliderValue, // Add slider value for tooltip binding
         },
       ];
 
@@ -570,19 +572,52 @@ export function MVParameterCard({
                   orientation="left"
                 />
                 <Tooltip
-                  formatter={(value: number) => [
-                    formatValue(value),
-                    parameter.name,
-                  ]}
-                  labelFormatter={formatTime}
-                  contentStyle={{
-                    background: "#1f2937",
-                    borderColor: "#374151",
-                    color: "#e5e7eb",
-                    fontSize: "12px",
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || payload.length === 0) return null;
+                    
+                    // Find slider and PV values from payload
+                    const sliderData = payload.find(p => typeof p.name === 'string' && p.name.includes('Slider'));
+                    const pvData = payload.find(p => (typeof p.name !== 'string' || !p.name.includes('Slider')) && p.dataKey === 'value');
+                    
+                    return (
+                      <div
+                        style={{
+                          background: 'rgba(31, 41, 55, 0.92)',
+                          border: '1px solid rgba(168, 85, 247, 0.4)',
+                          borderRadius: '6px',
+                          padding: '8px 12px',
+                          fontSize: '12px',
+                          color: '#ffffff',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.4)',
+                        }}
+                      >
+                        <div style={{ marginBottom: '4px', fontWeight: '600', color: '#ffffff' }}>
+                          Час: {formatTime(label)}
+                        </div>
+                        {sliderData && (
+                          <div style={{ color: '#c084fc', fontWeight: '600' }}>
+                            SP: {formatValue(sliderData.value as number)} {parameter.unit}
+                          </div>
+                        )}
+                        {pvData && (
+                          <div style={{ color: '#fb923c', fontWeight: '600' }}>
+                            PV: {formatValue(pvData.value as number)} {parameter.unit}
+                          </div>
+                        )}
+                      </div>
+                    );
                   }}
-                  itemStyle={{ color: "#e5e7eb" }}
                 />
+                <Area
+                  type="monotone"
+                  dataKey="sliderValue"
+                  stroke="none"
+                  fill="transparent"
+                  fillOpacity={0}
+                  isAnimationActive={false}
+                  name={`${parameter.name} (Slider)`}
+                />
+                {/* Shading area for distribution bounds - hidden from tooltip */}
                 <Area
                   type="monotone"
                   dataKey="hiValue"
@@ -591,6 +626,9 @@ export function MVParameterCard({
                   fillOpacity={showDistributions ? 1 : 0}
                   baseValue={lowerBound}
                   isAnimationActive={false}
+                  activeDot={false}
+                  name=""
+                  hide={true}
                 />
                 <ReferenceLine
                   y={lowerBound}
