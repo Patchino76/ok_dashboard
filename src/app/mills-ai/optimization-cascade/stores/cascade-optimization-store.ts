@@ -1059,6 +1059,7 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
       },
 
       setSimulationTarget: (value: number | null) => {
+        console.log("🟣 PURPLE SP UPDATED - setSimulationTarget called with:", value?.toFixed(2) ?? "null");
         set({ simulationTarget: value }, false, "setSimulationTarget");
       },
 

@@ -468,6 +468,9 @@ export default function CascadeOptimizationDashboard() {
   >(null);
   const [showDistributions, setShowDistributions] = useState(true);
 
+  // TIME-BASED CASCADE PREDICTION (Orange SP) - Only triggered by new time points in targetData
+  // This should NOT be triggered by parameter changes, only by new timestamps
+  // This prediction uses PV values and updates testPredictionTarget (Orange SP)
   useEffect(() => {
     if (
       !modelInfo?.featureClassification ||
@@ -484,23 +487,31 @@ export default function CascadeOptimizationDashboard() {
       return;
     }
 
+    // Only proceed if we have a NEW timestamp (time-based trigger)
     if (
       lastPredictionTimestampRef.current &&
       latestPoint.timestamp <= lastPredictionTimestampRef.current
     ) {
+      console.log("⏭️ Skipping TIME-BASED prediction - same timestamp");
       return;
     }
 
     if (isPredictingFromRealTimeRef.current) {
+      console.log("⏭️ Skipping TIME-BASED prediction - already predicting");
       return;
     }
+
+    console.log("🕐 TIME-BASED prediction triggered (Orange SP) - New timestamp:", new Date(latestPoint.timestamp).toLocaleTimeString());
+    console.log("   This will update testPredictionTarget (Orange SP), NOT simulationTarget (Purple SP)");
 
     const mvValues: Record<string, number> = {};
     const dvValues: Record<string, number> = {};
 
+    // Use current PV values from parameters at this time point
     parameters.forEach((param) => {
       if (param.varType === "MV") {
         mvValues[param.id] = param.value;
+        console.log(`   MV ${param.id} PV value:`, param.value.toFixed(2));
       } else if (param.varType === "DV") {
         dvValues[param.id] = param.value;
       }
@@ -522,6 +533,8 @@ export default function CascadeOptimizationDashboard() {
         ) {
           setTestPredictionTarget(prediction.predicted_target);
           lastPredictionTimestampRef.current = latestPoint.timestamp;
+          console.log("✅ TIME-BASED prediction completed (Orange SP):", prediction.predicted_target.toFixed(2));
+          console.log("   Updated testPredictionTarget, simulationTarget remains unchanged");
         }
       } catch (error) {
         console.error(
@@ -534,7 +547,8 @@ export default function CascadeOptimizationDashboard() {
     })();
   }, [
     modelInfo?.featureClassification,
-    parameters,
+    // REMOVED 'parameters' from dependencies to prevent triggering on parameter value changes
+    // Only targetData changes (new time points) should trigger this effect
     predictCascade,
     targetData,
   ]);

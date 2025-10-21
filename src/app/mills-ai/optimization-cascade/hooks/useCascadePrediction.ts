@@ -19,9 +19,8 @@ interface PredictionResponse {
 export function useCascadePrediction() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const setSimulationTarget = useCascadeOptimizationStore(
-    (state) => state.setSimulationTarget
-  );
+  // REMOVED: setSimulationTarget - this hook is for TIME-BASED predictions (Orange SP)
+  // Purple SP (simulationTarget) should only be updated by MV slider changes in mv-parameter-card.tsx
 
   const predictCascade = useCallback(async (
     mvValues: Record<string, number>,
@@ -65,7 +64,9 @@ export function useCascadePrediction() {
         timestamp: Date.now(),
       };
 
-      setSimulationTarget(prediction.predicted_target);
+      // REMOVED: setSimulationTarget(prediction.predicted_target);
+      // This hook is used for TIME-BASED predictions (Orange SP)
+      // Purple SP updates are handled in mv-parameter-card.tsx
 
       return prediction;
     } catch (err) {
@@ -73,7 +74,7 @@ export function useCascadePrediction() {
         err instanceof Error ? err.message : "Unknown error occurred";
       console.error("❌ Cascade prediction failed:", errorMessage);
       setError(errorMessage);
-      setSimulationTarget(null);
+      // REMOVED: setSimulationTarget(null);
 
       // Only show toast for non-network errors to avoid spam
       if (!errorMessage.includes("fetch")) {
@@ -84,7 +85,7 @@ export function useCascadePrediction() {
     } finally {
       setIsLoading(false);
     }
-  }, [setSimulationTarget]);
+  }, []); // Removed setSimulationTarget from dependencies
 
   const clearError = useCallback(() => {
     setError(null);

@@ -149,7 +149,7 @@ export function MVParameterCard({
       }
 
       const predictionResult = await response.json();
-      console.log("✅ Cascade prediction result:", predictionResult);
+      console.log("✅ EVENT-BASED prediction completed (Purple SP):", predictionResult.predicted_target?.toFixed(2));
 
       // Debug: Check the structure of predicted_cvs
       console.log("🔍 Predicted CVs structure:", {
@@ -199,7 +199,8 @@ export function MVParameterCard({
 
     debounceTimerRef.current = setTimeout(async () => {
       const mvValues = getMVSliderValues();
-      console.log("🎛️ MV Slider Values (triggering prediction):", mvValues);
+      console.log("🎛️ EVENT-BASED prediction triggered (Purple SP) - MV Slider changed:", parameter.id, "→", value.toFixed(2));
+      console.log("📊 All MV Slider Values:", mvValues);
 
       const requiredMVs = ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"];
       const hasAllMVs = requiredMVs.every((mv) => mvValues[mv] !== undefined);
