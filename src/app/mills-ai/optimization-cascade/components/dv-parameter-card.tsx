@@ -4,8 +4,10 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import type { CascadeParameter } from "../stores/cascade-optimization-store";
+import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
+import { millsParameters } from "../../data/mills-parameters";
+import { cascadeBG, getParameterNameBG, getParameterDescriptionBG } from "../translations/bg";
 
 interface DVParameterCardProps {
   parameter: CascadeParameter;
@@ -32,16 +34,16 @@ export function DVParameterCard({ parameter, bounds }: DVParameterCardProps) {
           <div className="flex flex-col gap-1">
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <span className="text-xl text-emerald-600">{parameter.icon}</span>
-              {parameter.name}
+              {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
                 className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-800 border-emerald-200"
               >
-                DV
+                {cascadeBG.parameters.disturbanceShort}
               </Badge>
-              <span className="text-xs text-slate-500">Disturbance</span>
+              <span className="text-xs text-slate-500">{cascadeBG.parameters.disturbance}</span>
             </div>
           </div>
         </div>
@@ -51,7 +53,7 @@ export function DVParameterCard({ parameter, bounds }: DVParameterCardProps) {
           {/* Current Value Display */}
           <div className="flex-1 space-y-2">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              Current Value
+              {cascadeBG.card.currentValue}
             </div>
             <div className="text-2xl font-bold flex items-center gap-1 text-emerald-600">
               {sliderValue.toFixed(2)}

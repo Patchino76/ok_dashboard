@@ -24,6 +24,7 @@ import { useXgboostStore } from "../../stores/xgboost-store";
 import { Slider } from "@/components/ui/slider";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { millsParameters, getTargets } from "../../data/mills-parameters";
+import { cascadeBG } from "../translations/bg";
 
 interface TargetData {
   timestamp: number;
@@ -207,7 +208,7 @@ TargetFractionDisplayProps) {
         <div className="flex items-center justify-between">
           <CardTitle className="text-xl font-bold flex items-center gap-2">
             <Target className="h-5 w-5" />
-            Mill Recovery Fraction
+            {cascadeBG.target.millRecoveryFraction}
             {targetVariable && (
               <span className="text-sm font-normal ml-2">
                 ({targetVariable})

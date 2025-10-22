@@ -17,6 +17,8 @@ import {
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { useXgboostStore } from "../../stores/xgboost-store";
 import type { CascadeParameter } from "../stores/cascade-optimization-store";
+import { millsParameters } from "../../data/mills-parameters";
+import { cascadeBG, getParameterNameBG, getParameterDescriptionBG } from "../translations/bg";
 
 interface CommonParameterProps {
   parameter: CascadeParameter;
@@ -458,16 +460,16 @@ export function MVParameterCard({
           <div className="flex flex-col gap-1">
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <span className="text-xl text-amber-600">{parameter.icon}</span>
-              {parameter.name}
+              {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
                 className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 border-amber-200"
               >
-                MV
+                {cascadeBG.parameters.manipulatedShort}
               </Badge>
-              <span className="text-xs text-slate-500">Manipulated</span>
+              <span className="text-xs text-slate-500">{cascadeBG.parameters.manipulated}</span>
             </div>
           </div>
           <Badge
@@ -478,7 +480,7 @@ export function MVParameterCard({
                 : "bg-red-100 text-red-800 border-red-200"
             }
           >
-            {isInRange ? "In Range" : "Out of Range"}
+            {isInRange ? "В граници" : "Извън граници"}
           </Badge>
         </div>
       </CardHeader>
@@ -486,7 +488,7 @@ export function MVParameterCard({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              Current Value
+              {cascadeBG.card.currentValue}
             </div>
             <div className="text-2xl font-bold flex items-center gap-1">
               {parameter.value.toFixed(2)}
@@ -495,7 +497,7 @@ export function MVParameterCard({
           </div>
           <div className="space-y-1">
             <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              Target (SP)
+              {cascadeBG.card.setpoint} ({cascadeBG.card.sp})
               {isPredicting && (
                 <div className="animate-spin h-3 w-3 border border-slate-400 border-t-transparent rounded-full"></div>
               )}

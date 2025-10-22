@@ -3,6 +3,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { millsParameters } from "../../data/mills-parameters";
+import { cascadeBG, getParameterNameBG } from "../translations/bg";
 import {
   Area,
   ComposedChart,
@@ -280,20 +282,20 @@ export function CVParameterCard({
           <div className="flex flex-col gap-1">
             <CardTitle className="text-base font-medium flex items-center gap-2">
               <span className="text-xl text-blue-600">{parameter.icon}</span>
-              {parameter.name}
+              {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
             <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
                 className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 border-blue-200"
               >
-                CV
+                {cascadeBG.parameters.controlledShort}
               </Badge>
-              <span className="text-xs text-slate-500">Controlled</span>
+              <span className="text-xs text-slate-500">{cascadeBG.parameters.controlled}</span>
             </div>
           </div>
           <span className="text-xs text-slate-500">
-            Target range: {rangeValue[0].toFixed(1)} –{" "}
+            {cascadeBG.parameters.targetRange}: {rangeValue[0].toFixed(1)} –{" "}
             {rangeValue[1].toFixed(1)} {parameter.unit}
           </span>
         </div>
@@ -302,7 +304,7 @@ export function CVParameterCard({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              Current Value (PV)
+              {cascadeBG.card.currentValue} ({cascadeBG.card.pv})
             </div>
             <div className="text-lg font-bold flex items-center gap-1 text-blue-600">
               {parameter.value.toFixed(2)}

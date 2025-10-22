@@ -1,8 +1,9 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Target } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Zap, Target } from "lucide-react";
+import { cascadeBG } from "../translations/bg";
 import { classifyParameters } from "../../data/cascade-parameter-classification"
 
 interface CascadeFlowDiagramProps {
@@ -132,10 +133,10 @@ export function CascadeFlowDiagram({
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-center">
             {/* MV Parameters */}
             <ParameterGroup
-              title="Manipulated Variables"
+              title={cascadeBG.parameters.manipulated}
               varType="MV"
               parameters={mv_parameters}
-              description="Variables we can control and optimize"
+              description={cascadeBG.parameters.manipulatedDescription}
             />
 
             {/* Arrow 1 */}
@@ -145,10 +146,10 @@ export function CascadeFlowDiagram({
 
             {/* CV Parameters */}
             <ParameterGroup
-              title="Controlled Variables"
+              title={cascadeBG.parameters.controlled}
               varType="CV"
               parameters={cv_parameters}
-              description="Variables we measure and predict"
+              description={cascadeBG.parameters.controlledDescription}
             />
 
             {/* Arrow 2 */}
@@ -175,10 +176,10 @@ export function CascadeFlowDiagram({
 
             {/* DV Parameters */}
             <ParameterGroup
-              title="Disturbance Variables"
+              title={cascadeBG.parameters.disturbance}
               varType="DV"
               parameters={dv_parameters}
-              description="External factors and lab parameters"
+              description={cascadeBG.parameters.disturbanceDescription}
             />
           </div>
 

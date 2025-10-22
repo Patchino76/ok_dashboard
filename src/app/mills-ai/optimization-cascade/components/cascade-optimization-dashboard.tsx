@@ -45,6 +45,7 @@ import { millsParameters, getTargets } from "../../data/mills-parameters";
 import { classifyParameters } from "../../data/cascade-parameter-classification";
 import { EnhancedModelTraining } from "./enhanced-model-training";
 import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
+import { cascadeBG } from "../translations/bg";
 
 export default function CascadeOptimizationDashboard() {
   // Cascade optimization store
@@ -1312,11 +1313,11 @@ export default function CascadeOptimizationDashboard() {
               <Zap className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
-              Cascade Optimization
+              {cascadeBG.title}
             </h1>
           </div>
           <p className="text-slate-600 dark:text-slate-400 text-lg">
-            Advanced Cascade optimization for maximum efficiency
+            {cascadeBG.subtitle}
           </p>
         </div>
 
@@ -1325,22 +1326,22 @@ export default function CascadeOptimizationDashboard() {
           <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
-              Overview
+              {cascadeBG.tabs.overview}
             </TabsTrigger>
             <TabsTrigger value="training" className="flex items-center gap-2">
               <GraduationCap className="h-4 w-4" />
-              Training
+              {cascadeBG.tabs.training}
             </TabsTrigger>
             <TabsTrigger
               value="optimization"
               className="flex items-center gap-2"
             >
               <Settings className="h-4 w-4" />
-              Optimization
+              {cascadeBG.tabs.optimization}
             </TabsTrigger>
             <TabsTrigger value="simulation" className="flex items-center gap-2">
               <Sliders className="h-4 w-4" />
-              Simulation
+              {cascadeBG.tabs.simulation}
             </TabsTrigger>
           </TabsList>
 
@@ -1352,7 +1353,7 @@ export default function CascadeOptimizationDashboard() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-xl font-semibold flex items-center gap-2">
                     <Activity className="h-5 w-5 text-blue-600" />
-                    System Overview & Cascade Flow
+                    {cascadeBG.overview.title}
                   </CardTitle>
                   <div className="flex gap-2">
                     <Badge
@@ -1366,17 +1367,17 @@ export default function CascadeOptimizationDashboard() {
                       }`}
                     >
                       {isOptimizing
-                        ? "OPTIMIZING..."
+                        ? cascadeBG.status.optimizing
                         : isOptimizationReady
-                        ? "READY"
-                        : "CONFIGURING"}
+                        ? cascadeBG.status.ready
+                        : cascadeBG.status.configuring}
                     </Badge>
                     <Badge
                       variant="outline"
                       className="rounded-full px-3 py-1 bg-blue-100 text-blue-800 border-blue-200 flex items-center gap-1"
                     >
                       <Zap className="h-3 w-3" />
-                      Cascade Active
+                      {cascadeBG.status.cascadeActive}
                     </Badge>
                   </div>
                 </div>
@@ -1391,7 +1392,7 @@ export default function CascadeOptimizationDashboard() {
                         <div className="flex items-center gap-2">
                           <Cpu className="h-4 w-4 text-blue-600" />
                           <span className="font-medium text-sm">
-                            Mill Selection
+                            {cascadeBG.mill.selection}
                           </span>
                         </div>
                         <select
@@ -1404,13 +1405,13 @@ export default function CascadeOptimizationDashboard() {
                         >
                           {Object.keys(cascadeAvailableModels).map((mill) => (
                             <option key={mill} value={parseInt(mill)}>
-                              Mill {mill}
+                              Мелница {mill}
                             </option>
                           ))}
                         </select>
                         {Object.keys(cascadeAvailableModels).length === 0 && (
                           <div className="text-xs text-slate-500">
-                            No cascade models available
+                            {cascadeBG.mill.noModels}
                           </div>
                         )}
                       </div>
@@ -1425,7 +1426,7 @@ export default function CascadeOptimizationDashboard() {
                           {currentMill}
                         </div>
                         <div className="text-sm text-slate-600">
-                          Selected Mill
+                          {cascadeBG.mill.selectedMill}
                         </div>
                       </div>
                       <div className="text-center p-3 bg-slate-50 rounded-lg">
@@ -1433,7 +1434,7 @@ export default function CascadeOptimizationDashboard() {
                           {getAllFeatures().length}
                         </div>
                         <div className="text-sm text-slate-600">
-                          Model Features
+                          {cascadeBG.model.features}
                         </div>
                       </div>
                       <div className="text-center p-3 bg-slate-50 rounded-lg">
@@ -1441,7 +1442,7 @@ export default function CascadeOptimizationDashboard() {
                           {getTargetVariable()}
                         </div>
                         <div className="text-sm text-slate-600">
-                          Target Variable
+                          {cascadeBG.model.targetVariable}
                         </div>
                       </div>
                     </div>
@@ -1451,34 +1452,34 @@ export default function CascadeOptimizationDashboard() {
                       <div className="flex items-center justify-between">
                         <div>
                           <div className="font-medium text-sm">
-                            Cascade Model Status
+                            {cascadeBG.model.status}
                           </div>
                           <div className="text-xs text-slate-600">
                             {modelMetadata
-                              ? `Loaded: cascade_mill_${modelMetadata.mill_number}`
-                              : "No cascade model loaded"}
+                              ? `${cascadeBG.model.loaded}: cascade_mill_${modelMetadata.mill_number}`
+                              : cascadeBG.model.notLoaded}
                           </div>
                           {isCascadeModelReady && (
                             <div className="text-xs text-green-600 flex items-center gap-1 mt-1">
                               <CheckCircle className="h-3 w-3" />
-                              Ready for predictions
+                              {cascadeBG.model.readyForPredictions}
                             </div>
                           )}
                           {modelMetadata && !isCascadeModelReady && (
                             <div className="text-xs text-yellow-600 flex items-center gap-1 mt-1">
                               <AlertCircle className="h-3 w-3" />
-                              Model loaded but not ready
+                              {cascadeBG.model.loadedNotReady}
                             </div>
                           )}
                           {isLoadingModel && (
                             <div className="text-xs text-blue-600 flex items-center gap-1 mt-1">
                               <Loader2 className="h-3 w-3 animate-spin" />
-                              Loading model...
+                              {cascadeBG.model.loading}
                             </div>
                           )}
                           {modelError && (
                             <div className="text-xs text-red-600 mt-1">
-                              Error: {modelError}
+                              {cascadeBG.model.error}: {modelError}
                             </div>
                           )}
                         </div>
@@ -1573,7 +1574,7 @@ export default function CascadeOptimizationDashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Settings className="h-5 w-5 text-blue-600" />
-                  Optimization Configuration
+                  {cascadeBG.optimization.configuration}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -1584,11 +1585,10 @@ export default function CascadeOptimizationDashboard() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col">
                         <div className="text-sm font-medium">
-                          Optimization Goal
+                          {cascadeBG.optimization.goal}
                         </div>
                         <div className="text-xs text-slate-500">
-                          Choose whether to maximize or minimize the target
-                          value
+                          {cascadeBG.optimization.goalDescription}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1599,7 +1599,7 @@ export default function CascadeOptimizationDashboard() {
                               : "text-slate-500"
                           }`}
                         >
-                          Minimize
+                          {cascadeBG.optimization.minimize}
                         </span>
                         <Switch
                           checked={maximize}
@@ -1613,7 +1613,7 @@ export default function CascadeOptimizationDashboard() {
                               : "text-slate-500"
                           }`}
                         >
-                          Maximize
+                          {cascadeBG.optimization.maximize}
                         </span>
                       </div>
                     </div>
@@ -1624,11 +1624,10 @@ export default function CascadeOptimizationDashboard() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex flex-col">
                         <div className="text-sm font-medium">
-                          Auto-Apply Proposed Setpoints
+                          Автоматично прилагане
                         </div>
                         <div className="text-xs text-slate-500">
-                          Automatically apply optimized parameters when
-                          optimization completes
+                          Автоматично прилагане на оптимизираните параметри след завършване
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1639,7 +1638,7 @@ export default function CascadeOptimizationDashboard() {
                               : "text-slate-500"
                           }`}
                         >
-                          Manual
+                          Ръчно
                         </span>
                         <Switch
                           checked={autoApplyResults}
@@ -1653,7 +1652,7 @@ export default function CascadeOptimizationDashboard() {
                               : "text-slate-500"
                           }`}
                         >
-                          Auto
+                          Авто
                         </span>
                       </div>
                     </div>
@@ -1669,10 +1668,10 @@ export default function CascadeOptimizationDashboard() {
                     {isOptimizing ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Optimizing...
+                        {cascadeBG.optimization.running}
                       </>
                     ) : (
-                      "Start Optimization"
+                      cascadeBG.optimization.startOptimization
                     )}
                   </Button>
                   <Button
@@ -1681,7 +1680,7 @@ export default function CascadeOptimizationDashboard() {
                     className="text-slate-700 border-slate-300 hover:bg-slate-50"
                     disabled={isOptimizing}
                   >
-                    Reset
+                    {cascadeBG.actions.reset}
                   </Button>
                   <Button
                     onClick={() =>
@@ -1692,8 +1691,8 @@ export default function CascadeOptimizationDashboard() {
                     disabled={isOptimizing}
                   >
                     {showDistributions
-                      ? "Hide Distributions"
-                      : "Show Distributions"}
+                      ? "Скрий разпределения"
+                      : "Покажи разпределения"}
                   </Button>
                   <Button
                     onClick={handleDebugTrendData}
@@ -1718,10 +1717,10 @@ export default function CascadeOptimizationDashboard() {
                     {isCascadePredicting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Predicting...
+                        {cascadeBG.simulation.predicting}
                       </>
                     ) : (
-                      "🎯 Test Prediction"
+                      `🎯 ${cascadeBG.simulation.testPrediction}`
                     )}
                   </Button>
                 </div>
@@ -2130,24 +2129,24 @@ export default function CascadeOptimizationDashboard() {
                 return (
                   <>
                     {renderParameterSection(
-                      "Manipulated Variables (MV)",
-                      undefined,
+                      cascadeBG.parameters.manipulatedFull,
+                      cascadeBG.parameters.manipulatedDescription,
                       mvParams,
                       "MV",
                       "text-amber-600",
                       "🎛️"
                     )}
                     {renderParameterSection(
-                      "Controlled Variables (CV)",
-                      undefined,
+                      cascadeBG.parameters.controlledFull,
+                      cascadeBG.parameters.controlledDescription,
                       cvParams,
                       "CV",
                       "text-blue-600",
                       "📊"
                     )}
                     {renderParameterSection(
-                      "Disturbance Variables (DV)",
-                      "External factors and lab-analyzed parameters",
+                      cascadeBG.parameters.disturbanceFull,
+                      cascadeBG.parameters.disturbanceDescription,
                       dvParams,
                       "DV",
                       "text-emerald-600",

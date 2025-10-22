@@ -14,6 +14,7 @@ import { VerticalParameterSlider } from "./vertical-parameter-slider"
 import { CVParameterDisplay } from "./cv-parameter-display"
 import { classifyParameters } from "../../data/cascade-parameter-classification"
 import { millsParameters } from "../../data/mills-parameters"
+import { cascadeBG } from "../translations/bg"
 
 interface CascadeSimulationInterfaceProps {
   modelFeatures?: string[]
@@ -263,7 +264,7 @@ export function CascadeSimulationInterface({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <span className="text-amber-600">🎛️</span>
-              Manipulated Variables
+              {cascadeBG.parameters.manipulated}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
               {mvParameters.map((param) => (
@@ -281,7 +282,7 @@ export function CascadeSimulationInterface({
           <div className="space-y-4">
             <h3 className="text-lg font-semibold flex items-center gap-2">
               <span className="text-blue-600">📊</span>
-              Controlled Variables
+              {cascadeBG.parameters.controlled}
             </h3>
             <div className="grid grid-cols-1 gap-4">
               {cvParameters.map((param) => (
@@ -329,7 +330,7 @@ export function CascadeSimulationInterface({
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <span className="text-emerald-600">🧪</span>
-                  Disturbance Variables
+                  {cascadeBG.parameters.disturbance}
                 </h3>
                 <div className="grid grid-cols-1 gap-4">
                   {dvParameters.map((param) => (
