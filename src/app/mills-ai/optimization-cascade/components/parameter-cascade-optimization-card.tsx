@@ -68,7 +68,7 @@ const ParameterCascadeOptimizationCard = memo(
         );
       case "DV":
       default:
-        return <DVParameterCard parameter={parameter} />;
+        return <DVParameterCard parameter={parameter} bounds={bounds} />;
     }
   }
 );

@@ -628,7 +628,6 @@ export function MVParameterCard({
                   isAnimationActive={false}
                   activeDot={false}
                   name=""
-                  hide={true}
                 />
                 <ReferenceLine
                   y={lowerBound}
