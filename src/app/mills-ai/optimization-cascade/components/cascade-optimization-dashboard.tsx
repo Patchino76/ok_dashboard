@@ -121,13 +121,13 @@ export default function CascadeOptimizationDashboard() {
   // Initialize DV values when model loads
   useEffect(() => {
     if (!modelInfo?.featureClassification) return;
-    
+
     const featureClassification = modelInfo.featureClassification;
     const dvFeatures = featureClassification.dv_features || [];
-    
+
     if (dvFeatures.length > 0) {
       const dvValues: Record<string, number> = {};
-      
+
       dvFeatures.forEach((dvId) => {
         const param = cascadeStore.parameters.find((p) => p.id === dvId);
         if (param) {
@@ -135,7 +135,7 @@ export default function CascadeOptimizationDashboard() {
           dvValues[dvId] = param.sliderSP || param.value || 0;
         }
       });
-      
+
       console.log("🔧 Initializing DV values from model features:", dvValues);
       useCascadeOptimizationStore.getState().setDVValues(dvValues);
     }
@@ -314,8 +314,15 @@ export default function CascadeOptimizationDashboard() {
       const mvValues: Record<string, number> = {};
       const dvValues: Record<string, number> = {};
 
-      console.log("🔍 All parameters:", parameters.map(p => ({ id: p.id, varType: p.varType, value: p.value })));
-      
+      console.log(
+        "🔍 All parameters:",
+        parameters.map((p) => ({
+          id: p.id,
+          varType: p.varType,
+          value: p.value,
+        }))
+      );
+
       parameters.forEach((param) => {
         if (param.varType === "MV") {
           mvValues[param.id] = param.value;
@@ -325,7 +332,10 @@ export default function CascadeOptimizationDashboard() {
       });
 
       console.log("📊 Cascade prediction data:", { mvValues, dvValues });
-      console.log("🔍 Feature classification:", modelInfo?.featureClassification);
+      console.log(
+        "🔍 Feature classification:",
+        modelInfo?.featureClassification
+      );
 
       const prediction = await predictCascade(mvValues, dvValues);
 
@@ -501,8 +511,13 @@ export default function CascadeOptimizationDashboard() {
       return;
     }
 
-    console.log("🕐 TIME-BASED prediction triggered (Orange SP) - New timestamp:", new Date(latestPoint.timestamp).toLocaleTimeString());
-    console.log("   This will update testPredictionTarget (Orange SP), NOT simulationTarget (Purple SP)");
+    console.log(
+      "🕐 TIME-BASED prediction triggered (Orange SP) - New timestamp:",
+      new Date(latestPoint.timestamp).toLocaleTimeString()
+    );
+    console.log(
+      "   This will update testPredictionTarget (Orange SP), NOT simulationTarget (Purple SP)"
+    );
 
     const mvValues: Record<string, number> = {};
     const dvValues: Record<string, number> = {};
@@ -533,8 +548,13 @@ export default function CascadeOptimizationDashboard() {
         ) {
           setTestPredictionTarget(prediction.predicted_target);
           lastPredictionTimestampRef.current = latestPoint.timestamp;
-          console.log("✅ TIME-BASED prediction completed (Orange SP):", prediction.predicted_target.toFixed(2));
-          console.log("   Updated testPredictionTarget, simulationTarget remains unchanged");
+          console.log(
+            "✅ TIME-BASED prediction completed (Orange SP):",
+            prediction.predicted_target.toFixed(2)
+          );
+          console.log(
+            "   Updated testPredictionTarget, simulationTarget remains unchanged"
+          );
         }
       } catch (error) {
         console.error(
@@ -1224,7 +1244,7 @@ export default function CascadeOptimizationDashboard() {
     }
   };
 
-  const handleTrainModel = async (config?: {
+  const handleTrainModel = async (config: {
     mill_number: number;
     start_date: string;
     end_date: string;
@@ -1236,26 +1256,17 @@ export default function CascadeOptimizationDashboard() {
     resample_freq: string;
     model_name_suffix?: string;
   }) => {
-    // Use enhanced config if provided, otherwise fall back to basic config
-    const trainingConfig = config || {
-      mill_number: currentMill,
-      start_date: startDate,
-      end_date: endDate,
-      mv_features: ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"],
-      cv_features: ["PulpHC", "DensityHC", "PressureHC"],
-      dv_features: ["Shisti", "Daiki", "Grano"],
-      target_variable: "PSI200",
-      test_size: 0.2,
-      resample_freq: "1min",
-    };
-
+    // Config is now required - must be provided by EnhancedModelTraining component
+    // This ensures features are always dynamically selected, never hardcoded
     if (
       isTraining ||
-      !trainingConfig.mill_number ||
-      !trainingConfig.start_date ||
-      !trainingConfig.end_date
+      !config.mill_number ||
+      !config.start_date ||
+      !config.end_date
     )
       return;
+
+    const trainingConfig = config;
 
     const loadingToast = toast.loading("Training cascade model...");
 
@@ -1938,7 +1949,9 @@ export default function CascadeOptimizationDashboard() {
                             }
 
                             const currentValue = parameter.value;
-                            return Number.isFinite(currentValue) ? currentValue : null;
+                            return Number.isFinite(currentValue)
+                              ? currentValue
+                              : null;
                           };
 
                           const createPercentiles = (
@@ -1965,7 +1978,8 @@ export default function CascadeOptimizationDashboard() {
                           const parameterDefaultBounds = validateTuple(
                             parameterBounds[parameter.id]
                           );
-                          const fallbackBounds = optimizedBounds ?? parameterDefaultBounds;
+                          const fallbackBounds =
+                            optimizedBounds ?? parameterDefaultBounds;
 
                           // Get distribution bounds, median, and percentiles for beautiful gradient shading
                           const distributionData = (() => {
@@ -1979,15 +1993,23 @@ export default function CascadeOptimizationDashboard() {
                               const dist = mvDist || cvDist;
 
                               if (dist) {
-                                const { min_value, max_value, median, sample_count } = dist;
-
-                                console.log(`📊 Distribution for ${parameter.id}:`, {
-                                  min: min_value,
-                                  max: max_value,
+                                const {
+                                  min_value,
+                                  max_value,
                                   median,
                                   sample_count,
-                                  percentiles: dist.percentiles,
-                                });
+                                } = dist;
+
+                                console.log(
+                                  `📊 Distribution for ${parameter.id}:`,
+                                  {
+                                    min: min_value,
+                                    max: max_value,
+                                    median,
+                                    sample_count,
+                                    percentiles: dist.percentiles,
+                                  }
+                                );
 
                                 const validBounds = validateTuple([
                                   min_value,
@@ -1995,44 +2017,64 @@ export default function CascadeOptimizationDashboard() {
                                 ] as [number, number]);
 
                                 if (validBounds) {
-                                  const rawP5 = dist.percentiles?.["5"] ?? dist.percentiles?.["5.0"];
-                                  const rawP95 = dist.percentiles?.["95"] ?? dist.percentiles?.["95.0"];
+                                  const rawP5 =
+                                    dist.percentiles?.["5"] ??
+                                    dist.percentiles?.["5.0"];
+                                  const rawP95 =
+                                    dist.percentiles?.["95"] ??
+                                    dist.percentiles?.["95.0"];
                                   const rawP25 = dist.percentiles?.["25"];
                                   const rawP75 = dist.percentiles?.["75"];
-                                  const rawP50 = dist.percentiles?.["50"] ?? dist.percentiles?.["50.0"] ?? median;
+                                  const rawP50 =
+                                    dist.percentiles?.["50"] ??
+                                    dist.percentiles?.["50.0"] ??
+                                    median;
 
                                   const lowerPercentile =
-                                    typeof rawP5 === "number" && Number.isFinite(rawP5)
+                                    typeof rawP5 === "number" &&
+                                    Number.isFinite(rawP5)
                                       ? rawP5
                                       : validBounds[0];
                                   const upperPercentile =
-                                    typeof rawP95 === "number" && Number.isFinite(rawP95)
+                                    typeof rawP95 === "number" &&
+                                    Number.isFinite(rawP95)
                                       ? rawP95
                                       : validBounds[1];
 
                                   const medianValue =
-                                    typeof median === "number" && Number.isFinite(median)
+                                    typeof median === "number" &&
+                                    Number.isFinite(median)
                                       ? median
-                                      : typeof rawP50 === "number" && Number.isFinite(rawP50)
+                                      : typeof rawP50 === "number" &&
+                                        Number.isFinite(rawP50)
                                       ? rawP50
                                       : (lowerPercentile + upperPercentile) / 2;
 
                                   return {
-                                    bounds: [lowerPercentile, upperPercentile] as [number, number],
+                                    bounds: [
+                                      lowerPercentile,
+                                      upperPercentile,
+                                    ] as [number, number],
                                     median: medianValue,
                                     percentiles: {
                                       p5: lowerPercentile,
                                       p25:
-                                        typeof rawP25 === "number" && Number.isFinite(rawP25)
+                                        typeof rawP25 === "number" &&
+                                        Number.isFinite(rawP25)
                                           ? rawP25
                                           : lowerPercentile +
-                                            (upperPercentile - lowerPercentile) * 0.25,
+                                            (upperPercentile -
+                                              lowerPercentile) *
+                                              0.25,
                                       p50: medianValue,
                                       p75:
-                                        typeof rawP75 === "number" && Number.isFinite(rawP75)
+                                        typeof rawP75 === "number" &&
+                                        Number.isFinite(rawP75)
                                           ? rawP75
                                           : lowerPercentile +
-                                            (upperPercentile - lowerPercentile) * 0.75,
+                                            (upperPercentile -
+                                              lowerPercentile) *
+                                              0.75,
                                       p95: upperPercentile,
                                     },
                                   };
@@ -2045,7 +2087,8 @@ export default function CascadeOptimizationDashboard() {
                             }
 
                             if (fallbackBounds) {
-                              const fallbackMedian = getFallbackMedian(fallbackBounds);
+                              const fallbackMedian =
+                                getFallbackMedian(fallbackBounds);
                               return {
                                 bounds: fallbackBounds,
                                 median: fallbackMedian ?? fallbackBounds[0],
@@ -2068,11 +2111,14 @@ export default function CascadeOptimizationDashboard() {
                               proposedSetpoint={proposedValue}
                               distributionBounds={distributionData?.bounds}
                               distributionMedian={distributionData?.median}
-                              distributionPercentiles={distributionData?.percentiles}
+                              distributionPercentiles={
+                                distributionData?.percentiles
+                              }
                               onRangeChange={(id, newRange) => {
                                 updateParameterBounds(id, newRange);
                               }}
                               showDistributions={showDistributions}
+                              mvFeatures={featureClassification.mv_features}
                             />
                           );
                         })}

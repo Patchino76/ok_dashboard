@@ -622,9 +622,20 @@ export const useXgboostStore = create<XgboostState>()(
             Shisti: "Shisti",
           };
 
+          // List of calculated parameters that don't have real-time tags
+          const calculatedParameters = ["CirculativeLoad"];
+
           // Fetch real-time data for each feature
           const featurePromises = modelFeatures.map(async (featureName) => {
             console.log(`Processing feature: "${featureName}"`);
+
+            // Check if this is a calculated parameter
+            if (calculatedParameters.includes(featureName)) {
+              console.log(
+                `🧮 Skipping real-time data fetch for calculated parameter: ${featureName}`
+              );
+              return null;
+            }
 
             // Check if this is a lab parameter (DV = Disturbance Variable)
             const parameterConfig = millsParameters.find(
@@ -865,6 +876,48 @@ export const useXgboostStore = create<XgboostState>()(
               );
             }
           });
+
+          // Calculate CirculativeLoad in real-time if we have the required parameters
+          const oreParam = state.parameters.find((p) => p.id === "Ore");
+          const pulpHCParam = state.parameters.find((p) => p.id === "PulpHC");
+          const densityHCParam = state.parameters.find((p) => p.id === "DensityHC");
+          
+          if (oreParam && pulpHCParam && densityHCParam && oreParam.value > 0) {
+            console.log("🧮 Calculating CirculativeLoad from real-time values...");
+            console.log(`  Ore: ${oreParam.value}, PulpHC: ${pulpHCParam.value}, DensityHC: ${densityHCParam.value}`);
+            
+            // Constants from db_connector.py
+            const rho_solid = 2900; // kg/m³
+            const rho_water = 1000; // kg/m³
+            
+            // Step 1: Calculate volumetric concentration (C_v)
+            const C_v = Math.max(0, Math.min(1, (densityHCParam.value - rho_water) / (rho_solid - rho_water)));
+            
+            // Step 2: Calculate mass concentration (C_m)
+            const numerator = C_v * rho_solid;
+            const denominator = C_v * rho_solid + (1 - C_v) * rho_water;
+            const C_m = numerator / denominator;
+            
+            // Step 3: Calculate mass flow of solids to cyclone (t/h)
+            const M_solid_to_cyclone = (pulpHCParam.value * densityHCParam.value * C_m) / 1000;
+            
+            // Step 4: Calculate circulative load ratio
+            const circulativeLoad = (M_solid_to_cyclone - oreParam.value) / oreParam.value;
+            
+            console.log(`  ✓ CirculativeLoad calculated: ${circulativeLoad.toFixed(3)}`);
+            console.log(`    C_v: ${C_v.toFixed(4)}, C_m: ${C_m.toFixed(4)}, M_solid: ${M_solid_to_cyclone.toFixed(2)} t/h`);
+            
+            // Update CirculativeLoad parameter with calculated value
+            const timestamp = Date.now();
+            state.updateParameterFromRealData(
+              "CirculativeLoad",
+              circulativeLoad,
+              timestamp,
+              [] // No trend data from API, will be built up over time
+            );
+          } else {
+            console.log("⚠️ Cannot calculate CirculativeLoad - missing required parameters or Ore = 0");
+          }
 
           // Use our new clean dual data source prediction logic
           const validFeatureResults = featureResults.filter(

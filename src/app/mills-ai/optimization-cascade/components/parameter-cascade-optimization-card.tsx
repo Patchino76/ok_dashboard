@@ -24,6 +24,7 @@ type ParameterCardCommonProps = {
   };
   onRangeChange: (id: string, range: BoundsTuple) => void;
   showDistributions: boolean;
+  mvFeatures?: string[]; // Dynamic MV features from model metadata
 };
 
 const ParameterCascadeOptimizationCard = memo(
@@ -37,6 +38,7 @@ const ParameterCascadeOptimizationCard = memo(
     distributionPercentiles,
     onRangeChange,
     showDistributions,
+    mvFeatures,
   }: ParameterCardCommonProps) => {
     switch (parameter.varType) {
       case "MV":
@@ -51,6 +53,7 @@ const ParameterCascadeOptimizationCard = memo(
             distributionMedian={distributionMedian}
             distributionPercentiles={distributionPercentiles}
             showDistributions={showDistributions}
+            mvFeatures={mvFeatures}
           />
         );
       case "CV":

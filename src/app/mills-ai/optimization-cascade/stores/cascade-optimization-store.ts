@@ -271,7 +271,7 @@ export interface CascadeOptimizationState {
 
 const initialState = {
   // Configuration defaults
-  millNumber: 7,
+  millNumber: 6,
   targetVariable: "PSI200",
   targetSetpoint: 25.0,
   maximize: false, // Typically minimize PSI for better quality

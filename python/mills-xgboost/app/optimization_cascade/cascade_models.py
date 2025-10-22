@@ -592,9 +592,21 @@ class CascadeModelManager:
         cvs = self.configured_features['cvs'] or [cv.id for cv in self.classifier.get_cvs()]
         dvs = self.configured_features['dvs'] or [dv.id for dv in self.classifier.get_dvs()]
         
+        print(f"🔍 predict_cascade called with:")
+        print(f"   mv_values: {mv_values} (type: {type(mv_values)})")
+        print(f"   dv_values: {dv_values} (type: {type(dv_values)})")
+        print(f"   Expected MVs from model: {mvs}")
+        print(f"   Expected DVs from model: {dvs}")
+        
         # Step 1: Predict CVs from MVs using process models
         # Create DataFrame with proper feature names to avoid sklearn warnings
-        mv_df = pd.DataFrame([[mv_values[mv_id] for mv_id in mvs]], columns=mvs)
+        try:
+            mv_df = pd.DataFrame([[mv_values[mv_id] for mv_id in mvs]], columns=mvs)
+        except KeyError as e:
+            print(f"❌ Prediction error: {e}")
+            print(f"   Available MV keys in request: {list(mv_values.keys())}")
+            print(f"   Required MV keys from model: {mvs}")
+            raise
         predicted_cvs = {}
         
         for cv_id in cvs:
@@ -745,10 +757,28 @@ class CascadeModelManager:
             if loaded_metadata:
                 self.metadata = loaded_metadata
                 print(f"✅ Metadata loaded from {self.model_save_path}")
+                
+                # Configure features from metadata if custom features were used
+                configured_features = loaded_metadata.get("training_config", {}).get("configured_features", {})
+                if configured_features.get("using_custom_features", False):
+                    mvs = configured_features.get("mv_features", [])
+                    cvs_config = configured_features.get("cv_features", [])
+                    dvs = configured_features.get("dv_features", [])
+                    target = configured_features.get("target_variable")
+                    
+                    # Configure the model manager with these features
+                    self.configure_features(
+                        mv_features=mvs,
+                        cv_features=cvs_config,
+                        dv_features=dvs,
+                        target_variable=target
+                    )
+                    print(f"🎯 Configured features from metadata: MVs={mvs}, CVs={cvs_config}, DVs={dvs}, Target={target}")
             else:
                 print(f"⚠️ No metadata found at {self.model_save_path}")
             
-            cvs = [cv.id for cv in self.classifier.get_cvs()]
+            # Use configured CVs if available, otherwise fall back to classifier
+            cvs = self.configured_features['cvs'] or [cv.id for cv in self.classifier.get_cvs()]
             
             # Load process models
             for cv_id in cvs:

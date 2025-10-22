@@ -34,6 +34,7 @@ interface CommonParameterProps {
     p95: number;
   };
   showDistributions: boolean;
+  mvFeatures?: string[]; // Dynamic MV features from model metadata
 }
 
 export function MVParameterCard({
@@ -46,6 +47,7 @@ export function MVParameterCard({
   distributionMedian,
   distributionPercentiles,
   showDistributions,
+  mvFeatures,
 }: CommonParameterProps) {
   const {
     updateSliderSP,
@@ -202,13 +204,17 @@ export function MVParameterCard({
       console.log("🎛️ EVENT-BASED prediction triggered (Purple SP) - MV Slider changed:", parameter.id, "→", value.toFixed(2));
       console.log("📊 All MV Slider Values:", mvValues);
 
-      const requiredMVs = ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"];
+      // Use dynamic MV features from model metadata, fallback to default if not provided
+      const requiredMVs = mvFeatures || ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"];
+      console.log("🔍 Required MV features from model:", requiredMVs);
+      
       const hasAllMVs = requiredMVs.every((mv) => mvValues[mv] !== undefined);
 
       if (hasAllMVs) {
         await callCascadePrediction(mvValues);
       } else {
-        console.warn("⚠️ Missing some MV values, skipping prediction");
+        const missingMVs = requiredMVs.filter((mv) => mvValues[mv] === undefined);
+        console.warn("⚠️ Missing MV values:", missingMVs, "- skipping prediction");
       }
     }, 500);
   };
