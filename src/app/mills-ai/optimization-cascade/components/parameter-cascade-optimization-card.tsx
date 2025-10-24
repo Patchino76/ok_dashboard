@@ -25,6 +25,7 @@ type ParameterCardCommonProps = {
   onRangeChange: (id: string, range: BoundsTuple) => void;
   showDistributions: boolean;
   mvFeatures?: string[]; // Dynamic MV features from model metadata
+  dvFeatures?: string[]; // Dynamic DV features from model metadata
 };
 
 const ParameterCascadeOptimizationCard = memo(
@@ -39,6 +40,7 @@ const ParameterCascadeOptimizationCard = memo(
     onRangeChange,
     showDistributions,
     mvFeatures,
+    dvFeatures,
   }: ParameterCardCommonProps) => {
     switch (parameter.varType) {
       case "MV":
@@ -71,7 +73,7 @@ const ParameterCascadeOptimizationCard = memo(
         );
       case "DV":
       default:
-        return <DVParameterCard parameter={parameter} bounds={bounds} />;
+        return <DVParameterCard parameter={parameter} bounds={bounds} dvFeatures={dvFeatures} />;
     }
   }
 );

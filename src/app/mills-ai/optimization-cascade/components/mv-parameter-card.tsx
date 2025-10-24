@@ -18,7 +18,11 @@ import { useCascadeOptimizationStore } from "../stores/cascade-optimization-stor
 import { useXgboostStore } from "../../stores/xgboost-store";
 import type { CascadeParameter } from "../stores/cascade-optimization-store";
 import { millsParameters } from "../../data/mills-parameters";
-import { cascadeBG, getParameterNameBG, getParameterDescriptionBG } from "../translations/bg";
+import {
+  cascadeBG,
+  getParameterNameBG,
+  getParameterDescriptionBG,
+} from "../translations/bg";
 
 interface CommonParameterProps {
   parameter: CascadeParameter;
@@ -153,7 +157,10 @@ export function MVParameterCard({
       }
 
       const predictionResult = await response.json();
-      console.log("✅ EVENT-BASED prediction completed (Purple SP):", predictionResult.predicted_target?.toFixed(2));
+      console.log(
+        "✅ EVENT-BASED prediction completed (Purple SP):",
+        predictionResult.predicted_target?.toFixed(2)
+      );
 
       // Debug: Check the structure of predicted_cvs
       console.log("🔍 Predicted CVs structure:", {
@@ -203,20 +210,36 @@ export function MVParameterCard({
 
     debounceTimerRef.current = setTimeout(async () => {
       const mvValues = getMVSliderValues();
-      console.log("🎛️ EVENT-BASED prediction triggered (Purple SP) - MV Slider changed:", parameter.id, "→", value.toFixed(2));
+      console.log(
+        "🎛️ EVENT-BASED prediction triggered (Purple SP) - MV Slider changed:",
+        parameter.id,
+        "→",
+        value.toFixed(2)
+      );
       console.log("📊 All MV Slider Values:", mvValues);
 
       // Use dynamic MV features from model metadata, fallback to default if not provided
-      const requiredMVs = mvFeatures || ["Ore", "WaterMill", "WaterZumpf", "MotorAmp"];
+      const requiredMVs = mvFeatures || [
+        "Ore",
+        "WaterMill",
+        "WaterZumpf",
+        "MotorAmp",
+      ];
       console.log("🔍 Required MV features from model:", requiredMVs);
-      
+
       const hasAllMVs = requiredMVs.every((mv) => mvValues[mv] !== undefined);
 
       if (hasAllMVs) {
         await callCascadePrediction(mvValues);
       } else {
-        const missingMVs = requiredMVs.filter((mv) => mvValues[mv] === undefined);
-        console.warn("⚠️ Missing MV values:", missingMVs, "- skipping prediction");
+        const missingMVs = requiredMVs.filter(
+          (mv) => mvValues[mv] === undefined
+        );
+        console.warn(
+          "⚠️ Missing MV values:",
+          missingMVs,
+          "- skipping prediction"
+        );
       }
     }, 500);
   };
@@ -469,7 +492,9 @@ export function MVParameterCard({
               >
                 {cascadeBG.parameters.manipulatedShort}
               </Badge>
-              <span className="text-xs text-slate-500">{cascadeBG.parameters.manipulated}</span>
+              <span className="text-xs text-slate-500">
+                {cascadeBG.parameters.manipulated}
+              </span>
             </div>
           </div>
           <Badge
@@ -555,7 +580,11 @@ export function MVParameterCard({
                   >
                     <stop offset="0%" stopColor="#e2e8f0" stopOpacity={0.2} />
                     <stop offset="50%" stopColor="#cbd5f5" stopOpacity={0.6} />
-                    <stop offset="100%" stopColor="#94a3b8" stopOpacity={0.25} />
+                    <stop
+                      offset="100%"
+                      stopColor="#94a3b8"
+                      stopOpacity={0.25}
+                    />
                   </linearGradient>
                 </defs>
                 <XAxis
@@ -581,35 +610,52 @@ export function MVParameterCard({
                 />
                 <Tooltip
                   content={({ active, payload, label }) => {
-                    if (!active || !payload || payload.length === 0) return null;
-                    
+                    if (!active || !payload || payload.length === 0)
+                      return null;
+
                     // Find slider and PV values from payload
-                    const sliderData = payload.find(p => typeof p.name === 'string' && p.name.includes('Slider'));
-                    const pvData = payload.find(p => (typeof p.name !== 'string' || !p.name.includes('Slider')) && p.dataKey === 'value');
-                    
+                    const sliderData = payload.find(
+                      (p) =>
+                        typeof p.name === "string" && p.name.includes("Slider")
+                    );
+                    const pvData = payload.find(
+                      (p) =>
+                        (typeof p.name !== "string" ||
+                          !p.name.includes("Slider")) &&
+                        p.dataKey === "value"
+                    );
+
                     return (
                       <div
                         style={{
-                          background: 'rgba(31, 41, 55, 0.92)',
-                          border: '1px solid rgba(168, 85, 247, 0.4)',
-                          borderRadius: '6px',
-                          padding: '8px 12px',
-                          fontSize: '12px',
-                          color: '#ffffff',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.4)',
+                          background: "rgba(31, 41, 55, 0.92)",
+                          border: "1px solid rgba(168, 85, 247, 0.4)",
+                          borderRadius: "6px",
+                          padding: "8px 12px",
+                          fontSize: "12px",
+                          color: "#ffffff",
+                          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.4)",
                         }}
                       >
-                        <div style={{ marginBottom: '4px', fontWeight: '600', color: '#ffffff' }}>
+                        <div
+                          style={{
+                            marginBottom: "4px",
+                            fontWeight: "600",
+                            color: "#ffffff",
+                          }}
+                        >
                           Час: {formatTime(label)}
                         </div>
                         {sliderData && (
-                          <div style={{ color: '#c084fc', fontWeight: '600' }}>
-                            SP: {formatValue(sliderData.value as number)} {parameter.unit}
+                          <div style={{ color: "#c084fc", fontWeight: "600" }}>
+                            SP: {formatValue(sliderData.value as number)}{" "}
+                            {parameter.unit}
                           </div>
                         )}
                         {pvData && (
-                          <div style={{ color: '#fb923c', fontWeight: '600' }}>
-                            PV: {formatValue(pvData.value as number)} {parameter.unit}
+                          <div style={{ color: "#fb923c", fontWeight: "600" }}>
+                            PV: {formatValue(pvData.value as number)}{" "}
+                            {parameter.unit}
                           </div>
                         )}
                       </div>

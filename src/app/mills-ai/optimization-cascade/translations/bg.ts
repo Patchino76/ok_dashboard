@@ -4,8 +4,8 @@
 export const cascadeBG = {
   // Main titles
   title: "Каскадна оптимизация",
-  subtitle: "Усъвършенствана каскадна оптимизация за максимална ефективност",
-  
+  subtitle: "",
+
   // Tabs
   tabs: {
     overview: "Преглед",
@@ -13,7 +13,7 @@ export const cascadeBG = {
     optimization: "Оптимизация",
     simulation: "Симулация",
   },
-  
+
   // System status
   status: {
     optimizing: "ОПТИМИЗИРА...",
@@ -21,14 +21,14 @@ export const cascadeBG = {
     configuring: "КОНФИГУРИРАНЕ",
     cascadeActive: "Каскада активна",
   },
-  
+
   // Mill selection
   mill: {
     selection: "Избор на мелница",
     selectedMill: "Избрана мелница",
     noModels: "Няма налични каскадни модели",
   },
-  
+
   // Model information
   model: {
     features: "Характеристики на модела",
@@ -41,25 +41,27 @@ export const cascadeBG = {
     loading: "Зареждане на модел...",
     error: "Грешка",
   },
-  
+
   // Parameter types
   parameters: {
-    manipulated: "Манипулирани променливи",
+    manipulated: "Манипулирани параметри",
     manipulatedShort: "МП",
-    manipulatedFull: "Манипулирани променливи (МП)",
-    manipulatedDescription: "Променливи, които можем да контролираме и оптимизираме",
-    controlled: "Контролирани променливи",
+    manipulatedFull: "Манипулирани параметри (МП)",
+    manipulatedDescription:
+      "Параметри, които можем да контролираме и оптимизираме",
+    controlled: "Контролирани параметри",
     controlledShort: "КП",
-    controlledFull: "Контролирани променливи (КП)",
-    controlledDescription: "Променливи, които измерваме и прогнозираме",
-    disturbance: "Смущаващи променливи",
+    controlledFull: "Контролирани параметри (КП)",
+    controlledDescription: "Параметри, които измерваме и прогнозираме",
+    disturbance: "Смущаващи параметри",
     disturbanceShort: "СП",
-    disturbanceFull: "Смущаващи променливи (СП)",
-    disturbanceDescription: "Външни фактори и лабораторно анализирани параметри",
+    disturbanceFull: "Смущаващи параметри (СП)",
+    disturbanceDescription:
+      "Параметри на рудата и лабораторно анализирани параметри",
     target: "Целева променлива",
     targetRange: "Целеви диапазон",
   },
-  
+
   // Parameter cards
   card: {
     currentValue: "Текуща стойност",
@@ -71,7 +73,7 @@ export const cascadeBG = {
     pv: "PV",
     sp: "SP",
   },
-  
+
   // Target trend
   target: {
     title: "Целева стойност",
@@ -85,7 +87,7 @@ export const cascadeBG = {
     timeWindow: "Времеви прозорец",
     hours: "часа",
   },
-  
+
   // Optimization controls
   optimization: {
     start: "Старт",
@@ -95,7 +97,8 @@ export const cascadeBG = {
     targetDriven: "Целево-ориентирана оптимизация",
     configuration: "Конфигурация на оптимизацията",
     goal: "Цел на оптимизацията",
-    goalDescription: "Изберете дали да максимизирате или минимизирате целевата стойност",
+    goalDescription:
+      "Изберете дали да максимизирате или минимизирате целевата стойност",
     maximize: "Максимизиране",
     minimize: "Минимизиране",
     targetValue: "Целева стойност",
@@ -112,7 +115,7 @@ export const cascadeBG = {
     failed: "Неуспешна",
     inProgress: "В процес...",
   },
-  
+
   // Training
   training: {
     title: "Обучение на модел",
@@ -128,7 +131,7 @@ export const cascadeBG = {
     success: "Обучението завърши успешно",
     failed: "Обучението се провали",
   },
-  
+
   // Simulation
   simulation: {
     title: "Симулация",
@@ -141,7 +144,7 @@ export const cascadeBG = {
     testPrediction: "Тест прогноза",
     predicting: "Прогнозиране...",
   },
-  
+
   // Messages
   messages: {
     loadingModel: "Зареждане на модел...",
@@ -155,7 +158,7 @@ export const cascadeBG = {
     predictionSuccess: "Прогнозата е успешна",
     predictionFailed: "Прогнозата се провали",
   },
-  
+
   // Common actions (short names for buttons)
   actions: {
     apply: "Приложи",
@@ -175,7 +178,7 @@ export const cascadeBG = {
     next: "Напред",
     finish: "Завърши",
   },
-  
+
   // System overview
   overview: {
     title: "Преглед на системата и каскаден поток",
@@ -186,13 +189,19 @@ export const cascadeBG = {
 };
 
 // Helper function to get parameter name in Bulgarian from mills-parameters
-export function getParameterNameBG(parameterId: string, millsParameters: any[]): string {
-  const param = millsParameters.find(p => p.id === parameterId);
+export function getParameterNameBG(
+  parameterId: string,
+  millsParameters: any[]
+): string {
+  const param = millsParameters.find((p) => p.id === parameterId);
   return param?.name || parameterId;
 }
 
 // Helper function to get parameter description in Bulgarian
-export function getParameterDescriptionBG(parameterId: string, millsParameters: any[]): string {
-  const param = millsParameters.find(p => p.id === parameterId);
+export function getParameterDescriptionBG(
+  parameterId: string,
+  millsParameters: any[]
+): string {
+  const param = millsParameters.find((p) => p.id === parameterId);
   return param?.description || "";
 }

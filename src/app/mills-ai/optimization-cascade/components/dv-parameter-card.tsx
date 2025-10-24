@@ -1,27 +1,191 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
 import type { CascadeParameter } from "../stores/cascade-optimization-store";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
 import { millsParameters } from "../../data/mills-parameters";
-import { cascadeBG, getParameterNameBG, getParameterDescriptionBG } from "../translations/bg";
+import {
+  cascadeBG,
+  getParameterNameBG,
+  getParameterDescriptionBG,
+} from "../translations/bg";
 
 interface DVParameterCardProps {
   parameter: CascadeParameter;
   bounds: [number, number]; // Initial bounds for slider min/max
+  dvFeatures?: string[]; // Dynamic DV features from model metadata
 }
 
-export function DVParameterCard({ parameter, bounds }: DVParameterCardProps) {
-  const { updateDVValue } = useCascadeOptimizationStore();
+export function DVParameterCard({
+  parameter,
+  bounds,
+  dvFeatures,
+}: DVParameterCardProps) {
+  const {
+    updateDVValue,
+    updateSliderSP,
+    getMVSliderValues,
+    getDVSliderValues,
+    setSimulationTarget,
+    updateCVPredictions,
+  } = useCascadeOptimizationStore();
   const [sliderValue, setSliderValue] = useState<number>(parameter.value);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const callCascadePrediction = async (
+    mvValues: Record<string, number>,
+    dvValues: Record<string, number>
+  ) => {
+    try {
+      setIsPredicting(true);
+      console.log("🔮 Calling cascade prediction with DV change:", dvValues);
+
+      // Get current mill number from cascade optimization store
+      const { millNumber } = useCascadeOptimizationStore.getState();
+
+      // First, ensure the mill model is loaded
+      console.log(`📥 Loading cascade models for Mill ${millNumber}...`);
+      const loadResponse = await fetch(
+        `/api/v1/ml/cascade/models/${millNumber}/load`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!loadResponse.ok) {
+        console.warn(
+          `⚠️ Failed to load Mill ${millNumber} models: ${loadResponse.status}`
+        );
+        // Continue anyway - models might already be loaded
+      } else {
+        const loadResult = await loadResponse.json();
+        console.log("✅ Mill models loaded:", loadResult.message);
+      }
+
+      // Prepare prediction request payload
+      const predictionRequest = {
+        mv_values: mvValues,
+        dv_values: dvValues,
+      };
+
+      console.log(
+        "📡 Sending cascade prediction request (DV changed):",
+        predictionRequest
+      );
+
+      // Call real cascade prediction API
+      const response = await fetch("/api/v1/ml/cascade/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(predictionRequest),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("🚨 API Error Response:", {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+        });
+        throw new Error(
+          `API request failed: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+
+      const predictionResult = await response.json();
+      console.log(
+        "✅ DV-triggered prediction completed (Purple SP):",
+        predictionResult.predicted_target?.toFixed(2)
+      );
+
+      // Update store with real prediction results
+      setSimulationTarget(predictionResult.predicted_target);
+
+      // Update CV predictions
+      if (predictionResult.predicted_cvs) {
+        console.log("🚀 Updating CV predictions from DV change");
+        Object.entries(predictionResult.predicted_cvs).forEach(
+          ([cvId, value]) => {
+            console.log(`📡 Calling addCVPrediction for ${cvId}:`, value);
+            (window as any).addCVPrediction(cvId, value as number);
+          }
+        );
+      }
+
+      updateCVPredictions(predictionResult.predicted_cvs);
+
+      return predictionResult;
+    } catch (error) {
+      console.error("❌ Cascade prediction failed (DV change):", error);
+      setSimulationTarget(null);
+
+      if (error instanceof Error) {
+        console.error("Error details:", error.message);
+      }
+    } finally {
+      setIsPredicting(false);
+    }
+  };
 
   const handleSliderChange = (value: number) => {
     setSliderValue(value);
-    updateDVValue(parameter.id, value);
+    updateSliderSP(parameter.id, value); // Update parameter's sliderSP
+    updateDVValue(parameter.id, value); // Update store's dvValues object
+
+    // Clear existing timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Debounced prediction trigger (500ms delay)
+    debounceTimerRef.current = setTimeout(async () => {
+      const mvValues = getMVSliderValues();
+      const dvValues = getDVSliderValues(dvFeatures); // Get current DV slider values filtered by model's DV features
+
+      console.log("🧪 DV Slider changed:", parameter.id, "→", value.toFixed(2));
+      console.log("📊 Current MV values:", mvValues);
+      console.log(
+        "📊 Current DV values (filtered by model features):",
+        dvValues
+      );
+      console.log("📊 Model DV features:", dvFeatures);
+
+      // Check if we have all required MV values
+      const requiredMVs = ["Ore", "WaterMill", "WaterZumpf"];
+      const hasAllMVs = requiredMVs.every((mv) => mvValues[mv] !== undefined);
+
+      if (hasAllMVs) {
+        await callCascadePrediction(mvValues, dvValues);
+      } else {
+        const missingMVs = requiredMVs.filter(
+          (mv) => mvValues[mv] === undefined
+        );
+        console.warn(
+          "⚠️ Missing MV values:",
+          missingMVs,
+          "- skipping prediction"
+        );
+      }
+    }, 500);
   };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const [minBound, maxBound] = bounds;
   const sliderStep = (maxBound - minBound) / 100;
@@ -43,7 +207,9 @@ export function DVParameterCard({ parameter, bounds }: DVParameterCardProps) {
               >
                 {cascadeBG.parameters.disturbanceShort}
               </Badge>
-              <span className="text-xs text-slate-500">{cascadeBG.parameters.disturbance}</span>
+              <span className="text-xs text-slate-500">
+                {cascadeBG.parameters.disturbance}
+              </span>
             </div>
           </div>
         </div>
@@ -58,6 +224,11 @@ export function DVParameterCard({ parameter, bounds }: DVParameterCardProps) {
             <div className="text-2xl font-bold flex items-center gap-1 text-emerald-600">
               {sliderValue.toFixed(2)}
               <span className="text-xs text-slate-500">{parameter.unit}</span>
+              {isPredicting && (
+                <span className="ml-2 text-sm text-emerald-500 animate-spin">
+                  ⏳
+                </span>
+              )}
             </div>
           </div>
 

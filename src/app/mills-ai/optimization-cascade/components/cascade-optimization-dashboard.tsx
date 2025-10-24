@@ -313,7 +313,6 @@ export default function CascadeOptimizationDashboard() {
       console.log("🎯 Making cascade prediction via hook...");
 
       const mvValues: Record<string, number> = {};
-      const dvValues: Record<string, number> = {};
 
       console.log(
         "🔍 All parameters:",
@@ -327,10 +326,14 @@ export default function CascadeOptimizationDashboard() {
       parameters.forEach((param) => {
         if (param.varType === "MV") {
           mvValues[param.id] = param.value;
-        } else if (param.varType === "DV") {
-          dvValues[param.id] = param.value;
         }
       });
+
+      // Get DV values from cascade store (uses slider values if available)
+      const dvFeatures = modelInfo.featureClassification.dv_features || [];
+      const dvValues = useCascadeOptimizationStore
+        .getState()
+        .getDVSliderValues(dvFeatures);
 
       console.log("📊 Cascade prediction data:", { mvValues, dvValues });
       console.log(
@@ -375,14 +378,10 @@ export default function CascadeOptimizationDashboard() {
 
       // Get MV slider values from cascade store
       const mvSliderValues = cascadeStore.getMVSliderValues();
-      const dvValues: Record<string, number> = {};
 
-      // Get DV values from current parameters
-      parameters.forEach((param) => {
-        if (param.varType === "DV") {
-          dvValues[param.id] = param.value;
-        }
-      });
+      // Get DV values from cascade store (uses slider values if available)
+      const dvFeatures = modelInfo.featureClassification.dv_features || [];
+      const dvValues = cascadeStore.getDVSliderValues(dvFeatures);
 
       console.log("📊 Cascade prediction data:", {
         mvValues: mvSliderValues,
@@ -521,17 +520,21 @@ export default function CascadeOptimizationDashboard() {
     );
 
     const mvValues: Record<string, number> = {};
-    const dvValues: Record<string, number> = {};
 
-    // Use current PV values from parameters at this time point
+    // Use current PV values for MVs from parameters at this time point
     parameters.forEach((param) => {
       if (param.varType === "MV") {
         mvValues[param.id] = param.value;
         console.log(`   MV ${param.id} PV value:`, param.value.toFixed(2));
-      } else if (param.varType === "DV") {
-        dvValues[param.id] = param.value;
       }
     });
+
+    // Get DV values from cascade store (uses slider values if available)
+    const dvFeatures = modelInfo.featureClassification.dv_features || [];
+    const dvValues = useCascadeOptimizationStore
+      .getState()
+      .getDVSliderValues(dvFeatures);
+    console.log(`   DV values from sliders:`, dvValues);
 
     if (Object.keys(mvValues).length === 0) {
       return;
@@ -1627,7 +1630,8 @@ export default function CascadeOptimizationDashboard() {
                           Автоматично прилагане
                         </div>
                         <div className="text-xs text-slate-500">
-                          Автоматично прилагане на оптимизираните параметри след завършване
+                          Автоматично прилагане на оптимизираните параметри след
+                          завършване
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -2118,6 +2122,7 @@ export default function CascadeOptimizationDashboard() {
                               }}
                               showDistributions={showDistributions}
                               mvFeatures={featureClassification.mv_features}
+                              dvFeatures={featureClassification.dv_features}
                             />
                           );
                         })}

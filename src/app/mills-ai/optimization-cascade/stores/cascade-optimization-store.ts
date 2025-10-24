@@ -245,6 +245,7 @@ export interface CascadeOptimizationState {
   resetFeatures: () => void;
   resetSliders: () => void;
   getMVSliderValues: () => Record<string, number>; // Get all MV slider values
+  getDVSliderValues: (dvFeatures?: string[]) => Record<string, number>; // Get DV slider values (optionally filtered by feature list)
   initializeMVSlidersWithPVs: (xgboostParameters?: any[]) => void; // Initialize MV slider values with current PV values
 
   // Target actions
@@ -864,14 +865,21 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
       updateCVPredictions: (predicted: Record<string, number>) => {
         const timestamp = Date.now();
         console.log("🔮 Updating CV predictions in store:", predicted);
-        
+
         set(
           (state) => {
             // Debug: Show all CV parameters in store
-            const cvParams = state.parameters.filter(p => p.varType === "CV");
-            console.log("🔍 CV parameters in store:", cvParams.map(p => ({ id: p.id, name: p.name, varType: p.varType })));
+            const cvParams = state.parameters.filter((p) => p.varType === "CV");
+            console.log(
+              "🔍 CV parameters in store:",
+              cvParams.map((p) => ({
+                id: p.id,
+                name: p.name,
+                varType: p.varType,
+              }))
+            );
             console.log("🔍 Predicted CV keys:", Object.keys(predicted));
-            
+
             return {
               parameters: state.parameters.map((param) => {
                 if (
@@ -879,23 +887,28 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
                   predicted[param.id] !== undefined
                 ) {
                   const existingTrend = param.predictionTrend ?? [];
-                  const updatedTrend = [...existingTrend, {
-                    timestamp,
-                    value: predicted[param.id]!,
-                  }].slice(-50);
-                  
+                  const updatedTrend = [
+                    ...existingTrend,
+                    {
+                      timestamp,
+                      value: predicted[param.id]!,
+                    },
+                  ].slice(-50);
+
                   console.log(`📊 Updated ${param.id} prediction trend:`, {
                     newValue: predicted[param.id],
                     trendLength: updatedTrend.length,
-                    latestValue: updatedTrend[updatedTrend.length - 1]
+                    latestValue: updatedTrend[updatedTrend.length - 1],
                   });
-                  
+
                   return {
                     ...param,
                     predictionTrend: updatedTrend,
                   };
                 } else if (param.varType === "CV") {
-                  console.log(`⚠️ CV parameter ${param.id} not found in predictions or not CV type`);
+                  console.log(
+                    `⚠️ CV parameter ${param.id} not found in predictions or not CV type`
+                  );
                 }
                 return param;
               }),
@@ -986,6 +999,23 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         return mvSliderValues;
       },
 
+      getDVSliderValues: (dvFeatures?: string[]): Record<string, number> => {
+        const { parameters } = get();
+        const dvSliderValues: Record<string, number> = {};
+
+        parameters.forEach((param) => {
+          if (param.varType === "DV") {
+            // If dvFeatures filter is provided, only include DVs that are in the list
+            if (!dvFeatures || dvFeatures.includes(param.id)) {
+              // Use sliderSP if available, otherwise use value
+              dvSliderValues[param.id] = param.sliderSP || param.value;
+            }
+          }
+        });
+
+        return dvSliderValues;
+      },
+
       initializeMVSlidersWithPVs: (xgboostParameters?: any[]) => {
         console.log(
           "🔄 Initializing MV slider values with current PV values..."
@@ -1059,7 +1089,10 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
       },
 
       setSimulationTarget: (value: number | null) => {
-        console.log("🟣 PURPLE SP UPDATED - setSimulationTarget called with:", value?.toFixed(2) ?? "null");
+        console.log(
+          "🟣 PURPLE SP UPDATED - setSimulationTarget called with:",
+          value?.toFixed(2) ?? "null"
+        );
         set({ simulationTarget: value }, false, "setSimulationTarget");
       },
 

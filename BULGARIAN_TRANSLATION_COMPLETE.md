@@ -5,6 +5,7 @@
 ### Parameter Section Headers
 
 **Before** → **After**:
+
 - "Manipulated Variables (MV)" → **"Манипулирани променливи (МП)"**
 - "Controlled Variables (CV)" → **"Контролирани променливи (КП)"**
 - "Disturbance Variables (DV)" → **"Смущаващи променливи (СП)"**
@@ -12,6 +13,7 @@
 ### Parameter Descriptions
 
 **Before** → **After**:
+
 - "Variables we can control and optimize" → **"Променливи, които можем да контролираме и оптимизираме"**
 - "Variables we measure and predict" → **"Променливи, които измерваме и прогнозираме"**
 - "External factors and lab-analyzed parameters" → **"Външни фактори и лабораторно анализирани параметри"**
@@ -19,30 +21,37 @@
 ### Other Labels
 
 **Before** → **After**:
+
 - "Mill Recovery Fraction" → **"Фракция на извличане в мелницата"**
 - "Target range" → **"Целеви диапазон"**
 
 ## Files Updated in This Round
 
 1. **translations/bg.ts**
+
    - Added `manipulatedFull`, `controlledFull`, `disturbanceFull`
    - Added `manipulatedDescription`, `controlledDescription`, `disturbanceDescription`
    - Added `targetRange`
    - Added `millRecoveryFraction`
 
 2. **target-cascade-trend.tsx**
+
    - Updated "Mill Recovery Fraction" title
 
 3. **cv-parameter-card.tsx**
+
    - Updated "Target range" label
 
 4. **cascade-simulation-interface.tsx**
+
    - Updated all three section headers (MV, CV, DV)
 
 5. **cascade-optimization-dashboard.tsx**
+
    - Updated parameter section titles and descriptions in optimization tab
 
 6. **cascade-flow-diagram.tsx**
+
    - Added missing `Target` import (fixed lint error)
    - Updated all parameter group titles and descriptions
 
@@ -53,7 +62,7 @@ export const cascadeBG = {
   // Main titles
   title: "Каскадна оптимизация",
   subtitle: "Усъвършенствана каскадна оптимизация за максимална ефективност",
-  
+
   // Tabs
   tabs: {
     overview: "Преглед",
@@ -61,7 +70,7 @@ export const cascadeBG = {
     optimization: "Оптимизация",
     simulation: "Симулация",
   },
-  
+
   // System status
   status: {
     optimizing: "ОПТИМИЗИРА...",
@@ -69,14 +78,14 @@ export const cascadeBG = {
     configuring: "КОНФИГУРИРАНЕ",
     cascadeActive: "Каскада активна",
   },
-  
+
   // Mill selection
   mill: {
     selection: "Избор на мелница",
     selectedMill: "Избрана мелница",
     noModels: "Няма налични каскадни модели",
   },
-  
+
   // Model information
   model: {
     features: "Характеристики на модела",
@@ -89,13 +98,14 @@ export const cascadeBG = {
     loading: "Зареждане на модел...",
     error: "Грешка",
   },
-  
+
   // Parameter types (COMPLETE)
   parameters: {
     manipulated: "Манипулирани променливи",
     manipulatedShort: "МП",
     manipulatedFull: "Манипулирани променливи (МП)",
-    manipulatedDescription: "Променливи, които можем да контролираме и оптимизираме",
+    manipulatedDescription:
+      "Променливи, които можем да контролираме и оптимизираме",
     controlled: "Контролирани променливи",
     controlledShort: "КП",
     controlledFull: "Контролирани променливи (КП)",
@@ -103,11 +113,12 @@ export const cascadeBG = {
     disturbance: "Смущаващи променливи",
     disturbanceShort: "СП",
     disturbanceFull: "Смущаващи променливи (СП)",
-    disturbanceDescription: "Външни фактори и лабораторно анализирани параметри",
+    disturbanceDescription:
+      "Външни фактори и лабораторно анализирани параметри",
     target: "Целева променлива",
     targetRange: "Целеви диапазон",
   },
-  
+
   // Parameter cards
   card: {
     currentValue: "Текуща стойност",
@@ -119,7 +130,7 @@ export const cascadeBG = {
     pv: "PV",
     sp: "SP",
   },
-  
+
   // Target trend
   target: {
     title: "Целева стойност",
@@ -133,7 +144,7 @@ export const cascadeBG = {
     timeWindow: "Времеви прозорец",
     hours: "часа",
   },
-  
+
   // Optimization controls
   optimization: {
     start: "Старт",
@@ -143,7 +154,8 @@ export const cascadeBG = {
     targetDriven: "Целево-ориентирана оптимизация",
     configuration: "Конфигурация на оптимизацията",
     goal: "Цел на оптимизацията",
-    goalDescription: "Изберете дали да максимизирате или минимизирате целевата стойност",
+    goalDescription:
+      "Изберете дали да максимизирате или минимизирате целевата стойност",
     maximize: "Максимизиране",
     minimize: "Минимизиране",
     targetValue: "Целева стойност",
@@ -160,7 +172,7 @@ export const cascadeBG = {
     failed: "Неуспешна",
     inProgress: "В процес...",
   },
-  
+
   // Training
   training: {
     title: "Обучение на модел",
@@ -176,7 +188,7 @@ export const cascadeBG = {
     success: "Обучението завърши успешно",
     failed: "Обучението се провали",
   },
-  
+
   // Simulation
   simulation: {
     title: "Симулация",
@@ -189,7 +201,7 @@ export const cascadeBG = {
     testPrediction: "Тест прогноза",
     predicting: "Прогнозиране...",
   },
-  
+
   // Messages
   messages: {
     loadingModel: "Зареждане на модел...",
@@ -203,7 +215,7 @@ export const cascadeBG = {
     predictionSuccess: "Прогнозата е успешна",
     predictionFailed: "Прогнозата се провали",
   },
-  
+
   // Common actions (short names for buttons)
   actions: {
     apply: "Приложи",
@@ -223,7 +235,7 @@ export const cascadeBG = {
     next: "Напред",
     finish: "Завърши",
   },
-  
+
   // System overview
   overview: {
     title: "Преглед на системата и каскаден поток",
@@ -237,6 +249,7 @@ export const cascadeBG = {
 ## Summary of All Translated Components
 
 ### ✅ Fully Translated:
+
 1. **Main Dashboard** - All titles, tabs, status badges
 2. **Mill Selection** - Labels and options
 3. **Model Information** - All status messages
@@ -249,6 +262,7 @@ export const cascadeBG = {
 10. **All Toggle Switches** - Labels and descriptions
 
 ### ✅ Preserved in English:
+
 - Units: t/h, m³/h, A, bar, kg/m³, %
 - Technical abbreviations: PV, SP, MV, CV, DV
 - Debug labels (for developers)
