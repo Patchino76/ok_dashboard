@@ -2134,20 +2134,20 @@ export default function CascadeOptimizationDashboard() {
                 return (
                   <>
                     {renderParameterSection(
-                      cascadeBG.parameters.manipulatedFull,
-                      cascadeBG.parameters.manipulatedDescription,
-                      mvParams,
-                      "MV",
-                      "text-amber-600",
-                      "🎛️"
-                    )}
-                    {renderParameterSection(
                       cascadeBG.parameters.controlledFull,
                       cascadeBG.parameters.controlledDescription,
                       cvParams,
                       "CV",
                       "text-blue-600",
                       "📊"
+                    )}
+                    {renderParameterSection(
+                      cascadeBG.parameters.manipulatedFull,
+                      cascadeBG.parameters.manipulatedDescription,
+                      mvParams,
+                      "MV",
+                      "text-amber-600",
+                      "🎛️"
                     )}
                     {renderParameterSection(
                       cascadeBG.parameters.disturbanceFull,

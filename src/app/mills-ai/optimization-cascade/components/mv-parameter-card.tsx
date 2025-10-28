@@ -485,17 +485,6 @@ export function MVParameterCard({
               <span className="text-xl text-amber-600">{parameter.icon}</span>
               {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 border-amber-200"
-              >
-                {cascadeBG.parameters.manipulatedShort}
-              </Badge>
-              <span className="text-xs text-slate-500">
-                {cascadeBG.parameters.manipulated}
-              </span>
-            </div>
           </div>
           <Badge
             variant={isInRange ? "outline" : "secondary"}

@@ -284,15 +284,6 @@ export function CVParameterCard({
               <span className="text-xl text-blue-600">{parameter.icon}</span>
               {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className="text-xs px-2 py-0.5 bg-blue-100 text-blue-800 border-blue-200"
-              >
-                {cascadeBG.parameters.controlledShort}
-              </Badge>
-              <span className="text-xs text-slate-500">{cascadeBG.parameters.controlled}</span>
-            </div>
           </div>
           <span className="text-xs text-slate-500">
             {cascadeBG.parameters.targetRange}: {rangeValue[0].toFixed(1)} –{" "}
@@ -304,7 +295,7 @@ export function CVParameterCard({
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
             <div className="text-sm text-slate-500 dark:text-slate-400">
-              {cascadeBG.card.currentValue} ({cascadeBG.card.pv})
+              {cascadeBG.card.currentValue}
             </div>
             <div className="text-lg font-bold flex items-center gap-1 text-blue-600">
               {parameter.value.toFixed(2)}
