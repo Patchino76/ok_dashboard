@@ -12,7 +12,9 @@ import os
 from datetime import datetime
 
 from .cascade_models import CascadeModelManager
+from .gpr_cascade_models import GPRCascadeModelManager
 from .simple_cascade_optimizer import SimpleCascadeOptimizer, OptimizationRequest, OptimizationResult
+from .gpr_cascade_optimizer import GPRCascadeOptimizer, GPROptimizationRequest, GPROptimizationResult
 from .target_driven_optimizer import TargetDrivenCascadeOptimizer, TargetOptimizationRequest, TargetOptimizationResult
 
 # Import variable classifier with error handling
@@ -46,11 +48,14 @@ cascade_router = APIRouter(prefix="", tags=["cascade_optimization"])
 # Global instances
 classifier = VariableClassifier()
 model_manager: Optional[CascadeModelManager] = None
+gpr_model_manager: Optional[GPRCascadeModelManager] = None
 
 # Request models
 class PredictionRequest(BaseModel):
     mv_values: Dict[str, float] = Field(..., description="Manipulated variable values")
     dv_values: Dict[str, float] = Field(default_factory=dict, description="Disturbance variable values")
+    model_type: str = Field("xgb", description="Model type: 'xgb' or 'gpr'")
+    return_uncertainty: bool = Field(False, description="Return uncertainty (GPR only)")
 
 class TrainingRequest(BaseModel):
     mill_number: int = Field(8, description="Mill number (6, 7, 8, 9, 10, etc.)")
@@ -76,6 +81,9 @@ class CascadeOptimizationRequest(BaseModel):
     target_variable: str = Field("PSI200", description="Target variable to optimize")
     maximize: bool = Field(False, description="True to maximize, False to minimize")
     n_trials: int = Field(100, description="Number of optimization trials")
+    model_type: str = Field("xgb", description="Model type: 'xgb' or 'gpr'")
+    use_uncertainty: bool = Field(False, description="Use uncertainty-aware optimization (GPR only)")
+    uncertainty_weight: float = Field(1.0, description="Weight for uncertainty penalty (GPR only)")
 
 class TargetDrivenOptimizationRequest(BaseModel):
     target_value: float = Field(..., description="Desired target value to achieve")
@@ -263,14 +271,31 @@ async def get_training_status():
 @cascade_router.post("/predict")
 async def predict_cascade(request: PredictionRequest):
     """Make cascade prediction: MV → CV → Target"""
-    if not model_manager or not model_manager.process_models:
-        raise HTTPException(status_code=400, detail="Models not trained")
+    # Select model manager based on model_type
+    if request.model_type == "gpr":
+        if not gpr_model_manager or not gpr_model_manager.process_models:
+            raise HTTPException(status_code=400, detail="GPR models not loaded")
+        current_manager = gpr_model_manager
+    else:
+        if not model_manager or not model_manager.process_models:
+            raise HTTPException(status_code=400, detail="XGBoost models not trained")
+        current_manager = model_manager
     
     try:
         print(f"🔍 Prediction request received")
+        print(f"   Model type: {request.model_type}")
         print(f"   MV values: {request.mv_values}")
         print(f"   DV values: {request.dv_values}")
-        result = model_manager.predict_cascade(request.mv_values, request.dv_values)
+        
+        # Call predict with appropriate parameters
+        if request.model_type == "gpr":
+            result = current_manager.predict_cascade(
+                request.mv_values, 
+                request.dv_values,
+                return_uncertainty=request.return_uncertainty
+            )
+        else:
+            result = current_manager.predict_cascade(request.mv_values, request.dv_values)
         # Convert numpy types to Python native types for JSON serialization
         def convert_numpy_types(obj):
             """Convert numpy types to Python native types"""
@@ -283,13 +308,21 @@ async def predict_cascade(request: PredictionRequest):
             else:
                 return obj
         
-        return {
+        response = {
             "predicted_target": convert_numpy_types(result['predicted_target']),
             "predicted_cvs": convert_numpy_types(result['predicted_cvs']),
             "is_feasible": bool(result['is_feasible']),
-            "mill_number": int(model_manager.mill_number),
+            "mill_number": int(current_manager.mill_number),
+            "model_type": request.model_type,
             "constraint_violations": convert_numpy_types(result.get('constraint_violations', []))
         }
+        
+        # Add uncertainty if GPR and requested
+        if request.model_type == "gpr" and request.return_uncertainty:
+            response["cv_uncertainties"] = convert_numpy_types(result.get('cv_uncertainties', {}))
+            response["target_uncertainty"] = convert_numpy_types(result.get('target_uncertainty', 0.0))
+        
+        return response
     except Exception as e:
         print(f"❌ Prediction error: {e}")
         import traceback
@@ -299,12 +332,20 @@ async def predict_cascade(request: PredictionRequest):
 @cascade_router.post("/optimize")
 async def optimize_cascade(request: CascadeOptimizationRequest):
     """Run Bayesian optimization to find optimal MV values"""
-    if not model_manager or not model_manager.process_models:
-        raise HTTPException(status_code=400, detail="Models not trained. Load or train models first.")
+    # Select model manager based on model_type
+    if request.model_type == "gpr":
+        if not gpr_model_manager or not gpr_model_manager.process_models:
+            raise HTTPException(status_code=400, detail="GPR models not loaded")
+        current_manager = gpr_model_manager
+    else:
+        if not model_manager or not model_manager.process_models:
+            raise HTTPException(status_code=400, detail="XGBoost models not trained")
+        current_manager = model_manager
     
     try:
         # Add debug logging
         print(f"🔍 Optimization request received")
+        print(f"   Model type: {request.model_type}")
         print(f"   MV bounds: {request.mv_bounds}")
         print(f"   Target: {request.target_variable}")
         print(f"   Trials: {request.n_trials}")
@@ -327,10 +368,26 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
             n_trials=request.n_trials
         )
         
-        # Run optimization
+        # Run optimization with appropriate optimizer
         print(f"   Starting optimization...")
-        optimizer = SimpleCascadeOptimizer(model_manager)
-        result = optimizer.optimize(opt_request)
+        if request.model_type == "gpr":
+            # Use GPR optimizer
+            gpr_opt_request = GPROptimizationRequest(
+                mv_bounds=mv_bounds,
+                cv_bounds=cv_bounds,
+                dv_values=request.dv_values,
+                target_variable=request.target_variable,
+                maximize=request.maximize,
+                n_trials=request.n_trials,
+                use_uncertainty=request.use_uncertainty,
+                uncertainty_weight=request.uncertainty_weight
+            )
+            optimizer = GPRCascadeOptimizer(current_manager)
+            result = optimizer.optimize(gpr_opt_request)
+        else:
+            # Use XGBoost optimizer
+            optimizer = SimpleCascadeOptimizer(current_manager)
+            result = optimizer.optimize(opt_request)
         print(f"   Optimization completed successfully!")
         
         # Convert numpy types to Python native types for JSON serialization
@@ -345,7 +402,7 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
             else:
                 return obj
         
-        return {
+        response = {
             "status": "success",
             "best_mv_values": convert_numpy_types(result.best_mv_values),
             "best_cv_values": convert_numpy_types(result.best_cv_values),
@@ -353,13 +410,23 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
             "is_feasible": bool(result.is_feasible),
             "n_trials": int(result.n_trials),
             "best_trial_number": int(result.best_trial_number),
-            "mill_number": int(model_manager.mill_number),
+            "mill_number": int(current_manager.mill_number),
+            "model_type": request.model_type,
             "optimization_config": {
                 "target_variable": str(request.target_variable),
                 "maximize": bool(request.maximize),
-                "n_trials": int(request.n_trials)
+                "n_trials": int(request.n_trials),
+                "model_type": request.model_type
             }
         }
+        
+        # Add uncertainty info if GPR
+        if request.model_type == "gpr" and hasattr(result, 'best_target_uncertainty'):
+            response["best_target_uncertainty"] = convert_numpy_types(result.best_target_uncertainty)
+            response["optimization_config"]["use_uncertainty"] = request.use_uncertainty
+            response["optimization_config"]["uncertainty_weight"] = request.uncertainty_weight
+        
+        return response
         
     except Exception as e:
         print(f"❌ Optimization error: {e}")
@@ -500,21 +567,25 @@ async def _get_database_training_data(
 
 # New endpoints for mill model management
 @cascade_router.get("/models")
-async def list_mill_models():
+async def list_mill_models(model_type: str = "xgb"):
     """List all available mill models"""
     try:
         base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
         base_path = os.path.abspath(base_path)
-        mill_models = CascadeModelManager.list_mill_models(base_path)
         
-        # Additional sanitization to ensure JSON compliance
-        temp_manager = CascadeModelManager()
-        sanitized_mill_models = temp_manager.sanitize_json_data(mill_models)
+        if model_type == "gpr":
+            mill_models = GPRCascadeModelManager.list_mill_models(base_path)
+        else:
+            mill_models = CascadeModelManager.list_mill_models(base_path)
+            # Additional sanitization to ensure JSON compliance
+            temp_manager = CascadeModelManager()
+            mill_models = temp_manager.sanitize_json_data(mill_models)
         
         return {
             "status": "success",
-            "mill_models": sanitized_mill_models,
-            "total_mills": len(sanitized_mill_models)
+            "model_type": model_type,
+            "mill_models": mill_models,
+            "total_mills": len(mill_models)
         }
     except Exception as e:
         import traceback
@@ -523,12 +594,16 @@ async def list_mill_models():
         raise HTTPException(status_code=500, detail=str(e))
 
 @cascade_router.get("/models/{mill_number}")
-async def get_mill_model_info(mill_number: int):
+async def get_mill_model_info(mill_number: int, model_type: str = "xgb"):
     """Get detailed information about a specific mill's models including feature classification"""
     try:
         base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
         base_path = os.path.abspath(base_path)
-        mill_models = CascadeModelManager.list_mill_models(base_path)
+        
+        if model_type == "gpr":
+            mill_models = GPRCascadeModelManager.list_mill_models(base_path)
+        else:
+            mill_models = CascadeModelManager.list_mill_models(base_path)
         
         if mill_number not in mill_models:
             raise HTTPException(status_code=404, detail=f"No models found for Mill {mill_number}")
@@ -538,27 +613,40 @@ async def get_mill_model_info(mill_number: int):
         
         # Load the model manager to get detailed metadata and feature classification
         try:
-            temp_manager = CascadeModelManager(base_path, mill_number=mill_number)
+            if model_type == "gpr":
+                temp_manager = GPRCascadeModelManager(base_path, mill_number=mill_number)
+            else:
+                temp_manager = CascadeModelManager(base_path, mill_number=mill_number)
             metadata = temp_manager.load_metadata()
             
             if metadata:
-                # Check if custom features were configured during training
-                configured_features = metadata.get("training_config", {}).get("configured_features", {})
-                
-                if configured_features.get("using_custom_features", False):
-                    # Use configured features from training
-                    mvs = configured_features.get("mv_features", [])
-                    cvs = configured_features.get("cv_features", [])
-                    dvs = configured_features.get("dv_features", [])
-                    targets = [configured_features.get("target_variable")] if configured_features.get("target_variable") else []
-                    print(f"🎯 Using custom features from training metadata for Mill {mill_number}")
+                # For GPR models, features are in metadata.features
+                # For XGBoost models, check training_config.configured_features
+                if model_type == "gpr":
+                    features = metadata.get("features", {})
+                    mvs = features.get("mv_features", [])
+                    cvs = features.get("cv_features", [])
+                    dvs = features.get("dv_features", [])
+                    targets = [features.get("target_variable")] if features.get("target_variable") else []
+                    print(f"🎯 Using GPR features from metadata for Mill {mill_number}")
                 else:
-                    # Fall back to classifier defaults
-                    mvs = [mv.id for mv in temp_manager.classifier.get_mvs()]
-                    cvs = [cv.id for cv in temp_manager.classifier.get_cvs()]
-                    dvs = [dv.id for dv in temp_manager.classifier.get_dvs()]
-                    targets = [target.id for target in temp_manager.classifier.get_targets()]
-                    print(f"📋 Using default classifier features for Mill {mill_number}")
+                    # XGBoost: Check if custom features were configured during training
+                    configured_features = metadata.get("training_config", {}).get("configured_features", {})
+                    
+                    if configured_features.get("using_custom_features", False):
+                        # Use configured features from training
+                        mvs = configured_features.get("mv_features", [])
+                        cvs = configured_features.get("cv_features", [])
+                        dvs = configured_features.get("dv_features", [])
+                        targets = [configured_features.get("target_variable")] if configured_features.get("target_variable") else []
+                        print(f"🎯 Using custom features from training metadata for Mill {mill_number}")
+                    else:
+                        # Fall back to classifier defaults
+                        mvs = [mv.id for mv in temp_manager.classifier.get_mvs()]
+                        cvs = [cv.id for cv in temp_manager.classifier.get_cvs()]
+                        dvs = [dv.id for dv in temp_manager.classifier.get_dvs()]
+                        targets = [target.id for target in temp_manager.classifier.get_targets()]
+                        print(f"📋 Using default classifier features for Mill {mill_number}")
                 
                 # Add feature classification to model info
                 model_info["feature_classification"] = {
@@ -592,14 +680,16 @@ async def get_mill_model_info(mill_number: int):
             # Fallback to basic info only
             pass
         
-        # Sanitize the response to handle any remaining NaN/Infinity values
-        temp_manager = CascadeModelManager()
-        sanitized_model_info = temp_manager.sanitize_json_data(model_info)
+        # Sanitize the response to handle any remaining NaN/Infinity values (XGBoost only)
+        if model_type == "xgb":
+            temp_manager_sanitize = CascadeModelManager()
+            model_info = temp_manager_sanitize.sanitize_json_data(model_info)
         
         return {
             "status": "success",
             "mill_number": mill_number,
-            "model_info": sanitized_model_info
+            "model_type": model_type,
+            "model_info": model_info
         }
     except HTTPException:
         raise
@@ -607,31 +697,43 @@ async def get_mill_model_info(mill_number: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @cascade_router.post("/models/{mill_number}/load")
-async def load_mill_model(mill_number: int):
+async def load_mill_model(mill_number: int, model_type: str = "xgb"):
     """Load models for a specific mill"""
-    global model_manager
+    global model_manager, gpr_model_manager
     
     try:
         base_path = os.path.join(os.path.dirname(__file__), "cascade_models")
         base_path = os.path.abspath(base_path)
         
         # Check if mill models exist
-        mill_models = CascadeModelManager.list_mill_models(base_path)
-        if mill_number not in mill_models:
-            raise HTTPException(status_code=404, detail=f"No models found for Mill {mill_number}")
-        
-        # Initialize model manager and load models
-        model_manager = CascadeModelManager(base_path, mill_number=mill_number)
-        success = model_manager.load_models()
+        if model_type == "gpr":
+            mill_models = GPRCascadeModelManager.list_mill_models(base_path)
+            if mill_number not in mill_models:
+                raise HTTPException(status_code=404, detail=f"No GPR models found for Mill {mill_number}")
+            
+            # Initialize GPR model manager and load models
+            gpr_model_manager = GPRCascadeModelManager(base_path, mill_number=mill_number)
+            success = gpr_model_manager.load_models()
+            current_manager = gpr_model_manager
+        else:
+            mill_models = CascadeModelManager.list_mill_models(base_path)
+            if mill_number not in mill_models:
+                raise HTTPException(status_code=404, detail=f"No XGBoost models found for Mill {mill_number}")
+            
+            # Initialize XGBoost model manager and load models
+            model_manager = CascadeModelManager(base_path, mill_number=mill_number)
+            success = model_manager.load_models()
+            current_manager = model_manager
         
         if not success:
-            raise HTTPException(status_code=500, detail=f"Failed to load models for Mill {mill_number}")
+            raise HTTPException(status_code=500, detail=f"Failed to load {model_type.upper()} models for Mill {mill_number}")
         
-        summary = model_manager.get_model_summary()
+        summary = current_manager.get_model_summary()
         return {
             "status": "success",
-            "message": f"Models loaded successfully for Mill {mill_number}",
+            "message": f"{model_type.upper()} models loaded successfully for Mill {mill_number}",
             "mill_number": mill_number,
+            "model_type": model_type,
             "summary": summary
         }
         
@@ -655,14 +757,25 @@ async def health_check():
     except Exception:
         available_mills = []
     
+    # Get GPR models
+    try:
+        gpr_mill_models = GPRCascadeModelManager.list_mill_models(base_path)
+        available_gpr_mills = list(gpr_mill_models.keys())
+    except Exception:
+        available_gpr_mills = []
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "components": {
             "classifier": "ready",
-            "model_manager": "ready" if model_manager else "not_initialized",
-            "current_mill": model_manager.mill_number if model_manager else None
+            "xgb_model_manager": "ready" if model_manager else "not_initialized",
+            "gpr_model_manager": "ready" if gpr_model_manager else "not_initialized",
+            "current_xgb_mill": model_manager.mill_number if model_manager else None,
+            "current_gpr_mill": gpr_model_manager.mill_number if gpr_model_manager else None
         },
-        "available_mills": available_mills,
-        "total_mill_models": len(available_mills)
+        "available_xgb_mills": available_mills,
+        "available_gpr_mills": available_gpr_mills,
+        "total_xgb_models": len(available_mills),
+        "total_gpr_models": len(available_gpr_mills)
     }
