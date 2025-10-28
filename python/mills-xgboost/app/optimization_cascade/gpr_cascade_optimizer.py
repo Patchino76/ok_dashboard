@@ -9,8 +9,12 @@ import optuna
 from typing import Dict, Optional
 from pydantic import BaseModel
 import time
+import logging
 
 from .gpr_cascade_models import GPRCascadeModelManager
+
+# Suppress Optuna's verbose logging
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
 class GPROptimizationRequest(BaseModel):
@@ -57,11 +61,7 @@ class GPRCascadeOptimizer:
         Returns:
             Optimization result with best MV values and predictions
         """
-        print(f"🚀 Starting GPR cascade optimization")
-        print(f"   Target: {request.target_variable}")
-        print(f"   Maximize: {request.maximize}")
-        print(f"   Trials: {request.n_trials}")
-        print(f"   Use uncertainty: {request.use_uncertainty}")
+        # Logging moved to endpoint level for cleaner output
         
         start_time = time.time()
         
@@ -180,13 +180,6 @@ class GPRCascadeOptimizer:
         
         # Get best trial
         best_trial = study.best_trial
-        
-        print(f"✅ GPR optimization completed in {optimization_time:.2f}s")
-        print(f"   Best trial: {best_trial.number}")
-        print(f"   Best target: {best_result['target_value']:.4f}")
-        if request.use_uncertainty:
-            print(f"   Target uncertainty: {best_result['target_uncertainty']:.4f}")
-        print(f"   Feasible: {best_result['is_feasible']}")
         
         return GPROptimizationResult(
             best_mv_values=best_result['mv_values'] or {},

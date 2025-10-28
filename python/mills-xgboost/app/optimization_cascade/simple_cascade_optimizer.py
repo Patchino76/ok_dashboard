@@ -15,6 +15,9 @@ from .cascade_models import CascadeModelManager
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Suppress Optuna's verbose logging
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+
 @dataclass
 class OptimizationRequest:
     """Simple optimization request"""
@@ -62,9 +65,7 @@ class SimpleCascadeOptimizer:
         Returns:
             OptimizationResult with best values
         """
-        logger.info(f"Starting optimization for {request.target_variable}")
-        logger.info(f"Direction: {'maximize' if request.maximize else 'minimize'}")
-        logger.info(f"Trials: {request.n_trials}")
+        # Logging moved to endpoint level for cleaner output
         
         # Create Optuna study
         direction = 'maximize' if request.maximize else 'minimize'
@@ -93,9 +94,6 @@ class SimpleCascadeOptimizer:
             n_trials=len(study.trials),
             best_trial_number=best_trial.number
         )
-        
-        logger.info(f"Optimization completed. Best target: {result.best_target_value:.2f}")
-        logger.info(f"Feasible: {result.is_feasible}")
         
         return result
     

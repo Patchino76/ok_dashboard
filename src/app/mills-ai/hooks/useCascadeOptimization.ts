@@ -21,6 +21,9 @@ export interface CascadeOptimizationRequest {
   maximize?: boolean;
   n_trials?: number;
   timeout_seconds?: number;
+  model_type?: "xgb" | "gpr";
+  use_uncertainty?: boolean;
+  uncertainty_weight?: number;
 }
 
 // Target-driven optimization API interfaces
@@ -34,6 +37,9 @@ export interface TargetDrivenOptimizationRequest {
   dv_values: Record<string, number>;
   n_trials: number;
   confidence_level: number;
+  model_type?: "xgb" | "gpr";
+  use_uncertainty?: boolean;
+  uncertainty_weight?: number;
 }
 
 export interface CascadeOptimizationApiResponse {
@@ -151,6 +157,9 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
         // Start optimization in store
         startOptimization(config);
 
+        // Get model type and uncertainty settings from store
+        const { modelType, useUncertainty, uncertaintyWeight } = useCascadeOptimizationStore.getState();
+        
         // Prepare API request
         const request: CascadeOptimizationRequest = {
           mill_number: config.mill_number,
@@ -162,6 +171,9 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
           maximize: config.maximize,
           n_trials: config.n_trials,
           timeout_seconds: config.timeout_seconds,
+          model_type: modelType,
+          use_uncertainty: modelType === "gpr" ? useUncertainty : undefined,
+          uncertainty_weight: modelType === "gpr" && useUncertainty ? uncertaintyWeight : undefined,
         };
 
         // Call the cascade optimization API
@@ -254,6 +266,9 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
         // Start target optimization in store
         startTargetOptimization(config);
 
+        // Get model type and uncertainty settings from store
+        const { modelType, useUncertainty, uncertaintyWeight } = useCascadeOptimizationStore.getState();
+        
         // Prepare API request
         const request: TargetDrivenOptimizationRequest = {
           mill_number: config.mill_number,
@@ -265,6 +280,9 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
           dv_values: config.dv_values,
           n_trials: config.n_trials,
           confidence_level: config.confidence_level,
+          model_type: modelType,
+          use_uncertainty: modelType === "gpr" ? useUncertainty : undefined,
+          uncertainty_weight: modelType === "gpr" && useUncertainty ? uncertaintyWeight : undefined,
         };
 
         console.log("🎯 Sending target-driven optimization request to API:", request);

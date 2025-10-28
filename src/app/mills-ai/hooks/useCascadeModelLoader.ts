@@ -66,16 +66,16 @@ export function useCascadeModelLoader() {
   }, [])
 
   // Load model metadata for a specific mill
-  const loadModelForMill = useCallback(async (millNumber: number) => {
+  const loadModelForMill = useCallback(async (millNumber: number, modelType: "xgb" | "gpr" = "xgb") => {
     setState(prev => ({ ...prev, isLoading: true, error: null }))
     
     try {
-      console.log(`🔍 Loading cascade model for Mill ${millNumber}...`)
+      console.log(`🔍 Loading ${modelType.toUpperCase()} cascade model for Mill ${millNumber}...`)
       
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
       
       // First, get model info and metadata
-      const infoResponse = await fetch(`${apiUrl}/api/v1/ml/cascade/models/${millNumber}`)
+      const infoResponse = await fetch(`${apiUrl}/api/v1/ml/cascade/models/${millNumber}?model_type=${modelType}`)
       if (!infoResponse.ok) {
         if (infoResponse.status === 404) {
           throw new Error(`No cascade models found for Mill ${millNumber}`)
@@ -95,7 +95,7 @@ export function useCascadeModelLoader() {
       })
       
       // Then, load the model into memory
-      const loadResponse = await fetch(`${apiUrl}/api/v1/ml/cascade/models/${millNumber}/load`, {
+      const loadResponse = await fetch(`${apiUrl}/api/v1/ml/cascade/models/${millNumber}/load?model_type=${modelType}`, {
         method: 'POST'
       })
       

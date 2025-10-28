@@ -6,6 +6,8 @@ import { useCascadeOptimizationStore } from "../stores/cascade-optimization-stor
 interface PredictionRequest {
   mv_values: Record<string, number>
   dv_values: Record<string, number>
+  model_type?: "xgb" | "gpr"
+  return_uncertainty?: boolean
 }
 
 interface PredictionResponse {
@@ -14,6 +16,9 @@ interface PredictionResponse {
   is_feasible: boolean
   constraint_violations?: string[]
   mill_number: number
+  model_type?: string
+  cv_uncertainties?: Record<string, number>
+  target_uncertainty?: number
 }
 
 export function useCascadePrediction() {
@@ -24,7 +29,9 @@ export function useCascadePrediction() {
 
   const predictCascade = useCallback(async (
     mvValues: Record<string, number>,
-    dvValues: Record<string, number>
+    dvValues: Record<string, number>,
+    modelType: "xgb" | "gpr" = "xgb",
+    returnUncertainty: boolean = false
   ): Promise<CascadePrediction | null> => {
     setIsLoading(true);
     setError(null);
@@ -33,6 +40,8 @@ export function useCascadePrediction() {
       const requestBody: PredictionRequest = {
         mv_values: mvValues,
         dv_values: dvValues,
+        model_type: modelType,
+        return_uncertainty: returnUncertainty,
       };
 
       console.log("🔍 Making cascade prediction request:", requestBody);

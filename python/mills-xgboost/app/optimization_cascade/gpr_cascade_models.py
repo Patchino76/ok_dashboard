@@ -124,11 +124,6 @@ class GPRCascadeModelManager:
         Returns:
             Dictionary containing predicted CVs, target, feasibility, and optionally uncertainties
         """
-        print(f"🔍 GPR predict_cascade called with:")
-        print(f"   mv_values: {mv_values}")
-        print(f"   dv_values: {dv_values}")
-        print(f"   return_uncertainty: {return_uncertainty}")
-        
         if not self.process_models or not self.quality_model:
             raise ValueError("GPR models not loaded. Call load_models() first.")
         
@@ -137,10 +132,6 @@ class GPRCascadeModelManager:
         mvs = features.get("mv_features", [])
         cvs = features.get("cv_features", [])
         dvs = features.get("dv_features", [])
-        
-        print(f"   Expected MVs from model: {mvs}")
-        print(f"   Expected CVs from model: {cvs}")
-        print(f"   Expected DVs from model: {dvs}")
         
         # Step 1: Predict CVs from MVs using process models
         try:
@@ -156,9 +147,9 @@ class GPRCascadeModelManager:
         
         for cv_id in cvs:
             if cv_id in self.process_models:
-                # Scale input using DataFrame with feature names
+                # Scale input - convert to numpy to avoid feature name warnings
                 scaler = self.scalers[f"process_model_{cv_id}"]
-                mv_scaled = scaler.transform(mv_df)
+                mv_scaled = scaler.transform(mv_df.values)
                 
                 # Predict with uncertainty
                 gp_model = self.process_models[cv_id]
@@ -182,19 +173,13 @@ class GPRCascadeModelManager:
         feature_dict.update(predicted_cvs)
         feature_dict.update(dv_values)
         
-        print(f"🔍 Debug - Feature cols from metadata: {feature_cols}")
-        print(f"🔍 Debug - Feature dict keys: {list(feature_dict.keys())}")
-        
         # Create DataFrame with features in the exact order from training
         quality_features = [feature_dict[col] for col in feature_cols]
         quality_df = pd.DataFrame([quality_features], columns=feature_cols)
         
-        print(f"✅ Quality model features (in order): {feature_cols}")
-        print(f"   Feature values: {dict(zip(feature_cols, quality_features))}")
-        
-        # Scale and predict with uncertainty
+        # Scale and predict with uncertainty - convert to numpy to avoid feature name warnings
         quality_scaler = self.scalers['quality_model']
-        quality_scaled = quality_scaler.transform(quality_df)
+        quality_scaled = quality_scaler.transform(quality_df.values)
         
         target_pred, target_std = self.quality_model.predict(quality_scaled, return_std=True)
         predicted_target = float(target_pred[0])

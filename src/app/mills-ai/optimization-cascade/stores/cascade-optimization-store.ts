@@ -85,6 +85,10 @@ export interface CascadeOptimizationResult {
   duration_seconds: number;
   status: "running" | "completed" | "failed" | "cancelled";
   error_message?: string;
+  // GPR-specific fields
+  cv_uncertainties?: Record<string, number>; // Uncertainty for each CV (σ)
+  target_uncertainty?: number; // Uncertainty for target prediction (σ)
+  best_target_uncertainty?: number; // Uncertainty for best target value (σ)
 }
 
 // Target-driven optimization result with distributions
@@ -159,6 +163,9 @@ export interface CascadeOptimizationState {
   modelTarget: string | null;
   lastTrained: string | null;
   availableModels: Record<string, any>;
+  modelType: "xgb" | "gpr"; // Model type selector
+  useUncertainty: boolean; // GPR: Use uncertainty-aware optimization
+  uncertaintyWeight: number; // GPR: Weight for uncertainty penalty
 
   // Parameter state
   parameters: CascadeParameter[];
@@ -180,6 +187,9 @@ export interface CascadeOptimizationState {
   setMaximize: (maximize: boolean) => void;
   setNTrials: (trials: number) => void;
   setTimeoutSeconds: (seconds: number) => void;
+  setModelType: (type: "xgb" | "gpr") => void;
+  setUseUncertainty: (use: boolean) => void;
+  setUncertaintyWeight: (weight: number) => void;
 
   // Actions - Target-driven optimization configuration
   setTargetValue: (value: number) => void;
@@ -319,6 +329,9 @@ const initialState = {
   modelTarget: null,
   lastTrained: null,
   availableModels: {},
+  modelType: "xgb", // Default to XGBoost
+  useUncertainty: false, // GPR uncertainty-aware optimization disabled by default
+  uncertaintyWeight: 1.0, // Default uncertainty weight
 
   // Parameter state
   parameters: millsParameters.map((param) => {
@@ -381,6 +394,22 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
           { timeoutSeconds: Math.max(30, Math.min(3600, seconds)) },
           false,
           "setTimeoutSeconds"
+        );
+      },
+
+      setModelType: (type: "xgb" | "gpr") => {
+        set({ modelType: type }, false, "setModelType");
+      },
+
+      setUseUncertainty: (use: boolean) => {
+        set({ useUncertainty: use }, false, "setUseUncertainty");
+      },
+
+      setUncertaintyWeight: (weight: number) => {
+        set(
+          { uncertaintyWeight: Math.max(0.1, Math.min(5.0, weight)) },
+          false,
+          "setUncertaintyWeight"
         );
       },
 

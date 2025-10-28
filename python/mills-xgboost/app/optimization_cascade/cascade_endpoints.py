@@ -282,10 +282,7 @@ async def predict_cascade(request: PredictionRequest):
         current_manager = model_manager
     
     try:
-        print(f"🔍 Prediction request received")
-        print(f"   Model type: {request.model_type}")
-        print(f"   MV values: {request.mv_values}")
-        print(f"   DV values: {request.dv_values}")
+        print(f"🎯 Cascade prediction: Mill {current_manager.mill_number}, Model: {request.model_type.upper()}")
         
         # Call predict with appropriate parameters
         if request.model_type == "gpr":
@@ -343,22 +340,13 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
         current_manager = model_manager
     
     try:
-        # Add debug logging
-        print(f"🔍 Optimization request received")
-        print(f"   Model type: {request.model_type}")
-        print(f"   MV bounds: {request.mv_bounds}")
-        print(f"   Target: {request.target_variable}")
-        print(f"   Trials: {request.n_trials}")
+        # Log optimization start
+        uncertainty_info = f", Uncertainty-aware: {request.use_uncertainty}" if request.model_type == "gpr" else ""
+        print(f"🎯 Cascade optimization: Mill {current_manager.mill_number}, Model: {request.model_type.upper()}, Target: {request.target_variable}, Trials: {request.n_trials}{uncertainty_info}")
         
         # Convert tuple bounds to proper format
-        print(f"   Converting bounds...")
         mv_bounds = {k: tuple(v) for k, v in request.mv_bounds.items()}
         cv_bounds = {k: tuple(v) for k, v in request.cv_bounds.items()}
-        print(f"   MV bounds converted: {mv_bounds}")
-        print(f"   CV bounds converted: {cv_bounds}")
-        
-        # Create optimization request
-        print(f"   Creating optimization request...")
         opt_request = OptimizationRequest(
             mv_bounds=mv_bounds,
             cv_bounds=cv_bounds,
@@ -369,7 +357,6 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
         )
         
         # Run optimization with appropriate optimizer
-        print(f"   Starting optimization...")
         if request.model_type == "gpr":
             # Use GPR optimizer
             gpr_opt_request = GPROptimizationRequest(
@@ -384,11 +371,12 @@ async def optimize_cascade(request: CascadeOptimizationRequest):
             )
             optimizer = GPRCascadeOptimizer(current_manager)
             result = optimizer.optimize(gpr_opt_request)
+            print(f"✅ Optimization completed: Best target = {result.best_target_value:.4f}, Trial {result.best_trial_number}/{request.n_trials}, Time: {result.optimization_time:.1f}s")
         else:
             # Use XGBoost optimizer
             optimizer = SimpleCascadeOptimizer(current_manager)
             result = optimizer.optimize(opt_request)
-        print(f"   Optimization completed successfully!")
+            print(f"✅ Optimization completed: Best target = {result.best_target_value:.4f}, Trial {result.best_trial_number}/{request.n_trials}")
         
         # Convert numpy types to Python native types for JSON serialization
         def convert_numpy_types(obj):

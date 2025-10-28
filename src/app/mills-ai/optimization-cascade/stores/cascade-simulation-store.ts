@@ -19,6 +19,9 @@ export interface CascadePrediction {
   is_feasible: boolean
   constraint_violations: string[]
   timestamp: number
+  // GPR-specific fields
+  cv_uncertainties?: Record<string, number>
+  target_uncertainty?: number
 }
 
 // Simulation state interface

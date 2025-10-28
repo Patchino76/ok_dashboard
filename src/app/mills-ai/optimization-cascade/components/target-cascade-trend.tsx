@@ -46,6 +46,8 @@ interface TargetFractionDisplayProps {
   spOptimize?: number | null;
   showOptimizationTarget?: boolean;
   predictionSetpoint?: number | null;
+  predictionUncertainty?: number | null; // GPR uncertainty (σ)
+  modelType?: "xgb" | "gpr";
 }
 
 export function CascadeTargetTrend({
@@ -59,6 +61,8 @@ export function CascadeTargetTrend({
   spOptimize = null,
   showOptimizationTarget = false,
   predictionSetpoint = null,
+  predictionUncertainty = null,
+  modelType = "xgb",
 }: // modelName is intentionally not destructured to avoid unused vars
 TargetFractionDisplayProps) {
   // Get display hours and data fetching functions from XGBoost store
@@ -278,6 +282,11 @@ TargetFractionDisplayProps) {
                           {predictionDisplayValue ? (
                             <>
                               {predictionDisplayValue}
+                              {modelType === "gpr" && predictionUncertainty !== null && (
+                                <span className="ml-1 text-sm font-normal text-slate-500">
+                                  ± {predictionUncertainty.toFixed(2)}
+                                </span>
+                              )}
                               <span className="ml-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                                 {targetUnit}
                               </span>

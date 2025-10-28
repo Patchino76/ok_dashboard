@@ -243,6 +243,9 @@ export default function CascadeOptimizationDashboard() {
     resetFeatures: resetXgboostFeatures,
     updateSliderValue: updateXgboostSliderValue,
   } = xgboostStore;
+  
+  // Model type from cascade store
+  const { modelType, setModelType } = cascadeStore;
   // Keep XGBoost store in real-time mode to allow PV value updates
   // We prevent predictions by not calling predictWithCurrentValues, not by simulation mode
   useEffect(() => {
@@ -341,7 +344,7 @@ export default function CascadeOptimizationDashboard() {
         modelInfo?.featureClassification
       );
 
-      const prediction = await predictCascade(mvValues, dvValues);
+      const prediction = await predictCascade(mvValues, dvValues, modelType, modelType === "gpr");
 
       if (
         prediction &&
@@ -349,8 +352,11 @@ export default function CascadeOptimizationDashboard() {
         Number.isFinite(prediction.predicted_target)
       ) {
         setTestPredictionTarget(prediction.predicted_target);
+        setPredictionUncertainty(prediction.target_uncertainty ?? null);
         toast.success(
-          `Cascade Prediction: ${prediction.predicted_target.toFixed(2)}`
+          `Cascade Prediction: ${prediction.predicted_target.toFixed(2)}${
+            prediction.target_uncertainty ? ` ± ${prediction.target_uncertainty.toFixed(2)}` : ''
+          }`
         );
       } else {
         toast.warning("Cascade prediction returned no target");
@@ -388,7 +394,7 @@ export default function CascadeOptimizationDashboard() {
         dvValues,
       });
 
-      const prediction = await predictCascade(mvSliderValues, dvValues);
+      const prediction = await predictCascade(mvSliderValues, dvValues, modelType, modelType === "gpr");
 
       if (
         prediction &&
@@ -476,6 +482,9 @@ export default function CascadeOptimizationDashboard() {
   const [testPredictionTarget, setTestPredictionTarget] = useState<
     number | null
   >(null);
+  const [predictionUncertainty, setPredictionUncertainty] = useState<
+    number | null
+  >(null);
   const [showDistributions, setShowDistributions] = useState(true);
 
   // TIME-BASED CASCADE PREDICTION (Orange SP) - Only triggered by new time points in targetData
@@ -544,17 +553,19 @@ export default function CascadeOptimizationDashboard() {
 
     (async () => {
       try {
-        const prediction = await predictCascade(mvValues, dvValues);
+        const prediction = await predictCascade(mvValues, dvValues, modelType, modelType === "gpr");
         if (
           prediction &&
           typeof prediction.predicted_target === "number" &&
           Number.isFinite(prediction.predicted_target)
         ) {
           setTestPredictionTarget(prediction.predicted_target);
+          setPredictionUncertainty(prediction.target_uncertainty ?? null);
           lastPredictionTimestampRef.current = latestPoint.timestamp;
           console.log(
             "✅ TIME-BASED prediction completed (Orange SP):",
-            prediction.predicted_target.toFixed(2)
+            prediction.predicted_target.toFixed(2),
+            prediction.target_uncertainty ? `± ${prediction.target_uncertainty.toFixed(2)}` : ''
           );
           console.log(
             "   Updated testPredictionTarget, simulationTarget remains unchanged"
@@ -1084,6 +1095,30 @@ export default function CascadeOptimizationDashboard() {
     }
   };
 
+  const handleModelTypeChange = async (newModelType: "xgb" | "gpr") => {
+    console.log(`🔄 Model type change requested: ${modelType} → ${newModelType}`);
+
+    if (newModelType === modelType) {
+      console.log(`⏭️ Model type change skipped - already using ${newModelType}`);
+      return;
+    }
+
+    try {
+      console.log(`📝 Setting model type to ${newModelType}`);
+      setModelType(newModelType);
+
+      // Reload model for current mill with new model type
+      console.log(`📥 Reloading ${newModelType.toUpperCase()} model for mill ${currentMill}`);
+      await loadModelForMill(currentMill, newModelType);
+
+      console.log(`✅ Successfully switched to ${newModelType.toUpperCase()} model`);
+      toast.success(`Switched to ${newModelType.toUpperCase()} model`);
+    } catch (error) {
+      console.error("Error switching model type:", error);
+      toast.error(`Failed to switch to ${newModelType.toUpperCase()} model`);
+    }
+  };
+
   const handleStartOptimization = async () => {
     if (isOptimizing || !modelMetadata) return;
 
@@ -1417,6 +1452,36 @@ export default function CascadeOptimizationDashboard() {
                             {cascadeBG.mill.noModels}
                           </div>
                         )}
+                        
+                        {/* Model Type Selector */}
+                        <div className="mt-4 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <GraduationCap className="h-4 w-4 text-blue-600" />
+                            <span className="font-medium text-sm">
+                              Тип модел
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant={modelType === "xgb" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleModelTypeChange("xgb")}
+                              disabled={isLoadingModel}
+                              className="flex-1"
+                            >
+                              XGBoost
+                            </Button>
+                            <Button
+                              variant={modelType === "gpr" ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => handleModelTypeChange("gpr")}
+                              disabled={isLoadingModel}
+                              className="flex-1"
+                            >
+                              GPR
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </Card>
                   </div>
@@ -1661,6 +1726,35 @@ export default function CascadeOptimizationDashboard() {
                       </div>
                     </div>
                   </Card>
+                  
+                  {/* Uncertainty-Aware Optimization Toggle (GPR only) */}
+                  {modelType === "gpr" && (
+                    <Card className="p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-col flex-1">
+                          <div className="text-sm font-medium flex items-center gap-2">
+                            Оптимизация с несигурност
+                            <button
+                              className="text-slate-400 hover:text-slate-600"
+                              title="Оптимизацията с несигурност минимизира както целевата стойност, така и несигурността на прогнозата, водейки до по-надеждни решения."
+                            >
+                              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            Използва несигурността на GPR модела за по-надеждна оптимизация
+                          </div>
+                        </div>
+                        <Switch
+                          checked={cascadeStore.useUncertainty}
+                          onCheckedChange={cascadeStore.setUseUncertainty}
+                          disabled={isOptimizing}
+                        />
+                      </div>
+                    </Card>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
@@ -1762,6 +1856,8 @@ export default function CascadeOptimizationDashboard() {
               targetVariable={getTargetVariable()}
               targetUnit={targetUnit}
               predictionSetpoint={testPredictionTarget}
+              predictionUncertainty={predictionUncertainty}
+              modelType={modelType}
               spOptimize={
                 hasCascadeResults
                   ? cascadePredictedTarget ?? targetSetpoint

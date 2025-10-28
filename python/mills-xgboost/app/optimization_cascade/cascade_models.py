@@ -580,10 +580,6 @@ class CascadeModelManager:
         Returns:
             Dictionary containing predicted CVs, target, and feasibility
         """
-        print(f"🔍 predict_cascade called with:")
-        print(f"   mv_values: {mv_values} (type: {type(mv_values)})")
-        print(f"   dv_values: {dv_values} (type: {type(dv_values)})")
-        
         if not self.process_models or not self.quality_model:
             raise ValueError("Models not trained. Call train_all_models() first.")
         
@@ -591,12 +587,6 @@ class CascadeModelManager:
         mvs = self.configured_features['mvs'] or [mv.id for mv in self.classifier.get_mvs()]
         cvs = self.configured_features['cvs'] or [cv.id for cv in self.classifier.get_cvs()]
         dvs = self.configured_features['dvs'] or [dv.id for dv in self.classifier.get_dvs()]
-        
-        print(f"🔍 predict_cascade called with:")
-        print(f"   mv_values: {mv_values} (type: {type(mv_values)})")
-        print(f"   dv_values: {dv_values} (type: {type(dv_values)})")
-        print(f"   Expected MVs from model: {mvs}")
-        print(f"   Expected DVs from model: {dvs}")
         
         # Step 1: Predict CVs from MVs using process models
         # Create DataFrame with proper feature names to avoid sklearn warnings
@@ -647,25 +637,12 @@ class CascadeModelManager:
             # Build feature dictionary with all available values
             # Use predicted CVs and all provided DV values
             feature_dict = {}
-            
-            # Add all predicted CVs
-            print(f"🔍 Debug - Adding predicted CVs: {predicted_cvs}")
             feature_dict.update(predicted_cvs)
-            
-            # Add all provided DV values directly (don't filter by dvs list)
-            print(f"🔍 Debug - Adding DV values: {dv_values}")
-            print(f"🔍 Debug - DV values type: {type(dv_values)}")
             feature_dict.update(dv_values)
-            
-            print(f"🔍 Debug - Feature cols from metadata: {feature_cols}")
-            print(f"🔍 Debug - Feature dict keys after update: {list(feature_dict.keys())}")
             
             # Create DataFrame with features in the exact order from training
             quality_features = [feature_dict[col] for col in feature_cols]
             quality_df = pd.DataFrame([quality_features], columns=feature_cols)
-            
-            print(f"✅ Quality model features (in order): {feature_cols}")
-            print(f"   Feature values: {dict(zip(feature_cols, quality_features))}")
             
             # Scale and predict
             quality_scaler = self.scalers['quality_model']
