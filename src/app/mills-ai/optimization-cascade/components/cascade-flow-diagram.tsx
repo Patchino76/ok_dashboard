@@ -128,72 +128,31 @@ export function CascadeFlowDiagram({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
-          {/* Flow Diagram */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-center">
-            {/* MV Parameters */}
-            <ParameterGroup
-              title={cascadeBG.parameters.manipulated}
-              varType="MV"
-              parameters={mv_parameters}
-              description={cascadeBG.parameters.manipulatedDescription}
-            />
+        {/* Flow Diagram - All cards on one line */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* MV Parameters */}
+          <ParameterGroup
+            title={cascadeBG.parameters.manipulated}
+            varType="MV"
+            parameters={mv_parameters}
+            description={cascadeBG.parameters.manipulatedDescription}
+          />
 
-            {/* Arrow 1 */}
-            <div className="flex justify-center">
-              <ArrowRight className="h-8 w-8 text-slate-400" />
-            </div>
+          {/* CV Parameters */}
+          <ParameterGroup
+            title={cascadeBG.parameters.controlled}
+            varType="CV"
+            parameters={cv_parameters}
+            description={cascadeBG.parameters.controlledDescription}
+          />
 
-            {/* CV Parameters */}
-            <ParameterGroup
-              title={cascadeBG.parameters.controlled}
-              varType="CV"
-              parameters={cv_parameters}
-              description={cascadeBG.parameters.controlledDescription}
-            />
-
-            {/* Arrow 2 */}
-            <div className="flex justify-center">
-              <ArrowRight className="h-8 w-8 text-slate-400" />
-            </div>
-          </div>
-
-          {/* Target and DV Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Target */}
-            <div className="p-4 rounded-lg border-2 bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="outline" className="text-xs px-2 py-1 bg-purple-100 text-purple-800 border-purple-200">
-                  TARGET
-                </Badge>
-                <h3 className="font-semibold text-purple-800">Optimization Target</h3>
-              </div>
-              <p className="text-xs text-slate-600 mb-3">Final objective we want to optimize</p>
-              <span className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-800 border border-purple-200 font-medium">
-                {modelTarget}
-              </span>
-            </div>
-
-            {/* DV Parameters */}
-            <ParameterGroup
-              title={cascadeBG.parameters.disturbance}
-              varType="DV"
-              parameters={dv_parameters}
-              description={cascadeBG.parameters.disturbanceDescription}
-            />
-          </div>
-
-          {/* Flow Description */}
-          <div className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">
-            <div className="font-medium mb-1">Cascade Process Flow:</div>
-            <div className="text-xs">
-              1. Adjust <span className="font-medium text-amber-700">MV parameters</span> (what we control) →
-              2. Predict <span className="font-medium text-blue-700">CV parameters</span> (what we measure) →
-              3. Optimize <span className="font-medium text-purple-700">Target variable</span> (our objective)
-              <br />
-              <span className="font-medium text-emerald-700">DV parameters</span> represent external disturbances and lab-analyzed values.
-            </div>
-          </div>
+          {/* DV Parameters */}
+          <ParameterGroup
+            title={cascadeBG.parameters.disturbance}
+            varType="DV"
+            parameters={dv_parameters}
+            description={cascadeBG.parameters.disturbanceDescription}
+          />
         </div>
       </CardContent>
     </Card>

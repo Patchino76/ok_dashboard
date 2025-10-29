@@ -31,8 +31,8 @@ export const cascadeBG = {
 
   // Model information
   model: {
-    features: "Характеристики на модела",
-    targetVariable: "Целева променлива",
+    features: "Параметри на модела",
+    targetVariable: "Целеви параметър",
     status: "Състояние на каскадния модел",
     loaded: "Зареден",
     notLoaded: "Няма зареден каскаден модел",

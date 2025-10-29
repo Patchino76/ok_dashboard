@@ -398,7 +398,7 @@ export function CascadeModelInsights({
             <Target className="h-4 w-4 text-purple-500" />
             Model Feature Importance
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-3">
             {normalizedQualityModel && (
               <Card className="border-0 shadow-sm bg-white/80 dark:bg-slate-900/50">
                 <CardHeader className="pb-2">
@@ -442,7 +442,7 @@ export function CascadeModelInsights({
                           data={Object.entries(
                             normalizedQualityModel.feature_importance || {}
                           ).map(([name, value]) => ({ name, value }))}
-                          margin={{ top: 6, right: 12, left: 28, bottom: 10 }}
+                          margin={{ top: 24, right: 12, left: 28, bottom: 10 }}
                         >
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                         <XAxis
@@ -538,7 +538,7 @@ export function CascadeModelInsights({
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={chartData}
-                          margin={{ top: 6, right: 12, left: 28, bottom: 10 }}
+                          margin={{ top: 24, right: 12, left: 28, bottom: 10 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                           <XAxis
