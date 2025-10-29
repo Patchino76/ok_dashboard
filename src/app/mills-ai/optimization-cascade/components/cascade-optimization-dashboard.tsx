@@ -47,6 +47,7 @@ import { EnhancedModelTraining } from "./enhanced-model-training";
 import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 import { cascadeBG } from "../translations/bg";
 import { CascadeModelInsights } from "./cascade-model-insights";
+import { OptimizationResultsDisplay } from "./optimization-results-display";
 
 export default function CascadeOptimizationDashboard() {
   // Cascade optimization store
@@ -415,6 +416,8 @@ export default function CascadeOptimizationDashboard() {
   const [predictionUncertainty, setPredictionUncertainty] = useState<
     number | null
   >(null);
+  const [targetTolerance, setTargetTolerance] = useState<number>(1.0); // Default 1.0%
+  const [optimizationResults, setOptimizationResults] = useState<any>(null);
 
   // TIME-BASED CASCADE PREDICTION (Orange SP) - Only triggered by new time points in targetData
   // This should NOT be triggered by parameter changes, only by new timestamps
@@ -1009,7 +1012,7 @@ export default function CascadeOptimizationDashboard() {
         "🎯 Store targetValue after update:",
         useCascadeOptimizationStore.getState().targetValue
       );
-      cascadeOptStore.setTolerance(0.01); // ±1% tolerance
+      cascadeOptStore.setTolerance(targetTolerance / 100); // Convert % to decimal (e.g., 1.0% -> 0.01)
       cascadeOptStore.setTargetDrivenMode(true);
 
       // Set MV bounds from user-adjustable optimization bounds (or fallback to parameter bounds)
@@ -1050,7 +1053,8 @@ export default function CascadeOptimizationDashboard() {
         mill: currentMill,
         target: targetVariable,
         targetValue: targetSetpoint,
-        tolerance: 0.01,
+        tolerance: targetTolerance / 100,
+        tolerancePercent: `±${targetTolerance}%`,
         mvBounds,
         cvBounds,
         dvValues,
@@ -1118,6 +1122,9 @@ export default function CascadeOptimizationDashboard() {
           cascadeOptStore.clearProposedSetpoints();
           console.log("⚠️ No proposed setpoints to set - clearing store");
         }
+
+        // Store optimization results for display
+        setOptimizationResults(result);
 
         toast.success(
           `Target-driven optimization completed! Success rate: ${(
@@ -1579,6 +1586,34 @@ export default function CascadeOptimizationDashboard() {
                   </Card>
                 )}
 
+                {/* Tolerance Parameter */}
+                <Card className="p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col flex-1">
+                      <div className="text-sm font-medium">
+                        Толеранс на целта
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Допустимо отклонение от целевата стойност (±%)
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-500">±</span>
+                      <input
+                        type="number"
+                        min="0.1"
+                        max="5.0"
+                        step="0.1"
+                        value={targetTolerance}
+                        onChange={(e) => setTargetTolerance(parseFloat(e.target.value) || 1.0)}
+                        disabled={isOptimizing}
+                        className="w-16 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-xs text-slate-500">%</span>
+                    </div>
+                  </div>
+                </Card>
+
                 <div className="flex gap-2">
                   <Button
                     onClick={handleStartOptimization}
@@ -1612,16 +1647,13 @@ export default function CascadeOptimizationDashboard() {
                   </div>
                 )}
 
-                {/* Results Summary */}
-                {hasResults && isSuccessful && improvementScore !== null && (
-                  <div className="text-sm text-green-600 bg-green-50 p-2 rounded">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4" />
-                      Cascade optimization completed with{" "}
-                      {(improvementScore || 0) > 0 ? "+" : ""}
-                      {(improvementScore || 0).toFixed(1)}% improvement
-                    </div>
-                  </div>
+                {/* Optimization Results Display */}
+                {optimizationResults && (
+                  <OptimizationResultsDisplay
+                    results={optimizationResults}
+                    targetVariable={getTargetVariable()}
+                    targetUnit={targetUnit}
+                  />
                 )}
               </CardContent>
             </Card>

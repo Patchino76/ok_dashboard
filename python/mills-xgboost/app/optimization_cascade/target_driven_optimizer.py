@@ -51,6 +51,7 @@ class TargetOptimizationResult:
     # Target achievement
     target_achieved: bool
     best_distance: float
+    worst_distance: float
     target_value: float
     tolerance: float
     
@@ -160,10 +161,17 @@ class TargetDrivenCascadeOptimizer:
         # Calculate optimization time
         optimization_time = time.time() - start_time
         
+        # Calculate worst distance from all trials
+        worst_distance = max(
+            (trial.value for trial in study.trials if trial.value is not None),
+            default=float('inf')
+        )
+        
         # Create result
         result = TargetOptimizationResult(
             target_achieved=len(successful_trials) > 0,
             best_distance=best_trial.value if best_trial.value is not None else float('inf'),
+            worst_distance=worst_distance,
             target_value=request.target_value,
             tolerance=request.tolerance,
             best_mv_values=best_mv_values,
@@ -181,6 +189,7 @@ class TargetDrivenCascadeOptimizer:
         logger.info(f"Target optimization completed in {optimization_time:.2f}s")
         logger.info(f"Success rate: {result.success_rate:.1%}")
         logger.info(f"Best target: {result.best_target_value:.2f} (distance: {result.best_distance:.4f})")
+        logger.info(f"Best distance: {result.best_distance:.4f}, Worst: {result.worst_distance:.4f}")
         
         return result
     

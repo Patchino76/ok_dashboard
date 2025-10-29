@@ -493,9 +493,10 @@ async def optimize_for_target(request: TargetDrivenOptimizationRequest):
         cv_distributions = {k: convert_distribution(v) for k, v in result.cv_distributions.items()}
         
         return {
-            "status": "success",
+            "status": "completed",
             "target_achieved": bool(result.target_achieved),
             "best_distance": float(result.best_distance),
+            "worst_distance": float(result.worst_distance),
             "target_value": float(result.target_value),
             "tolerance": float(result.tolerance),
             "best_mv_values": convert_numpy_types(result.best_mv_values),
