@@ -48,6 +48,8 @@ interface TargetFractionDisplayProps {
   predictionSetpoint?: number | null;
   predictionUncertainty?: number | null; // GPR uncertainty (σ)
   modelType?: "xgb" | "gpr";
+  modelPredictionTrend?: Array<{timestamp: number; value: number}>;
+  isCalculatingTrend?: boolean;
 }
 
 export function CascadeTargetTrend({
@@ -63,6 +65,8 @@ export function CascadeTargetTrend({
   predictionSetpoint = null,
   predictionUncertainty = null,
   modelType = "xgb",
+  modelPredictionTrend = [],
+  isCalculatingTrend = false,
 }: // modelName is intentionally not destructured to avoid unused vars
 TargetFractionDisplayProps) {
   // Get display hours and data fetching functions from XGBoost store
@@ -140,19 +144,27 @@ TargetFractionDisplayProps) {
 
   const chartData = targetData
     .filter((item) => item.timestamp >= hoursAgo) // Only keep data from the selected window
-    .map((item) => ({
-      time: item.timestamp,
-      value: item.value,
-      target: item.target,
-      pv: item.pv,
-      // For the first data point, ensure SP overlaps with PV if SP is not set
-      sp:
-        item.sp !== undefined
-          ? item.sp
-          : targetData.length === 1
-          ? item.pv
-          : null,
-    }))
+    .map((item) => {
+      // Find corresponding model prediction for this timestamp
+      const modelPrediction = modelPredictionTrend.find(
+        (pred) => Math.abs(pred.timestamp - item.timestamp) < 30000 // Within 30 seconds
+      );
+      
+      return {
+        time: item.timestamp,
+        value: item.value,
+        target: item.target,
+        pv: item.pv,
+        modelPrediction: modelPrediction?.value || null,
+        // For the first data point, ensure SP overlaps with PV if SP is not set
+        sp:
+          item.sp !== undefined
+            ? item.sp
+            : targetData.length === 1
+            ? item.pv
+            : null,
+      };
+    })
     .sort((a, b) => a.time - b.time); // Ensure data is sorted by time
 
   // Fixed gauge bounds using target defaults (do not auto-rescale)
@@ -437,6 +449,13 @@ TargetFractionDisplayProps) {
                     <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
                     <span>Process Variable (PV)</span>
                   </div>
+                  {modelPredictionTrend.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                      <span>Model Prediction</span>
+                      {isCalculatingTrend && <span className="text-xs text-slate-400">(calculating...)</span>}
+                    </div>
+                  )}
                   <div className="flex items-center gap-1">
                     <div className="w-3 h-3 rounded-full bg-orange-500"></div>
                     <span>Target Setpoint (Manual)</span>
@@ -550,20 +569,33 @@ TargetFractionDisplayProps) {
                           name: string,
                           props: any
                         ) => {
-                          const isPV = name === "Process Variable (PV)";
-                          const displayValue = isPV ? props.payload.pv : value;
-                          const color = isPV ? "#10b981" : "#f97316";
+                          // Map line names to display labels and colors
+                          const lineConfig: Record<string, { label: string; color: string }> = {
+                            "Process Variable (PV)": { label: "PV", color: "#10b981" },
+                            "Model Prediction (Historical)": { label: "Calc", color: "#eab308" },
+                            "Target Setpoint (Manual)": { label: "Target SP", color: "#f97316" },
+                            "Optimization Target": { label: "Opt Target", color: "#f97316" },
+                          };
+                          
+                          const config = lineConfig[name] || { label: name, color: "#6b7280" };
+                          const displayValue = props.payload[name === "Process Variable (PV)" ? "pv" : 
+                                                             name === "Model Prediction (Historical)" ? "modelPrediction" :
+                                                             "value"];
+                          
+                          // Don't show if value is null/undefined
+                          if (displayValue === null || displayValue === undefined) {
+                            return null;
+                          }
+                          
                           return [
-                            <span key="value" style={{ color }}>{`${
-                              isPV ? "PV" : "Target"
-                            }: ${formatTooltipValue(
-                              displayValue
-                            )}${targetUnit}`}</span>,
+                            <span key="value" style={{ color: config.color }}>
+                              {`${config.label}: ${formatTooltipValue(displayValue)}${targetUnit}`}
+                            </span>,
                             <span
                               key="name"
-                              style={{ color, opacity: 0.7, fontSize: "0.9em" }}
+                              style={{ color: config.color, opacity: 0.7, fontSize: "0.9em" }}
                             >
-                              (${targetVariable || "PSI80"})
+                              ({targetVariable || "PSI80"})
                             </span>,
                           ];
                         }}
@@ -583,8 +615,6 @@ TargetFractionDisplayProps) {
                         labelStyle={{
                           color: "#e5e7eb",
                           fontWeight: 500,
-                          marginBottom: "0.5rem",
-                          borderBottom: "1px solid #374151",
                           paddingBottom: "0.5rem",
                         }}
                       />
@@ -596,8 +626,22 @@ TargetFractionDisplayProps) {
                         strokeWidth={2}
                         dot={false}
                         activeDot={{ r: 4 }}
-                        isAnimationActive={false} // Disable animation to ensure line is always visible
+                        isAnimationActive={false}
                       />
+                      {/* Model Prediction Trend - Yellow Line */}
+                      {modelPredictionTrend.length > 0 && (
+                        <Line
+                          type="monotone"
+                          dataKey="modelPrediction"
+                          name="Model Prediction (Historical)"
+                          stroke="#eab308"
+                          strokeWidth={2}
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                          isAnimationActive={false}
+                          connectNulls={true}
+                        />
+                      )}
                       <Line
                         type="monotone"
                         dataKey={() => targetSetpoint}

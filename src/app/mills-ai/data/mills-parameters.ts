@@ -285,10 +285,10 @@ export const millsParameters: ModelParameter[] = [
     type: "target",
     enabled: true,
     filterEnabled: true, // Enabled by default for targets
-    min: 15,
-    max: 35,
-    currentMin: calculateDefaultRange(10, 40)[0],
-    currentMax: calculateDefaultRange(10, 40)[1],
+    min: 16,
+    max: 30,
+    currentMin: calculateDefaultRange(16.0, 30.0)[0],
+    currentMax: calculateDefaultRange(16.0, 30.0)[1],
     unit: "%",
     varType: "TARGET", // Target variable, not MV
     description: "Основна целева стойност - финност на смилане +200 микрона",

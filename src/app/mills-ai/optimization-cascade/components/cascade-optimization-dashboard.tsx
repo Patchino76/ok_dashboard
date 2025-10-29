@@ -418,6 +418,8 @@ export default function CascadeOptimizationDashboard() {
   >(null);
   const [targetTolerance, setTargetTolerance] = useState<number>(1.0); // Default 1.0%
   const [optimizationResults, setOptimizationResults] = useState<any>(null);
+  const [modelPredictionTrend, setModelPredictionTrend] = useState<Array<{timestamp: number; value: number}>>([]);
+  const [isCalculatingTrend, setIsCalculatingTrend] = useState(false);
 
   // TIME-BASED CASCADE PREDICTION (Orange SP) - Only triggered by new time points in targetData
   // This should NOT be triggered by parameter changes, only by new timestamps
@@ -518,6 +520,126 @@ export default function CascadeOptimizationDashboard() {
     // Only targetData changes (new time points) should trigger this effect
     predictCascade,
     targetData,
+  ]);
+
+  // Calculate model prediction trend from historical MV values
+  useEffect(() => {
+    const calculateModelPredictionTrend = async () => {
+      if (
+        !modelInfo?.featureClassification ||
+        !parameters ||
+        parameters.length === 0 ||
+        !targetData ||
+        targetData.length === 0 ||
+        isCalculatingTrend
+      ) {
+        return;
+      }
+
+      setIsCalculatingTrend(true);
+      console.log("📊 Calculating model prediction trend from historical MV values...");
+
+      try {
+        const predictions: Array<{timestamp: number; value: number}> = [];
+        const mvFeatures = modelInfo.featureClassification.mv_features || [];
+        const dvFeatures = modelInfo.featureClassification.dv_features || [];
+        
+        // Get current DV values from sliders
+        const dvValues = useCascadeOptimizationStore.getState().getDVSliderValues(dvFeatures);
+        
+        // Sample points from targetData (smooth by taking every Nth point)
+        const sampleInterval = Math.max(1, Math.floor(targetData.length / 50)); // Max 50 points
+        const sampledData = targetData.filter((_, index) => index % sampleInterval === 0);
+        
+        console.log(`   Sampled ${sampledData.length} points from ${targetData.length} total points`);
+        
+        // Make predictions for each sampled point
+        for (const dataPoint of sampledData) {
+          // Get MV values at this timestamp from parameter TREND data (not current slider values!)
+          const mvValues: Record<string, number> = {};
+          let allMVsAvailable = true;
+          
+          for (const mvName of mvFeatures) {
+            const param = parameters.find(p => p.id === mvName);
+            if (!param || !param.trend || param.trend.length === 0) {
+              allMVsAvailable = false;
+              break;
+            }
+            
+            // Find the trend value closest to this timestamp
+            const trendPoint = param.trend.find(
+              (t) => Math.abs(t.timestamp - dataPoint.timestamp) < 30000 // Within 30 seconds
+            );
+            
+            if (trendPoint && typeof trendPoint.value === 'number') {
+              mvValues[mvName] = trendPoint.value;
+            } else {
+              // Fallback: use the closest available trend point
+              const closestPoint = param.trend.reduce((prev, curr) => 
+                Math.abs(curr.timestamp - dataPoint.timestamp) < Math.abs(prev.timestamp - dataPoint.timestamp) 
+                  ? curr 
+                  : prev
+              );
+              
+              if (closestPoint && typeof closestPoint.value === 'number') {
+                mvValues[mvName] = closestPoint.value;
+              } else {
+                allMVsAvailable = false;
+                break;
+              }
+            }
+          }
+          
+          if (!allMVsAvailable) {
+            continue;
+          }
+          
+          // Debug: Log MV values for first few points to verify they're changing
+          if (predictions.length < 3) {
+            console.log(`   📊 Timestamp ${new Date(dataPoint.timestamp).toLocaleTimeString()}: MV values =`, mvValues);
+          }
+          
+          // Make prediction with historical MV values at this timestamp
+          try {
+            const prediction = await predictCascade(mvValues, dvValues, modelType, modelType === "gpr");
+            if (
+              prediction &&
+              typeof prediction.predicted_target === "number" &&
+              Number.isFinite(prediction.predicted_target)
+            ) {
+              predictions.push({
+                timestamp: dataPoint.timestamp,
+                value: prediction.predicted_target
+              });
+            }
+          } catch (error) {
+            console.warn(`   Failed to predict for timestamp ${dataPoint.timestamp}:`, error);
+          }
+        }
+        
+        console.log(`✅ Calculated ${predictions.length} model prediction points`);
+        setModelPredictionTrend(predictions);
+        
+      } catch (error) {
+        console.error("❌ Failed to calculate model prediction trend:", error);
+      } finally {
+        setIsCalculatingTrend(false);
+      }
+    };
+
+    // Debounce the calculation to avoid too frequent updates
+    const timeoutId = setTimeout(() => {
+      calculateModelPredictionTrend();
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    modelInfo?.featureClassification,
+    parameters,
+    targetData,
+    predictCascade,
+    modelType,
+    displayHours, // Recalculate when time window changes
   ]);
 
   // Trigger trend data update when optimization tab is activated
@@ -1066,8 +1188,6 @@ export default function CascadeOptimizationDashboard() {
       const result = await startTargetDrivenOptimization();
 
       console.log("🔍 Optimization result received:", result);
-      console.log("🔍 Result status:", result?.status);
-      console.log("🔍 Feature classification:", featureClassification);
 
       if (result && result.status === "completed") {
         const newProposedSetpoints: Record<string, number> = {};
@@ -1124,6 +1244,7 @@ export default function CascadeOptimizationDashboard() {
         }
 
         // Store optimization results for display
+        console.log("📊 Setting optimization results for display:", result);
         setOptimizationResults(result);
 
         toast.success(
@@ -1677,6 +1798,8 @@ export default function CascadeOptimizationDashboard() {
                   : undefined
               }
               showOptimizationTarget={hasCascadeResults}
+              modelPredictionTrend={modelPredictionTrend}
+              isCalculatingTrend={isCalculatingTrend}
             />
 
             {/* Parameter Optimization Cards - Organized by Variable Type */}

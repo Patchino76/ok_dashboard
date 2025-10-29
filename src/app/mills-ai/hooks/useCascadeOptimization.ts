@@ -317,7 +317,7 @@ export function useCascadeOptimization(): UseCascadeOptimizationReturn {
           success_rate: response.data.success_rate,
           confidence_level: response.data.confidence_level,
           optimization_time: response.data.optimization_time,
-          status: response.data.status === "success" ? "completed" : "failed",
+          status: (response.data.status === "success" || response.data.status === "completed") ? "completed" : "failed",
         };
 
         // Update store with results
