@@ -46,6 +46,7 @@ import { classifyParameters } from "../../data/cascade-parameter-classification"
 import { EnhancedModelTraining } from "./enhanced-model-training";
 import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 import { cascadeBG } from "../translations/bg";
+import { CascadeModelInsights } from "./cascade-model-insights";
 
 export default function CascadeOptimizationDashboard() {
   // Cascade optimization store
@@ -207,15 +208,11 @@ export default function CascadeOptimizationDashboard() {
     initializeMVSlidersWithPVs,
     // Optimization-specific properties
     targetSetpoint,
-    maximize,
     setTargetSetpoint,
-    setMaximize,
     proposedSetpoints,
     setProposedSetpoints,
     clearProposedSetpoints,
     clearResults,
-    autoApplyResults,
-    setAutoApplyResults,
     mvBounds: optimizationBounds,
     updateMVBounds: updateParameterBounds,
     setMVBounds: setParameterBounds,
@@ -299,73 +296,6 @@ export default function CascadeOptimizationDashboard() {
   // Cascade prediction function
   const { predictCascade, isLoading: isCascadePredicting } =
     useCascadePrediction();
-
-  const predictWithCascadeModel = useCallback(async () => {
-    if (
-      !modelInfo?.featureClassification ||
-      !parameters ||
-      parameters.length === 0
-    ) {
-      console.warn(
-        "⚠️ Cannot make cascade prediction - missing model info or parameters"
-      );
-      return;
-    }
-
-    try {
-      console.log("🎯 Making cascade prediction via hook...");
-
-      const mvValues: Record<string, number> = {};
-
-      console.log(
-        "🔍 All parameters:",
-        parameters.map((p) => ({
-          id: p.id,
-          varType: p.varType,
-          value: p.value,
-        }))
-      );
-
-      parameters.forEach((param) => {
-        if (param.varType === "MV") {
-          mvValues[param.id] = param.value;
-        }
-      });
-
-      // Get DV values from cascade store (uses slider values if available)
-      const dvFeatures = modelInfo.featureClassification.dv_features || [];
-      const dvValues = useCascadeOptimizationStore
-        .getState()
-        .getDVSliderValues(dvFeatures);
-
-      console.log("📊 Cascade prediction data:", { mvValues, dvValues });
-      console.log(
-        "🔍 Feature classification:",
-        modelInfo?.featureClassification
-      );
-
-      const prediction = await predictCascade(mvValues, dvValues, modelType, modelType === "gpr");
-
-      if (
-        prediction &&
-        typeof prediction.predicted_target === "number" &&
-        Number.isFinite(prediction.predicted_target)
-      ) {
-        setTestPredictionTarget(prediction.predicted_target);
-        setPredictionUncertainty(prediction.target_uncertainty ?? null);
-        toast.success(
-          `Cascade Prediction: ${prediction.predicted_target.toFixed(2)}${
-            prediction.target_uncertainty ? ` ± ${prediction.target_uncertainty.toFixed(2)}` : ''
-          }`
-        );
-      } else {
-        toast.warning("Cascade prediction returned no target");
-      }
-    } catch (error) {
-      console.error("❌ Cascade prediction failed:", error);
-      toast.error("Cascade prediction failed");
-    }
-  }, [modelInfo, parameters, predictCascade]);
 
   const predictWithMVSliderValues = useCallback(async () => {
     if (
@@ -485,7 +415,6 @@ export default function CascadeOptimizationDashboard() {
   const [predictionUncertainty, setPredictionUncertainty] = useState<
     number | null
   >(null);
-  const [showDistributions, setShowDistributions] = useState(true);
 
   // TIME-BASED CASCADE PREDICTION (Orange SP) - Only triggered by new time points in targetData
   // This should NOT be triggered by parameter changes, only by new timestamps
@@ -732,72 +661,6 @@ export default function CascadeOptimizationDashboard() {
     );
   };
 
-  const handleDebugTrendData = async () => {
-    console.log("🔍 CASCADE OPTIMIZATION DEBUG - Current State:", {
-      activeTab: activeTab,
-      cascadeModelFeatures: getAllFeatures(),
-      cascadeModelName: modelInfo?.modelName,
-      currentMill: currentMill,
-      xgboostParametersWithTrends: xgboostParameters.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        trendLength: p.trend.length,
-        varType: parameters.find((cp) => cp.id === p.id)?.varType,
-      })),
-      targetDataLength: targetData.length,
-      displayHours: displayHours,
-      isFetching: isFetching,
-      cascadeModelMetadata: modelMetadata,
-      cascadeFeatures: getAllFeatures(),
-      xgboostModelFeatures: xgboostModelFeatures,
-      xgboostModelTarget: xgboostModelTarget,
-      realTimeUpdatesActive: !!xgboostStore.dataUpdateInterval,
-    });
-
-    // Force restart real-time updates if needed
-    if (!getAllFeatures() || getAllFeatures().length === 0) {
-      console.log(
-        "⚠️ No cascade model features detected, attempting to reload cascade model..."
-      );
-      try {
-        await loadModelForMill(currentMill);
-        console.log("✅ Cascade model reloaded");
-      } catch (error) {
-        console.error("❌ Failed to reload cascade model:", error);
-      }
-    }
-
-    // Force restart real-time updates if XGBoost store is configured but not running
-    if (
-      xgboostModelFeatures &&
-      xgboostModelFeatures.length > 0 &&
-      !xgboostStore.dataUpdateInterval
-    ) {
-      console.log(
-        "🔄 XGBoost store configured but real-time updates not running, restarting..."
-      );
-      try {
-        stopRealTimeUpdates();
-        const cleanupFn = startRealTimeUpdates();
-        console.log("✅ Real-time updates restarted");
-      } catch (error) {
-        console.error("❌ Failed to restart real-time updates:", error);
-      }
-    }
-
-    // Trigger manual data fetch from XGBoost store
-    console.log(
-      "🔄 Manually triggering fetchRealTimeData from XGBoost store..."
-    );
-    try {
-      await fetchRealTimeData();
-      console.log("✅ Manual data fetch completed");
-    } catch (error) {
-      console.error("❌ Manual data fetch failed:", error);
-    }
-
-    toast.info("Debug info logged to console. Check browser dev tools.");
-  };
   const targetUnit = useMemo(() => {
     const targetVariable = getTargetVariable();
     if (!targetVariable) return "%";
@@ -1149,10 +1012,14 @@ export default function CascadeOptimizationDashboard() {
       cascadeOptStore.setTolerance(0.01); // ±1% tolerance
       cascadeOptStore.setTargetDrivenMode(true);
 
-      // Set MV bounds from optimization bounds
+      // Set MV bounds from user-adjustable optimization bounds (or fallback to parameter bounds)
       const mvBounds: Record<string, [number, number]> = {};
+      const { mvOptimizationBounds } = useCascadeOptimizationStore.getState();
+      
       featureClassification.mv_features.forEach((paramId) => {
-        const optBounds = optimizationBounds[paramId] ||
+        // Use user-adjusted optimization bounds if available, otherwise use parameter bounds
+        const optBounds = mvOptimizationBounds[paramId] ||
+          optimizationBounds[paramId] ||
           parameterBounds[paramId] || [0, 100];
         mvBounds[paramId] = optBounds;
       });
@@ -1250,11 +1117,6 @@ export default function CascadeOptimizationDashboard() {
         } else {
           cascadeOptStore.clearProposedSetpoints();
           console.log("⚠️ No proposed setpoints to set - clearing store");
-        }
-
-        // Auto-apply remains optional for legacy flows (no-op for cascade store)
-        if (autoApplyResults) {
-          applyOptimizedParameters();
         }
 
         toast.success(
@@ -1576,6 +1438,18 @@ export default function CascadeOptimizationDashboard() {
                   </div>
                 )}
 
+                {/* Model Feature Importance Metrics */}
+                {modelMetadata && (
+                  <div className="border-t pt-6">
+                    <CascadeModelInsights
+                      millNumber={currentMill}
+                      modelInfo={modelMetadata?.model_info}
+                      isLoading={isLoadingModel}
+                      error={modelError || undefined}
+                    />
+                  </div>
+                )}
+
                 {/* No Model Loaded State */}
                 {!modelMetadata && !isLoadingModel && (
                   <div className="border-t pt-6">
@@ -1646,116 +1520,64 @@ export default function CascadeOptimizationDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Optimization Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Maximize/Minimize Toggle */}
-                  <Card className="p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex flex-col">
-                        <div className="text-sm font-medium">
-                          {cascadeBG.optimization.goal}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {cascadeBG.optimization.goalDescription}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs ${
-                            !maximize
-                              ? "text-slate-900 font-medium"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          {cascadeBG.optimization.minimize}
-                        </span>
-                        <Switch
-                          checked={maximize}
-                          onCheckedChange={setMaximize}
-                          disabled={isOptimizing}
-                        />
-                        <span
-                          className={`text-xs ${
-                            maximize
-                              ? "text-slate-900 font-medium"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          {cascadeBG.optimization.maximize}
-                        </span>
+                {/* Model Information */}
+                <Card className="p-4 bg-slate-50 border-slate-200">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Мелница</div>
+                      <div className="text-sm font-semibold text-slate-800">
+                        Мелница {currentMill}
                       </div>
                     </div>
-                  </Card>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Тип модел</div>
+                      <div className="text-sm font-semibold text-slate-800 uppercase">
+                        {modelType === "gpr" ? "GPR" : "XGBoost"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Целева променлива</div>
+                      <div className="text-sm font-semibold text-slate-800">
+                        {getTargetVariable()}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Брой параметри</div>
+                      <div className="text-sm font-semibold text-slate-800">
+                        {getAllFeatures().length}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
 
-                  {/* Auto-Apply Proposed Setpoints Toggle */}
+                {/* Optimization Controls */}
+                {modelType === "gpr" && (
                   <Card className="p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="flex flex-col">
-                        <div className="text-sm font-medium">
-                          Автоматично прилагане
+                      <div className="flex flex-col flex-1">
+                        <div className="text-sm font-medium flex items-center gap-2">
+                          Оптимизация с несигурност
+                          <button
+                            className="text-slate-400 hover:text-slate-600"
+                            title="Оптимизацията с несигурност минимизира както целевата стойност, така и несигурността на прогнозата, водейки до по-надеждни решения."
+                          >
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                          </button>
                         </div>
                         <div className="text-xs text-slate-500">
-                          Автоматично прилагане на оптимизираните параметри след
-                          завършване
+                          Използва несигурността на GPR модела за по-надеждна оптимизация
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs ${
-                            !autoApplyResults
-                              ? "text-slate-900 font-medium"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          Ръчно
-                        </span>
-                        <Switch
-                          checked={autoApplyResults}
-                          onCheckedChange={setAutoApplyResults}
-                          disabled={isOptimizing}
-                        />
-                        <span
-                          className={`text-xs ${
-                            autoApplyResults
-                              ? "text-slate-900 font-medium"
-                              : "text-slate-500"
-                          }`}
-                        >
-                          Авто
-                        </span>
-                      </div>
+                      <Switch
+                        checked={cascadeStore.useUncertainty}
+                        onCheckedChange={cascadeStore.setUseUncertainty}
+                        disabled={isOptimizing}
+                      />
                     </div>
                   </Card>
-                  
-                  {/* Uncertainty-Aware Optimization Toggle (GPR only) */}
-                  {modelType === "gpr" && (
-                    <Card className="p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex flex-col flex-1">
-                          <div className="text-sm font-medium flex items-center gap-2">
-                            Оптимизация с несигурност
-                            <button
-                              className="text-slate-400 hover:text-slate-600"
-                              title="Оптимизацията с несигурност минимизира както целевата стойност, така и несигурността на прогнозата, водейки до по-надеждни решения."
-                            >
-                              <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            Използва несигурността на GPR модела за по-надеждна оптимизация
-                          </div>
-                        </div>
-                        <Switch
-                          checked={cascadeStore.useUncertainty}
-                          onCheckedChange={cascadeStore.setUseUncertainty}
-                          disabled={isOptimizing}
-                        />
-                      </div>
-                    </Card>
-                  )}
-                </div>
+                )}
 
                 <div className="flex gap-2">
                   <Button
@@ -1779,47 +1601,6 @@ export default function CascadeOptimizationDashboard() {
                     disabled={isOptimizing}
                   >
                     {cascadeBG.actions.reset}
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      setShowDistributions((previous) => !previous)
-                    }
-                    variant="outline"
-                    className="text-slate-700 border-slate-300 hover:bg-slate-50"
-                    disabled={isOptimizing}
-                  >
-                    {showDistributions
-                      ? "Скрий разпределения"
-                      : "Покажи разпределения"}
-                  </Button>
-                  <Button
-                    onClick={handleDebugTrendData}
-                    variant="outline"
-                    className="text-blue-700 border-blue-300 hover:bg-blue-50"
-                    disabled={isOptimizing}
-                    title="Debug trend data - check console"
-                  >
-                    🔍 Debug
-                  </Button>
-                  <Button
-                    onClick={predictWithCascadeModel}
-                    variant="outline"
-                    className="text-green-700 border-green-300 hover:bg-green-50"
-                    disabled={
-                      isOptimizing ||
-                      !isCascadeModelReady ||
-                      isCascadePredicting
-                    }
-                    title="Test cascade prediction - check console and toast"
-                  >
-                    {isCascadePredicting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {cascadeBG.simulation.predicting}
-                      </>
-                    ) : (
-                      `🎯 ${cascadeBG.simulation.testPrediction}`
-                    )}
                   </Button>
                 </div>
 
@@ -2216,7 +1997,7 @@ export default function CascadeOptimizationDashboard() {
                               onRangeChange={(id, newRange) => {
                                 updateParameterBounds(id, newRange);
                               }}
-                              showDistributions={showDistributions}
+                              showDistributions={true}
                               mvFeatures={featureClassification.mv_features}
                               dvFeatures={featureClassification.dv_features}
                             />

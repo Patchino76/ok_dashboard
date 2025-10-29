@@ -133,6 +133,9 @@ export interface CascadeOptimizationState {
   mvBounds: Record<string, [number, number]>; // Manipulated variables bounds
   cvBounds: Record<string, [number, number]>; // Controlled variables bounds
   dvValues: Record<string, number>; // Disturbance variables current values
+  
+  // Optimization search space bounds (adjustable markers on MV sliders)
+  mvOptimizationBounds: Record<string, [number, number]>; // User-adjustable bounds for Optuna search
 
   // Settings
   autoApplyResults: boolean;
@@ -204,6 +207,11 @@ export interface CascadeOptimizationState {
   setCVBounds: (bounds: Record<string, [number, number]>) => void;
   updateDVValue: (id: string, value: number) => void;
   setDVValues: (values: Record<string, number>) => void;
+  
+  // Actions - Optimization search space bounds
+  updateMVOptimizationBounds: (id: string, bounds: [number, number]) => void;
+  setMVOptimizationBounds: (bounds: Record<string, [number, number]>) => void;
+  initializeMVOptimizationBounds: () => void; // Initialize from mvBounds
 
   // Actions - Optimization control
   startOptimization: (config: CascadeOptimizationConfig) => void;
@@ -299,6 +307,9 @@ const initialState = {
   mvBounds: {},
   cvBounds: {},
   dvValues: {},
+  
+  // Optimization search space bounds (initialized from mvBounds)
+  mvOptimizationBounds: {},
 
   // Settings
   autoApplyResults: false,
@@ -488,6 +499,34 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
 
       setDVValues: (values: Record<string, number>) => {
         set({ dvValues: values }, false, "setDVValues");
+      },
+      
+      // Optimization search space bounds
+      updateMVOptimizationBounds: (id: string, bounds: [number, number]) => {
+        set(
+          (state) => ({
+            mvOptimizationBounds: {
+              ...state.mvOptimizationBounds,
+              [id]: bounds,
+            },
+          }),
+          false,
+          "updateMVOptimizationBounds"
+        );
+      },
+      
+      setMVOptimizationBounds: (bounds: Record<string, [number, number]>) => {
+        set({ mvOptimizationBounds: bounds }, false, "setMVOptimizationBounds");
+      },
+      
+      initializeMVOptimizationBounds: () => {
+        const { mvBounds } = get();
+        // Initialize optimization bounds from mvBounds (copy values)
+        const optBounds: Record<string, [number, number]> = {};
+        Object.entries(mvBounds).forEach(([id, bounds]) => {
+          optBounds[id] = [bounds[0], bounds[1]]; // Create a copy
+        });
+        set({ mvOptimizationBounds: optBounds }, false, "initializeMVOptimizationBounds");
       },
 
       // Optimization control

@@ -34,11 +34,25 @@ interface ProcessModelPerformance {
   feature_importance?: Record<string, number>;
   input_vars?: string[];
   output_var?: string;
+  // GPR-specific fields
+  test_metrics?: {
+    r2?: number;
+    rmse?: number;
+    mae?: number;
+    mean_uncertainty?: number;
+  };
+  train_metrics?: {
+    r2?: number;
+    rmse?: number;
+    mae?: number;
+    mean_uncertainty?: number;
+  };
 }
 
 interface QualityModelPerformance extends ProcessModelPerformance {
   cv_vars?: string[];
   dv_vars?: string[];
+  model_type?: string;
 }
 
 interface ChainValidationMetrics {
@@ -48,6 +62,9 @@ interface ChainValidationMetrics {
   n_samples?: number;
   n_requested?: number;
   validation_error?: string | null;
+  // GPR-specific fields
+  r2?: number;
+  mean_uncertainty?: number;
 }
 
 interface CascadeModelInsightsProps {
@@ -114,6 +131,18 @@ function formatNumber(value?: number, digits = 2) {
   return value.toFixed(digits);
 }
 
+// Helper to extract metrics from both XGBoost and GPR structures
+function getMetricValue(model: any, metricName: 'r2' | 'rmse' | 'mae'): number | undefined {
+  // Try direct access (XGBoost style)
+  if (metricName === 'r2' && model.r2_score !== undefined) return model.r2_score;
+  if (model[metricName] !== undefined) return model[metricName];
+  
+  // Try test_metrics (GPR style)
+  if (model.test_metrics?.[metricName] !== undefined) return model.test_metrics[metricName];
+  
+  return undefined;
+}
+
 const renderImportanceLabel = (props: any) => {
   const { x, y, width, value } = props;
   if (value === undefined || value === null) return null;
@@ -143,20 +172,48 @@ export function CascadeModelInsights({
     modelInfo?.performance || modelInfo?.metadata?.model_performance;
   const chainValidation =
     (performance as any)?.chain_validation ||
-    modelInfo?.metadata?.model_performance?.chain_validation;
+    modelInfo?.metadata?.model_performance?.chain_validation ||
+    modelInfo?.metadata?.cascade_validation; // GPR uses cascade_validation
   const qualityModel =
     (performance as any)?.quality_model ||
     modelInfo?.metadata?.model_performance?.quality_model;
+  
+  // Normalize chain validation metrics
+  const normalizedChainValidation = chainValidation ? {
+    ...chainValidation,
+    r2_score: chainValidation.r2_score ?? chainValidation.r2,
+    rmse: chainValidation.rmse,
+    mae: chainValidation.mae,
+    n_samples: chainValidation.n_samples,
+  } : null;
+  
+  // Normalize quality model metrics
+  const normalizedQualityModel = qualityModel ? {
+    ...qualityModel,
+    r2_score: getMetricValue(qualityModel, 'r2'),
+    rmse: getMetricValue(qualityModel, 'rmse'),
+    feature_importance: qualityModel.feature_importance || {}, // Empty for GPR
+  } : null;
 
   const processModels = useMemo(() => {
     if (!performance) return [];
     return Object.entries(performance)
       .filter(([key]) => key.startsWith("process_model"))
-      .map(([key, value]) => ({
-        id: key,
-        label: key.replace("process_model_", ""),
-        metrics: value as ProcessModelPerformance,
-      }));
+      .map(([key, value]) => {
+        const model = value as ProcessModelPerformance;
+        // Normalize metrics for both XGBoost and GPR
+        const normalizedMetrics = {
+          ...model,
+          r2_score: getMetricValue(model, 'r2'),
+          rmse: getMetricValue(model, 'rmse'),
+          mae: getMetricValue(model, 'mae'),
+        };
+        return {
+          id: key,
+          label: key.replace("process_model_", ""),
+          metrics: normalizedMetrics,
+        };
+      });
   }, [performance]);
 
   const trainingTimestamp =
@@ -240,25 +297,25 @@ export function CascadeModelInsights({
             <div>
               <div className="text-xs text-slate-500">R² Score</div>
               <div className="text-base font-semibold text-slate-800 dark:text-slate-100">
-                {formatNumber(chainValidation?.r2_score, 2)}
+                {formatNumber(normalizedChainValidation?.r2_score, 2)}
               </div>
             </div>
             <div>
               <div className="text-xs text-slate-500">RMSE</div>
               <div className="text-base font-semibold text-slate-800 dark:text-slate-100">
-                {formatNumber(chainValidation?.rmse, 2)}
+                {formatNumber(normalizedChainValidation?.rmse, 2)}
               </div>
             </div>
             <div>
               <div className="text-xs text-slate-500">MAE</div>
               <div className="text-base font-semibold text-slate-800 dark:text-slate-100">
-                {formatNumber(chainValidation?.mae, 2)}
+                {formatNumber(normalizedChainValidation?.mae, 2)}
               </div>
             </div>
             <div>
               <div className="text-xs text-slate-500">Samples</div>
               <div className="text-base font-semibold text-slate-800 dark:text-slate-100">
-                {chainValidation?.n_samples ?? "—"}
+                {normalizedChainValidation?.n_samples ?? "—"}
               </div>
             </div>
           </CardContent>
@@ -342,7 +399,7 @@ export function CascadeModelInsights({
             Model Feature Importance
           </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {qualityModel && (
+            {normalizedQualityModel && (
               <Card className="border-0 shadow-sm bg-white/80 dark:bg-slate-900/50">
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-100">
@@ -352,26 +409,41 @@ export function CascadeModelInsights({
                         variant="outline"
                         className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-100"
                       >
-                        R² {formatNumber(qualityModel.r2_score, 2)}
+                        R² {formatNumber(normalizedQualityModel.r2_score, 2)}
                       </Badge>
                       <Badge
                         variant="outline"
                         className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-100"
                       >
-                        RMSE {formatNumber(qualityModel.rmse, 2)}
+                        RMSE {formatNumber(normalizedQualityModel.rmse, 2)}
                       </Badge>
                     </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4 pb-6">
-                  <div className="mt-6 h-60">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={Object.entries(
-                          qualityModel.feature_importance || {}
-                        ).map(([name, value]) => ({ name, value }))}
-                        margin={{ top: 6, right: 12, left: 28, bottom: 10 }}
-                      >
+                  {Object.keys(normalizedQualityModel.feature_importance || {}).length === 0 ? (
+                    // GPR models don't have feature importance - show input features instead
+                    <div className="mt-6 space-y-3">
+                      <div className="text-xs text-slate-500 text-center">
+                        GPR Model Input Features
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {(normalizedQualityModel as any).input_features?.map((feature: string) => (
+                          <div key={feature} className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-center border border-purple-200">
+                            {feature}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-6 h-60">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={Object.entries(
+                            normalizedQualityModel.feature_importance || {}
+                          ).map(([name, value]) => ({ name, value }))}
+                          margin={{ top: 6, right: 12, left: 28, bottom: 10 }}
+                        >
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                         <XAxis
                           dataKey="name"
@@ -410,6 +482,7 @@ export function CascadeModelInsights({
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -418,6 +491,8 @@ export function CascadeModelInsights({
               const chartData: FeatureImportancePoint[] = Object.entries(
                 metrics.feature_importance || {}
               ).map(([name, value]) => ({ name, value }));
+              
+              const hasFeatureImportance = chartData.length > 0;
 
               return (
                 <Card
@@ -444,6 +519,21 @@ export function CascadeModelInsights({
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="pt-4 pb-6">
+                    {!hasFeatureImportance ? (
+                      // GPR models don't have feature importance - show input features instead
+                      <div className="mt-6 space-y-3">
+                        <div className="text-xs text-slate-500 text-center">
+                          GPR Model Input Features
+                        </div>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {(metrics as any).input_features?.map((feature: string) => (
+                            <div key={feature} className="px-2 py-1 bg-orange-50 text-orange-700 rounded text-xs border border-orange-200">
+                              {feature}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
                     <div className="mt-6 h-60">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
@@ -489,6 +579,7 @@ export function CascadeModelInsights({
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+                    )}
                   </CardContent>
                 </Card>
               );

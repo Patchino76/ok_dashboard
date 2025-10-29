@@ -60,6 +60,8 @@ export function MVParameterCard({
     getMVSliderValues,
     setSimulationTarget,
     updateCVPredictions,
+    mvOptimizationBounds,
+    updateMVOptimizationBounds,
   } = useCascadeOptimizationStore();
   const displayHours = useXgboostStore((state) => state.displayHours);
 
@@ -68,23 +70,14 @@ export function MVParameterCard({
   );
   const [isPredicting, setIsPredicting] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Debug: Log distribution data
-  useEffect(() => {
-    console.log(`🔍 MV ${parameter.id} DISTRIBUTION DEBUG:`, {
-      hasBounds: !!distributionBounds,
-      bounds: distributionBounds,
-      hasPercentiles: !!distributionPercentiles,
-      percentiles: distributionPercentiles,
-      hasMedian: distributionMedian !== undefined,
-      median: distributionMedian,
-    });
-  }, [
-    distributionBounds,
-    distributionPercentiles,
-    distributionMedian,
-    parameter.id,
-  ]);
+  
+  // Optimization bounds state (lo/hi markers)
+  const [optBoundsLo, setOptBoundsLo] = useState<number>(_bounds[0]);
+  const [optBoundsHi, setOptBoundsHi] = useState<number>(_bounds[1]);
+  const [isDraggingLo, setIsDraggingLo] = useState(false);
+  const [isDraggingHi, setIsDraggingHi] = useState(false);
+  const sliderContainerRef = useRef<HTMLDivElement>(null);
+  const boundsInitializedRef = useRef<boolean>(false);
 
   const callCascadePrediction = async (mvValues: Record<string, number>) => {
     try {
@@ -367,6 +360,32 @@ export function MVParameterCard({
 
   const [sliderDomainMin, sliderDomainMax] = yAxisDomain;
 
+  // Initialize optimization bounds from Y-axis domain (only once or when Y-axis changes)
+  useEffect(() => {
+    const storeBounds = mvOptimizationBounds[parameter.id];
+    
+    // If store has bounds, use them
+    if (storeBounds && boundsInitializedRef.current) {
+      return; // Already initialized, don't override user adjustments
+    }
+    
+    // Initialize to Y-axis domain (chart visible range)
+    const initialLo = Math.max(yAxisDomain[0], sliderDomainMin);
+    const initialHi = Math.min(yAxisDomain[1], sliderDomainMax);
+    
+    setOptBoundsLo(initialLo);
+    setOptBoundsHi(initialHi);
+    updateMVOptimizationBounds(parameter.id, [initialLo, initialHi]);
+    boundsInitializedRef.current = true;
+  }, [parameter.id, yAxisDomain, sliderDomainMin, sliderDomainMax]);
+  
+  // Update store when user drags markers
+  useEffect(() => {
+    if (boundsInitializedRef.current && (isDraggingLo || isDraggingHi)) {
+      updateMVOptimizationBounds(parameter.id, [optBoundsLo, optBoundsHi]);
+    }
+  }, [optBoundsLo, optBoundsHi, isDraggingLo, isDraggingHi, parameter.id, updateMVOptimizationBounds]);
+
   useEffect(() => {
     const rawValue =
       typeof parameter.sliderSP === "number"
@@ -474,6 +493,52 @@ export function MVParameterCard({
 
   const isInRange =
     parameter.value >= sliderDomainMin && parameter.value <= sliderDomainMax;
+  
+  // Handle mouse move for dragging optimization bound markers
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!sliderContainerRef.current || (!isDraggingLo && !isDraggingHi)) return;
+      
+      const rect = sliderContainerRef.current.getBoundingClientRect();
+      const containerHeight = rect.height;
+      const mouseY = e.clientY - rect.top;
+      
+      // Account for marker container positioning (top: 4px, bottom: 12px)
+      const paddingTop = 4;
+      const paddingBottom = 12;
+      const effectiveHeight = containerHeight - paddingTop - paddingBottom;
+      const adjustedMouseY = mouseY - paddingTop;
+      
+      // Calculate percentage (inverted for vertical, 0 at bottom)
+      const percentage = 1 - (adjustedMouseY / effectiveHeight);
+      
+      // Map to Y-axis domain (chart range)
+      const value = yAxisDomain[0] + percentage * (yAxisDomain[1] - yAxisDomain[0]);
+      
+      // Clamp to slider bounds (actual parameter limits)
+      const clampedValue = Math.max(sliderDomainMin, Math.min(sliderDomainMax, value));
+      
+      if (isDraggingLo) {
+        setOptBoundsLo(Math.min(clampedValue, optBoundsHi - 0.1));
+      } else if (isDraggingHi) {
+        setOptBoundsHi(Math.max(clampedValue, optBoundsLo + 0.1));
+      }
+    };
+    
+    const handleMouseUp = () => {
+      setIsDraggingLo(false);
+      setIsDraggingHi(false);
+    };
+    
+    if (isDraggingLo || isDraggingHi) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDraggingLo, isDraggingHi, sliderDomainMin, sliderDomainMax, yAxisDomain, optBoundsHi, optBoundsLo]);
 
   return (
     <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-800 dark:to-amber-900/30 ring-2 ring-amber-200/80 dark:ring-amber-900/60 backdrop-blur-sm overflow-hidden">
@@ -533,8 +598,51 @@ export function MVParameterCard({
         </div>
 
         <div className="flex h-32 -mx-2 sm:h-40">
-          <div className="flex flex-col items-center justify-center w-12 px-1 gap-1">
-            <div className="flex items-center h-full pt-1 pb-3">
+          <div className="flex flex-col items-center justify-center w-20 px-1 gap-1">
+            <div className="flex items-center h-full pt-1 pb-3 relative" ref={sliderContainerRef}>
+              {/* Optimization bound markers - aligned with chart and slider */}
+              <div className="absolute left-0 w-10 pointer-events-none" style={{ 
+                top: '4px', 
+                bottom: '12px',
+                height: 'calc(100% - 16px)'
+              }}>
+                {/* Hi bound marker */}
+                <div 
+                  className="absolute left-0 w-full cursor-ns-resize pointer-events-auto"
+                  style={{
+                    bottom: `${((optBoundsHi - yAxisDomain[0]) / (yAxisDomain[1] - yAxisDomain[0])) * 100}%`,
+                    transform: 'translateY(50%)'
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setIsDraggingHi(true);
+                  }}
+                >
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-1.5 bg-red-500 rounded-sm shadow-md" />
+                    <span className="text-[10px] font-bold text-red-600 bg-white/80 px-1 rounded">{optBoundsHi.toFixed(0)}</span>
+                  </div>
+                </div>
+                
+                {/* Lo bound marker */}
+                <div 
+                  className="absolute left-0 w-full cursor-ns-resize pointer-events-auto"
+                  style={{
+                    bottom: `${((optBoundsLo - yAxisDomain[0]) / (yAxisDomain[1] - yAxisDomain[0])) * 100}%`,
+                    transform: 'translateY(50%)'
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setIsDraggingLo(true);
+                  }}
+                >
+                  <div className="flex items-center gap-1">
+                    <div className="w-4 h-1.5 bg-blue-500 rounded-sm shadow-md" />
+                    <span className="text-[10px] font-bold text-blue-600 bg-white/80 px-1 rounded">{optBoundsLo.toFixed(0)}</span>
+                  </div>
+                </div>
+              </div>
+              
               <Slider
                 orientation="vertical"
                 min={sliderDomainMin}
@@ -542,7 +650,7 @@ export function MVParameterCard({
                 step={sliderStep}
                 value={[sliderValue]}
                 onValueChange={([value]) => handleSliderChange(value)}
-                className="h-[85%]"
+                className="h-[85%] ml-10"
                 trackClassName="bg-purple-100 dark:bg-purple-950/50"
                 rangeClassName="bg-purple-500 dark:bg-purple-400"
                 thumbClassName="border-purple-600 bg-white focus-visible:ring-purple-300 dark:border-purple-300 dark:bg-purple-900"
