@@ -544,9 +544,6 @@ export default function CascadeOptimizationDashboard() {
         const mvFeatures = modelInfo.featureClassification.mv_features || [];
         const dvFeatures = modelInfo.featureClassification.dv_features || [];
         
-        // Get current DV values from sliders
-        const dvValues = useCascadeOptimizationStore.getState().getDVSliderValues(dvFeatures);
-        
         // Sample points from targetData (smooth by taking every Nth point)
         const sampleInterval = Math.max(1, Math.floor(targetData.length / 50)); // Max 50 points
         const sampledData = targetData.filter((_, index) => index % sampleInterval === 0);
@@ -594,12 +591,66 @@ export default function CascadeOptimizationDashboard() {
             continue;
           }
           
-          // Debug: Log MV values for first few points to verify they're changing
-          if (predictions.length < 3) {
-            console.log(`   📊 Timestamp ${new Date(dataPoint.timestamp).toLocaleTimeString()}: MV values =`, mvValues);
+          // Get DV values at this timestamp from parameter TREND data (not slider values!)
+          const dvValues: Record<string, number> = {};
+          let allDVsAvailable = true;
+          
+          for (const dvName of dvFeatures) {
+            const param = parameters.find(p => p.id === dvName);
+            if (!param || !param.trend || param.trend.length === 0) {
+              // DVs might not have trend data (lab parameters), use slider value as fallback
+              const sliderValue = useCascadeOptimizationStore.getState().getDVSliderValues([dvName])[dvName];
+              if (typeof sliderValue === 'number') {
+                dvValues[dvName] = sliderValue;
+              } else {
+                allDVsAvailable = false;
+                break;
+              }
+              continue;
+            }
+            
+            // Find the trend value closest to this timestamp
+            const trendPoint = param.trend.find(
+              (t) => Math.abs(t.timestamp - dataPoint.timestamp) < 30000 // Within 30 seconds
+            );
+            
+            if (trendPoint && typeof trendPoint.value === 'number') {
+              dvValues[dvName] = trendPoint.value;
+            } else {
+              // Fallback: use the closest available trend point
+              const closestPoint = param.trend.reduce((prev, curr) => 
+                Math.abs(curr.timestamp - dataPoint.timestamp) < Math.abs(prev.timestamp - dataPoint.timestamp) 
+                  ? curr 
+                  : prev
+              );
+              
+              if (closestPoint && typeof closestPoint.value === 'number') {
+                dvValues[dvName] = closestPoint.value;
+              } else {
+                // Final fallback: use slider value
+                const sliderValue = useCascadeOptimizationStore.getState().getDVSliderValues([dvName])[dvName];
+                if (typeof sliderValue === 'number') {
+                  dvValues[dvName] = sliderValue;
+                } else {
+                  allDVsAvailable = false;
+                  break;
+                }
+              }
+            }
           }
           
-          // Make prediction with historical MV values at this timestamp
+          if (!allDVsAvailable) {
+            continue;
+          }
+          
+          // Debug: Log MV and DV values for first few points to verify they're changing
+          if (predictions.length < 3) {
+            console.log(`   📊 Timestamp ${new Date(dataPoint.timestamp).toLocaleTimeString()}:`);
+            console.log(`      MV values =`, mvValues);
+            console.log(`      DV values =`, dvValues);
+          }
+          
+          // Make prediction with historical MV and DV values at this timestamp
           try {
             const prediction = await predictCascade(mvValues, dvValues, modelType, modelType === "gpr");
             if (

@@ -294,7 +294,7 @@ export function CVParameterCard({
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
+            <div className="text-sm text-sky-500 dark:text-sky-400 font-medium">
               {cascadeBG.card.currentValue}
             </div>
             <div className="text-lg font-bold flex items-center gap-1 text-blue-600">
@@ -303,7 +303,7 @@ export function CVParameterCard({
             </div>
           </div>
           <div className="space-y-1">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
+            <div className="text-sm text-purple-600 dark:text-purple-400 font-medium">
               Predicted Value
             </div>
             <div className="text-lg font-bold flex items-center gap-1 text-purple-600">
@@ -355,18 +355,53 @@ export function CVParameterCard({
                 orientation="left"
               />
               <Tooltip
-                formatter={(value: number) => [
-                  `${value >= 1 ? value.toFixed(2) : value.toPrecision(3)} ${
-                    parameter.unit
-                  }`,
-                  parameter.name,
-                ]}
-                labelFormatter={formatTime}
-                contentStyle={{
-                  backgroundColor: "rgba(15, 23, 42, 0.95)",
-                  border: "1px solid rgba(148, 163, 184, 0.2)",
-                  borderRadius: "8px",
-                  color: "#e2e8f0",
+                content={({ active, payload, label }) => {
+                  if (!active || !payload || !payload.length) return null;
+                  
+                  return (
+                    <div
+                      style={{
+                        backgroundColor: "rgba(15, 23, 42, 0.85)",
+                        backdropFilter: "blur(8px)",
+                        border: "1px solid rgba(148, 163, 184, 0.3)",
+                        borderRadius: "6px",
+                        padding: "6px 10px",
+                        fontSize: "11px",
+                      }}
+                    >
+                      <div style={{ fontSize: "10px", fontWeight: "500", marginBottom: "4px", color: "#e2e8f0" }}>
+                        Час: {formatTime(label)}
+                      </div>
+                      {payload
+                        .filter((entry: any) => entry.dataKey !== "hiValue" && entry.dataKey !== "loValue")
+                        .map((entry: any, index: number) => {
+                          const value = entry.value;
+                          const formattedValue = value >= 1 ? value.toFixed(2) : value.toPrecision(3);
+                          
+                          // Determine label and color based on dataKey
+                          let displayLabel = entry.name;
+                          let labelColor = "#e2e8f0";
+                          
+                          if (entry.dataKey === "value") {
+                            displayLabel = "PV";
+                            labelColor = "#7dd3fc"; // sky-300 (light blue)
+                          }
+                          
+                          return (
+                            <div key={index} style={{ fontSize: "11px", padding: "1px 0", color: labelColor }}>
+                              <span style={{ fontWeight: "500" }}>{displayLabel}:</span>{" "}
+                              {formattedValue} {parameter.unit}
+                            </div>
+                          );
+                        })}
+                      {latestPrediction !== null && (
+                        <div style={{ fontSize: "11px", padding: "1px 0", color: "#c084fc" }}>
+                          <span style={{ fontWeight: "500" }}>SP:</span>{" "}
+                          {latestPrediction >= 1 ? latestPrediction.toFixed(2) : latestPrediction.toPrecision(3)} {parameter.unit}
+                        </div>
+                      )}
+                    </div>
+                  );
                 }}
               />
               <Area
