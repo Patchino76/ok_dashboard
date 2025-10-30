@@ -27,4 +27,6 @@ export interface ModelParameter {
   unit: string;
   /** Description of the parameter in Bulgarian */
   description: string;
+  /** Whether this parameter has real-time trend data available (for DVs that can be pulled from endpoints) */
+  hasTrend?: boolean;
 }

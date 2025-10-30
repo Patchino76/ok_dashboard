@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
+import {
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { CascadeParameter } from "../stores/cascade-optimization-store";
 import { useCascadeOptimizationStore } from "../stores/cascade-optimization-store";
+import { useXgboostStore } from "../../stores/xgboost-store";
 import { millsParameters } from "../../data/mills-parameters";
 import {
   cascadeBG,
@@ -190,6 +199,44 @@ export function DVParameterCard({
   const [minBound, maxBound] = bounds;
   const sliderStep = (maxBound - minBound) / 100;
 
+  // Check if this DV parameter has trend data available
+  const paramConfig = millsParameters.find((p) => p.id === parameter.id);
+  const hasTrend = paramConfig?.hasTrend || false;
+
+  // Get display hours from XGBoost store for trend filtering
+  const displayHours = useXgboostStore((state) => state.displayHours);
+
+  // Filter trend data based on display hours
+  const hoursAgo = Date.now() - displayHours * 60 * 60 * 1000;
+  const filteredTrend = parameter.trend.filter(
+    (item) => item.timestamp >= hoursAgo
+  );
+
+  // Calculate Y-axis domain for trend chart
+  const yAxisDomain = useMemo((): [number, number] => {
+    if (filteredTrend.length === 0) {
+      return [minBound, maxBound];
+    }
+
+    const trendValues = filteredTrend.map((d) => d.value);
+    const trendMin = Math.min(...trendValues);
+    const trendMax = Math.max(...trendValues);
+    const trendRange = trendMax - trendMin;
+
+    // Add 5% padding
+    const padding = Math.max(trendRange * 0.05, (maxBound - minBound) * 0.02);
+    return [trendMin - padding, trendMax + padding];
+  }, [filteredTrend, minBound, maxBound]);
+
+  // Format timestamp for chart
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return `${date.getHours().toString().padStart(2, "0")}:${date
+      .getMinutes()
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
   return (
     <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-emerald-50/90 dark:from-slate-800 dark:to-emerald-900/30 ring-2 ring-emerald-200/80 dark:ring-emerald-900/60 backdrop-blur-sm overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-green-500" />
@@ -215,47 +262,144 @@ export function DVParameterCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-4">
-          {/* Current Value Display */}
-          <div className="flex-1 space-y-2">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              {cascadeBG.card.currentValue}
+        {hasTrend ? (
+          // DV with trend data - show chart like MV cards
+          <div className="space-y-3">
+            {/* Current Value Display */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="text-sm text-slate-500 dark:text-slate-400">
+                  {cascadeBG.card.currentValue}
+                </div>
+                <div className="text-2xl font-bold flex items-center gap-1 text-emerald-600">
+                  {sliderValue.toFixed(2)}
+                  <span className="text-xs text-slate-500">{parameter.unit}</span>
+                  {isPredicting && (
+                    <span className="ml-2 text-sm text-emerald-500 animate-spin">
+                      ⏳
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="text-2xl font-bold flex items-center gap-1 text-emerald-600">
-              {sliderValue.toFixed(2)}
-              <span className="text-xs text-slate-500">{parameter.unit}</span>
-              {isPredicting && (
-                <span className="ml-2 text-sm text-emerald-500 animate-spin">
-                  ⏳
-                </span>
-              )}
-            </div>
-          </div>
 
-          {/* Vertical Slider */}
-          <div className="h-32 flex flex-col items-center justify-between">
-            <div className="text-xs text-slate-500 font-medium">
-              {maxBound.toFixed(1)}
-            </div>
-            <div className="h-full flex items-center px-2">
+            {/* Trend Chart */}
+            {filteredTrend.length > 0 ? (
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={filteredTrend}>
+                    <XAxis
+                      dataKey="timestamp"
+                      tickFormatter={formatTime}
+                      stroke="#94a3b8"
+                      fontSize={10}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      domain={yAxisDomain}
+                      stroke="#94a3b8"
+                      fontSize={10}
+                      tickLine={false}
+                      width={40}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "rgba(31, 41, 55, 0.95)",
+                        border: "1px solid rgba(55, 65, 81, 0.8)",
+                        borderRadius: "6px",
+                        backdropFilter: "blur(8px)",
+                      }}
+                      labelFormatter={(label) => `Час: ${formatTime(label as number)}`}
+                      formatter={(value: number) => [
+                        `${value.toFixed(2)} ${parameter.unit}`,
+                        "PV",
+                      ]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-32 flex items-center justify-center text-sm text-slate-400">
+                📊 Зареждане на данни...
+              </div>
+            )}
+
+            {/* Slider for manual adjustment */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 font-medium">
+                {minBound.toFixed(1)}
+              </span>
               <Slider
-                orientation="vertical"
                 min={minBound}
                 max={maxBound}
                 step={sliderStep}
                 value={[sliderValue]}
                 onValueChange={([value]) => handleSliderChange(value)}
-                className="h-[85%]"
+                className="flex-1"
                 trackClassName="bg-emerald-100 dark:bg-emerald-950/50"
                 rangeClassName="bg-emerald-500 dark:bg-emerald-400"
                 thumbClassName="border-emerald-600 bg-white focus-visible:ring-emerald-300 dark:border-emerald-300 dark:bg-emerald-900"
               />
-            </div>
-            <div className="text-xs text-slate-500 font-medium">
-              {minBound.toFixed(1)}
+              <span className="text-xs text-slate-500 font-medium">
+                {maxBound.toFixed(1)}
+              </span>
             </div>
           </div>
-        </div>
+        ) : (
+          // DV without trend data - show simple vertical slider
+          <div className="flex items-center gap-4">
+            {/* Current Value Display */}
+            <div className="flex-1 space-y-2">
+              <div className="text-sm text-slate-500 dark:text-slate-400">
+                {cascadeBG.card.currentValue}
+              </div>
+              <div className="text-2xl font-bold flex items-center gap-1 text-emerald-600">
+                {sliderValue.toFixed(2)}
+                <span className="text-xs text-slate-500">{parameter.unit}</span>
+                {isPredicting && (
+                  <span className="ml-2 text-sm text-emerald-500 animate-spin">
+                    ⏳
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-slate-400 italic">
+                🧪 Ръчно въведена стойност
+              </div>
+            </div>
+
+            {/* Vertical Slider */}
+            <div className="h-32 flex flex-col items-center justify-between">
+              <div className="text-xs text-slate-500 font-medium">
+                {maxBound.toFixed(1)}
+              </div>
+              <div className="h-full flex items-center px-2">
+                <Slider
+                  orientation="vertical"
+                  min={minBound}
+                  max={maxBound}
+                  step={sliderStep}
+                  value={[sliderValue]}
+                  onValueChange={([value]) => handleSliderChange(value)}
+                  className="h-[85%]"
+                  trackClassName="bg-emerald-100 dark:bg-emerald-950/50"
+                  rangeClassName="bg-emerald-500 dark:bg-emerald-400"
+                  thumbClassName="border-emerald-600 bg-white focus-visible:ring-emerald-300 dark:border-emerald-300 dark:bg-emerald-900"
+                />
+              </div>
+              <div className="text-xs text-slate-500 font-medium">
+                {minBound.toFixed(1)}
+              </div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

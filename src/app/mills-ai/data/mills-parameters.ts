@@ -98,20 +98,6 @@ export const millsParameters: ModelParameter[] = [
     description: "Разход на вода в зумпф",
   },
   {
-    id: "MotorAmp",
-    name: "Ток на елетродвигателя",
-    type: "feature",
-    enabled: true,
-    filterEnabled: false,
-    min: 150,
-    max: 250,
-    currentMin: calculateDefaultRange(150, 250)[0],
-    currentMax: calculateDefaultRange(150, 250)[1],
-    unit: "A",
-    varType: "MV",
-    description: "Консумация на ток от електродвигателя на мелницата",
-  },
-  {
     id: "PulpHC",
     name: "Пулп в ХЦ",
     type: "feature",
@@ -180,6 +166,21 @@ export const millsParameters: ModelParameter[] = [
     unit: "t/t",
     varType: "CV",
     description: "Циркулационен товар на твърдо вещество в МА",
+  },
+  {
+    id: "MotorAmp",
+    name: "Ток на елетродвигателя",
+    type: "feature",
+    enabled: true,
+    filterEnabled: false,
+    min: 150,
+    max: 250,
+    currentMin: calculateDefaultRange(150, 250)[0],
+    currentMax: calculateDefaultRange(150, 250)[1],
+    unit: "A",
+    varType: "DV",
+    description: "Консумация на ток от електродвигателя на мелницата",
+    hasTrend: true, // Real-time data available from endpoints
   },
   {
     id: "Shisti",
@@ -264,6 +265,7 @@ export const millsParameters: ModelParameter[] = [
     unit: "%",
     varType: "DV",
     description: "Процент съдържание на желязо в пулпа",
+    hasTrend: true, // Real-time data available from endpoints
   },
   {
     id: "PSI80",

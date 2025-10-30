@@ -179,6 +179,7 @@ const getTagId = (targetKey: string, millNumber: number): number | null => {
     console.error(
       `Mill ${millNumber} (${millName}) not found for target ${targetKey}`
     );
+    console.error(`Available mills in ${targetKey}:`, tags?.map(t => t.name));
     return null;
   }
 
@@ -620,6 +621,7 @@ export const useXgboostStore = create<XgboostState>()(
             PSI80: "PSI80",
             PumpRPM: "PumpRPM",
             Shisti: "Shisti",
+            FE: "FE", // Iron content in pulp
           };
 
           // List of calculated parameters that don't have real-time tags
@@ -637,15 +639,17 @@ export const useXgboostStore = create<XgboostState>()(
               return null;
             }
 
-            // Check if this is a lab parameter (DV = Disturbance Variable)
+            // Check if this parameter has real-time trend data available
             const parameterConfig = millsParameters.find(
               (p) => p.id === featureName
             );
-            const isLabParameter = parameterConfig?.varType === "DV";
+            // Skip only DVs that don't have real-time data (hasTrend: false or undefined)
+            const isLabParameterWithoutTrend = 
+              parameterConfig?.varType === "DV" && !parameterConfig?.hasTrend;
 
-            if (isLabParameter) {
+            if (isLabParameterWithoutTrend) {
               console.log(
-                `⚗️ Skipping real-time data fetch for lab parameter: ${featureName}`
+                `⚗️ Skipping real-time data fetch for lab parameter without trend: ${featureName}`
               );
               return null;
             }

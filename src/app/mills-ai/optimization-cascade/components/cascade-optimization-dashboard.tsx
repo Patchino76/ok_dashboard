@@ -693,6 +693,35 @@ export default function CascadeOptimizationDashboard() {
     displayHours, // Recalculate when time window changes
   ]);
 
+  // Sync XGBoost parameter updates to cascade store DV parameters
+  const updateCascadeDVsFromXGBoost = useCascadeOptimizationStore(
+    (state) => state.updateParameterFromRealData
+  );
+
+  useEffect(() => {
+    if (!modelInfo?.featureClassification) return;
+
+    // Update cascade store DVs with real-time data from XGBoost store
+    xgboostParameters.forEach((xgboostParam) => {
+      // Check if this is a DV parameter with hasTrend enabled
+      const paramConfig = millsParameters.find((p) => p.id === xgboostParam.id);
+      const isDVWithTrend = 
+        paramConfig?.varType === "DV" && paramConfig?.hasTrend === true;
+
+      if (isDVWithTrend) {
+        // Update the cascade store's DV parameter with current PV value and trend
+        console.log(
+          `📊 Syncing DV ${xgboostParam.id} to cascade store: value=${xgboostParam.value}, trend length=${xgboostParam.trend.length}`
+        );
+        updateCascadeDVsFromXGBoost(
+          xgboostParam.id,
+          xgboostParam.value,
+          xgboostParam.trend
+        );
+      }
+    });
+  }, [xgboostParameters, modelInfo?.featureClassification, updateCascadeDVsFromXGBoost]);
+
   // Trigger trend data update when optimization tab is activated
   useEffect(() => {
     if (
