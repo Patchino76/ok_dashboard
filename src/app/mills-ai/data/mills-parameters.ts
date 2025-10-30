@@ -172,7 +172,7 @@ export const millsParameters: ModelParameter[] = [
     name: "Ток на елетродвигателя",
     type: "feature",
     enabled: true,
-    filterEnabled: false,
+    filterEnabled: true,
     min: 150,
     max: 250,
     currentMin: calculateDefaultRange(150, 250)[0],
@@ -181,6 +181,7 @@ export const millsParameters: ModelParameter[] = [
     varType: "DV",
     description: "Консумация на ток от електродвигателя на мелницата",
     hasTrend: true, // Real-time data available from endpoints
+    hasSmoothing: true, // Apply moving average smoothing to trend data
   },
   {
     id: "Shisti",

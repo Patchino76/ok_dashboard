@@ -4,6 +4,69 @@ import { millsTags } from "@/lib/tags/mills-tags";
 import { fetchTagValue } from "@/hooks/useTagValue";
 import { millsParameters } from "../data/mills-parameters";
 
+/**
+ * Apply moving average smoothing to trend data
+ * @param trend - Array of timestamp/value points
+ * @param windowSize - Number of points in moving average window (default: 5)
+ * @returns Smoothed trend data
+ */
+function applyMovingAverageSmoothing(
+  trend: Array<{ timestamp: number; value: number }>,
+  windowSize: number = 5
+): Array<{ timestamp: number; value: number }> {
+  if (trend.length === 0 || windowSize <= 1) {
+    return trend;
+  }
+
+  const smoothed: Array<{ timestamp: number; value: number }> = [];
+  
+  for (let i = 0; i < trend.length; i++) {
+    // Calculate window boundaries
+    const windowStart = Math.max(0, i - Math.floor(windowSize / 2));
+    const windowEnd = Math.min(trend.length, windowStart + windowSize);
+    
+    // Calculate average value in window
+    let sum = 0;
+    let count = 0;
+    for (let j = windowStart; j < windowEnd; j++) {
+      sum += trend[j].value;
+      count++;
+    }
+    
+    smoothed.push({
+      timestamp: trend[i].timestamp,
+      value: sum / count,
+    });
+  }
+  
+  return smoothed;
+}
+
+/**
+ * Resample trend data to match target point count
+ * @param trend - Array of timestamp/value points to resample
+ * @param targetPointCount - Desired number of points
+ * @returns Resampled trend data
+ */
+function resampleTrendData(
+  trend: Array<{ timestamp: number; value: number }>,
+  targetPointCount: number
+): Array<{ timestamp: number; value: number }> {
+  if (trend.length === 0 || trend.length <= targetPointCount) {
+    return trend;
+  }
+
+  const resampled: Array<{ timestamp: number; value: number }> = [];
+  const step = trend.length / targetPointCount;
+  
+  for (let i = 0; i < targetPointCount; i++) {
+    const index = Math.floor(i * step);
+    resampled.push(trend[index]);
+  }
+  
+  return resampled;
+}
+
 interface Parameter {
   id: string;
   name: string;
@@ -866,9 +929,39 @@ export const useXgboostStore = create<XgboostState>()(
           console.log("Target PV result:", targetResult);
           console.log("Target trend data:", targetTrendData);
 
+          // Get target trend point count for resampling
+          const targetTrendPointCount = targetTrendData && Array.isArray(targetTrendData) 
+            ? targetTrendData.length 
+            : 0;
+
           // Update parameters with real-time data
           featureResults.forEach((result) => {
             if (result) {
+              let processedTrend = result.trend;
+              
+              // Check if this parameter has smoothing enabled
+              const paramConfig = millsParameters.find((p) => p.id === result.featureName);
+              if (paramConfig?.hasSmoothing && processedTrend.length > 0) {
+                console.log(
+                  `📊 Applying smoothing to ${result.featureName} (${processedTrend.length} points)`
+                );
+                
+                // Apply moving average smoothing
+                processedTrend = applyMovingAverageSmoothing(processedTrend, 5);
+                
+                // Resample to match target trend point count if available
+                if (targetTrendPointCount > 0 && processedTrend.length > targetTrendPointCount) {
+                  console.log(
+                    `📊 Resampling ${result.featureName} from ${processedTrend.length} to ${targetTrendPointCount} points`
+                  );
+                  processedTrend = resampleTrendData(processedTrend, targetTrendPointCount);
+                }
+                
+                console.log(
+                  `✅ Smoothing complete for ${result.featureName}: ${processedTrend.length} points`
+                );
+              }
+              
               console.log(
                 `Updating parameter ${result.featureName} with value ${result.value} and trend data`
               );
@@ -876,7 +969,7 @@ export const useXgboostStore = create<XgboostState>()(
                 result.featureName,
                 result.value,
                 result.timestamp,
-                result.trend
+                processedTrend
               );
             }
           });

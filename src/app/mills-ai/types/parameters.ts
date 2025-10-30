@@ -29,4 +29,6 @@ export interface ModelParameter {
   description: string;
   /** Whether this parameter has real-time trend data available (for DVs that can be pulled from endpoints) */
   hasTrend?: boolean;
+  /** Whether to apply moving average smoothing to this parameter's trend data */
+  hasSmoothing?: boolean;
 }
