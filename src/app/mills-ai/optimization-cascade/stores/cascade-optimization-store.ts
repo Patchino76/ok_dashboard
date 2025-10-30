@@ -1071,16 +1071,44 @@ export const useCascadeOptimizationStore = create<CascadeOptimizationState>()(
         const { parameters } = get();
         const dvSliderValues: Record<string, number> = {};
 
+        console.log(`🔍 getDVSliderValues called with filter:`, dvFeatures);
+        console.log(`🔍 All parameters:`, parameters.map(p => ({ id: p.id, varType: p.varType, value: p.value, sliderSP: p.sliderSP })));
+
         parameters.forEach((param) => {
+          console.log(`🔍 Checking param ${param.id}: varType=${param.varType}, value=${param.value}`);
+          
           if (param.varType === "DV") {
             // If dvFeatures filter is provided, only include DVs that are in the list
-            if (!dvFeatures || dvFeatures.includes(param.id)) {
-              // Use sliderSP if available, otherwise use value
-              dvSliderValues[param.id] = param.sliderSP || param.value;
+            const shouldInclude = !dvFeatures || dvFeatures.includes(param.id);
+            console.log(`🔍 DV ${param.id}: shouldInclude=${shouldInclude} (dvFeatures=${dvFeatures}, includes=${dvFeatures?.includes(param.id)})`);
+            
+            if (shouldInclude) {
+              // Check if this DV has real-time trend data (hasTrend: true)
+              const paramConfig = millsParameters.find((p) => p.id === param.id);
+              const hasTrend = paramConfig?.hasTrend || false;
+
+              if (hasTrend) {
+                // For DVs with real-time data: use current PV value (read-only)
+                dvSliderValues[param.id] = param.value;
+                console.log(
+                  `📊 DV ${param.id} has trend - using PV value: ${param.value}`
+                );
+              } else {
+                // For DVs without real-time data: use slider value (manual input)
+                dvSliderValues[param.id] = param.sliderSP || param.value;
+                console.log(
+                  `🎛️ DV ${param.id} no trend - using slider value: ${param.sliderSP || param.value}`
+                );
+              }
+            } else {
+              console.log(
+                `⏭️ Skipping DV ${param.id} - not in model's DV features list`
+              );
             }
           }
         });
 
+        console.log(`✅ Final DV values for prediction:`, dvSliderValues);
         return dvSliderValues;
       },
 

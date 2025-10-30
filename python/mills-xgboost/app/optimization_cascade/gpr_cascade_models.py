@@ -174,7 +174,42 @@ class GPRCascadeModelManager:
         feature_dict.update(dv_values)
         
         # Create DataFrame with features in the exact order from training
-        quality_features = [feature_dict[col] for col in feature_cols]
+        # Use fallback values for any missing features
+        quality_features = []
+        missing_features = []
+        
+        for col in feature_cols:
+            if col in feature_dict:
+                quality_features.append(feature_dict[col])
+            else:
+                # Feature is missing - use a fallback value
+                missing_features.append(col)
+                
+                # Try to get default value from classifier or use midpoint of bounds
+                fallback_value = None
+                
+                # Check if it's a DV and get its default from classifier
+                if col in [dv.id for dv in self.classifier.get_dvs()]:
+                    dv_param = next((dv for dv in self.classifier.get_dvs() if dv.id == col), None)
+                    if dv_param and hasattr(dv_param, 'initialBounds'):
+                        min_val, max_val = dv_param.initialBounds
+                        fallback_value = (min_val + max_val) / 2
+                        print(f"⚠️ GPR: Missing DV '{col}' - using midpoint fallback: {fallback_value:.2f}")
+                
+                # If still no fallback, use 0
+                if fallback_value is None:
+                    fallback_value = 0.0
+                    print(f"⚠️ GPR: Missing feature '{col}' - using zero fallback")
+                
+                quality_features.append(fallback_value)
+        
+        if missing_features:
+            print(f"⚠️ GPR: Quality model prediction with missing features: {missing_features}")
+            print(f"   Required features: {feature_cols}")
+            print(f"   Provided CVs: {list(predicted_cvs.keys())}")
+            print(f"   Provided DVs: {list(dv_values.keys())}")
+            print(f"   Using fallback values for missing features")
+        
         quality_df = pd.DataFrame([quality_features], columns=feature_cols)
         
         # Scale and predict with uncertainty - convert to numpy to avoid feature name warnings

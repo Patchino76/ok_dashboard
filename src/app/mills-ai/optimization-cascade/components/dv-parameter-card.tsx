@@ -41,7 +41,19 @@ export function DVParameterCard({
     setSimulationTarget,
     updateCVPredictions,
   } = useCascadeOptimizationStore();
+  // Check if this DV parameter has trend data available
+  const paramConfig = millsParameters.find((p) => p.id === parameter.id);
+  const hasTrend = paramConfig?.hasTrend || false;
+
+  // For hasTrend=true: use PV value (read-only), for hasTrend=false: use slider value
   const [sliderValue, setSliderValue] = useState<number>(parameter.value);
+  
+  // Sync slider value with parameter.value when hasTrend is true (PV updates)
+  useEffect(() => {
+    if (hasTrend) {
+      setSliderValue(parameter.value);
+    }
+  }, [parameter.value, hasTrend]);
   const [isPredicting, setIsPredicting] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -199,10 +211,6 @@ export function DVParameterCard({
   const [minBound, maxBound] = bounds;
   const sliderStep = (maxBound - minBound) / 100;
 
-  // Check if this DV parameter has trend data available
-  const paramConfig = millsParameters.find((p) => p.id === parameter.id);
-  const hasTrend = paramConfig?.hasTrend || false;
-
   // Get display hours from XGBoost store for trend filtering
   const displayHours = useXgboostStore((state) => state.displayHours);
 
@@ -269,10 +277,10 @@ export function DVParameterCard({
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <div className="text-sm text-slate-500 dark:text-slate-400">
-                  {cascadeBG.card.currentValue}
+                  {cascadeBG.card.currentValue} (PV)
                 </div>
                 <div className="text-2xl font-bold flex items-center gap-1 text-emerald-600">
-                  {sliderValue.toFixed(2)}
+                  {parameter.value.toFixed(2)}
                   <span className="text-xs text-slate-500">{parameter.unit}</span>
                   {isPredicting && (
                     <span className="ml-2 text-sm text-emerald-500 animate-spin">
@@ -280,6 +288,9 @@ export function DVParameterCard({
                     </span>
                   )}
                 </div>
+              </div>
+              <div className="text-xs text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                🔒 Само четене
               </div>
             </div>
 
@@ -332,25 +343,10 @@ export function DVParameterCard({
               </div>
             )}
 
-            {/* Slider for manual adjustment */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500 font-medium">
-                {minBound.toFixed(1)}
-              </span>
-              <Slider
-                min={minBound}
-                max={maxBound}
-                step={sliderStep}
-                value={[sliderValue]}
-                onValueChange={([value]) => handleSliderChange(value)}
-                className="flex-1"
-                trackClassName="bg-emerald-100 dark:bg-emerald-950/50"
-                rangeClassName="bg-emerald-500 dark:bg-emerald-400"
-                thumbClassName="border-emerald-600 bg-white focus-visible:ring-emerald-300 dark:border-emerald-300 dark:bg-emerald-900"
-              />
-              <span className="text-xs text-slate-500 font-medium">
-                {maxBound.toFixed(1)}
-              </span>
+            {/* Info message - slider disabled for real-time DVs */}
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded">
+              <span>📡</span>
+              <span>Стойността се актуализира автоматично от реално време данни</span>
             </div>
           </div>
         ) : (
