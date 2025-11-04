@@ -2,8 +2,9 @@ import { useState, useCallback } from 'react'
 import axios from 'axios'
 
 // Create a dedicated client for Cascade API endpoints
+// Use relative URL to go through Next.js proxy
 const cascadeApiClient = axios.create({
-  baseURL: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/ml/cascade`,
+  baseURL: '/api/v1/ml/cascade',
   headers: {
     'Content-Type': 'application/json'
   }

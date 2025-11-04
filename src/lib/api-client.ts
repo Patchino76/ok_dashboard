@@ -9,8 +9,9 @@ const apiClient = axios.create({
 })
 
 // Create a specific client for ML API endpoints
+// Use relative URL to go through Next.js proxy
 const mlApiClient = axios.create({
-  baseURL: 'http://localhost:8000',  // Direct connection to FastAPI server
+  baseURL: '/api/v1/ml',
   headers: {
     'Content-Type': 'application/json',
   },

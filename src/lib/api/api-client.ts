@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Get base URL from environment variables, default to localhost in development
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use relative URL to go through Next.js proxy
+// This ensures all API calls go through the server proxy which handles the actual backend URL
+const API_BASE_URL = '/api';
 
 // Create a centralized API client that will be used throughout the app
 const apiClient = axios.create({

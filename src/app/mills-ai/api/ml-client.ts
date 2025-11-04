@@ -1,8 +1,9 @@
 import axios from 'axios';
 
 // Create a client specifically for ML API endpoints
+// Use relative URL to go through Next.js proxy
 export const mlApiClient = axios.create({
-  baseURL: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/v1/ml`,  // Use env var for better browser compatibility
+  baseURL: '/api/v1/ml',
   headers: {
     'Content-Type': 'application/json'
   }

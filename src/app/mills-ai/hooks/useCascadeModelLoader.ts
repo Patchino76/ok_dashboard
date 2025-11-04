@@ -42,8 +42,8 @@ export function useCascadeModelLoader() {
   // Load all available cascade models
   const loadAvailableModels = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${apiUrl}/api/v1/ml/cascade/models`)
+      // Use relative URL to go through Next.js proxy
+      const response = await fetch('/api/v1/ml/cascade/models')
       if (!response.ok) {
         throw new Error(`Failed to load available models: ${response.statusText}`)
       }
@@ -72,10 +72,9 @@ export function useCascadeModelLoader() {
     try {
       console.log(`🔍 Loading ${modelType.toUpperCase()} cascade model for Mill ${millNumber}...`)
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      
+      // Use relative URLs to go through Next.js proxy
       // First, get model info and metadata
-      const infoResponse = await fetch(`${apiUrl}/api/v1/ml/cascade/models/${millNumber}?model_type=${modelType}`)
+      const infoResponse = await fetch(`/api/v1/ml/cascade/models/${millNumber}?model_type=${modelType}`)
       if (!infoResponse.ok) {
         if (infoResponse.status === 404) {
           throw new Error(`No cascade models found for Mill ${millNumber}`)
@@ -95,7 +94,7 @@ export function useCascadeModelLoader() {
       })
       
       // Then, load the model into memory
-      const loadResponse = await fetch(`${apiUrl}/api/v1/ml/cascade/models/${millNumber}/load?model_type=${modelType}`, {
+      const loadResponse = await fetch(`/api/v1/ml/cascade/models/${millNumber}/load?model_type=${modelType}`, {
         method: 'POST'
       })
       

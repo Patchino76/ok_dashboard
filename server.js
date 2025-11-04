@@ -2,6 +2,9 @@
  * Simple Express server that proxies API requests to the FastAPI backend
  * This is a minimal version to ensure basic functionality
  */
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const { parse } = require('url');
@@ -34,23 +37,29 @@ app.prepare().then(() => {
     res.status(200).json({ status: 'ok' });
   });
   
-  // API proxy middleware
+  // API proxy middleware - MUST come before Next.js handler
   server.use('/api', createProxyMiddleware({
     target: API_URL,
     changeOrigin: true,
-    pathRewrite: { '^/api': '/api' },
+    pathRewrite: function(path) {
+      // Express strips /api, so we need to add it back
+      return '/api' + path;
+    },
+    logLevel: 'debug',
+    onProxyReq: (proxyReq, req, res) => {
+      console.log(`[PROXY] ${req.method} ${req.url} -> ${API_URL}${req.url}`);
+    },
     onError: (err, req, res) => {
-      console.error(`Proxy error: ${err.message}`);
+      console.error(`[PROXY ERROR] ${req.url}:`, err.message);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'API Proxy Error', message: err.message }));
     }
   }));
   
-  // All other requests go to Next.js
-  server.all('*', (req, res) => {
+  // All other requests go to Next.js (non-API)
+  server.use((req, res) => {
     try {
-      const parsedUrl = parse(req.url, true);
-      return handle(req, res, parsedUrl);
+      return handle(req, res);
     } catch (err) {
       console.error('Error handling request:', err);
       res.status(500).send('Internal Server Error');
@@ -60,8 +69,10 @@ app.prepare().then(() => {
   // Start server
   server.listen(port, (err) => {
     if (err) throw err;
-    console.log(`> Ready on http://localhost:${port}`);
-    console.log(`> API proxy configured to: ${API_URL}`);
+    // Extract hostname from API_URL for display
+    const hostname = API_URL.includes('://') ? new URL(API_URL).hostname : 'localhost';
+    console.log(`> Ready on http://${hostname}:${port}`);
+    console.log(`> Proxying API requests to: ${API_URL}`);
   });
 }).catch(err => {
   console.error('Error starting server:', err);
