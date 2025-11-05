@@ -587,18 +587,38 @@ def get_all_mills_by_param(
     - start_ts: Start timestamp in ISO format (YYYY-MM-DDTHH:MM:SS)
     - end_ts: End timestamp in ISO format (default: current time)
     - freq: Resampling frequency (default: '5min')
-    
-    NOTE: This endpoint is currently not compatible with the tag-based database structure.
-    It requires refactoring to use the LoggerValues table instead of assuming mill-specific tables.
     """
-    raise HTTPException(
-        status_code=501, 
-        detail="This endpoint is not yet implemented for the tag-based database structure. "
-               "The mills_fetcher.py module assumes a table structure (mills.MILL_01, etc.) "
-               "that doesn't exist in the current database. Please use the /api/mills/trend-by-tag "
-               "endpoint for individual mill trends, or contact the development team to implement "
-               "this feature using the LoggerValues tag-based system."
-    )
+    # Convert string timestamps to datetime
+    try:
+        start = datetime.fromisoformat(start_ts)
+        end = datetime.fromisoformat(end_ts) if end_ts else datetime.now()
+    except ValueError:
+        raise HTTPException(status_code=400, 
+                           detail="Invalid timestamp format. Use ISO format: YYYY-MM-DDTHH:MM:SS")
+    
+    # Fetch data using our function
+    try:
+        result_df = get_mills_by_param(parameter=parameter, start_ts=start, end_ts=end, freq=freq)
+        
+        if result_df.empty:
+            return {"message": "No data found for the specified parameters", "data": []}
+        
+        # Convert DataFrame to JSON-serializable format
+        result_df['timestamp'] = result_df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+        result = result_df.to_dict(orient='records')
+        
+        return {
+            "parameter": parameter,
+            "start_ts": start_ts,
+            "end_ts": end_ts or datetime.now().isoformat(),
+            "freq": freq,
+            "count": len(result),
+            "data": result
+        }
+    except Exception as e:
+        logger.error(f"Error in get_all_mills_by_param: {str(e)}")
+        raise HTTPException(status_code=500, 
+                           detail=f"Error retrieving mill data: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
