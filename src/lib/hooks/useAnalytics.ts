@@ -49,7 +49,7 @@ export function useMillsAnalytics(
     queryKey: ["mills-analytics", parameter, start_ts, end_ts, freq],
     queryFn: async () => {
       const response = await apiClient.get<AnalyticsResponse>(
-        `/api/mills/all_mills_by_param`,
+        `/mills/all_mills_by_param`,
         {
           params: {
             parameter,
