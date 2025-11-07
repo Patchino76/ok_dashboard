@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import {
   Area,
   ComposedChart,
@@ -23,6 +22,8 @@ import {
   getParameterNameBG,
   getParameterDescriptionBG,
 } from "../translations/bg";
+import { OptimizationBoundsSlider } from "./optimization-bounds-slider";
+import { SetpointSlider } from "./setpoint-slider";
 
 interface CommonParameterProps {
   parameter: CascadeParameter;
@@ -74,9 +75,6 @@ export function MVParameterCard({
   // Optimization bounds state (lo/hi markers)
   const [optBoundsLo, setOptBoundsLo] = useState<number>(_bounds[0]);
   const [optBoundsHi, setOptBoundsHi] = useState<number>(_bounds[1]);
-  const [isDraggingLo, setIsDraggingLo] = useState(false);
-  const [isDraggingHi, setIsDraggingHi] = useState(false);
-  const sliderContainerRef = useRef<HTMLDivElement>(null);
   const boundsInitializedRef = useRef<boolean>(false);
 
   const callCascadePrediction = async (mvValues: Record<string, number>) => {
@@ -379,12 +377,12 @@ export function MVParameterCard({
     boundsInitializedRef.current = true;
   }, [parameter.id, yAxisDomain, sliderDomainMin, sliderDomainMax]);
   
-  // Update store when user drags markers
+  // Update store when bounds change
   useEffect(() => {
-    if (boundsInitializedRef.current && (isDraggingLo || isDraggingHi)) {
+    if (boundsInitializedRef.current) {
       updateMVOptimizationBounds(parameter.id, [optBoundsLo, optBoundsHi]);
     }
-  }, [optBoundsLo, optBoundsHi, isDraggingLo, isDraggingHi, parameter.id, updateMVOptimizationBounds]);
+  }, [optBoundsLo, optBoundsHi, parameter.id, updateMVOptimizationBounds]);
 
   useEffect(() => {
     const rawValue =
@@ -493,52 +491,6 @@ export function MVParameterCard({
 
   const isInRange =
     parameter.value >= sliderDomainMin && parameter.value <= sliderDomainMax;
-  
-  // Handle mouse move for dragging optimization bound markers
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!sliderContainerRef.current || (!isDraggingLo && !isDraggingHi)) return;
-      
-      const rect = sliderContainerRef.current.getBoundingClientRect();
-      const containerHeight = rect.height;
-      const mouseY = e.clientY - rect.top;
-      
-      // Account for marker container positioning (top: 4px, bottom: 12px)
-      const paddingTop = 4;
-      const paddingBottom = 12;
-      const effectiveHeight = containerHeight - paddingTop - paddingBottom;
-      const adjustedMouseY = mouseY - paddingTop;
-      
-      // Calculate percentage (inverted for vertical, 0 at bottom)
-      const percentage = 1 - (adjustedMouseY / effectiveHeight);
-      
-      // Map to Y-axis domain (chart range)
-      const value = yAxisDomain[0] + percentage * (yAxisDomain[1] - yAxisDomain[0]);
-      
-      // Clamp to slider bounds (actual parameter limits)
-      const clampedValue = Math.max(sliderDomainMin, Math.min(sliderDomainMax, value));
-      
-      if (isDraggingLo) {
-        setOptBoundsLo(Math.min(clampedValue, optBoundsHi - 0.1));
-      } else if (isDraggingHi) {
-        setOptBoundsHi(Math.max(clampedValue, optBoundsLo + 0.1));
-      }
-    };
-    
-    const handleMouseUp = () => {
-      setIsDraggingLo(false);
-      setIsDraggingHi(false);
-    };
-    
-    if (isDraggingLo || isDraggingHi) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDraggingLo, isDraggingHi, sliderDomainMin, sliderDomainMax, yAxisDomain, optBoundsHi, optBoundsLo]);
 
   return (
     <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-amber-50/90 dark:from-slate-800 dark:to-amber-900/30 ring-2 ring-amber-200/80 dark:ring-amber-900/60 backdrop-blur-sm overflow-hidden">
@@ -597,70 +549,35 @@ export function MVParameterCard({
           </div>
         </div>
 
-        <div className="flex h-32 -mx-2 sm:h-40">
-          <div className="flex flex-col items-center justify-center w-20 px-1 gap-1">
-            <div className="flex items-center h-full pt-1 pb-3 relative" ref={sliderContainerRef}>
-              {/* Optimization bound markers - aligned with chart and slider */}
-              <div className="absolute left-0 w-10 pointer-events-none" style={{ 
-                top: '4px', 
-                bottom: '12px',
-                height: 'calc(100% - 16px)'
-              }}>
-                {/* Hi bound marker */}
-                <div 
-                  className="absolute left-0 w-full cursor-ns-resize pointer-events-auto"
-                  style={{
-                    bottom: `${((optBoundsHi - yAxisDomain[0]) / (yAxisDomain[1] - yAxisDomain[0])) * 100}%`,
-                    transform: 'translateY(50%)'
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setIsDraggingHi(true);
-                  }}
-                >
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-1.5 bg-red-500 rounded-sm shadow-md" />
-                    <span className="text-[10px] font-bold text-red-600 bg-white/80 px-1 rounded">{optBoundsHi.toFixed(0)}</span>
-                  </div>
-                </div>
-                
-                {/* Lo bound marker */}
-                <div 
-                  className="absolute left-0 w-full cursor-ns-resize pointer-events-auto"
-                  style={{
-                    bottom: `${((optBoundsLo - yAxisDomain[0]) / (yAxisDomain[1] - yAxisDomain[0])) * 100}%`,
-                    transform: 'translateY(50%)'
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setIsDraggingLo(true);
-                  }}
-                >
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-1.5 bg-blue-500 rounded-sm shadow-md" />
-                    <span className="text-[10px] font-bold text-blue-600 bg-white/80 px-1 rounded">{optBoundsLo.toFixed(0)}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <Slider
-                orientation="vertical"
-                min={sliderDomainMin}
-                max={sliderDomainMax}
-                step={sliderStep}
-                value={[sliderValue]}
-                onValueChange={([value]) => handleSliderChange(value)}
-                className="h-[85%] ml-10"
-                trackClassName="bg-purple-100 dark:bg-purple-950/50"
-                rangeClassName="bg-purple-500 dark:bg-purple-400"
-                thumbClassName="border-purple-600 bg-white focus-visible:ring-purple-300 dark:border-purple-300 dark:bg-purple-900"
-              />
-              <div className="ml-2 text-sm text-center font-medium w-10">
-                {sliderValue.toFixed(1)}
-              </div>
-            </div>
+        <div className="flex h-48 sm:h-56">
+          {/* Sliders on the left - aligned to chart Y-axis */}
+          <div className="flex items-start pl-2 pr-3 gap-2" style={{ paddingTop: '5px', paddingBottom: '5px' }}>
+            {/* Modern optimization bounds slider */}
+            <OptimizationBoundsSlider
+              loValue={optBoundsLo}
+              hiValue={optBoundsHi}
+              min={yAxisDomain[0]}
+              max={yAxisDomain[1]}
+              onLoChange={(value) => setOptBoundsLo(value)}
+              onHiChange={(value) => setOptBoundsHi(value)}
+              unit={parameter.unit}
+              height="calc(100% - 10px)"
+            />
+            
+            {/* Modern purple setpoint slider */}
+            <SetpointSlider
+              value={sliderValue}
+              min={sliderDomainMin}
+              max={sliderDomainMax}
+              step={sliderStep}
+              onChange={(value) => handleSliderChange(value)}
+              unit={parameter.unit}
+              height="calc(100% - 10px)"
+            />
           </div>
-          <div className="flex-1 h-full">
+          
+          {/* Trend chart - maximum available space */}
+          <div className="flex-1 h-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart
                 data={chartData}
