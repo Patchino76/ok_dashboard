@@ -87,16 +87,16 @@ export function OptimizationBoundsSlider({
         className="relative w-8 bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700 rounded-lg shadow-inner border border-slate-200 dark:border-slate-600"
         style={{ height }}
       >
-        {/* Range fill between lo and hi */}
+        {/* Range fill between lo and hi - narrower */}
         <div
-          className="absolute inset-x-1.5 bg-gradient-to-b from-blue-400/30 via-purple-400/30 to-red-400/30 rounded-lg"
+          className="absolute left-1/2 -translate-x-1/2 w-4 bg-gradient-to-b from-blue-400/30 via-purple-400/30 to-red-400/30 rounded-lg"
           style={{
             bottom: `${loPosition}%`,
             height: `${hiPosition - loPosition}%`,
           }}
         />
 
-        {/* Hi bound marker (red) - larger with integrated value */}
+        {/* Hi bound marker (red) - shorter height, centered on fill bar */}
         <div
           className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize group transition-all ${
             isDraggingHi ? "scale-110" : "hover:scale-105"
@@ -106,19 +106,21 @@ export function OptimizationBoundsSlider({
             transform: "translate(-50%, 50%)",
           }}
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setIsDraggingHi(true);
           }}
+          onContextMenu={(e) => e.preventDefault()}
         >
-          {/* Larger marker with integrated value */}
-          <div className="px-2 py-1 rounded-md bg-gradient-to-br from-red-400 to-red-600 shadow-lg border-2 border-white dark:border-slate-900">
-            <div className="text-white text-[10px] font-bold whitespace-nowrap">
+          {/* Shorter marker with integrated value */}
+          <div className="px-2 py-0.5 rounded-md bg-gradient-to-br from-red-400 to-red-600 shadow-lg border-2 border-white dark:border-slate-900">
+            <div className="text-white text-[10px] font-bold whitespace-nowrap leading-tight">
               {Math.round(hiValue)}
             </div>
           </div>
         </div>
 
-        {/* Lo bound marker (blue) - larger with integrated value */}
+        {/* Lo bound marker (blue) - shorter height, centered on fill bar */}
         <div
           className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize group transition-all ${
             isDraggingLo ? "scale-110" : "hover:scale-105"
@@ -128,13 +130,15 @@ export function OptimizationBoundsSlider({
             transform: "translate(-50%, 50%)",
           }}
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setIsDraggingLo(true);
           }}
+          onContextMenu={(e) => e.preventDefault()}
         >
-          {/* Larger marker with integrated value */}
-          <div className="px-2 py-1 rounded-md bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg border-2 border-white dark:border-slate-900">
-            <div className="text-white text-[10px] font-bold whitespace-nowrap">
+          {/* Shorter marker with integrated value */}
+          <div className="px-2 py-0.5 rounded-md bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg border-2 border-white dark:border-slate-900">
+            <div className="text-white text-[10px] font-bold whitespace-nowrap leading-tight">
               {Math.round(loValue)}
             </div>
           </div>

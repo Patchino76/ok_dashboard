@@ -78,15 +78,15 @@ export function SetpointSlider({
         className="relative w-8 bg-gradient-to-b from-purple-100 via-purple-50 to-purple-100 dark:from-purple-900 dark:via-purple-950 dark:to-purple-900 rounded-lg shadow-inner border border-purple-200 dark:border-purple-700"
         style={{ height }}
       >
-        {/* Active range fill from bottom to current value */}
+        {/* Active range fill from bottom to current value - narrower */}
         <div
-          className="absolute inset-x-1.5 bottom-0 bg-gradient-to-b from-purple-500/40 to-purple-400/40 rounded-lg"
+          className="absolute left-1/2 -translate-x-1/2 w-4 bottom-0 bg-gradient-to-b from-purple-500/40 to-purple-400/40 rounded-lg"
           style={{
             height: `${position}%`,
           }}
         />
 
-        {/* Setpoint marker (purple) - larger with integrated value */}
+        {/* Setpoint marker (purple) - shorter height, centered on fill bar */}
         <div
           className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize group transition-all ${
             isDragging ? "scale-110" : "hover:scale-105"
@@ -96,13 +96,15 @@ export function SetpointSlider({
             transform: "translate(-50%, 50%)",
           }}
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
             setIsDragging(true);
           }}
+          onContextMenu={(e) => e.preventDefault()}
         >
-          {/* Larger marker with integrated value */}
-          <div className="px-2 py-1 rounded-md bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg border-2 border-white dark:border-slate-900">
-            <div className="text-white text-[10px] font-bold whitespace-nowrap">
+          {/* Shorter marker with integrated value */}
+          <div className="px-2 py-0.5 rounded-md bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg border-2 border-white dark:border-slate-900">
+            <div className="text-white text-[10px] font-bold whitespace-nowrap leading-tight">
               {Math.round(value)}
             </div>
           </div>
