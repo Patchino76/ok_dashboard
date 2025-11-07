@@ -192,7 +192,7 @@ export default function AnalyticsPage() {
                 <StatisticsTab 
                   parameter={selectedParameter} 
                   timeRange={timeRange}
-                  millsData={undefined}
+                  millsData={rawData}
                 />
               )}
               
@@ -200,7 +200,7 @@ export default function AnalyticsPage() {
                 <AnalyticsTab 
                   parameter={selectedParameter} 
                   timeRange={timeRange}
-                  millsData={undefined}
+                  millsData={rawData}
                 />
               )}
             </>
