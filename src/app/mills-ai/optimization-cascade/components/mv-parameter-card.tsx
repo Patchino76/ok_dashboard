@@ -377,6 +377,36 @@ export function MVParameterCard({
     boundsInitializedRef.current = true;
   }, [parameter.id, yAxisDomain, sliderDomainMin, sliderDomainMax]);
   
+  // Clamp optimization bounds when Y-axis domain changes
+  useEffect(() => {
+    if (!boundsInitializedRef.current) return;
+    
+    const [domainMin, domainMax] = yAxisDomain;
+    
+    // Use a callback to get current values to avoid dependency issues
+    setOptBoundsLo((currentLo) => {
+      if (currentLo < domainMin) {
+        console.log(`🔧 Clamping ${parameter.id} lo bound: ${currentLo} → ${domainMin}`);
+        return domainMin;
+      } else if (currentLo > domainMax) {
+        console.log(`🔧 Clamping ${parameter.id} lo bound: ${currentLo} → ${domainMax}`);
+        return domainMax;
+      }
+      return currentLo;
+    });
+    
+    setOptBoundsHi((currentHi) => {
+      if (currentHi > domainMax) {
+        console.log(`🔧 Clamping ${parameter.id} hi bound: ${currentHi} → ${domainMax}`);
+        return domainMax;
+      } else if (currentHi < domainMin) {
+        console.log(`🔧 Clamping ${parameter.id} hi bound: ${currentHi} → ${domainMin}`);
+        return domainMin;
+      }
+      return currentHi;
+    });
+  }, [yAxisDomain, parameter.id]);
+  
   // Update store when bounds change
   useEffect(() => {
     if (boundsInitializedRef.current) {

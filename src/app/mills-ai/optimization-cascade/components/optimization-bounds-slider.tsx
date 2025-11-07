@@ -84,12 +84,12 @@ export function OptimizationBoundsSlider({
       {/* Slider track and markers container - no Y-axis */}
       <div
         ref={containerRef}
-        className="relative w-8 bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700 rounded-lg shadow-inner border border-slate-200 dark:border-slate-600"
+        className="relative w-6 bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700 rounded-lg shadow-inner border border-slate-200 dark:border-slate-600"
         style={{ height }}
       >
-        {/* Range fill between lo and hi - narrower */}
+        {/* Range fill between lo and hi - thinner */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 w-4 bg-gradient-to-b from-blue-400/30 via-purple-400/30 to-red-400/30 rounded-lg"
+          className="absolute left-1/2 -translate-x-1/2 w-3 bg-gradient-to-b from-blue-400/30 via-purple-400/30 to-red-400/30 rounded-lg"
           style={{
             bottom: `${loPosition}%`,
             height: `${hiPosition - loPosition}%`,
