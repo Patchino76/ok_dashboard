@@ -10,30 +10,7 @@ import type {
   OreFeedTimelinePoint,
   HourlyForecastPoint,
 } from "../types/forecasting";
-
-const uncertaintyConfig: Record<1 | 2 | 3, Uncertainty> = {
-  1: {
-    name: "Low",
-    color: "#10b981",
-    factor: 0.95,
-    stoppageProb: 0.05,
-    avgStoppage: 5,
-  },
-  2: {
-    name: "Medium",
-    color: "#f59e0b",
-    factor: 0.9,
-    stoppageProb: 0.12,
-    avgStoppage: 10,
-  },
-  3: {
-    name: "High",
-    color: "#ef4444",
-    factor: 0.82,
-    stoppageProb: 0.2,
-    avgStoppage: 20,
-  },
-};
+import { UNCERTAINTY_LEVELS } from "../constants";
 
 const getShiftInfo = (time: Date): ShiftInfo => {
   const hour = time.getHours();
@@ -110,7 +87,7 @@ export const useProductionForecast = (
         : 24 - 6 + hour + currentTime.getMinutes() / 60;
     const productionToday = hoursIntoDay * currentOreRate;
 
-    const uncertainty = uncertaintyConfig[uncertaintyLevel];
+    const uncertainty = UNCERTAINTY_LEVELS[uncertaintyLevel];
 
     const optimisticFactor = 1.0;
     const expectedFactor = uncertainty.factor;
@@ -185,13 +162,17 @@ export const useProductionForecast = (
       basePerMillRates[millId] = currentOreRate;
     });
 
-    // selectedMills are EXCLUDED from adjustment.
-    const excludedMills = selectedMills.filter((m) => m in basePerMillRates);
-    const adjustableMills = Object.keys(basePerMillRates).filter(
-      (m) => !excludedMills.includes(m)
-    );
+    // selectedMills are INCLUDED for adjustment.
+    // If empty, all mills are adjustable.
+    const adjustableMills =
+      selectedMills.length === 0
+        ? Object.keys(basePerMillRates)
+        : selectedMills.filter((m) => m in basePerMillRates);
 
-    const fixedMills = excludedMills;
+    // Fixed mills are those NOT in the adjustable list
+    const fixedMills = Object.keys(basePerMillRates).filter(
+      (m) => !adjustableMills.includes(m)
+    );
 
     const fixedContributionShift =
       fixedMills.length > 0

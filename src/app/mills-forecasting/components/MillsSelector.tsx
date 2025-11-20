@@ -17,34 +17,30 @@ export const MillsSelector: FC<MillsSelectorProps> = ({
       {mills.map((mill) => {
         const isAllButton = mill === "all";
         const isAllActive = isAllButton && selectedMills.length === 0;
-        const isExcluded = !isAllButton && selectedMills.includes(mill);
+        const isSelected = !isAllButton && selectedMills.includes(mill);
         const label = isAllButton ? "All" : mill.replace("Mill_", "M");
 
-        const handleClick = () => {
-          if (isAllButton) {
-            // Clear all exclusions so all mills participate in calculations
-            onSelectMill("all");
-          } else {
-            onSelectMill(mill);
-          }
-        };
         return (
           <Button
             key={mill}
             size="sm"
             variant={
-              isAllButton ? (isAllActive ? "default" : "outline") : "outline"
+              isAllButton
+                ? isAllActive
+                  ? "default"
+                  : "outline"
+                : isSelected
+                ? "default"
+                : "outline"
             }
             className={`h-7 px-2 text-[11px] font-medium rounded-full ${
-              isExcluded
-                ? "bg-slate-300 text-slate-900 hover:bg-slate-400 border-slate-400"
-                : ""
-            } ${
               isAllButton && isAllActive
                 ? "bg-blue-600 text-white hover:bg-blue-700"
+                : isSelected
+                ? "bg-emerald-600 text-white hover:bg-emerald-700"
                 : ""
             }`}
-            onClick={handleClick}
+            onClick={() => onSelectMill(mill)}
           >
             {label}
           </Button>

@@ -1,35 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { MillsForecastingHeader } from "./components/MillsForecastingHeader";
 import { MillsSelector } from "./components/MillsSelector";
 import { ForecastLayout } from "./components/ForecastLayout";
 import { useProductionForecast } from "./hooks/useProductionForecast";
-
-const mills = [
-  "all",
-  "Mill_1",
-  "Mill_2",
-  "Mill_3",
-  "Mill_4",
-  "Mill_5",
-  "Mill_6",
-  "Mill_7",
-  "Mill_8",
-  "Mill_9",
-  "Mill_10",
-];
+import { MILLS_LIST, TARGET_RANGES, ORE_RATE_RANGES } from "./constants";
 
 export default function MillsForecastingPage() {
-  // selectedMills now represents mills that are EXCLUDED from adjustment.
-  // When the list is empty, "All" is considered active and all mills participate.
+  // selectedMills represents mills included for adjustment.
+  // Empty array means all mills are included.
   const [selectedMills, setSelectedMills] = useState<string[]>([]);
-  const [shiftTarget, setShiftTarget] = useState<number>(1400);
-  const [dayTarget, setDayTarget] = useState<number>(4000);
-  const [currentOreRate, setCurrentOreRate] = useState<number>(169.67);
-  const [adjustedOreRate, setAdjustedOreRate] = useState<number>(169.67);
+  const [shiftTarget, setShiftTarget] = useState<number>(
+    TARGET_RANGES.shift.default
+  );
+  const [dayTarget, setDayTarget] = useState<number>(TARGET_RANGES.day.default);
+  const [currentOreRate, setCurrentOreRate] = useState<number>(
+    ORE_RATE_RANGES.default
+  );
+  const [adjustedOreRate, setAdjustedOreRate] = useState<number>(
+    ORE_RATE_RANGES.default
+  );
   const [uncertaintyLevel, setUncertaintyLevel] = useState<1 | 2 | 3>(2);
+
+  // Memoize mills array to prevent recreating it on every render
+  const mills = useMemo(() => Array.from(MILLS_LIST), []);
 
   const { currentTime, forecast } = useProductionForecast({
     shiftTarget,
@@ -43,17 +39,17 @@ export default function MillsForecastingPage() {
 
   const handleMillSelection = (mill: string) => {
     if (mill === "all") {
-      // Clear all exclusions
+      // "All" button clicked - clear selection (all mills included)
       setSelectedMills([]);
       return;
     }
 
     setSelectedMills((prev) => {
       if (prev.includes(mill)) {
-        // Un-exclude this mill
+        // Mill already selected, remove it from selection
         return prev.filter((m) => m !== mill);
       }
-      // Exclude this mill from adjustment
+      // Add mill to selection
       return [...prev, mill];
     });
   };
