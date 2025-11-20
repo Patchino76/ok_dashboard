@@ -270,6 +270,8 @@ export const useProductionForecast = (
 
     adjustableMills.forEach((millId) => {
       const currentRate = basePerMillRates[millId];
+
+      // Calculate this mill's share based on its current load percentage
       const share = selectedTotalRate > 0 ? currentRate / selectedTotalRate : 0;
 
       // Calculate the required rate for this mill to meet the target
@@ -277,21 +279,38 @@ export const useProductionForecast = (
       const requiredShiftRate = requiredSelectedShiftRate * share;
       const requiredDayRate = requiredSelectedDayRate * share;
 
+      // Calculate adjustment needed (can be positive or negative)
+      const adjustmentNeeded = requiredShiftRate - currentRate;
+
       perMillSetpoints.push({
         millId,
         currentRate,
         requiredShiftRate,
         requiredDayRate,
+        adjustmentNeeded, // Add adjustment to the data
       });
     });
 
     // Debug logging
     if (perMillSetpoints.length > 0) {
+      const totalAdjustment = perMillSetpoints.reduce(
+        (sum, sp) => sum + sp.adjustmentNeeded,
+        0
+      );
       console.log("📊 Per-mill setpoints calculated:", {
         adjustableMills: adjustableMills.length,
-        totalCurrent: selectedTotalRate.toFixed(1),
-        requiredTotal: requiredSelectedShiftRate.toFixed(1),
-        sample: perMillSetpoints[0],
+        selectedMills:
+          selectedMills.length === 0 ? "ALL" : selectedMills.join(", "),
+        totalCurrentRate: selectedTotalRate.toFixed(1) + " t/h",
+        requiredTotalRate: requiredSelectedShiftRate.toFixed(1) + " t/h",
+        totalAdjustment: totalAdjustment.toFixed(1) + " t/h",
+        perMillDetails: perMillSetpoints.map((sp) => ({
+          mill: sp.millId,
+          current: sp.currentRate.toFixed(1),
+          required: sp.requiredShiftRate.toFixed(1),
+          adjustment: sp.adjustmentNeeded.toFixed(1),
+          share: ((sp.currentRate / selectedTotalRate) * 100).toFixed(1) + "%",
+        })),
       });
     }
 

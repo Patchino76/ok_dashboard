@@ -3,7 +3,6 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
-  CartesianGrid,
   XAxis,
   YAxis,
   Tooltip as RechartsTooltip,
@@ -18,55 +17,46 @@ interface PerMillOreSetpointChartProps {
 
 interface ChartPoint {
   name: string;
-  current: number; // current ore rate (large bar)
-  adjustment: number; // adjustment needed (small bar on top, can be negative)
-  deltaTh: number; // delta vs current rate (t/h)
-  required: number; // required shift rate
+  current: number; // Current ore rate (dark bar)
+  adjustmentPositive: number; // Positive adjustment (green/orange on top)
+  adjustmentNegative: number; // Negative adjustment (red notch)
+  adjustment: number; // Raw adjustment value
   currentDisplay: string;
-  deltaDisplay: string;
+  adjustmentDisplay: string;
 }
 
-const getBadgeColor = (deltaTh: number): string => {
-  if (deltaTh > 3) return "#10b981"; // green: increase more than 3 t/h
-  if (deltaTh < -3) return "#ef4444"; // red: decrease more than 3 t/h
-  return "#fbbf24"; // yellow: between -3 and 3
+// Color thresholds based on images
+const getAdjustmentColor = (adjustment: number): string => {
+  if (Math.abs(adjustment) <= 5) return "#ef4444"; // Red: Small/negative
+  if (Math.abs(adjustment) <= 10) return "#f97316"; // Orange: Moderate
+  return "#10b981"; // Green: Strong change
 };
 
-const getDeltaArrow = (deltaTh: number): string => {
-  if (deltaTh > 0.5) return "↑";
-  if (deltaTh < -0.5) return "↓";
-  return "→";
+const getAdjustmentLabel = (adjustment: number): string => {
+  const rounded = Math.round(adjustment);
+  if (rounded === 0) return "0 t/h";
+  return `${rounded > 0 ? "+" : ""}${rounded} t/h`;
 };
 
 export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
   data,
 }) => {
   const chartData: ChartPoint[] = useMemo(() => {
-    if (!data || data.length === 0) {
-      console.log("⚠️ PerMillOreSetpointChart: No data received");
-      return [];
-    }
-
-    console.log("📊 PerMillOreSetpointChart: Processing data", {
-      count: data.length,
-      sample: data[0],
-    });
+    if (!data || data.length === 0) return [];
 
     return data.map((item) => {
       const name = item.millId.replace("Mill", "M");
-      const deltaTh = item.requiredShiftRate - item.currentRate;
-      const deltaInt = Math.round(deltaTh);
-      const currentInt = Math.round(item.currentRate);
-      const deltaDisplay = `${deltaInt > 0 ? "+" : ""}${deltaInt}`;
+      const adjustment = item.adjustmentNeeded;
+      const current = item.currentRate;
 
       return {
         name,
-        current: item.currentRate, // Large bar showing current rate
-        adjustment: Math.max(0, deltaTh), // Only show positive adjustments (bars on top)
-        deltaTh, // Keep actual delta for badge/tooltip
-        required: item.requiredShiftRate,
-        currentDisplay: String(currentInt),
-        deltaDisplay,
+        current: current, // Always show full current rate
+        adjustmentPositive: adjustment > 0 ? adjustment : 0, // Green/orange on top for positive
+        adjustmentNegative: adjustment < 0 ? Math.abs(adjustment) : 0, // Red segment on top for negative
+        adjustment, // Raw value for color logic
+        currentDisplay: String(Math.round(current)),
+        adjustmentDisplay: getAdjustmentLabel(adjustment),
       };
     });
   }, [data]);
@@ -79,86 +69,53 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
     );
   }
 
-  const renderCustomLabel = (props: any) => {
-    const { x, y, width, index } = props;
-    const point: ChartPoint | undefined = chartData[index];
-    if (!point) return <g />;
-
-    const color = getBadgeColor(point.deltaTh);
-    const arrow = getDeltaArrow(point.deltaTh);
-    const deltaLabel = point.deltaDisplay;
+  // Custom label for adjustment values at the top of background bar
+  const renderAdjustmentLabel = (props: any) => {
+    const { x, width, index } = props;
+    const point = chartData[index];
+    if (!point || point.adjustment === 0) return <g />;
 
     const centerX = x + width / 2;
-    const badgeWidth = 60;
-    const badgeHeight = 26;
+    const color = getAdjustmentColor(point.adjustment);
 
+    // Position at top of chart (fixed y position)
     return (
-      <g>
-        <defs>
-          <filter
-            id="perMillBadgeShadow"
-            x="-50%"
-            y="-50%"
-            width="200%"
-            height="200%"
-          >
-            <feDropShadow dx="0" dy="1" stdDeviation="1.5" floodOpacity="0.2" />
-          </filter>
-        </defs>
-        <rect
-          x={centerX - badgeWidth / 2}
-          y={y - badgeHeight - 6}
-          width={badgeWidth}
-          height={badgeHeight}
-          rx={8}
-          fill={color}
-          opacity={0.95}
-          filter="url(#perMillBadgeShadow)"
-        />
-        <rect
-          x={centerX - badgeWidth / 2}
-          y={y - badgeHeight - 6}
-          width={badgeWidth}
-          height={badgeHeight}
-          rx={8}
-          fill="none"
-          stroke="white"
-          strokeWidth={0.5}
-          opacity={0.4}
-        />
-        <text
-          x={centerX}
-          y={y - 10}
-          textAnchor="middle"
-          fill="white"
-          fontSize={11}
-          fontWeight={700}
-        >
-          {arrow} {deltaLabel}
-        </text>
-      </g>
+      <text
+        x={centerX}
+        y={15} // Fixed position at top
+        textAnchor="middle"
+        fill={color}
+        fontSize={11}
+        fontWeight={700}
+      >
+        {point.adjustmentDisplay}
+      </text>
     );
   };
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const p: ChartPoint = payload[0].payload;
-      const arrow = getDeltaArrow(p.deltaTh);
+      const current = Math.round(parseFloat(p.currentDisplay));
+      const required = Math.round(current + p.adjustment);
+
       return (
-        <div className="rounded-lg border border-border bg-card p-3 shadow-lg">
-          <p className="font-semibold text-xs text-card-foreground">{p.name}</p>
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Current: {Math.round(p.current)} t/h
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Required: {Math.round(p.required)} t/h
-          </p>
-          <p
-            className="text-[11px] font-semibold"
-            style={{ color: getBadgeColor(p.deltaTh) }}
-          >
-            {arrow} Adjustment: {p.deltaDisplay} t/h
-          </p>
+        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+          <p className="font-semibold text-sm text-slate-900">{p.name}</p>
+          <div className="mt-2 space-y-1">
+            <p className="text-xs text-slate-600">
+              Текущо: <span className="font-semibold">{current} t/h</span>
+            </p>
+            <p className="text-xs text-slate-600">
+              Необходимо: <span className="font-semibold">{required} t/h</span>
+            </p>
+            <p
+              className="text-xs font-bold"
+              style={{ color: getAdjustmentColor(p.adjustment) }}
+            >
+              Корекция: {p.adjustmentDisplay}
+            </p>
+          </div>
         </div>
       );
     }
@@ -170,87 +127,87 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={chartData}
-          margin={{ top: 40, right: 12, left: 4, bottom: 0 }}
+          margin={{ top: 35, right: 10, left: 0, bottom: 5 }}
+          barCategoryGap="20%"
         >
-          <defs>
-            <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
-              <stop offset="100%" stopColor="#059669" stopOpacity={0.9} />
-            </linearGradient>
-            <linearGradient id="yellowGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fbbf24" stopOpacity={1} />
-              <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.9} />
-            </linearGradient>
-            <linearGradient id="redGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" stopOpacity={1} />
-              <stop offset="100%" stopColor="#dc2626" stopOpacity={0.9} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="hsl(var(--border))"
-            vertical={false}
-            opacity={0.5}
-          />
           <XAxis
             dataKey="name"
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={11}
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
           />
-          <YAxis
-            stroke="hsl(var(--muted-foreground))"
-            fontSize={11}
-            width={34}
-          />
+          <YAxis hide />
           <RechartsTooltip
             content={<CustomTooltip />}
-            cursor={{ fill: "rgba(0,0,0,0.03)" }}
+            cursor={{ fill: "transparent" }}
           />
-          {/* Large bar showing current ore rate */}
+
+          {/* Current rate bar (dark slate) */}
           <Bar
             dataKey="current"
             stackId="a"
-            fill="#64748b"
-            radius={[0, 0, 0, 0]}
-            name="Current Rate"
+            fill="#475569"
+            radius={[0, 0, 6, 6]}
+            barSize={50}
           >
             <LabelList
               dataKey="currentDisplay"
               position="center"
-              style={{ fill: "white", fontSize: 11, fontWeight: 600 }}
+              style={{ fill: "white", fontSize: 13, fontWeight: 600 }}
             />
           </Bar>
-          {/* Small bar on top showing adjustment */}
+
+          {/* Positive adjustment (green/orange on top) */}
           <Bar
-            dataKey="adjustment"
+            dataKey="adjustmentPositive"
             stackId="a"
-            radius={[8, 8, 0, 0]}
-            label={renderCustomLabel}
-            name="Adjustment"
+            radius={[6, 6, 0, 0]}
+            barSize={50}
           >
             {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={getBadgeColor(entry.deltaTh)} />
+              <Cell
+                key={`pos-${index}`}
+                fill={
+                  entry.adjustment > 0
+                    ? getAdjustmentColor(entry.adjustment)
+                    : "transparent"
+                }
+              />
             ))}
+            <LabelList content={renderAdjustmentLabel} />
+          </Bar>
+
+          {/* Negative adjustment (red segment on top) */}
+          <Bar
+            dataKey="adjustmentNegative"
+            stackId="a"
+            radius={[6, 6, 0, 0]}
+            barSize={50}
+          >
+            {chartData.map((entry, index) => (
+              <Cell
+                key={`neg-${index}`}
+                fill={entry.adjustment < 0 ? "#ef4444" : "transparent"}
+              />
+            ))}
+            <LabelList content={renderAdjustmentLabel} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
 
-      <div className="mt-2 flex gap-4 justify-center flex-wrap">
-        <div className="flex items-center gap-1.5">
-          <div className="h-2 w-2 rounded-full bg-emerald-500" />
-          <span className="text-[11px] text-muted-foreground">
-            ↑ Strong change
-          </span>
+      {/* Legend */}
+      <div className="mt-3 flex gap-6 justify-center text-xs text-slate-600">
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-sm bg-emerald-500" />
+          <span>Strong change</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2 w-2 rounded-full bg-yellow-400" />
-          <span className="text-[11px] text-muted-foreground">→ Moderate</span>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-sm bg-orange-500" />
+          <span>Moderate</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="h-2 w-2 rounded-full bg-red-500" />
-          <span className="text-[11px] text-muted-foreground">
-            ↓ Small / negative
-          </span>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-sm bg-red-500" />
+          <span>Small / negative</span>
         </div>
       </div>
     </div>

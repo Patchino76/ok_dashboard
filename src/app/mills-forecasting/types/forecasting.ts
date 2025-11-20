@@ -27,6 +27,7 @@ export interface PerMillSetpoint {
   currentRate: number;
   requiredShiftRate: number;
   requiredDayRate: number;
+  adjustmentNeeded: number; // Adjustment needed to reach target (can be positive or negative)
 }
 
 export interface OreFeedTimelinePoint {
