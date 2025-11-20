@@ -133,19 +133,44 @@ export const useProductionForecast = (
 
     const hourlyTonnageForecast: HourlyForecastPoint[] = [];
     const oreFeedTimeline: OreFeedTimelinePoint[] = [];
-    const currentHour = currentTime.getHours();
 
-    for (let i = 0; i <= Math.ceil(hoursToEndOfDay); i++) {
-      const targetHour = (currentHour + i) % 24;
+    // Fixed 24-hour period from 6:00 to 6:00 next day
+    const currentHour = currentTime.getHours();
+    const currentMinutes = currentTime.getMinutes();
+
+    // Calculate hours since 6:00 today
+    const hoursSince6AM =
+      currentHour >= 6
+        ? currentHour - 6 + currentMinutes / 60
+        : 24 - 6 + currentHour + currentMinutes / 60;
+
+    // Generate 25 data points (6:00, 7:00, ..., 5:00, 6:00) for full 24-hour coverage
+    for (let i = 0; i <= 24; i++) {
+      const targetHour = (6 + i) % 24;
       const timeLabel = `${String(targetHour).padStart(2, "0")}:00`;
+
+      // Hours from start of day (6:00) to this point
+      const hoursFromStart = i;
+
+      // Is this point in the past, present, or future?
+      const isPast = hoursFromStart < hoursSince6AM;
+      const isCurrent = Math.abs(hoursFromStart - hoursSince6AM) < 0.5; // Within 30 min
 
       // Tonnage forecast over the day (for ProductionForecastChart)
       hourlyTonnageForecast.push({
         time: timeLabel,
-        actual: i === 0 ? productionToday : null,
-        optimistic: productionToday + i * adjustedOreRate * optimisticFactor,
-        expected: productionToday + i * adjustedOreRate * expectedFactor,
-        pessimistic: productionToday + i * adjustedOreRate * pessimisticFactor,
+        actual: isCurrent ? productionToday : null,
+        optimistic:
+          productionToday +
+          (hoursFromStart - hoursSince6AM) * adjustedOreRate * optimisticFactor,
+        expected:
+          productionToday +
+          (hoursFromStart - hoursSince6AM) * adjustedOreRate * expectedFactor,
+        pessimistic:
+          productionToday +
+          (hoursFromStart - hoursSince6AM) *
+            adjustedOreRate *
+            pessimisticFactor,
         target: dayTarget,
       });
 

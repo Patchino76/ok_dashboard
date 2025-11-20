@@ -18,6 +18,7 @@ interface ForecastLayoutProps {
   currentOreRate: number;
   adjustedOreRate: number;
   uncertaintyLevel: 1 | 2 | 3;
+  currentTime?: Date | null;
   onChangeShiftTarget: (value: number) => void;
   onChangeDayTarget: (value: number) => void;
   onChangeCurrentOreRate: (value: number) => void;
@@ -32,6 +33,7 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
   currentOreRate,
   adjustedOreRate,
   uncertaintyLevel,
+  currentTime,
   onChangeShiftTarget,
   onChangeDayTarget,
   onChangeCurrentOreRate,
@@ -87,6 +89,7 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
             uncertainty={forecast.uncertainty}
             expectedStoppages={forecast.expectedStoppages}
             expectedDowntime={forecast.expectedDowntime}
+            currentTime={currentTime}
           />
         </Card>
 

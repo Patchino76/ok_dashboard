@@ -150,6 +150,7 @@ export default function MillsForecastingPage() {
         currentOreRate={currentOreRate}
         adjustedOreRate={adjustedOreRate}
         uncertaintyLevel={uncertaintyLevel}
+        currentTime={currentTime}
         onChangeShiftTarget={setShiftTarget}
         onChangeDayTarget={setDayTarget}
         onChangeCurrentOreRate={(rate) => {
