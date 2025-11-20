@@ -1,16 +1,22 @@
 import { FC } from "react";
 import { Card } from "@/components/ui/card";
-import { Clock, TrendingUp, Calendar } from "lucide-react";
+import { Clock, TrendingUp, Calendar, Radio, Factory } from "lucide-react";
 import type { Forecast } from "../types/forecasting";
 
 interface MillsForecastingHeaderProps {
   currentTime: Date | null;
   forecast: Forecast;
+  isRealTimeMode?: boolean;
+  activeMillsCount?: number;
+  lastDataUpdate?: Date | null;
 }
 
 export const MillsForecastingHeader: FC<MillsForecastingHeaderProps> = ({
   currentTime,
   forecast,
+  isRealTimeMode = true,
+  activeMillsCount = 0,
+  lastDataUpdate,
 }) => {
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString("bg-BG", {
@@ -34,9 +40,26 @@ export const MillsForecastingHeader: FC<MillsForecastingHeaderProps> = ({
           <h1 className="text-xl font-bold text-slate-900 mb-1">
             Production Forecasting Dashboard
           </h1>
-          <p className="text-xs text-slate-600">
-            Real-time production forecast with uncertainty analysis
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-slate-600">
+              Real-time production forecast with uncertainty analysis
+            </p>
+            {isRealTimeMode && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-50 border border-green-200 rounded-full">
+                <Radio className="h-3 w-3 text-green-600 animate-pulse" />
+                <span className="text-[10px] font-medium text-green-700">
+                  LIVE DATA
+                </span>
+              </div>
+            )}
+            {!isRealTimeMode && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-orange-50 border border-orange-200 rounded-full">
+                <span className="text-[10px] font-medium text-orange-700">
+                  MANUAL MODE
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center gap-4">
@@ -73,6 +96,19 @@ export const MillsForecastingHeader: FC<MillsForecastingHeaderProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Active Mills Count */}
+          {isRealTimeMode && activeMillsCount > 0 && (
+            <div className="flex items-center gap-2">
+              <Factory className="h-4 w-4 text-slate-500" />
+              <div>
+                <div className="text-[11px] text-slate-500">Active Mills</div>
+                <div className="text-sm font-semibold text-slate-900">
+                  {activeMillsCount} / 12
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Time Remaining */}
           <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">

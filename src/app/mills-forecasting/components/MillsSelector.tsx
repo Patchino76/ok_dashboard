@@ -18,7 +18,7 @@ export const MillsSelector: FC<MillsSelectorProps> = ({
         const isAllButton = mill === "all";
         const isAllActive = isAllButton && selectedMills.length === 0;
         const isSelected = !isAllButton && selectedMills.includes(mill);
-        const label = isAllButton ? "All" : mill.replace("Mill_", "M");
+        const label = isAllButton ? "All" : mill.replace("Mill", "M");
 
         return (
           <Button

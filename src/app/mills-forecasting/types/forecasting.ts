@@ -70,4 +70,9 @@ export interface UseProductionForecastArgs {
   uncertaintyLevel: 1 | 2 | 3;
   mills: string[];
   selectedMills: string[];
+  // Real-time production data (optional - will calculate if not provided)
+  actualShiftProduction?: number;
+  actualDayProduction?: number;
+  // Individual mill ore rates (optional - will use equal distribution if not provided)
+  millOreRates?: Record<string, number>;
 }

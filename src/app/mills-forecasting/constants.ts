@@ -1,33 +1,26 @@
 import type { Uncertainty } from "./types/forecasting";
+import { millsNames } from "@/lib/tags/mills-tags";
 
-// Mills configuration
+// Mills configuration (using correct format from mills-tags: Mill01, Mill02, etc.)
+// All 12 mills, with "all" option
 export const MILLS_LIST = [
   "all",
-  "Mill_1",
-  "Mill_2",
-  "Mill_3",
-  "Mill_4",
-  "Mill_5",
-  "Mill_6",
-  "Mill_7",
-  "Mill_8",
-  "Mill_9",
-  "Mill_10",
+  ...millsNames.map((mill) => mill.en),
 ] as const;
 
 // Target ranges
 export const TARGET_RANGES = {
   shift: {
     min: 800,
-    max: 2000,
+    max: 20000,
     step: 50,
     default: 1400,
   },
   day: {
     min: 2400,
-    max: 6000,
+    max: 60000,
     step: 100,
-    default: 4000,
+    default: 45000,
   },
 } as const;
 

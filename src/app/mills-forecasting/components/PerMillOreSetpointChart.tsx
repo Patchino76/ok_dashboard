@@ -18,9 +18,10 @@ interface PerMillOreSetpointChartProps {
 
 interface ChartPoint {
   name: string;
-  value: number; // required shift rate (t/h) – ore feed setpoint
+  current: number; // current ore rate (large bar)
+  adjustment: number; // adjustment needed (small bar on top, can be negative)
   deltaTh: number; // delta vs current rate (t/h)
-  current: number;
+  required: number; // required shift rate
   currentDisplay: string;
   deltaDisplay: string;
 }
@@ -41,10 +42,18 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
   data,
 }) => {
   const chartData: ChartPoint[] = useMemo(() => {
-    if (!data || data.length === 0) return [];
+    if (!data || data.length === 0) {
+      console.log("⚠️ PerMillOreSetpointChart: No data received");
+      return [];
+    }
+
+    console.log("📊 PerMillOreSetpointChart: Processing data", {
+      count: data.length,
+      sample: data[0],
+    });
 
     return data.map((item) => {
-      const name = item.millId.replace("Mill_", "M");
+      const name = item.millId.replace("Mill", "M");
       const deltaTh = item.requiredShiftRate - item.currentRate;
       const deltaInt = Math.round(deltaTh);
       const currentInt = Math.round(item.currentRate);
@@ -52,9 +61,10 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
 
       return {
         name,
-        value: item.requiredShiftRate,
-        deltaTh,
-        current: item.currentRate,
+        current: item.currentRate, // Large bar showing current rate
+        adjustment: Math.max(0, deltaTh), // Only show positive adjustments (bars on top)
+        deltaTh, // Keep actual delta for badge/tooltip
+        required: item.requiredShiftRate,
         currentDisplay: String(currentInt),
         deltaDisplay,
       };
@@ -138,13 +148,16 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
         <div className="rounded-lg border border-border bg-card p-3 shadow-lg">
           <p className="font-semibold text-xs text-card-foreground">{p.name}</p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Current: {Math.round(p.current)}
+            Current: {Math.round(p.current)} t/h
           </p>
           <p className="text-[11px] text-muted-foreground">
-            Shift SP: {Math.round(p.value)}
+            Required: {Math.round(p.required)} t/h
           </p>
-          <p className="text-[11px] text-muted-foreground">
-            {arrow} Δ: {p.deltaDisplay}
+          <p
+            className="text-[11px] font-semibold"
+            style={{ color: getBadgeColor(p.deltaTh) }}
+          >
+            {arrow} Adjustment: {p.deltaDisplay} t/h
           </p>
         </div>
       );
@@ -193,23 +206,30 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             content={<CustomTooltip />}
             cursor={{ fill: "rgba(0,0,0,0.03)" }}
           />
+          {/* Large bar showing current ore rate */}
           <Bar
-            dataKey="value"
-            radius={[8, 8, 0, 0]}
-            label={renderCustomLabel}
-            name="Shift SP t/h"
+            dataKey="current"
+            stackId="a"
+            fill="#64748b"
+            radius={[0, 0, 0, 0]}
+            name="Current Rate"
           >
             <LabelList
               dataKey="currentDisplay"
-              position="insideBottom"
+              position="center"
               style={{ fill: "white", fontSize: 11, fontWeight: 600 }}
             />
+          </Bar>
+          {/* Small bar on top showing adjustment */}
+          <Bar
+            dataKey="adjustment"
+            stackId="a"
+            radius={[8, 8, 0, 0]}
+            label={renderCustomLabel}
+            name="Adjustment"
+          >
             {chartData.map((entry, index) => (
-              <Cell
-                key={`cell-${index}`}
-                // Bars themselves are neutral ore feed rates; change is shown only in the badge color
-                fill="#0f172a"
-              />
+              <Cell key={`cell-${index}`} fill={getBadgeColor(entry.deltaTh)} />
             ))}
           </Bar>
         </BarChart>

@@ -57,6 +57,9 @@ export const useProductionForecast = (
     uncertaintyLevel,
     mills,
     selectedMills,
+    actualShiftProduction,
+    actualDayProduction,
+    millOreRates,
   } = args;
 
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -77,15 +80,22 @@ export const useProductionForecast = (
     const { hoursToShiftEnd, hoursToEndOfDay, shiftInfo } =
       calculateTimeRemaining(currentTime);
 
+    // Use real-time production data if available, otherwise calculate from ore rate
     const hoursIntoShift = 8 - hoursToShiftEnd;
-    const productionSoFar = hoursIntoShift * currentOreRate;
+    const productionSoFar =
+      actualShiftProduction !== undefined
+        ? actualShiftProduction
+        : hoursIntoShift * currentOreRate;
 
     const hour = currentTime.getHours();
     const hoursIntoDay =
       hour >= 6
         ? hour - 6 + currentTime.getMinutes() / 60
         : 24 - 6 + hour + currentTime.getMinutes() / 60;
-    const productionToday = hoursIntoDay * currentOreRate;
+    const productionToday =
+      actualDayProduction !== undefined
+        ? actualDayProduction
+        : hoursIntoDay * currentOreRate;
 
     const uncertainty = UNCERTAINTY_LEVELS[uncertaintyLevel];
 
@@ -156,11 +166,39 @@ export const useProductionForecast = (
 
     const perMillSetpoints: PerMillSetpoint[] = [];
 
+    // Use individual mill ore rates if provided, otherwise distribute equally
     const basePerMillRates: Record<string, number> = {};
-    mills.forEach((millId) => {
-      if (millId === "all") return;
-      basePerMillRates[millId] = currentOreRate;
-    });
+    if (millOreRates) {
+      // Use actual mill ore rates from production data
+      console.log("🔍 Forecast hook received millOreRates:", {
+        keys: Object.keys(millOreRates),
+        values: millOreRates,
+      });
+      console.log("🔍 Mills array:", mills);
+
+      mills.forEach((millId) => {
+        if (millId === "all") return;
+        const rate = millOreRates[millId] || 0;
+        basePerMillRates[millId] = rate;
+        console.log(`  ${millId}: ${rate} t/h`);
+      });
+
+      console.log("✅ basePerMillRates populated:", basePerMillRates);
+      const total = Object.values(basePerMillRates).reduce(
+        (sum, r) => sum + r,
+        0
+      );
+      console.log(`✅ Total of all mill rates: ${total.toFixed(1)} t/h`);
+    } else {
+      console.warn("⚠️ millOreRates is undefined, using fallback distribution");
+      // Fallback: distribute total ore rate equally among mills
+      const millCount = mills.filter((m) => m !== "all").length;
+      const ratePerMill = millCount > 0 ? currentOreRate / millCount : 0;
+      mills.forEach((millId) => {
+        if (millId === "all") return;
+        basePerMillRates[millId] = ratePerMill;
+      });
+    }
 
     // selectedMills are INCLUDED for adjustment.
     // If empty, all mills are adjustable.
@@ -208,10 +246,11 @@ export const useProductionForecast = (
     adjustableMills.forEach((millId) => {
       const currentRate = basePerMillRates[millId];
       const share = selectedTotalRate > 0 ? currentRate / selectedTotalRate : 0;
-      const requiredShiftRate =
-        requiredSelectedShiftRate > 0 ? requiredSelectedShiftRate * share : 0;
-      const requiredDayRate =
-        requiredSelectedDayRate > 0 ? requiredSelectedDayRate * share : 0;
+
+      // Calculate the required rate for this mill to meet the target
+      // This is the mill's proportional share of the required total rate
+      const requiredShiftRate = requiredSelectedShiftRate * share;
+      const requiredDayRate = requiredSelectedDayRate * share;
 
       perMillSetpoints.push({
         millId,
@@ -220,6 +259,16 @@ export const useProductionForecast = (
         requiredDayRate,
       });
     });
+
+    // Debug logging
+    if (perMillSetpoints.length > 0) {
+      console.log("📊 Per-mill setpoints calculated:", {
+        adjustableMills: adjustableMills.length,
+        totalCurrent: selectedTotalRate.toFixed(1),
+        requiredTotal: requiredSelectedShiftRate.toFixed(1),
+        sample: perMillSetpoints[0],
+      });
+    }
 
     const next: Forecast = {
       shiftInfo,
@@ -257,6 +306,9 @@ export const useProductionForecast = (
     uncertaintyLevel,
     mills,
     selectedMills,
+    actualShiftProduction,
+    actualDayProduction,
+    millOreRates,
   ]);
 
   return useMemo(() => ({ currentTime, forecast }), [currentTime, forecast]);
