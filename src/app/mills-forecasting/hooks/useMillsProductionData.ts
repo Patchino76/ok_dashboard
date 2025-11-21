@@ -63,18 +63,25 @@ export function useMillsProductionData(refreshInterval: number = 20) {
   return useQuery<MillsProductionData>({
     queryKey: ["mills-production-all"],
     queryFn: async () => {
+      console.log("🔄 Fetching production data for all mills...");
+      const startTime = Date.now();
+
       // Get mill names from the same source as MillsPage (all 12 mills)
       const millsList = millsNames.map((mill) => mill.en);
 
-      // Fetch data for all mills in parallel
+      // Fetch data for all mills in parallel with extended timeout
       const promises = millsList.map((mill) =>
         apiClient
           .get<MillInfoProps>(`/mills/ore-by-mill`, {
             params: { mill },
+            timeout: 30000, // 30 seconds per mill request
           })
           .then((response) => response.data)
           .catch((error) => {
-            console.warn(`Failed to fetch data for ${mill}:`, error);
+            console.warn(
+              `⚠️ Failed to fetch data for ${mill}:`,
+              error.message || error
+            );
             // Return default data for failed mill
             return {
               title: mill,
@@ -89,6 +96,14 @@ export function useMillsProductionData(refreshInterval: number = 20) {
       );
 
       const mills = await Promise.all(promises);
+
+      const duration = Date.now() - startTime;
+      const successCount = mills.filter(
+        (m) => m.state !== false || m.ore > 0
+      ).length;
+      console.log(
+        `✅ Fetched ${successCount}/${mills.length} mills in ${duration}ms`
+      );
 
       // Aggregate data
       const totalOreRate = calculateTotalOreRate(mills);
@@ -108,6 +123,7 @@ export function useMillsProductionData(refreshInterval: number = 20) {
     staleTime: 0,
     refetchInterval: refreshInterval * 1000,
     networkMode: "always",
-    retry: 2,
+    retry: 3, // Retry up to 3 times
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s
   });
 }

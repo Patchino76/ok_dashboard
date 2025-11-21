@@ -9,8 +9,14 @@ import type { ProductionDataUpdate } from "../types/production";
 interface ForecastingSettings {
   // ==================== USER-ADJUSTABLE SETTINGS ====================
 
-  /** Target production for current shift (tons) */
-  shiftTarget: number;
+  /** Target production for shift 1 (06:00-14:00) in tons */
+  shift1Target: number;
+
+  /** Target production for shift 2 (14:00-22:00) in tons */
+  shift2Target: number;
+
+  /** Target production for shift 3 (22:00-06:00) in tons */
+  shift3Target: number;
 
   /** Target production for current day (tons) */
   dayTarget: number;
@@ -51,11 +57,14 @@ interface ForecastingSettings {
 
   // ==================== ACTIONS ====================
 
-  /** Set shift target */
-  setShiftTarget: (target: number) => void;
-
-  /** Set day target */
+  /** Set day target and recalculate shift targets proportionally */
   setDayTarget: (target: number) => void;
+
+  /** Adjust a specific shift target and redistribute to maintain daily total */
+  adjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
+
+  /** Calculate initial shift targets based on daily target and current conditions */
+  calculateInitialShiftTargets: (dailyTarget?: number) => void;
 
   /** Set adjusted ore rate for forecasting */
   setAdjustedOreRate: (rate: number) => void;
@@ -94,7 +103,9 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
   // ==================== INITIAL STATE ====================
 
   // User settings - initialized from constants
-  shiftTarget: TARGET_RANGES.shift.default,
+  shift1Target: TARGET_RANGES.shift.default,
+  shift2Target: TARGET_RANGES.shift.default,
+  shift3Target: TARGET_RANGES.shift.default,
   dayTarget: TARGET_RANGES.day.default,
   adjustedOreRate: ORE_RATE_RANGES.default,
   uncertaintyPercent: UNCERTAINTY_RANGES.default,
@@ -113,14 +124,129 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
 
   // ==================== ACTIONS ====================
 
-  setShiftTarget: (target) => {
-    console.log("📊 Setting shift target:", target);
-    set({ shiftTarget: target });
-  },
-
   setDayTarget: (target) => {
     console.log("📊 Setting day target:", target);
     set({ dayTarget: target });
+    // Recalculate shift targets proportionally
+    get().calculateInitialShiftTargets(target);
+  },
+
+  adjustShiftTarget: (shiftIndex, newValue) => {
+    const state = get();
+    const { shift1Target, shift2Target, shift3Target, dayTarget } = state;
+
+    console.log(`🎯 Adjusting shift ${shiftIndex} target to:`, newValue);
+
+    // Calculate the delta
+    const currentValues = [shift1Target, shift2Target, shift3Target];
+    const oldValue = currentValues[shiftIndex - 1];
+    const delta = newValue - oldValue;
+
+    // Get the other two shifts
+    const otherIndices = [0, 1, 2].filter((i) => i !== shiftIndex - 1);
+    const otherTotal = otherIndices.reduce(
+      (sum, i) => sum + currentValues[i],
+      0
+    );
+
+    // Redistribute delta proportionally to other shifts
+    const newValues = [...currentValues];
+    newValues[shiftIndex - 1] = newValue;
+
+    if (otherTotal > 0) {
+      otherIndices.forEach((i) => {
+        const proportion = currentValues[i] / otherTotal;
+        newValues[i] = currentValues[i] - delta * proportion;
+        // Ensure non-negative values
+        newValues[i] = Math.max(100, newValues[i]);
+      });
+    } else {
+      // If other shifts are 0, distribute equally
+      const remaining = dayTarget - newValue;
+      otherIndices.forEach((i) => {
+        newValues[i] = remaining / 2;
+      });
+    }
+
+    // Normalize to ensure exact sum equals daily target
+    const currentSum = newValues.reduce((sum, val) => sum + val, 0);
+    const adjustmentFactor = dayTarget / currentSum;
+    newValues[0] = newValues[0] * adjustmentFactor;
+    newValues[1] = newValues[1] * adjustmentFactor;
+    newValues[2] = newValues[2] * adjustmentFactor;
+
+    console.log("🔄 Redistributed shift targets:", {
+      S1: Math.round(newValues[0]),
+      S2: Math.round(newValues[1]),
+      S3: Math.round(newValues[2]),
+      total: Math.round(newValues[0] + newValues[1] + newValues[2]),
+      dailyTarget: dayTarget,
+    });
+
+    set({
+      shift1Target: newValues[0],
+      shift2Target: newValues[1],
+      shift3Target: newValues[2],
+    });
+  },
+
+  calculateInitialShiftTargets: (dailyTarget) => {
+    const target = dailyTarget || get().dayTarget;
+    const { currentOreRate, activeMillsCount } = get();
+
+    console.log(
+      "🧮 Calculating initial shift targets for daily target:",
+      target
+    );
+
+    // Simple proportional distribution based on typical shift patterns
+    // S1 (06-14): Usually highest production (35%)
+    // S2 (14-22): Medium production (33%)
+    // S3 (22-06): Lower production due to maintenance (32%)
+
+    // If we have real-time data, adjust based on current ore rate
+    let s1Weight = 0.35;
+    let s2Weight = 0.33;
+    let s3Weight = 0.32;
+
+    // Adjust weights based on current conditions if available
+    if (currentOreRate > 0 && activeMillsCount > 0) {
+      // Higher ore rate suggests better conditions, favor current/next shift
+      const currentHour = new Date().getHours();
+      if (currentHour >= 6 && currentHour < 14) {
+        // Currently in S1
+        s1Weight = 0.36;
+        s2Weight = 0.33;
+        s3Weight = 0.31;
+      } else if (currentHour >= 14 && currentHour < 22) {
+        // Currently in S2
+        s1Weight = 0.34;
+        s2Weight = 0.35;
+        s3Weight = 0.31;
+      } else {
+        // Currently in S3
+        s1Weight = 0.34;
+        s2Weight = 0.33;
+        s3Weight = 0.33;
+      }
+    }
+
+    const shift1 = target * s1Weight;
+    const shift2 = target * s2Weight;
+    const shift3 = target * s3Weight;
+
+    console.log("✅ Calculated shift targets:", {
+      S1: Math.round(shift1),
+      S2: Math.round(shift2),
+      S3: Math.round(shift3),
+      total: Math.round(shift1 + shift2 + shift3),
+    });
+
+    set({
+      shift1Target: shift1,
+      shift2Target: shift2,
+      shift3Target: shift3,
+    });
   },
 
   setAdjustedOreRate: (rate) => {
@@ -178,13 +304,15 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
 
   resetToDefaults: () => {
     console.log("🔄 Resetting to defaults");
+    const defaultDayTarget = TARGET_RANGES.day.default;
     set({
-      shiftTarget: TARGET_RANGES.shift.default,
-      dayTarget: TARGET_RANGES.day.default,
+      dayTarget: defaultDayTarget,
       adjustedOreRate: ORE_RATE_RANGES.default,
       uncertaintyPercent: UNCERTAINTY_RANGES.default,
       selectedMills: [],
     });
+    // Recalculate shift targets
+    get().calculateInitialShiftTargets(defaultDayTarget);
   },
 
   syncAdjustedRateWithCurrent: () => {

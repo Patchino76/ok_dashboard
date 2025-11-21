@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useMemo, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { MillsForecastingHeader } from "./components/MillsForecastingHeader";
 import { MillsSelector } from "./components/MillsSelector";
@@ -14,7 +14,9 @@ import { millsNames } from "@/lib/tags/mills-tags";
 export default function MillsForecastingPage() {
   // Get settings and data from Zustand store
   const {
-    shiftTarget,
+    shift1Target,
+    shift2Target,
+    shift3Target,
     dayTarget,
     currentOreRate,
     adjustedOreRate,
@@ -23,8 +25,9 @@ export default function MillsForecastingPage() {
     actualShiftProduction,
     actualDayProduction,
     isRealTimeMode,
-    setShiftTarget,
     setDayTarget,
+    adjustShiftTarget,
+    calculateInitialShiftTargets,
     setAdjustedOreRate,
     setUncertaintyPercent,
     setSelectedMills,
@@ -84,9 +87,14 @@ export default function MillsForecastingPage() {
     return rates;
   }, [productionData]);
 
+  // Initialize shift targets on mount
+  useEffect(() => {
+    calculateInitialShiftTargets();
+  }, []);
+
   // Calculate forecast using real-time data
   const { currentTime, forecast } = useProductionForecast({
-    shiftTarget,
+    shiftTarget: shift1Target, // Use shift1Target for current shift calculations
     dayTarget,
     currentOreRate,
     adjustedOreRate,
@@ -145,14 +153,16 @@ export default function MillsForecastingPage() {
 
       <ForecastLayout
         forecast={forecast}
-        shiftTarget={shiftTarget}
+        shift1Target={shift1Target}
+        shift2Target={shift2Target}
+        shift3Target={shift3Target}
         dayTarget={dayTarget}
         currentOreRate={currentOreRate}
         adjustedOreRate={adjustedOreRate}
         uncertaintyPercent={uncertaintyPercent}
         currentTime={currentTime}
-        onChangeShiftTarget={setShiftTarget}
         onChangeDayTarget={setDayTarget}
+        onAdjustShiftTarget={adjustShiftTarget}
         onChangeCurrentOreRate={(rate) => {
           // In manual mode, allow changing current ore rate
           // This is handled by the store

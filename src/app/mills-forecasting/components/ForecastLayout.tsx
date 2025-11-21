@@ -13,14 +13,16 @@ import { ForecastSummaryCard } from "./displays/ForecastSummaryCard";
 
 interface ForecastLayoutProps {
   forecast: Forecast;
-  shiftTarget: number;
+  shift1Target: number;
+  shift2Target: number;
+  shift3Target: number;
   dayTarget: number;
   currentOreRate: number;
   adjustedOreRate: number;
   uncertaintyPercent: number;
   currentTime?: Date | null;
-  onChangeShiftTarget: (value: number) => void;
   onChangeDayTarget: (value: number) => void;
+  onAdjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
   onChangeCurrentOreRate: (value: number) => void;
   onChangeAdjustedOreRate: (value: number) => void;
   onChangeUncertainty: (value: number) => void;
@@ -28,14 +30,16 @@ interface ForecastLayoutProps {
 
 export const ForecastLayout: FC<ForecastLayoutProps> = ({
   forecast,
-  shiftTarget,
+  shift1Target,
+  shift2Target,
+  shift3Target,
   dayTarget,
   currentOreRate,
   adjustedOreRate,
   uncertaintyPercent,
   currentTime,
-  onChangeShiftTarget,
   onChangeDayTarget,
+  onAdjustShiftTarget,
   onChangeCurrentOreRate,
   onChangeAdjustedOreRate,
   onChangeUncertainty,
@@ -46,14 +50,12 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
       <div className="col-span-12 lg:col-span-4 space-y-3">
         <ProgressSummaryCards
           forecast={forecast}
-          shiftTarget={shiftTarget}
+          shiftTarget={shift1Target}
           dayTarget={dayTarget}
         />
 
         <TargetControlPanel
-          shiftTarget={shiftTarget}
           dayTarget={dayTarget}
-          onChangeShiftTarget={onChangeShiftTarget}
           onChangeDayTarget={onChangeDayTarget}
         />
 
@@ -99,8 +101,12 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
           </div>
           <ShiftPerformanceChart
             forecast={forecast}
-            shiftTarget={shiftTarget}
+            shift1Target={shift1Target}
+            shift2Target={shift2Target}
+            shift3Target={shift3Target}
+            dayTarget={dayTarget}
             currentOreRate={currentOreRate}
+            onAdjustShiftTarget={onAdjustShiftTarget}
           />
         </Card>
 
