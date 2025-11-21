@@ -32,29 +32,61 @@ export const ORE_RATE_RANGES = {
   default: 169.67,
 } as const;
 
-// Uncertainty configurations
+// Uncertainty configuration ranges
+export const UNCERTAINTY_RANGES = {
+  min: 0, // 0% uncertainty (100% availability)
+  max: 30, // 30% uncertainty (70% availability)
+  step: 1,
+  default: 10, // 10% uncertainty (90% availability)
+} as const;
+
+// Calculate uncertainty parameters from percentage
+export const calculateUncertainty = (
+  uncertaintyPercent: number
+): Uncertainty => {
+  // Clamp value between min and max
+  const clamped = Math.max(
+    UNCERTAINTY_RANGES.min,
+    Math.min(UNCERTAINTY_RANGES.max, uncertaintyPercent)
+  );
+
+  // Availability factor: 100% - uncertainty%
+  const factor = (100 - clamped) / 100;
+
+  // Stoppage probability scales with uncertainty (0% = 0.02, 30% = 0.25)
+  const stoppageProb = 0.02 + (clamped / 30) * 0.23;
+
+  // Average stoppage duration scales with uncertainty (0% = 3min, 30% = 25min)
+  const avgStoppage = 3 + (clamped / 30) * 22;
+
+  // Color based on uncertainty level
+  let color: string;
+  let name: string;
+  if (clamped <= 10) {
+    color = "#10b981"; // Green
+    name = "Low";
+  } else if (clamped <= 20) {
+    color = "#f59e0b"; // Orange
+    name = "Medium";
+  } else {
+    color = "#ef4444"; // Red
+    name = "High";
+  }
+
+  return {
+    name,
+    color,
+    factor,
+    stoppageProb,
+    avgStoppage,
+  };
+};
+
+// Legacy: Keep for backward compatibility (deprecated)
 export const UNCERTAINTY_LEVELS: Record<1 | 2 | 3, Uncertainty> = {
-  1: {
-    name: "Low",
-    color: "#10b981",
-    factor: 0.95,
-    stoppageProb: 0.05,
-    avgStoppage: 5,
-  },
-  2: {
-    name: "Medium",
-    color: "#f59e0b",
-    factor: 0.9,
-    stoppageProb: 0.12,
-    avgStoppage: 10,
-  },
-  3: {
-    name: "High",
-    color: "#ef4444",
-    factor: 0.82,
-    stoppageProb: 0.2,
-    avgStoppage: 20,
-  },
+  1: calculateUncertainty(5),
+  2: calculateUncertainty(10),
+  3: calculateUncertainty(18),
 } as const;
 
 // Shift definitions

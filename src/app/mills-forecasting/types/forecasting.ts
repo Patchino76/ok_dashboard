@@ -68,7 +68,7 @@ export interface UseProductionForecastArgs {
   dayTarget: number;
   currentOreRate: number;
   adjustedOreRate: number;
-  uncertaintyLevel: 1 | 2 | 3;
+  uncertaintyPercent: number; // 0-30% uncertainty level
   mills: string[];
   selectedMills: string[];
   // Real-time production data (optional - will calculate if not provided)

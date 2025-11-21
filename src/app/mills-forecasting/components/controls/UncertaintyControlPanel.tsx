@@ -1,53 +1,59 @@
 import { FC } from "react";
 import { Card } from "@/components/ui/card";
+import { Slider } from "@/components/ui/slider";
 import { AlertTriangle } from "lucide-react";
 import type { Uncertainty } from "../../types/forecasting";
-import { UNCERTAINTY_LEVELS } from "../../constants";
+import { UNCERTAINTY_RANGES } from "../../constants";
 
 interface UncertaintyControlPanelProps {
-  uncertaintyLevel: 1 | 2 | 3;
+  uncertaintyPercent: number;
   uncertainty: Uncertainty;
-  onChangeUncertaintyLevel: (value: 1 | 2 | 3) => void;
+  onChangeUncertainty: (value: number) => void;
   expectedStoppages: number;
   expectedDowntime: number;
 }
 
 export const UncertaintyControlPanel: FC<UncertaintyControlPanelProps> = ({
-  uncertaintyLevel,
+  uncertaintyPercent,
   uncertainty,
-  onChangeUncertaintyLevel,
+  onChangeUncertainty,
   expectedStoppages,
   expectedDowntime,
 }) => {
   return (
-    <Card className="p-3 space-y-2">
+    <Card className="p-3 space-y-3">
       <div className="text-sm font-semibold text-slate-900 flex items-center gap-1">
         <AlertTriangle className="h-4 w-4" />
         Operating Uncertainty
       </div>
 
-      <div className="flex gap-2">
-        {[1, 2, 3].map((level) => {
-          const levelConfig = UNCERTAINTY_LEVELS[level as 1 | 2 | 3];
-          const isActive = uncertaintyLevel === level;
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <span className="text-xs text-slate-600">Uncertainty Level:</span>
+          <span
+            className="text-xs font-bold px-2 py-0.5 rounded"
+            style={{
+              backgroundColor: uncertainty.color,
+              color: "white",
+            }}
+          >
+            {uncertaintyPercent}% ({uncertainty.name})
+          </span>
+        </div>
 
-          return (
-            <button
-              key={level}
-              onClick={() => onChangeUncertaintyLevel(level as 1 | 2 | 3)}
-              className={`flex-1 px-2 py-1.5 rounded text-[11px] font-medium border transition-colors ${
-                isActive
-                  ? "text-white border-transparent"
-                  : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-              }`}
-              style={
-                isActive ? { backgroundColor: levelConfig.color } : undefined
-              }
-            >
-              {levelConfig.name}
-            </button>
-          );
-        })}
+        <Slider
+          value={[uncertaintyPercent]}
+          onValueChange={(values) => onChangeUncertainty(values[0])}
+          min={UNCERTAINTY_RANGES.min}
+          max={UNCERTAINTY_RANGES.max}
+          step={UNCERTAINTY_RANGES.step}
+          className="w-full"
+        />
+
+        <div className="flex justify-between text-[10px] text-slate-500">
+          <span>0% (Best)</span>
+          <span>30% (Worst)</span>
+        </div>
       </div>
 
       <div className="bg-slate-50 p-2 rounded text-[11px] space-y-1">

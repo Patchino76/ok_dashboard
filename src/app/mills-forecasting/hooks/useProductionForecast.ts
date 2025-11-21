@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type {
   Forecast,
   ShiftInfo,
-  Uncertainty,
-  UseProductionForecastArgs,
   PerMillSetpoint,
   OreFeedTimelinePoint,
   HourlyForecastPoint,
+  UseProductionForecastArgs,
 } from "../types/forecasting";
-import { UNCERTAINTY_LEVELS } from "../constants";
+import { calculateUncertainty } from "../constants";
 
 const getShiftInfo = (time: Date): ShiftInfo => {
   const hour = time.getHours();
@@ -54,7 +53,7 @@ export const useProductionForecast = (
     dayTarget,
     currentOreRate,
     adjustedOreRate,
-    uncertaintyLevel,
+    uncertaintyPercent,
     mills,
     selectedMills,
     actualShiftProduction,
@@ -97,7 +96,7 @@ export const useProductionForecast = (
         ? actualDayProduction
         : hoursIntoDay * currentOreRate;
 
-    const uncertainty = UNCERTAINTY_LEVELS[uncertaintyLevel];
+    const uncertainty = calculateUncertainty(uncertaintyPercent);
 
     const optimisticFactor = 1.0;
     const expectedFactor = uncertainty.factor;
@@ -225,16 +224,16 @@ export const useProductionForecast = (
       });
     }
 
-    // selectedMills are INCLUDED for adjustment.
+    // NEW LOGIC: selectedMills are EXCLUDED from adjustment (fixed).
     // If empty, all mills are adjustable.
-    const adjustableMills =
+    const fixedMills =
       selectedMills.length === 0
-        ? Object.keys(basePerMillRates)
+        ? [] // No mills fixed, all adjustable
         : selectedMills.filter((m) => m in basePerMillRates);
 
-    // Fixed mills are those NOT in the adjustable list
-    const fixedMills = Object.keys(basePerMillRates).filter(
-      (m) => !adjustableMills.includes(m)
+    // Adjustable mills are those NOT in the fixed list
+    const adjustableMills = Object.keys(basePerMillRates).filter(
+      (m) => !fixedMills.includes(m)
     );
 
     const fixedContributionShift =
@@ -268,6 +267,7 @@ export const useProductionForecast = (
     const requiredSelectedDayRate =
       hoursToEndOfDay > 0 ? remainingDayTarget / hoursToEndOfDay : 0;
 
+    // Add adjustable mills with calculated adjustments
     adjustableMills.forEach((millId) => {
       const currentRate = basePerMillRates[millId];
 
@@ -291,6 +291,19 @@ export const useProductionForecast = (
       });
     });
 
+    // Add fixed mills with zero adjustment (excluded from optimization)
+    fixedMills.forEach((millId) => {
+      const currentRate = basePerMillRates[millId];
+
+      perMillSetpoints.push({
+        millId,
+        currentRate,
+        requiredShiftRate: currentRate, // Keep at current rate
+        requiredDayRate: currentRate, // Keep at current rate
+        adjustmentNeeded: 0, // No adjustment for fixed mills
+      });
+    });
+
     // Debug logging
     if (perMillSetpoints.length > 0) {
       const totalAdjustment = perMillSetpoints.reduce(
@@ -299,8 +312,11 @@ export const useProductionForecast = (
       );
       console.log("📊 Per-mill setpoints calculated:", {
         adjustableMills: adjustableMills.length,
-        selectedMills:
-          selectedMills.length === 0 ? "ALL" : selectedMills.join(", "),
+        fixedMills: fixedMills.length,
+        selectedForExclusion:
+          selectedMills.length === 0
+            ? "NONE (all adjustable)"
+            : selectedMills.join(", "),
         totalCurrentRate: selectedTotalRate.toFixed(1) + " t/h",
         requiredTotalRate: requiredSelectedShiftRate.toFixed(1) + " t/h",
         totalAdjustment: totalAdjustment.toFixed(1) + " t/h",
@@ -347,7 +363,7 @@ export const useProductionForecast = (
     dayTarget,
     currentOreRate,
     adjustedOreRate,
-    uncertaintyLevel,
+    uncertaintyPercent,
     mills,
     selectedMills,
     actualShiftProduction,

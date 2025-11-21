@@ -18,7 +18,7 @@ export default function MillsForecastingPage() {
     dayTarget,
     currentOreRate,
     adjustedOreRate,
-    uncertaintyLevel,
+    uncertaintyPercent,
     selectedMills,
     actualShiftProduction,
     actualDayProduction,
@@ -26,7 +26,7 @@ export default function MillsForecastingPage() {
     setShiftTarget,
     setDayTarget,
     setAdjustedOreRate,
-    setUncertaintyLevel,
+    setUncertaintyPercent,
     setSelectedMills,
     updateRealTimeData,
   } = useForecastingStore();
@@ -90,7 +90,7 @@ export default function MillsForecastingPage() {
     dayTarget,
     currentOreRate,
     adjustedOreRate,
-    uncertaintyLevel,
+    uncertaintyPercent,
     mills,
     selectedMills,
     actualShiftProduction, // Real-time data from API
@@ -149,7 +149,7 @@ export default function MillsForecastingPage() {
         dayTarget={dayTarget}
         currentOreRate={currentOreRate}
         adjustedOreRate={adjustedOreRate}
-        uncertaintyLevel={uncertaintyLevel}
+        uncertaintyPercent={uncertaintyPercent}
         currentTime={currentTime}
         onChangeShiftTarget={setShiftTarget}
         onChangeDayTarget={setDayTarget}
@@ -158,7 +158,7 @@ export default function MillsForecastingPage() {
           // This is handled by the store
         }}
         onChangeAdjustedOreRate={setAdjustedOreRate}
-        onChangeUncertaintyLevel={setUncertaintyLevel}
+        onChangeUncertainty={setUncertaintyPercent}
       />
     </div>
   );

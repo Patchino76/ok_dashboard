@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import { TARGET_RANGES, ORE_RATE_RANGES } from "../constants";
+import {
+  TARGET_RANGES,
+  ORE_RATE_RANGES,
+  UNCERTAINTY_RANGES,
+} from "../constants";
 import type { ProductionDataUpdate } from "../types/production";
 
 interface ForecastingSettings {
@@ -14,8 +18,8 @@ interface ForecastingSettings {
   /** User-adjusted ore rate for forecasting (t/h) */
   adjustedOreRate: number;
 
-  /** Uncertainty level: 1 = Low, 2 = Medium, 3 = High */
-  uncertaintyLevel: 1 | 2 | 3;
+  /** Uncertainty percentage: 0-30% (0 = best, 30 = worst) */
+  uncertaintyPercent: number;
 
   /** Selected mills for adjustment (empty = all mills) */
   selectedMills: string[];
@@ -56,8 +60,8 @@ interface ForecastingSettings {
   /** Set adjusted ore rate for forecasting */
   setAdjustedOreRate: (rate: number) => void;
 
-  /** Set uncertainty level */
-  setUncertaintyLevel: (level: 1 | 2 | 3) => void;
+  /** Set uncertainty percentage */
+  setUncertaintyPercent: (percent: number) => void;
 
   /** Set selected mills */
   setSelectedMills: (mills: string[]) => void;
@@ -93,7 +97,7 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
   shiftTarget: TARGET_RANGES.shift.default,
   dayTarget: TARGET_RANGES.day.default,
   adjustedOreRate: ORE_RATE_RANGES.default,
-  uncertaintyLevel: 2,
+  uncertaintyPercent: UNCERTAINTY_RANGES.default,
   selectedMills: [],
 
   // Real-time data - initialized with defaults
@@ -124,9 +128,9 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
     set({ adjustedOreRate: rate });
   },
 
-  setUncertaintyLevel: (level) => {
-    console.log("🎲 Setting uncertainty level:", level);
-    set({ uncertaintyLevel: level });
+  setUncertaintyPercent: (percent) => {
+    console.log("🎲 Setting uncertainty percent:", percent);
+    set({ uncertaintyPercent: percent });
   },
 
   setSelectedMills: (mills) => {
@@ -178,7 +182,7 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
       shiftTarget: TARGET_RANGES.shift.default,
       dayTarget: TARGET_RANGES.day.default,
       adjustedOreRate: ORE_RATE_RANGES.default,
-      uncertaintyLevel: 2,
+      uncertaintyPercent: UNCERTAINTY_RANGES.default,
       selectedMills: [],
     });
   },

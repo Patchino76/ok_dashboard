@@ -21,6 +21,7 @@ interface ChartPoint {
   adjustmentPositive: number; // Positive adjustment (green/orange on top)
   adjustmentNegative: number; // Negative adjustment (red notch)
   adjustment: number; // Raw adjustment value
+  isFixed: boolean; // True if mill is excluded from adjustments
   currentDisplay: string;
   adjustmentDisplay: string;
 }
@@ -48,6 +49,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
       const name = item.millId.replace("Mill", "M");
       const adjustment = item.adjustmentNeeded;
       const current = item.currentRate;
+      const isFixed = adjustment === 0; // Fixed mills have zero adjustment
 
       return {
         name,
@@ -55,8 +57,9 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
         adjustmentPositive: adjustment > 0 ? adjustment : 0, // Green/orange on top for positive
         adjustmentNegative: adjustment < 0 ? Math.abs(adjustment) : 0, // Red segment on top for negative
         adjustment, // Raw value for color logic
+        isFixed, // Mark fixed mills
         currentDisplay: String(Math.round(current)),
-        adjustmentDisplay: getAdjustmentLabel(adjustment),
+        adjustmentDisplay: isFixed ? "" : getAdjustmentLabel(adjustment), // No label for fixed mills
       };
     });
   }, [data]);
@@ -142,19 +145,15 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             cursor={{ fill: "transparent" }}
           />
 
-          {/* Current rate bar (dark slate) */}
-          <Bar
-            dataKey="current"
-            stackId="a"
-            fill="#475569"
-            radius={[0, 0, 6, 6]}
-            barSize={50}
-          >
-            <LabelList
-              dataKey="currentDisplay"
-              position="center"
-              style={{ fill: "white", fontSize: 13, fontWeight: 600 }}
-            />
+          {/* Current rate bar (dark slate for adjustable, gray for fixed) */}
+          <Bar dataKey="current" stackId="a" barSize={50}>
+            {chartData.map((entry, index) => (
+              <Cell
+                key={`current-${index}`}
+                fill={entry.isFixed ? "#94a3b8" : "#475569"} // Gray for fixed, dark slate for adjustable
+              />
+            ))}
+            <LabelList dataKey="currentDisplay" position="center" />
           </Bar>
 
           {/* Positive adjustment (green/orange on top) */}

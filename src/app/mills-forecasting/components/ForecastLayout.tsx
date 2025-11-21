@@ -17,13 +17,13 @@ interface ForecastLayoutProps {
   dayTarget: number;
   currentOreRate: number;
   adjustedOreRate: number;
-  uncertaintyLevel: 1 | 2 | 3;
+  uncertaintyPercent: number;
   currentTime?: Date | null;
   onChangeShiftTarget: (value: number) => void;
   onChangeDayTarget: (value: number) => void;
   onChangeCurrentOreRate: (value: number) => void;
   onChangeAdjustedOreRate: (value: number) => void;
-  onChangeUncertaintyLevel: (value: 1 | 2 | 3) => void;
+  onChangeUncertainty: (value: number) => void;
 }
 
 export const ForecastLayout: FC<ForecastLayoutProps> = ({
@@ -32,13 +32,13 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
   dayTarget,
   currentOreRate,
   adjustedOreRate,
-  uncertaintyLevel,
+  uncertaintyPercent,
   currentTime,
   onChangeShiftTarget,
   onChangeDayTarget,
   onChangeCurrentOreRate,
   onChangeAdjustedOreRate,
-  onChangeUncertaintyLevel,
+  onChangeUncertainty,
 }) => {
   return (
     <div className="grid grid-cols-12 gap-3">
@@ -65,9 +65,9 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
         />
 
         <UncertaintyControlPanel
-          uncertaintyLevel={uncertaintyLevel}
+          uncertaintyPercent={uncertaintyPercent}
           uncertainty={forecast.uncertainty}
-          onChangeUncertaintyLevel={onChangeUncertaintyLevel}
+          onChangeUncertainty={onChangeUncertainty}
           expectedStoppages={forecast.expectedStoppages}
           expectedDowntime={forecast.expectedDowntime}
         />
