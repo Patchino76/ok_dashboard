@@ -1,3 +1,5 @@
+"use client";
+
 import { FC } from "react";
 import { Slider } from "@/components/ui/slider";
 
@@ -39,10 +41,7 @@ export const VerticalShiftSlider: FC<VerticalShiftSliderProps> = ({
   const colors = colorClasses[color];
 
   const handleValueChange = (values: number[]) => {
-    const newValue = values[0];
-    if (newValue !== undefined && newValue !== value) {
-      onChange(Math.round(newValue));
-    }
+    onChange(values[0]);
   };
 
   // Format values for display (e.g., 15876 -> 15.9k)
@@ -54,17 +53,19 @@ export const VerticalShiftSlider: FC<VerticalShiftSliderProps> = ({
   };
 
   return (
-    <div className="flex flex-col items-center h-full w-16">
+    <div className="flex flex-col items-center w-20">
       {/* Value display */}
-      <div className={`text-xs font-bold ${colors.text} mb-2`}>
+      <div
+        className={`text-xs font-bold ${colors.text} mb-2 whitespace-nowrap`}
+      >
         {Math.round(value)}t
       </div>
 
-      {/* Min value label */}
-      <div className="text-[9px] text-slate-400 mb-1">{formatValue(max)}</div>
+      {/* Max value label (top) */}
+      <div className="text-[9px] text-slate-400 mb-2">{formatValue(max)}</div>
 
-      {/* Vertical slider */}
-      <div className="flex-1 flex items-center justify-center w-full">
+      {/* Vertical slider - fixed height */}
+      <div className="h-48 flex items-center justify-center">
         <Slider
           orientation="vertical"
           min={min}
@@ -74,12 +75,11 @@ export const VerticalShiftSlider: FC<VerticalShiftSliderProps> = ({
           onValueChange={handleValueChange}
           rangeClassName={colors.range}
           thumbClassName={colors.thumb}
-          className="h-full"
         />
       </div>
 
-      {/* Max value label */}
-      <div className="text-[9px] text-slate-400 mt-1 mb-2">
+      {/* Min value label (bottom) */}
+      <div className="text-[9px] text-slate-400 mt-2 mb-2">
         {formatValue(min)}
       </div>
 

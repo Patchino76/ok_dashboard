@@ -13,6 +13,10 @@ import {
 import type { Forecast } from "../types/forecasting";
 import { VerticalShiftSlider } from "./shared/VerticalShiftSlider";
 
+// Fixed slider bounds - completely static, never changes
+const SLIDER_MIN = 10000;
+const SLIDER_MAX = 20000;
+
 // Custom tooltip without decimals
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -99,16 +103,6 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
     },
   ];
 
-  // Calculate slider bounds (±30% of target)
-  const getSliderBounds = (target: number) => ({
-    min: Math.round(target * 0.7),
-    max: Math.round(target * 1.3),
-  });
-
-  const s1Bounds = getSliderBounds(shift1Target);
-  const s2Bounds = getSliderBounds(shift2Target);
-  const s3Bounds = getSliderBounds(shift3Target);
-
   const totalShiftTargets = shift1Target + shift2Target + shift3Target;
   const isBalanced = Math.abs(totalShiftTargets - dayTarget) < 1;
 
@@ -128,40 +122,37 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
       </div>
 
       {/* Sliders on left + Bar Chart on right */}
-      <div className="flex items-stretch gap-4">
+      <div className="flex items-start gap-4">
         {/* Shift Target Sliders - Left Side */}
-        <div
-          className="flex items-stretch gap-2 pr-4 border-r"
-          style={{ height: "300px" }}
-        >
+        <div className="flex gap-3 pr-4 border-r">
           <VerticalShiftSlider
             label="S1"
             value={shift1Target}
-            min={s1Bounds.min}
-            max={s1Bounds.max}
+            min={SLIDER_MIN}
+            max={SLIDER_MAX}
             color="blue"
             onChange={(value) => onAdjustShiftTarget(1, value)}
           />
           <VerticalShiftSlider
             label="S2"
             value={shift2Target}
-            min={s2Bounds.min}
-            max={s2Bounds.max}
+            min={SLIDER_MIN}
+            max={SLIDER_MAX}
             color="orange"
             onChange={(value) => onAdjustShiftTarget(2, value)}
           />
           <VerticalShiftSlider
             label="S3"
             value={shift3Target}
-            min={s3Bounds.min}
-            max={s3Bounds.max}
+            min={SLIDER_MIN}
+            max={SLIDER_MAX}
             color="purple"
             onChange={(value) => onAdjustShiftTarget(3, value)}
           />
         </div>
 
         {/* Bar Chart - Right Side */}
-        <div className="flex-1" style={{ height: "300px" }}>
+        <div className="flex-1 h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
