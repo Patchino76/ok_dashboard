@@ -26,11 +26,11 @@ interface ChartPoint {
   adjustmentDisplay: string;
 }
 
-// Color thresholds - blue for negative/small, orange for moderate, green for strong positive
+// Color thresholds - blue for < -5, orange for -5 to +5, green for > +5
 const getAdjustmentColor = (adjustment: number): string => {
-  if (adjustment < 0 || Math.abs(adjustment) <= 20) return "#3b82f6"; // Blue: Negative or small
-  if (Math.abs(adjustment) <= 40) return "#f97316"; // Orange: Moderate
-  return "#10b981"; // Green: Strong positive change
+  if (adjustment > 5) return "#10b981"; // Green: Strong positive
+  if (adjustment >= -5) return "#f97316"; // Orange: Small change (-5 to +5)
+  return "#3b82f6"; // Blue: Strong negative (< -5)
 };
 
 const getAdjustmentLabel = (adjustment: number): string => {
@@ -73,10 +73,14 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
   }
 
   // Custom label for adjustment values at the top of bars
-  const renderAdjustmentLabel = (props: any) => {
-    const { x, y, width, height, index } = props;
+  const renderAdjustmentLabel = (props: any, type: "positive" | "negative") => {
+    const { x, y, width, height, index, value } = props;
     const point = chartData[index];
-    if (!point || point.adjustment === 0) return <g />;
+
+    // Strict check: only render if adjustment matches the bar type
+    if (!point) return <g />;
+    if (type === "positive" && point.adjustment <= 0) return <g />;
+    if (type === "negative" && point.adjustment >= 0) return <g />;
 
     const centerX = x + width / 2;
     const color = getAdjustmentColor(point.adjustment);
@@ -146,7 +150,12 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
           />
 
           {/* Current rate bar (dark slate for adjustable, gray for fixed) */}
-          <Bar dataKey="current" stackId="a" barSize={50}>
+          <Bar
+            dataKey="current"
+            stackId="a"
+            barSize={50}
+            isAnimationActive={false}
+          >
             {chartData.map((entry, index) => (
               <Cell
                 key={`current-${index}`}
@@ -169,6 +178,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             stackId="a"
             radius={[6, 6, 0, 0]}
             barSize={50}
+            isAnimationActive={false}
           >
             {chartData.map((entry, index) => (
               <Cell
@@ -180,7 +190,9 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
                 }
               />
             ))}
-            <LabelList content={renderAdjustmentLabel} />
+            <LabelList
+              content={(props) => renderAdjustmentLabel(props, "positive")}
+            />
           </Bar>
 
           {/* Negative adjustment (blue segment on top) */}
@@ -189,6 +201,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             stackId="a"
             radius={[6, 6, 0, 0]}
             barSize={50}
+            isAnimationActive={false}
           >
             {chartData.map((entry, index) => (
               <Cell
@@ -196,7 +209,9 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
                 fill={entry.adjustment < 0 ? "#3b82f6" : "transparent"}
               />
             ))}
-            <LabelList content={renderAdjustmentLabel} />
+            <LabelList
+              content={(props) => renderAdjustmentLabel(props, "negative")}
+            />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -205,15 +220,15 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
       <div className="mt-3 flex gap-6 justify-center text-xs text-slate-600">
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-sm bg-emerald-500" />
-          <span>Strong change</span>
+          <span>&gt; +5 t/h</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-sm bg-orange-500" />
-          <span>Moderate</span>
+          <span>-5 to +5 t/h</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-sm bg-blue-500" />
-          <span>Small / negative</span>
+          <span>&lt; -5 t/h</span>
         </div>
       </div>
     </div>

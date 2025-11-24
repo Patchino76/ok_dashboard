@@ -1,7 +1,6 @@
 import { FC } from "react";
 import { Card } from "@/components/ui/card";
 import type { Forecast } from "../types/forecasting";
-import { ProductionForecastChart } from "./ProductionForecastChart";
 import { ShiftPerformanceChart } from "./ShiftPerformanceChart";
 import { PerMillOreSetpointChart } from "./PerMillOreSetpointChart";
 import { TargetControlPanel } from "./controls/TargetControlPanel";
@@ -77,20 +76,6 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
 
       {/* Right column - Charts and Analysis */}
       <div className="col-span-12 lg:col-span-8 space-y-3">
-        <Card className="p-3">
-          <div className="text-sm font-semibold text-slate-900 mb-2">
-            Production Forecast with Uncertainty Range
-          </div>
-          <ProductionForecastChart
-            data={forecast.hourlyForecast}
-            dayTarget={dayTarget}
-            uncertainty={forecast.uncertainty}
-            expectedStoppages={forecast.expectedStoppages}
-            expectedDowntime={forecast.expectedDowntime}
-            currentTime={currentTime}
-          />
-        </Card>
-
         <Card className="p-3">
           <div className="text-sm font-semibold text-slate-900 mb-2">
             Shift Performance Forecast

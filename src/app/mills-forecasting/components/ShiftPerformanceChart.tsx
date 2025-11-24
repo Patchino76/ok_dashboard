@@ -9,6 +9,8 @@ import {
   Tooltip,
   Legend,
   ReferenceLine,
+  ComposedChart,
+  Line,
 } from "recharts";
 import type { Forecast } from "../types/forecasting";
 import { VerticalShiftSlider } from "./shared/VerticalShiftSlider";
@@ -17,16 +19,23 @@ import { VerticalShiftSlider } from "./shared/VerticalShiftSlider";
 const SLIDER_MIN = 10000;
 const SLIDER_MAX = 20000;
 
-// Custom tooltip without decimals
+// Custom tooltip with rates
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white p-3 border border-gray-300 rounded shadow-lg">
         <p className="font-semibold text-sm mb-2">{label}</p>
         {payload.map((entry: any, index: number) => (
-          <p key={index} style={{ color: entry.color }} className="text-xs">
-            {entry.name}: <strong>{Math.round(entry.value)} t</strong>
-          </p>
+          <div key={index} className="mb-1">
+            <p style={{ color: entry.color }} className="text-xs font-medium">
+              {entry.name}: <strong>{Math.round(entry.value)} t</strong>
+            </p>
+            {entry.payload.rates && entry.dataKey && (
+              <p className="text-[10px] text-gray-500 pl-2">
+                Rate: {Math.round(entry.payload.rates[entry.dataKey])} t/h
+              </p>
+            )}
+          </div>
         ))}
       </div>
     );
@@ -63,6 +72,13 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
   onToggleShiftLock,
   canLockShift,
 }) => {
+  // Calculate rates for tooltip
+  const getRates = (target: number) => ({
+    actual: currentOreRate,
+    expected: currentOreRate * forecast.uncertainty.factor,
+    target: target / 8,
+  });
+
   const data = [
     {
       shift: "S1 (06-14)",
@@ -74,11 +90,8 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
         forecast.shiftInfo.shift === 1
           ? forecast.forecastShiftExpected
           : currentOreRate * 8 * forecast.uncertainty.factor,
-      optimistic:
-        forecast.shiftInfo.shift === 1
-          ? forecast.forecastShiftOptimistic
-          : currentOreRate * 8,
       target: shift1Target,
+      rates: getRates(shift1Target),
     },
     {
       shift: "S2 (14-22)",
@@ -92,11 +105,8 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
         forecast.shiftInfo.shift === 2
           ? forecast.forecastShiftExpected
           : currentOreRate * 8 * forecast.uncertainty.factor,
-      optimistic:
-        forecast.shiftInfo.shift === 2
-          ? forecast.forecastShiftOptimistic
-          : currentOreRate * 8,
       target: shift2Target,
+      rates: getRates(shift2Target),
     },
     {
       shift: "S3 (22-06)",
@@ -105,11 +115,8 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
         forecast.shiftInfo.shift === 3
           ? forecast.forecastShiftExpected
           : currentOreRate * 8 * forecast.uncertainty.factor,
-      optimistic:
-        forecast.shiftInfo.shift === 3
-          ? forecast.forecastShiftOptimistic
-          : currentOreRate * 8,
       target: shift3Target,
+      rates: getRates(shift3Target),
     },
   ];
 
@@ -130,7 +137,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
         </span>
       </div>
 
-      {/* Sliders on left + Bar Chart on right */}
+      {/* Sliders on left + Chart on right */}
       <div className="flex items-center gap-4">
         {/* Shift Target Sliders - Left Side */}
         <div className="flex gap-3 pr-4 border-r">
@@ -172,19 +179,33 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
         {/* Bar Chart - Right Side */}
         <div className="flex-1 h-64">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data}>
+            <ComposedChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="shift" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="actual" fill="#3b82f6" name="Actual" />
+              <Bar
+                dataKey="actual"
+                fill="#3b82f6"
+                name="Actual / Current"
+                barSize={40}
+              />
               <Bar
                 dataKey="expected"
                 fill={forecast.uncertainty.color}
-                name="Expected"
+                name="Predicted (w/ Uncertainty)"
+                barSize={40}
               />
-            </BarChart>
+              <Line
+                type="monotone"
+                dataKey="target"
+                stroke="#a855f7"
+                strokeWidth={2}
+                name="Target (Slider)"
+                dot={{ r: 4 }}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </div>
