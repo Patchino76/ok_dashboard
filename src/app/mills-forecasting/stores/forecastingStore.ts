@@ -65,6 +65,9 @@ interface ForecastingSettings {
   /** Set day target and recalculate shift targets proportionally */
   setDayTarget: (target: number) => void;
 
+  /** Set all targets simultaneously (day and shifts) */
+  setAllTargets: (day: number, s1: number, s2: number, s3: number) => void;
+
   /** Adjust a specific shift target and redistribute to maintain daily total */
   adjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
 
@@ -145,6 +148,16 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
     set({ dayTarget: target });
     // Recalculate shift targets proportionally
     get().calculateInitialShiftTargets(target);
+  },
+
+  setAllTargets: (day, s1, s2, s3) => {
+    console.log("📊 Setting all targets:", { day, s1, s2, s3 });
+    set({
+      dayTarget: day,
+      shift1Target: s1,
+      shift2Target: s2,
+      shift3Target: s3,
+    });
   },
 
   adjustShiftTarget: (shiftIndex, newValue) => {

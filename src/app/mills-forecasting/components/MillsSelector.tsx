@@ -17,28 +17,25 @@ export const MillsSelector: FC<MillsSelectorProps> = ({
       {mills.map((mill) => {
         const isAllButton = mill === "all";
         const isAllActive = isAllButton && selectedMills.length === 0;
-        const isSelected = !isAllButton && selectedMills.includes(mill);
+        const isDisabled = !isAllButton && selectedMills.includes(mill);
         const label = isAllButton ? "All" : mill.replace("Mill", "M");
+
+        // Active state:
+        // - All button: when list is empty
+        // - Mill button: when NOT disabled (not in list)
+        const isActive = isAllButton ? isAllActive : !isDisabled;
 
         return (
           <Button
             key={mill}
             size="sm"
-            variant={
-              isAllButton
-                ? isAllActive
-                  ? "default"
-                  : "outline"
-                : isSelected
-                ? "default"
-                : "outline"
-            }
+            variant={isActive ? "default" : "outline"}
             className={`h-7 px-2 text-[11px] font-medium rounded-full ${
-              isAllButton && isAllActive
+              isAllButton && isActive
                 ? "bg-blue-600 text-white hover:bg-blue-700"
-                : isSelected
+                : !isAllButton && isActive
                 ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                : ""
+                : "text-slate-500" // Explicit grey text for disabled
             }`}
             onClick={() => onSelectMill(mill)}
           >

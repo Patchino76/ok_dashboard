@@ -2,6 +2,8 @@
 
 import { useMemo, useEffect } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { RotateCcw } from "lucide-react";
 import { MillsForecastingHeader } from "./components/MillsForecastingHeader";
 import { MillsSelector } from "./components/MillsSelector";
 import { ForecastLayout } from "./components/ForecastLayout";
@@ -29,6 +31,7 @@ export default function MillsForecastingPage() {
     actualDayProduction,
     isRealTimeMode,
     setDayTarget,
+    setAllTargets,
     adjustShiftTarget,
     toggleShiftLock,
     canLockShift,
@@ -125,6 +128,48 @@ export default function MillsForecastingPage() {
     setSelectedMills(newSelection);
   };
 
+  const handleReset = () => {
+    if (forecast) {
+      // Calculate ideal forecast based on current rate and 0% uncertainty
+      const currentRate = currentOreRate;
+      const idealDayTotal =
+        forecast.productionToday + forecast.hoursToEndOfDay * currentRate;
+
+      const shift = forecast.shiftInfo.shift;
+      const currentShiftForecast =
+        forecast.productionSoFar + forecast.hoursToShiftEnd * currentRate;
+      const futureShiftForecast = 8 * currentRate;
+
+      let s1 = 0,
+        s2 = 0,
+        s3 = 0;
+
+      if (shift === 1) {
+        s1 = currentShiftForecast;
+        s2 = futureShiftForecast;
+        s3 = futureShiftForecast;
+      } else if (shift === 2) {
+        s2 = currentShiftForecast;
+        s3 = futureShiftForecast;
+        // S1 is past. S1 = Day - S2 - S3.
+        s1 = Math.max(0, idealDayTotal - s2 - s3);
+      } else {
+        // shift === 3
+        s3 = currentShiftForecast;
+        // S1 + S2 is past.
+        const pastTotal = Math.max(0, idealDayTotal - s3);
+        // Distribute past actuals equally (or proportionally if we had data, but equal is safe fallback)
+        s1 = pastTotal / 2;
+        s2 = pastTotal / 2;
+      }
+
+      // Set all targets simultaneously to avoid auto-distribution logic
+      setAllTargets(idealDayTotal, s1, s2, s3);
+    }
+    setUncertaintyPercent(0);
+    setSelectedMills([]);
+  };
+
   if (isLoadingProduction || !forecast) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -153,6 +198,15 @@ export default function MillsForecastingPage() {
           selectedMills={selectedMills}
           onSelectMill={handleMillSelection}
         />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleReset}
+          className="h-7 text-xs text-slate-500 hover:text-slate-900"
+        >
+          <RotateCcw className="h-3 w-3 mr-1" />
+          Reset
+        </Button>
       </Card>
 
       <ForecastLayout

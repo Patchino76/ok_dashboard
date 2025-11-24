@@ -58,6 +58,10 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
 
         <TargetControlPanel
           dayTarget={dayTarget}
+          shift1Target={shift1Target}
+          shift2Target={shift2Target}
+          shift3Target={shift3Target}
+          forecast={forecast}
           onChangeDayTarget={onChangeDayTarget}
         />
 

@@ -18,7 +18,7 @@ export const TARGET_RANGES = {
   },
   day: {
     min: 2400,
-    max: 60000,
+    max: 50000,
     step: 100,
     default: 45000,
   },

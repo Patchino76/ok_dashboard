@@ -22,6 +22,7 @@ import {
   TrendingUp,
   LayoutDashboard,
   ArrowRight,
+  Factory as FactoryIcon,
 } from "lucide-react";
 import { useDashboardTags } from "@/hooks/useDashboardTags";
 import { formatNumber } from "@/lib/utils";
@@ -213,6 +214,41 @@ export default function Home() {
                     size="1"
                     variant="soft"
                     style={{ backgroundColor: "#dbeafe", color: "#2563eb" }}
+                  >
+                    Активен
+                  </Badge>
+                </Box>
+              </Flex>
+            </Card>
+          </Link>
+
+          <Link href="/mills-forecasting" className="no-underline">
+            <Card className="bg-gradient-to-br from-white to-orange-50/50 h-full hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 to-amber-400" />
+              <Flex direction="column" p="5" height="100%">
+                <Flex justify="between" align="center" mb="3">
+                  <Box className="p-3 bg-gradient-to-br from-orange-600 to-amber-600 rounded-lg shadow-lg">
+                    <FactoryIcon className="h-5 w-5 text-white" />
+                  </Box>
+                  <Box className="size-8 flex items-center justify-center rounded-full bg-orange-50 group-hover:bg-orange-100 transition-colors">
+                    <ArrowRight className="h-4 w-4 text-orange-600" />
+                  </Box>
+                </Flex>
+                <Heading
+                  size="4"
+                  mb="2"
+                  className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent"
+                >
+                  Производство
+                </Heading>
+                <Text className="text-gray-500 mb-2">
+                  Прогнозиране на добива и управление на сменни цели
+                </Text>
+                <Box className="mt-auto">
+                  <Badge
+                    size="1"
+                    variant="soft"
+                    style={{ backgroundColor: "#ffedd5", color: "#ea580c" }}
                   >
                     Активен
                   </Badge>

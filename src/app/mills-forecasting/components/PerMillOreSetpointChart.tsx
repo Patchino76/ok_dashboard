@@ -129,95 +129,143 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
     return null;
   };
 
+  // Calculate totals for the summary bar
+  const totalCurrent = chartData.reduce((sum, item) => sum + item.current, 0);
+  const totalAdjustment = chartData.reduce(
+    (sum, item) => sum + item.adjustment,
+    0
+  );
+  const totalTarget = totalCurrent + totalAdjustment;
+
+  // Calculate percentages for the bar (assuming max range is somewhat larger than max of current/target)
+  const maxRange = Math.max(totalCurrent, totalTarget) * 1.2 || 100;
+  const currentPercent = (totalCurrent / maxRange) * 100;
+  const targetPercent = (totalTarget / maxRange) * 100;
+
   return (
-    <div className="h-64">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={chartData}
-          margin={{ top: 35, right: 10, left: 0, bottom: 5 }}
-          barCategoryGap="20%"
-        >
-          <XAxis
-            dataKey="name"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
+    <div className="space-y-4">
+      {/* Combined Ore Rate Summary Bar */}
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs">
+          <span className="text-slate-500 font-medium">Combined Ore Rate</span>
+          <div className="flex gap-3">
+            <span className="text-slate-600">
+              Actual: <b>{Math.round(totalCurrent)}</b> t/h
+            </span>
+            <span
+              className={`font-bold ${
+                totalAdjustment >= 0 ? "text-emerald-600" : "text-rose-600"
+              }`}
+            >
+              Target: {Math.round(totalTarget)} t/h (
+              {totalAdjustment > 0 ? "+" : ""}
+              {Math.round(totalAdjustment)})
+            </span>
+          </div>
+        </div>
+        <div className="h-4 bg-slate-100 rounded-sm relative overflow-hidden">
+          {/* Target Marker Line */}
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-black z-10"
+            style={{ left: `${targetPercent}%` }}
           />
-          <YAxis hide />
-          <RechartsTooltip
-            content={<CustomTooltip />}
-            cursor={{ fill: "transparent" }}
+          {/* Current Rate Bar */}
+          <div
+            className="absolute top-0 left-0 h-full bg-slate-700 transition-all duration-300"
+            style={{ width: `${currentPercent}%` }}
           />
+        </div>
+      </div>
 
-          {/* Current rate bar (dark slate for adjustable, gray for fixed) */}
-          <Bar
-            dataKey="current"
-            stackId="a"
-            barSize={50}
-            isAnimationActive={false}
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            data={chartData}
+            margin={{ top: 35, right: 10, left: 0, bottom: 5 }}
+            barCategoryGap="20%"
           >
-            {chartData.map((entry, index) => (
-              <Cell
-                key={`current-${index}`}
-                fill={entry.isFixed ? "#94a3b8" : "#475569"} // Gray for fixed, dark slate for adjustable
-              />
-            ))}
-            <LabelList
-              dataKey="currentDisplay"
-              position="insideBottom"
-              fill="#ffffff"
-              fontSize={11}
-              fontWeight={600}
-              offset={5}
+            <XAxis
+              dataKey="name"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
             />
-          </Bar>
+            <YAxis hide />
+            <RechartsTooltip
+              content={<CustomTooltip />}
+              cursor={{ fill: "transparent" }}
+            />
 
-          {/* Positive adjustment (green/orange on top) */}
-          <Bar
-            dataKey="adjustmentPositive"
-            stackId="a"
-            radius={[6, 6, 0, 0]}
-            barSize={50}
-            isAnimationActive={false}
-          >
-            {chartData.map((entry, index) => (
-              <Cell
-                key={`pos-${index}`}
-                fill={
-                  entry.adjustment > 0
-                    ? getAdjustmentColor(entry.adjustment)
-                    : "transparent"
-                }
+            {/* Current rate bar (dark slate for adjustable, gray for fixed) */}
+            <Bar
+              dataKey="current"
+              stackId="a"
+              barSize={50}
+              isAnimationActive={false}
+            >
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`current-${index}`}
+                  fill={entry.isFixed ? "#94a3b8" : "#475569"} // Gray for fixed, dark slate for adjustable
+                />
+              ))}
+              <LabelList
+                dataKey="currentDisplay"
+                position="insideBottom"
+                fill="#ffffff"
+                fontSize={11}
+                fontWeight={600}
+                offset={5}
               />
-            ))}
-            <LabelList
-              content={(props) => renderAdjustmentLabel(props, "positive")}
-            />
-          </Bar>
+            </Bar>
 
-          {/* Negative adjustment (blue segment on top) */}
-          <Bar
-            dataKey="adjustmentNegative"
-            stackId="a"
-            radius={[6, 6, 0, 0]}
-            barSize={50}
-            isAnimationActive={false}
-          >
-            {chartData.map((entry, index) => (
-              <Cell
-                key={`neg-${index}`}
-                fill={entry.adjustment < 0 ? "#3b82f6" : "transparent"}
+            {/* Positive adjustment (green/orange on top) */}
+            <Bar
+              dataKey="adjustmentPositive"
+              stackId="a"
+              radius={[6, 6, 0, 0]}
+              barSize={50}
+              isAnimationActive={false}
+            >
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`pos-${index}`}
+                  fill={
+                    entry.adjustment > 0
+                      ? getAdjustmentColor(entry.adjustment)
+                      : "transparent"
+                  }
+                />
+              ))}
+              <LabelList
+                content={(props) => renderAdjustmentLabel(props, "positive")}
               />
-            ))}
-            <LabelList
-              content={(props) => renderAdjustmentLabel(props, "negative")}
-            />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+            </Bar>
+
+            {/* Negative adjustment (blue segment on top) */}
+            <Bar
+              dataKey="adjustmentNegative"
+              stackId="a"
+              radius={[6, 6, 0, 0]}
+              barSize={50}
+              isAnimationActive={false}
+            >
+              {chartData.map((entry, index) => (
+                <Cell
+                  key={`neg-${index}`}
+                  fill={entry.adjustment < 0 ? "#3b82f6" : "transparent"}
+                />
+              ))}
+              <LabelList
+                content={(props) => renderAdjustmentLabel(props, "negative")}
+              />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
       {/* Legend */}
-      <div className="mt-3 flex gap-6 justify-center text-xs text-slate-600">
+      <div className="mt-1 flex gap-6 justify-center text-xs text-slate-600">
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-sm bg-emerald-500" />
           <span>&gt; +5 t/h</span>
