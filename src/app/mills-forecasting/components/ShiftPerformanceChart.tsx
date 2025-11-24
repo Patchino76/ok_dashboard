@@ -39,9 +39,14 @@ interface ShiftPerformanceChartProps {
   shift1Target: number;
   shift2Target: number;
   shift3Target: number;
+  shift1Locked: boolean;
+  shift2Locked: boolean;
+  shift3Locked: boolean;
   dayTarget: number;
   currentOreRate: number;
   onAdjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
+  onToggleShiftLock: (shiftIndex: 1 | 2 | 3) => void;
+  canLockShift: (shiftIndex: 1 | 2 | 3) => boolean;
 }
 
 export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
@@ -49,9 +54,14 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
   shift1Target,
   shift2Target,
   shift3Target,
+  shift1Locked,
+  shift2Locked,
+  shift3Locked,
   dayTarget,
   currentOreRate,
   onAdjustShiftTarget,
+  onToggleShiftLock,
+  canLockShift,
 }) => {
   const data = [
     {
@@ -109,8 +119,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
   return (
     <div className="space-y-2">
       {/* Total validation header */}
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-semibold text-slate-700">Shift Targets</span>
+      <div className="flex items-center justify-end text-xs">
         <span
           className={`text-xs font-medium ${
             isBalanced ? "text-green-600" : "text-red-600"
@@ -122,7 +131,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
       </div>
 
       {/* Sliders on left + Bar Chart on right */}
-      <div className="flex items-start gap-4">
+      <div className="flex items-center gap-4">
         {/* Shift Target Sliders - Left Side */}
         <div className="flex gap-3 pr-4 border-r">
           <VerticalShiftSlider
@@ -131,7 +140,10 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
             min={SLIDER_MIN}
             max={SLIDER_MAX}
             color="blue"
+            isLocked={shift1Locked}
+            canLock={canLockShift(1)}
             onChange={(value) => onAdjustShiftTarget(1, value)}
+            onToggleLock={() => onToggleShiftLock(1)}
           />
           <VerticalShiftSlider
             label="S2"
@@ -139,7 +151,10 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
             min={SLIDER_MIN}
             max={SLIDER_MAX}
             color="orange"
+            isLocked={shift2Locked}
+            canLock={canLockShift(2)}
             onChange={(value) => onAdjustShiftTarget(2, value)}
+            onToggleLock={() => onToggleShiftLock(2)}
           />
           <VerticalShiftSlider
             label="S3"
@@ -147,7 +162,10 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
             min={SLIDER_MIN}
             max={SLIDER_MAX}
             color="purple"
+            isLocked={shift3Locked}
+            canLock={canLockShift(3)}
             onChange={(value) => onAdjustShiftTarget(3, value)}
+            onToggleLock={() => onToggleShiftLock(3)}
           />
         </div>
 

@@ -153,23 +153,48 @@ export const useProductionForecast = (
 
       // Is this point in the past, present, or future?
       const isPast = hoursFromStart < hoursSince6AM;
+      const isFuture = hoursFromStart > hoursSince6AM;
       const isCurrent = Math.abs(hoursFromStart - hoursSince6AM) < 0.5; // Within 30 min
+
+      // For past hours: no forecast lines (null values)
+      // For current/future hours: calculate trajectory from NOW to dayTarget at end of day
+      let optimistic = null;
+      let expected = null;
+      let pessimistic = null;
+
+      if (isFuture || isCurrent) {
+        // Calculate hours remaining from this point to end of day
+        const hoursFromNow = hoursFromStart - hoursSince6AM;
+        const hoursRemainingTotal = 24 - hoursSince6AM; // Total hours from now to end of day
+
+        // Linear trajectory: start from current production (productionToday) and reach dayTarget at end
+        // Progress ratio: 0 at current time, 1 at end of day (24 hours)
+        const progressRatio = hoursFromNow / hoursRemainingTotal;
+        const expectedAtThisHour =
+          productionToday + (dayTarget - productionToday) * progressRatio;
+
+        // Calculate uncertainty range based on the uncertainty factor
+        // Higher uncertainty = wider spread between optimistic and pessimistic
+        const uncertaintySpread =
+          (dayTarget - productionToday) * (1 - expectedFactor) * 0.3;
+
+        // Expected line: aims directly at dayTarget
+        expected = expectedAtThisHour;
+
+        // Optimistic line: above expected (best case - reaches target faster/higher)
+        optimistic = expectedAtThisHour + uncertaintySpread * progressRatio;
+
+        // Pessimistic line: below expected (worst case - slower progress)
+        pessimistic = expectedAtThisHour - uncertaintySpread * progressRatio;
+      }
 
       // Tonnage forecast over the day (for ProductionForecastChart)
       hourlyTonnageForecast.push({
         time: timeLabel,
         actual: isCurrent ? productionToday : null,
-        optimistic:
-          productionToday +
-          (hoursFromStart - hoursSince6AM) * adjustedOreRate * optimisticFactor,
-        expected:
-          productionToday +
-          (hoursFromStart - hoursSince6AM) * adjustedOreRate * expectedFactor,
-        pessimistic:
-          productionToday +
-          (hoursFromStart - hoursSince6AM) *
-            adjustedOreRate *
-            pessimisticFactor,
+        optimistic,
+        expected,
+        pessimistic,
         target: dayTarget,
       });
 

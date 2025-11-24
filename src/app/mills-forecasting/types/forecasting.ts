@@ -8,9 +8,9 @@ export interface ShiftInfo {
 export interface HourlyForecastPoint {
   time: string;
   actual: number | null;
-  optimistic: number;
-  expected: number;
-  pessimistic: number;
+  optimistic: number | null;
+  expected: number | null;
+  pessimistic: number | null;
   target: number;
 }
 

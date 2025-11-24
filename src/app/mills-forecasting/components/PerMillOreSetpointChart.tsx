@@ -26,11 +26,11 @@ interface ChartPoint {
   adjustmentDisplay: string;
 }
 
-// Color thresholds based on images
+// Color thresholds - blue for negative/small, orange for moderate, green for strong positive
 const getAdjustmentColor = (adjustment: number): string => {
-  if (Math.abs(adjustment) <= 5) return "#ef4444"; // Red: Small/negative
-  if (Math.abs(adjustment) <= 10) return "#f97316"; // Orange: Moderate
-  return "#10b981"; // Green: Strong change
+  if (adjustment < 0 || Math.abs(adjustment) <= 20) return "#3b82f6"; // Blue: Negative or small
+  if (Math.abs(adjustment) <= 40) return "#f97316"; // Orange: Moderate
+  return "#10b981"; // Green: Strong positive change
 };
 
 const getAdjustmentLabel = (adjustment: number): string => {
@@ -72,20 +72,20 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
     );
   }
 
-  // Custom label for adjustment values at the top of background bar
+  // Custom label for adjustment values at the top of bars
   const renderAdjustmentLabel = (props: any) => {
-    const { x, width, index } = props;
+    const { x, y, width, height, index } = props;
     const point = chartData[index];
     if (!point || point.adjustment === 0) return <g />;
 
     const centerX = x + width / 2;
     const color = getAdjustmentColor(point.adjustment);
 
-    // Position at top of chart (fixed y position)
+    // Position above the bar
     return (
       <text
         x={centerX}
-        y={15} // Fixed position at top
+        y={y - 8} // Position above the adjustment bar
         textAnchor="middle"
         fill={color}
         fontSize={11}
@@ -153,7 +153,14 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
                 fill={entry.isFixed ? "#94a3b8" : "#475569"} // Gray for fixed, dark slate for adjustable
               />
             ))}
-            <LabelList dataKey="currentDisplay" position="center" />
+            <LabelList
+              dataKey="currentDisplay"
+              position="insideBottom"
+              fill="#ffffff"
+              fontSize={11}
+              fontWeight={600}
+              offset={5}
+            />
           </Bar>
 
           {/* Positive adjustment (green/orange on top) */}
@@ -176,7 +183,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             <LabelList content={renderAdjustmentLabel} />
           </Bar>
 
-          {/* Negative adjustment (red segment on top) */}
+          {/* Negative adjustment (blue segment on top) */}
           <Bar
             dataKey="adjustmentNegative"
             stackId="a"
@@ -186,7 +193,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             {chartData.map((entry, index) => (
               <Cell
                 key={`neg-${index}`}
-                fill={entry.adjustment < 0 ? "#ef4444" : "transparent"}
+                fill={entry.adjustment < 0 ? "#3b82f6" : "transparent"}
               />
             ))}
             <LabelList content={renderAdjustmentLabel} />
@@ -205,7 +212,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
           <span>Moderate</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-sm bg-red-500" />
+          <div className="h-3 w-3 rounded-sm bg-blue-500" />
           <span>Small / negative</span>
         </div>
       </div>

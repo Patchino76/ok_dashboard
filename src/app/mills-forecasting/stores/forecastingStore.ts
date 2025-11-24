@@ -30,6 +30,11 @@ interface ForecastingSettings {
   /** Selected mills for adjustment (empty = all mills) */
   selectedMills: string[];
 
+  /** Lock states for shift targets (true = locked, false = unlocked) */
+  shift1Locked: boolean;
+  shift2Locked: boolean;
+  shift3Locked: boolean;
+
   // ==================== REAL-TIME DATA (FROM API) ====================
 
   /** Current ore rate from real-time data (t/h) */
@@ -89,6 +94,12 @@ interface ForecastingSettings {
 
   /** Sync adjusted ore rate with current ore rate (for real-time mode) */
   syncAdjustedRateWithCurrent: () => void;
+
+  /** Toggle lock state for a specific shift */
+  toggleShiftLock: (shiftIndex: 1 | 2 | 3) => void;
+
+  /** Check if a shift can be locked (max 2 locked at a time) */
+  canLockShift: (shiftIndex: 1 | 2 | 3) => boolean;
 }
 
 /**
@@ -110,6 +121,11 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
   adjustedOreRate: ORE_RATE_RANGES.default,
   uncertaintyPercent: UNCERTAINTY_RANGES.default,
   selectedMills: [],
+
+  // Lock states - all unlocked by default
+  shift1Locked: false,
+  shift2Locked: false,
+  shift3Locked: false,
 
   // Real-time data - initialized with defaults
   currentOreRate: ORE_RATE_RANGES.default,
@@ -133,52 +149,82 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
 
   adjustShiftTarget: (shiftIndex, newValue) => {
     const state = get();
-    const { shift1Target, shift2Target, shift3Target, dayTarget } = state;
+    const {
+      shift1Target,
+      shift2Target,
+      shift3Target,
+      dayTarget,
+      shift1Locked,
+      shift2Locked,
+      shift3Locked,
+    } = state;
 
     console.log(`🎯 Adjusting shift ${shiftIndex} target to:`, newValue);
 
     // Calculate the delta
     const currentValues = [shift1Target, shift2Target, shift3Target];
+    const lockStates = [shift1Locked, shift2Locked, shift3Locked];
     const oldValue = currentValues[shiftIndex - 1];
     const delta = newValue - oldValue;
 
-    // Get the other two shifts
-    const otherIndices = [0, 1, 2].filter((i) => i !== shiftIndex - 1);
-    const otherTotal = otherIndices.reduce(
-      (sum, i) => sum + currentValues[i],
-      0
+    // Get unlocked shifts (excluding the one being adjusted)
+    const otherUnlockedIndices = [0, 1, 2].filter(
+      (i) => i !== shiftIndex - 1 && !lockStates[i]
     );
 
-    // Redistribute delta proportionally to other shifts
+    // Redistribute delta proportionally to other UNLOCKED shifts only
     const newValues = [...currentValues];
     newValues[shiftIndex - 1] = newValue;
 
-    if (otherTotal > 0) {
-      otherIndices.forEach((i) => {
-        const proportion = currentValues[i] / otherTotal;
-        newValues[i] = currentValues[i] - delta * proportion;
-        // Ensure non-negative values
-        newValues[i] = Math.max(100, newValues[i]);
-      });
-    } else {
-      // If other shifts are 0, distribute equally
-      const remaining = dayTarget - newValue;
-      otherIndices.forEach((i) => {
-        newValues[i] = remaining / 2;
+    if (otherUnlockedIndices.length > 0) {
+      const otherUnlockedTotal = otherUnlockedIndices.reduce(
+        (sum, i) => sum + currentValues[i],
+        0
+      );
+
+      if (otherUnlockedTotal > 0) {
+        otherUnlockedIndices.forEach((i) => {
+          const proportion = currentValues[i] / otherUnlockedTotal;
+          newValues[i] = currentValues[i] - delta * proportion;
+          // Ensure non-negative values
+          newValues[i] = Math.max(100, newValues[i]);
+        });
+      } else {
+        // If other unlocked shifts are 0, distribute equally
+        const lockedTotal = [0, 1, 2]
+          .filter((i) => lockStates[i])
+          .reduce((sum, i) => sum + currentValues[i], 0);
+        const remaining = dayTarget - newValue - lockedTotal;
+        otherUnlockedIndices.forEach((i) => {
+          newValues[i] = remaining / otherUnlockedIndices.length;
+        });
+      }
+    }
+
+    // Normalize to ensure exact sum equals daily target (only adjust unlocked shifts)
+    const currentSum = newValues.reduce((sum, val) => sum + val, 0);
+    if (Math.abs(currentSum - dayTarget) > 0.01) {
+      const unlockedIndices = [0, 1, 2].filter((i) => !lockStates[i]);
+      const unlockedSum = unlockedIndices.reduce(
+        (sum, i) => sum + newValues[i],
+        0
+      );
+      const lockedSum = [0, 1, 2]
+        .filter((i) => lockStates[i])
+        .reduce((sum, i) => sum + newValues[i], 0);
+      const targetUnlockedSum = dayTarget - lockedSum;
+      const adjustmentFactor =
+        unlockedSum > 0 ? targetUnlockedSum / unlockedSum : 1;
+
+      unlockedIndices.forEach((i) => {
+        newValues[i] = newValues[i] * adjustmentFactor;
       });
     }
 
-    // Normalize to ensure exact sum equals daily target
-    const currentSum = newValues.reduce((sum, val) => sum + val, 0);
-    const adjustmentFactor = dayTarget / currentSum;
-    newValues[0] = newValues[0] * adjustmentFactor;
-    newValues[1] = newValues[1] * adjustmentFactor;
-    newValues[2] = newValues[2] * adjustmentFactor;
-
     console.log("🔄 Redistributed shift targets:", {
-      S1: Math.round(newValues[0]),
-      S2: Math.round(newValues[1]),
-      S3: Math.round(newValues[2]),
+      S1: Math.round(newValues[0]) + (lockStates[0] ? " 🔒" : ""),
+      S2: Math.round(newValues[1]) + (lockStates[1] ? " 🔒" : ""),
+      S3: Math.round(newValues[2]) + (lockStates[2] ? " 🔒" : ""),
       total: Math.round(newValues[0] + newValues[1] + newValues[2]),
       dailyTarget: dayTarget,
     });
@@ -191,13 +237,48 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
   },
 
   calculateInitialShiftTargets: (dailyTarget) => {
-    const target = dailyTarget || get().dayTarget;
-    const { currentOreRate, activeMillsCount } = get();
+    const state = get();
+    const target = dailyTarget || state.dayTarget;
+    const {
+      currentOreRate,
+      activeMillsCount,
+      shift1Target,
+      shift2Target,
+      shift3Target,
+      shift1Locked,
+      shift2Locked,
+      shift3Locked,
+    } = state;
 
     console.log(
       "🧮 Calculating initial shift targets for daily target:",
       target
     );
+
+    // Get locked shifts and their total
+    const lockStates = [shift1Locked, shift2Locked, shift3Locked];
+    const currentValues = [shift1Target, shift2Target, shift3Target];
+    const lockedIndices = [0, 1, 2].filter((i) => lockStates[i]);
+    const unlockedIndices = [0, 1, 2].filter((i) => !lockStates[i]);
+
+    // If all shifts are locked, don't recalculate
+    if (unlockedIndices.length === 0) {
+      console.log("⚠️ All shifts locked, skipping recalculation");
+      return;
+    }
+
+    // Calculate locked total
+    const lockedTotal = lockedIndices.reduce(
+      (sum, i) => sum + currentValues[i],
+      0
+    );
+    const remainingTarget = target - lockedTotal;
+
+    console.log("🔒 Lock status:", {
+      lockedShifts: lockedIndices.map((i) => `S${i + 1}`).join(", ") || "none",
+      lockedTotal: Math.round(lockedTotal),
+      remainingTarget: Math.round(remainingTarget),
+    });
 
     // Simple proportional distribution based on typical shift patterns
     // S1 (06-14): Usually highest production (35%)
@@ -231,21 +312,37 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
       }
     }
 
-    const shift1 = target * s1Weight;
-    const shift2 = target * s2Weight;
-    const shift3 = target * s3Weight;
+    const weights = [s1Weight, s2Weight, s3Weight];
+
+    // Calculate new values
+    const newValues = [...currentValues];
+
+    // Only recalculate unlocked shifts
+    if (unlockedIndices.length > 0) {
+      // Get total weight of unlocked shifts
+      const unlockedWeightTotal = unlockedIndices.reduce(
+        (sum, i) => sum + weights[i],
+        0
+      );
+
+      // Distribute remaining target proportionally among unlocked shifts
+      unlockedIndices.forEach((i) => {
+        const proportion = weights[i] / unlockedWeightTotal;
+        newValues[i] = remainingTarget * proportion;
+      });
+    }
 
     console.log("✅ Calculated shift targets:", {
-      S1: Math.round(shift1),
-      S2: Math.round(shift2),
-      S3: Math.round(shift3),
-      total: Math.round(shift1 + shift2 + shift3),
+      S1: Math.round(newValues[0]) + (lockStates[0] ? " 🔒" : ""),
+      S2: Math.round(newValues[1]) + (lockStates[1] ? " 🔒" : ""),
+      S3: Math.round(newValues[2]) + (lockStates[2] ? " 🔒" : ""),
+      total: Math.round(newValues[0] + newValues[1] + newValues[2]),
     });
 
     set({
-      shift1Target: shift1,
-      shift2Target: shift2,
-      shift3Target: shift3,
+      shift1Target: newValues[0],
+      shift2Target: newValues[1],
+      shift3Target: newValues[2],
     });
   },
 
@@ -319,5 +416,56 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
     const { currentOreRate } = get();
     console.log("🔄 Syncing adjusted rate with current:", currentOreRate);
     set({ adjustedOreRate: currentOreRate });
+  },
+
+  toggleShiftLock: (shiftIndex) => {
+    const state = get();
+    const lockStates = [
+      state.shift1Locked,
+      state.shift2Locked,
+      state.shift3Locked,
+    ];
+    const currentLockState = lockStates[shiftIndex - 1];
+
+    // If trying to lock, check if we can
+    if (!currentLockState && !state.canLockShift(shiftIndex)) {
+      console.warn(
+        `⚠️ Cannot lock shift ${shiftIndex}: Maximum 2 shifts can be locked`
+      );
+      return;
+    }
+
+    console.log(
+      `🔒 Toggling lock for shift ${shiftIndex}: ${
+        currentLockState ? "UNLOCK" : "LOCK"
+      }`
+    );
+
+    // Update lock state
+    const updates: Partial<ForecastingSettings> = {};
+    if (shiftIndex === 1) updates.shift1Locked = !currentLockState;
+    if (shiftIndex === 2) updates.shift2Locked = !currentLockState;
+    if (shiftIndex === 3) updates.shift3Locked = !currentLockState;
+
+    set(updates);
+  },
+
+  canLockShift: (shiftIndex) => {
+    const state = get();
+    const lockStates = [
+      state.shift1Locked,
+      state.shift2Locked,
+      state.shift3Locked,
+    ];
+    const currentLockState = lockStates[shiftIndex - 1];
+
+    // If already locked, can always unlock
+    if (currentLockState) return true;
+
+    // Count currently locked shifts
+    const lockedCount = lockStates.filter((locked) => locked).length;
+
+    // Can lock if less than 2 shifts are currently locked
+    return lockedCount < 2;
   },
 }));

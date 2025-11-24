@@ -8,7 +8,7 @@ import { ForecastLayout } from "./components/ForecastLayout";
 import { useProductionForecast } from "./hooks/useProductionForecast";
 import { useMillsProductionData } from "./hooks/useMillsProductionData";
 import { useForecastingStore } from "./stores/forecastingStore";
-import { MILLS_LIST, TARGET_RANGES, ORE_RATE_RANGES } from "./constants";
+import { MILLS_LIST, TARGET_RANGES } from "./constants";
 import { millsNames } from "@/lib/tags/mills-tags";
 
 export default function MillsForecastingPage() {
@@ -17,6 +17,9 @@ export default function MillsForecastingPage() {
     shift1Target,
     shift2Target,
     shift3Target,
+    shift1Locked,
+    shift2Locked,
+    shift3Locked,
     dayTarget,
     currentOreRate,
     adjustedOreRate,
@@ -27,8 +30,9 @@ export default function MillsForecastingPage() {
     isRealTimeMode,
     setDayTarget,
     adjustShiftTarget,
+    toggleShiftLock,
+    canLockShift,
     calculateInitialShiftTargets,
-    setAdjustedOreRate,
     setUncertaintyPercent,
     setSelectedMills,
     updateRealTimeData,
@@ -156,18 +160,17 @@ export default function MillsForecastingPage() {
         shift1Target={shift1Target}
         shift2Target={shift2Target}
         shift3Target={shift3Target}
+        shift1Locked={shift1Locked}
+        shift2Locked={shift2Locked}
+        shift3Locked={shift3Locked}
         dayTarget={dayTarget}
         currentOreRate={currentOreRate}
-        adjustedOreRate={adjustedOreRate}
         uncertaintyPercent={uncertaintyPercent}
         currentTime={currentTime}
         onChangeDayTarget={setDayTarget}
         onAdjustShiftTarget={adjustShiftTarget}
-        onChangeCurrentOreRate={(rate) => {
-          // In manual mode, allow changing current ore rate
-          // This is handled by the store
-        }}
-        onChangeAdjustedOreRate={setAdjustedOreRate}
+        onToggleShiftLock={toggleShiftLock}
+        canLockShift={canLockShift}
         onChangeUncertainty={setUncertaintyPercent}
       />
     </div>

@@ -5,7 +5,6 @@ import { ProductionForecastChart } from "./ProductionForecastChart";
 import { ShiftPerformanceChart } from "./ShiftPerformanceChart";
 import { PerMillOreSetpointChart } from "./PerMillOreSetpointChart";
 import { TargetControlPanel } from "./controls/TargetControlPanel";
-import { OreRateControlPanel } from "./controls/OreRateControlPanel";
 import { UncertaintyControlPanel } from "./controls/UncertaintyControlPanel";
 import { ProgressSummaryCards } from "./displays/ProgressSummaryCards";
 import { RequiredRatesCard } from "./displays/RequiredRatesCard";
@@ -16,15 +15,17 @@ interface ForecastLayoutProps {
   shift1Target: number;
   shift2Target: number;
   shift3Target: number;
+  shift1Locked: boolean;
+  shift2Locked: boolean;
+  shift3Locked: boolean;
   dayTarget: number;
   currentOreRate: number;
-  adjustedOreRate: number;
   uncertaintyPercent: number;
   currentTime?: Date | null;
   onChangeDayTarget: (value: number) => void;
   onAdjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
-  onChangeCurrentOreRate: (value: number) => void;
-  onChangeAdjustedOreRate: (value: number) => void;
+  onToggleShiftLock: (shiftIndex: 1 | 2 | 3) => void;
+  canLockShift: (shiftIndex: 1 | 2 | 3) => boolean;
   onChangeUncertainty: (value: number) => void;
 }
 
@@ -33,15 +34,17 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
   shift1Target,
   shift2Target,
   shift3Target,
+  shift1Locked,
+  shift2Locked,
+  shift3Locked,
   dayTarget,
   currentOreRate,
-  adjustedOreRate,
   uncertaintyPercent,
   currentTime,
   onChangeDayTarget,
   onAdjustShiftTarget,
-  onChangeCurrentOreRate,
-  onChangeAdjustedOreRate,
+  onToggleShiftLock,
+  canLockShift,
   onChangeUncertainty,
 }) => {
   return (
@@ -57,13 +60,6 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
         <TargetControlPanel
           dayTarget={dayTarget}
           onChangeDayTarget={onChangeDayTarget}
-        />
-
-        <OreRateControlPanel
-          currentOreRate={currentOreRate}
-          adjustedOreRate={adjustedOreRate}
-          onChangeCurrentOreRate={onChangeCurrentOreRate}
-          onChangeAdjustedOreRate={onChangeAdjustedOreRate}
         />
 
         <UncertaintyControlPanel
@@ -104,9 +100,14 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
             shift1Target={shift1Target}
             shift2Target={shift2Target}
             shift3Target={shift3Target}
+            shift1Locked={shift1Locked}
+            shift2Locked={shift2Locked}
+            shift3Locked={shift3Locked}
             dayTarget={dayTarget}
             currentOreRate={currentOreRate}
             onAdjustShiftTarget={onAdjustShiftTarget}
+            onToggleShiftLock={onToggleShiftLock}
+            canLockShift={canLockShift}
           />
         </Card>
 
