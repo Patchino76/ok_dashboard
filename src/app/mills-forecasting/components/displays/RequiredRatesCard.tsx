@@ -25,11 +25,11 @@ export const RequiredRatesCard: FC<RequiredRatesCardProps> = ({ forecast }) => {
             canMeetTargets ? "text-emerald-600" : "text-amber-600"
           }`}
         />
-        <div className="font-semibold">Required Rates (with uncertainty)</div>
+        <div className="font-semibold">Необходими скорости (с несигурност)</div>
       </div>
 
       <div className="flex justify-between">
-        <span className="text-slate-700">Shift (ideal):</span>
+        <span className="text-slate-700">Смяна (идеално):</span>
         <span className="font-bold">
           {forecast.requiredRateShift > 0
             ? forecast.requiredRateShift.toFixed(1)
@@ -39,7 +39,7 @@ export const RequiredRatesCard: FC<RequiredRatesCardProps> = ({ forecast }) => {
       </div>
 
       <div className="flex justify-between">
-        <span className="text-slate-700">Shift (adjusted):</span>
+        <span className="text-slate-700">Смяна (коригирано):</span>
         <span
           className="font-bold"
           style={{ color: forecast.uncertainty.color }}
@@ -54,7 +54,7 @@ export const RequiredRatesCard: FC<RequiredRatesCardProps> = ({ forecast }) => {
       <div className="h-px bg-slate-300 my-1" />
 
       <div className="flex justify-between">
-        <span className="text-slate-700">Day (ideal):</span>
+        <span className="text-slate-700">Ден (идеално):</span>
         <span className="font-bold">
           {forecast.requiredRateDay > 0
             ? forecast.requiredRateDay.toFixed(1)
@@ -64,7 +64,7 @@ export const RequiredRatesCard: FC<RequiredRatesCardProps> = ({ forecast }) => {
       </div>
 
       <div className="flex justify-between">
-        <span className="text-slate-700">Day (adjusted):</span>
+        <span className="text-slate-700">Ден (коригирано):</span>
         <span
           className="font-bold"
           style={{ color: forecast.uncertainty.color }}

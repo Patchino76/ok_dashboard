@@ -67,7 +67,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
   if (chartData.length === 0) {
     return (
       <div className="text-[11px] text-slate-500">
-        Select at least one mill to see recommended setpoints.
+        Изберете поне една мелница, за да видите препоръчаните стойности.
       </div>
     );
   }
@@ -147,17 +147,19 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
       {/* Combined Ore Rate Summary Bar */}
       <div className="space-y-1">
         <div className="flex justify-between text-xs">
-          <span className="text-slate-500 font-medium">Combined Ore Rate</span>
+          <span className="text-slate-500 font-medium">
+            Обща скорост на руда
+          </span>
           <div className="flex gap-3">
             <span className="text-slate-600">
-              Actual: <b>{Math.round(totalCurrent)}</b> t/h
+              Текущо: <b>{Math.round(totalCurrent)}</b> t/h
             </span>
             <span
               className={`font-bold ${
                 totalAdjustment >= 0 ? "text-emerald-600" : "text-rose-600"
               }`}
             >
-              Target: {Math.round(totalTarget)} t/h (
+              Цел: {Math.round(totalTarget)} t/h (
               {totalAdjustment > 0 ? "+" : ""}
               {Math.round(totalAdjustment)})
             </span>
@@ -272,7 +274,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-sm bg-orange-500" />
-          <span>-5 to +5 t/h</span>
+          <span>-5 до +5 t/h</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="h-3 w-3 rounded-sm bg-blue-500" />

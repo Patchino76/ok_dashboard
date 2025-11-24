@@ -82,7 +82,7 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
       <div className="col-span-12 lg:col-span-8 space-y-3">
         <Card className="p-3">
           <div className="text-sm font-semibold text-slate-900 mb-2">
-            Shift Performance Forecast
+            Прогноза за изпълнение по смени
           </div>
           <ShiftPerformanceChart
             forecast={forecast}
@@ -102,7 +102,7 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
 
         <Card className="p-3 space-y-2">
           <div className="text-sm font-semibold text-slate-900 mb-1">
-            Per-Mill Ore Feed Recommendations
+            Препоръки за подаване на руда по мелници
           </div>
           <PerMillOreSetpointChart data={forecast.perMillSetpoints} />
         </Card>

@@ -16,34 +16,34 @@ export const ForecastSummaryCard: FC<ForecastSummaryCardProps> = ({
   return (
     <Card className="p-3 space-y-2">
       <div className="text-sm font-semibold text-slate-900">
-        Day Forecast Summary
+        Обобщение на дневна прогноза
       </div>
       <div className="space-y-1 text-[11px]">
         <div className="flex justify-between items-center">
-          <span className="text-slate-600">Optimistic:</span>
+          <span className="text-slate-600">Оптимистично:</span>
           <span className="font-bold text-emerald-600">
             {forecast.forecastDayOptimistic.toFixed(0)}t
           </span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-600">Expected:</span>
+          <span className="text-slate-600">Очаквано:</span>
           <span className="font-bold text-slate-900">
             {forecast.forecastDayExpected.toFixed(0)}t
           </span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-600">Pessimistic:</span>
+          <span className="text-slate-600">Песимистично:</span>
           <span className="font-bold text-red-600">
             {forecast.forecastDayPessimistic.toFixed(0)}t
           </span>
         </div>
         <div className="h-px bg-slate-300 my-1" />
         <div className="flex justify-between items-center">
-          <span className="text-slate-600">Target:</span>
+          <span className="text-slate-600">Цел:</span>
           <span className="font-bold text-blue-600">{dayTarget}t</span>
         </div>
         <div className="flex justify-between items-center">
-          <span className="text-slate-600">Gap:</span>
+          <span className="text-slate-600">Разлика:</span>
           <span
             className={`font-bold ${
               gap >= 0 ? "text-emerald-600" : "text-red-600"

@@ -22,14 +22,14 @@ export const ProgressSummaryCards: FC<ProgressSummaryCardsProps> = ({
   return (
     <div className="grid grid-cols-2 gap-2">
       <MetricCard
-        title="Shift Progress"
+        title="Напредък на смяната"
         value={`${forecast.productionSoFar.toFixed(0)}t`}
-        subtitle={`${shiftProgress}% of target`}
+        subtitle={`${shiftProgress}% от целта`}
       />
       <MetricCard
-        title="Day Progress"
+        title="Дневен напредък"
         value={`${forecast.productionToday.toFixed(0)}t`}
-        subtitle={`${dayProgress}% of target`}
+        subtitle={`${dayProgress}% от целта`}
       />
     </div>
   );

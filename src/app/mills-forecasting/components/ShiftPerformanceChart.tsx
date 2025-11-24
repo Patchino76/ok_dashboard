@@ -32,7 +32,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             </p>
             {entry.payload.rates && entry.dataKey && (
               <p className="text-[10px] text-gray-500 pl-2">
-                Rate: {Math.round(entry.payload.rates[entry.dataKey])} t/h
+                Скорост: {Math.round(entry.payload.rates[entry.dataKey])} t/h
               </p>
             )}
           </div>
@@ -81,7 +81,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
 
   const data = [
     {
-      shift: "S1 (06-14)",
+      shift: "См.1 (06-14)",
       actual:
         forecast.shiftInfo.shift === 1
           ? forecast.productionSoFar
@@ -94,7 +94,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
       rates: getRates(shift1Target),
     },
     {
-      shift: "S2 (14-22)",
+      shift: "См.2 (14-22)",
       actual:
         forecast.shiftInfo.shift === 2
           ? forecast.productionSoFar
@@ -109,7 +109,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
       rates: getRates(shift2Target),
     },
     {
-      shift: "S3 (22-06)",
+      shift: "См.3 (22-06)",
       actual: forecast.shiftInfo.shift === 3 ? forecast.productionSoFar : 0,
       expected:
         forecast.shiftInfo.shift === 3
@@ -132,7 +132,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
             isBalanced ? "text-green-600" : "text-red-600"
           }`}
         >
-          Total: {Math.round(totalShiftTargets)}t / {Math.round(dayTarget)}t
+          Общо: {Math.round(totalShiftTargets)}t / {Math.round(dayTarget)}t
           {isBalanced ? " ✓" : " ⚠️"}
         </span>
       </div>
@@ -142,7 +142,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
         {/* Shift Target Sliders - Left Side */}
         <div className="flex gap-3 pr-4 border-r">
           <VerticalShiftSlider
-            label="S1"
+            label="См.1"
             value={shift1Target}
             min={SLIDER_MIN}
             max={SLIDER_MAX}
@@ -153,7 +153,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
             onToggleLock={() => onToggleShiftLock(1)}
           />
           <VerticalShiftSlider
-            label="S2"
+            label="См.2"
             value={shift2Target}
             min={SLIDER_MIN}
             max={SLIDER_MAX}
@@ -164,7 +164,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
             onToggleLock={() => onToggleShiftLock(2)}
           />
           <VerticalShiftSlider
-            label="S3"
+            label="См.3"
             value={shift3Target}
             min={SLIDER_MIN}
             max={SLIDER_MAX}
@@ -188,13 +188,13 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
               <Bar
                 dataKey="actual"
                 fill="#3b82f6"
-                name="Actual / Current"
+                name="Фактическо / Текущо"
                 barSize={40}
               />
               <Bar
                 dataKey="expected"
                 fill={forecast.uncertainty.color}
-                name="Predicted (w/ Uncertainty)"
+                name="Прогнозирано (с несигурност)"
                 barSize={40}
               />
               <Line
@@ -202,7 +202,7 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
                 dataKey="target"
                 stroke="#a855f7"
                 strokeWidth={2}
-                name="Target (Slider)"
+                name="Цел (Плъзгач)"
                 dot={{ r: 4 }}
               />
             </ComposedChart>

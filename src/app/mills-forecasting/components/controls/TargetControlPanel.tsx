@@ -72,11 +72,11 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
     <Card className="p-3 space-y-3">
       <div className="text-sm font-semibold text-slate-900 flex items-center gap-1">
         <Target className="h-4 w-4" />
-        Production Target
+        Цел на производство
       </div>
       <div className="space-y-4">
         <SliderControl
-          label="Daily Target (24h)"
+          label="Дневна цел (24ч)"
           value={dayTarget}
           unit="t"
           min={TARGET_RANGES.day.min}
@@ -88,9 +88,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
         {/* Forecast Preview Bar */}
         <div className="space-y-1 px-2">
           <div className="flex justify-between text-xs">
-            <span className="text-slate-500 font-medium">
-              Forecast Preview:
-            </span>
+            <span className="text-slate-500 font-medium">Прогноза:</span>
             <span
               className={`font-bold ${
                 isProjectedToMeet ? "text-emerald-600" : "text-rose-600"
@@ -136,7 +134,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
               style={{ width: `${s1Width}%` }}
             >
               <span className="whitespace-nowrap overflow-hidden text-ellipsis">
-                S1: {formatKt(s1Forecast)}
+                См.1: {formatKt(s1Forecast)}
               </span>
             </div>
             {/* S2 Forecast */}
@@ -145,7 +143,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
               style={{ left: `${s1Width}%`, width: `${s2Width}%` }}
             >
               <span className="whitespace-nowrap overflow-hidden text-ellipsis">
-                S2: {formatKt(s2Forecast)}
+                См.2: {formatKt(s2Forecast)}
               </span>
             </div>
             {/* S3 Forecast */}
@@ -154,7 +152,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
               style={{ left: `${s1Width + s2Width}%`, width: `${s3Width}%` }}
             >
               <span className="whitespace-nowrap overflow-hidden text-ellipsis">
-                S3:{" "}
+                См.3:{" "}
                 {formatKt(
                   forecast.forecastDayExpected - s1Forecast - s2Forecast
                 )}
@@ -171,7 +169,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
             >
               <div className="w-0.5 h-2 bg-blue-500" />
               <div className="text-[9px] font-bold text-slate-600 whitespace-nowrap">
-                S1: {formatKt(shift1Target)}
+                См.1: {formatKt(shift1Target)}
               </div>
             </div>
 
@@ -182,7 +180,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
             >
               <div className="w-0.5 h-2 bg-orange-500" />
               <div className="text-[9px] font-bold text-slate-600 whitespace-nowrap">
-                S2: {formatKt(shift1Target + shift2Target)}
+                См.2: {formatKt(shift1Target + shift2Target)}
               </div>
             </div>
 
@@ -193,7 +191,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
             >
               <div className="w-0.5 h-2 bg-purple-500" />
               <div className="text-[9px] font-bold text-slate-600 whitespace-nowrap">
-                S3: {formatKt(shift1Target + shift2Target + shift3Target)}
+                См.3: {formatKt(shift1Target + shift2Target + shift3Target)}
               </div>
             </div>
 
