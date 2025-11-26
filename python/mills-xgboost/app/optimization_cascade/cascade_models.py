@@ -403,18 +403,19 @@ class CascadeModelManager:
         
         return df_filtered
     
-    def sanitize_json_data(self, obj):
+    @staticmethod
+    def sanitize_json_data(obj):
         """
         Recursively sanitize data to ensure JSON compliance.
         Converts NaN, Infinity, and other non-JSON-compliant values to None.
         """
         if isinstance(obj, dict):
-            return {key: self.sanitize_json_data(value) for key, value in obj.items()}
+            return {key: CascadeModelManager.sanitize_json_data(value) for key, value in obj.items()}
         elif isinstance(obj, list):
-            return [self.sanitize_json_data(item) for item in obj]
+            return [CascadeModelManager.sanitize_json_data(item) for item in obj]
         elif isinstance(obj, np.ndarray):
             # Convert numpy array to list and sanitize each element
-            return [self.sanitize_json_data(item) for item in obj.tolist()]
+            return [CascadeModelManager.sanitize_json_data(item) for item in obj.tolist()]
         elif isinstance(obj, (np.floating, float)):
             # Handle numpy float types and regular floats
             if math.isnan(obj) or math.isinf(obj):
@@ -856,8 +857,13 @@ class CascadeModelManager:
         for item in os.listdir(base_path):
             item_path = os.path.join(base_path, item)
             if os.path.isdir(item_path) and item.startswith("mill_"):
+                # Strictly enforce mill_{number} format
+                parts = item.split("_")
+                if len(parts) != 2 or not parts[1].isdigit():
+                    continue
+                    
                 try:
-                    mill_number = int(item.split("_")[1])
+                    mill_number = int(parts[1])
                     metadata_path = os.path.join(item_path, "metadata.json")
                     
                     if os.path.exists(metadata_path):
@@ -865,8 +871,7 @@ class CascadeModelManager:
                             metadata = json.load(f)
                         
                         # Sanitize metadata to handle NaN/Infinity values
-                        temp_manager = cls()  # Create temporary instance for sanitization
-                        sanitized_metadata = temp_manager.sanitize_json_data(metadata)
+                        sanitized_metadata = cls.sanitize_json_data(metadata)
                         
                         # Check for model files
                         model_files = [f for f in os.listdir(item_path) if f.endswith('.pkl')]

@@ -8,6 +8,7 @@ import {
   Tooltip as RechartsTooltip,
   Cell,
   LabelList,
+  CartesianGrid,
 } from "recharts";
 import type { PerMillSetpoint } from "../types/forecasting";
 
@@ -17,9 +18,10 @@ interface PerMillOreSetpointChartProps {
 
 interface ChartPoint {
   name: string;
-  current: number; // Current ore rate (dark bar)
+  current: number; // Visual height of the dark bar (Base)
+  originalCurrent: number; // The actual current rate value (for tooltip)
   adjustmentPositive: number; // Positive adjustment (green/orange on top)
-  adjustmentNegative: number; // Negative adjustment (red notch)
+  adjustmentNegative: number; // Negative adjustment (red/blue on top)
   adjustment: number; // Raw adjustment value
   isFixed: boolean; // True if mill is excluded from adjustments
   currentDisplay: string;
@@ -51,15 +53,22 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
       const current = item.currentRate;
       const isFixed = adjustment === 0; // Fixed mills have zero adjustment
 
+      // Logic for visual representation:
+      // Increase: Dark Bar = Current, Colored Bar = Adjustment. Total = Proposed.
+      // Decrease: Dark Bar = Proposed (Current - |Adj|), Colored Bar = |Adjustment|. Total = Current.
+      const absAdjustment = Math.abs(adjustment);
+      const chartCurrent = adjustment < 0 ? current - absAdjustment : current;
+
       return {
         name,
-        current: current, // Always show full current rate
-        adjustmentPositive: adjustment > 0 ? adjustment : 0, // Green/orange on top for positive
-        adjustmentNegative: adjustment < 0 ? Math.abs(adjustment) : 0, // Red segment on top for negative
-        adjustment, // Raw value for color logic
-        isFixed, // Mark fixed mills
-        currentDisplay: String(Math.round(current)),
-        adjustmentDisplay: isFixed ? "" : getAdjustmentLabel(adjustment), // No label for fixed mills
+        current: chartCurrent,
+        originalCurrent: current,
+        adjustmentPositive: adjustment > 0 ? adjustment : 0,
+        adjustmentNegative: adjustment < 0 ? absAdjustment : 0,
+        adjustment,
+        isFixed,
+        currentDisplay: String(Math.round(chartCurrent)),
+        adjustmentDisplay: isFixed ? "" : getAdjustmentLabel(adjustment),
       };
     });
   }, [data]);
@@ -103,7 +112,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const p: ChartPoint = payload[0].payload;
-      const current = Math.round(parseFloat(p.currentDisplay));
+      const current = Math.round(p.originalCurrent);
       const required = Math.round(current + p.adjustment);
 
       return (
@@ -186,13 +195,18 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             margin={{ top: 35, right: 10, left: 0, bottom: 5 }}
             barCategoryGap="20%"
           >
+            <CartesianGrid
+              vertical={false}
+              strokeDasharray="3 3"
+              stroke="#e2e8f0"
+            />
             <XAxis
               dataKey="name"
               axisLine={false}
               tickLine={false}
               tick={{ fill: "#64748b", fontSize: 11, fontWeight: 500 }}
             />
-            <YAxis hide />
+            <YAxis hide domain={[0, 220]} />
             <RechartsTooltip
               content={<CustomTooltip />}
               cursor={{ fill: "transparent" }}

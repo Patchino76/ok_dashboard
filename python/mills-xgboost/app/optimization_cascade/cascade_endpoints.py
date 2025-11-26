@@ -567,8 +567,7 @@ async def list_mill_models(model_type: str = "xgb"):
         else:
             mill_models = CascadeModelManager.list_mill_models(base_path)
             # Additional sanitization to ensure JSON compliance
-            temp_manager = CascadeModelManager()
-            mill_models = temp_manager.sanitize_json_data(mill_models)
+            mill_models = CascadeModelManager.sanitize_json_data(mill_models)
         
         return {
             "status": "success",
@@ -578,8 +577,17 @@ async def list_mill_models(model_type: str = "xgb"):
         }
     except Exception as e:
         import traceback
-        print(f"Error in list_mill_models: {e}")
-        traceback.print_exc()
+        error_msg = f"Error in list_mill_models: {str(e)}\n{traceback.format_exc()}"
+        print(error_msg)
+        
+        # Log to file for debugging
+        try:
+            log_path = os.path.join(os.path.dirname(__file__), "error_log.txt")
+            with open(log_path, "a") as f:
+                f.write(f"\n[{datetime.now().isoformat()}] {error_msg}\n")
+        except:
+            pass
+            
         raise HTTPException(status_code=500, detail=str(e))
 
 @cascade_router.get("/models/{mill_number}")
@@ -671,8 +679,7 @@ async def get_mill_model_info(mill_number: int, model_type: str = "xgb"):
         
         # Sanitize the response to handle any remaining NaN/Infinity values (XGBoost only)
         if model_type == "xgb":
-            temp_manager_sanitize = CascadeModelManager()
-            model_info = temp_manager_sanitize.sanitize_json_data(model_info)
+            model_info = CascadeModelManager.sanitize_json_data(model_info)
         
         return {
             "status": "success",

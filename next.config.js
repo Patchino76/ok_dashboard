@@ -30,7 +30,7 @@ module.exports = {
 
   // API rewrites to proxy requests to the backend
   async rewrites() {
-    const apiUrl = process.env.API_INTERNAL_URL || "http://127.0.0.1:8001";
+    const apiUrl = process.env.API_INTERNAL_URL || "http://127.0.0.1:8000";
     return [
       {
         source: "/api/:path*",

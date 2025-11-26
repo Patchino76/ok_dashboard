@@ -101,7 +101,7 @@ export const TargetControlPanel: FC<TargetControlPanelProps> = ({
           <div className="h-5 bg-slate-100 rounded-t-sm relative overflow-hidden flex items-center">
             {/* Actual Production (Lighter Blue) */}
             <div
-              className="absolute top-0 left-0 h-full bg-blue-200 flex items-center justify-end px-2 overflow-hidden transition-all duration-300"
+              className="absolute top-0 left-0 h-full bg-blue-200 flex items-center justify-end px-1 overflow-hidden transition-all duration-300"
               style={{ width: `${actualPercent}%` }}
             >
               <span className="text-[10px] font-bold text-slate-700 whitespace-nowrap shadow-sm">
