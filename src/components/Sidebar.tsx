@@ -73,16 +73,16 @@ export default function Sidebar() {
       label: "Оптимизация на смилане",
       icon: <Zap className="w-5 h-5" />,
     },
-    {
-      href: "/personnel",
-      label: "Персонал",
-      icon: <Users className="w-5 h-5" />,
-    },
-    {
-      href: "/settings",
-      label: "Настройки",
-      icon: <Settings className="w-5 h-5" />,
-    },
+    // {
+    //   href: "/personnel",
+    //   label: "Персонал",
+    //   icon: <Users className="w-5 h-5" />,
+    // },
+    // {
+    //   href: "/settings",
+    //   label: "Настройки",
+    //   icon: <Settings className="w-5 h-5" />,
+    // },
   ];
 
   return (

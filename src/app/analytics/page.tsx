@@ -4,12 +4,15 @@ import React, { useState, useMemo } from "react";
 // Import our components
 import { MillComparisonTab } from "./components/MillComparisonTab";
 import { TrendsTab } from "./components/TrendsTab";
-import { StatisticsTab } from "./components/StatisticsTab";
-import { AnalyticsTab } from "./components/AnalyticsTab";
+import { EnhancedStatisticsTab } from "./components/EnhancedStatisticsTab";
+import { EnhancedAnalyticsTab } from "./components/EnhancedAnalyticsTab";
 import { ParameterSelector } from "./components/ParameterSelector";
 
 // Import our custom hook
-import { useMillsAnalytics, getTimeRangeParams } from "@/lib/hooks/useAnalytics";
+import {
+  useMillsAnalytics,
+  getTimeRangeParams,
+} from "@/lib/hooks/useAnalytics";
 
 // We're using the interfaces defined in our custom hook
 
@@ -18,34 +21,29 @@ export default function AnalyticsPage() {
   const [selectedParameter, setSelectedParameter] = useState<string>("Ore");
   const [timeRange, setTimeRange] = useState<string>("24h");
   const [activeTab, setActiveTab] = useState<string>("comparison");
-  
+
   // Use useMemo to stabilize the query parameters object
   const queryParams = useMemo(() => {
     const timeRangeParams = getTimeRangeParams(timeRange);
-    
+
     // Adjust frequency based on time range
-    let freq = '1h';
-    if (timeRange === '8h') {
-      freq = '15m'; // Use 15-minute intervals for 8h range
-    } else if (timeRange === '30d') {
-      freq = '6h'; // Use 6-hour intervals for 30d range to reduce data points
+    let freq = "1h";
+    if (timeRange === "8h") {
+      freq = "15m"; // Use 15-minute intervals for 8h range
+    } else if (timeRange === "30d") {
+      freq = "6h"; // Use 6-hour intervals for 30d range to reduce data points
     }
-    
+
     return {
       parameter: selectedParameter,
       start_ts: timeRangeParams.start_ts,
       end_ts: timeRangeParams.end_ts,
-      freq: freq
+      freq: freq,
     };
   }, [selectedParameter, timeRange]);
-  
+
   // Use the custom hook to fetch analytics data
-  const { 
-    data,
-    rawData,
-    isLoading, 
-    error 
-  } = useMillsAnalytics(queryParams);
+  const { data, rawData, isLoading, error } = useMillsAnalytics(queryParams);
 
   // Extract the transformed data with fallbacks
   const comparisonData = data?.comparisonData || [];
@@ -54,12 +52,15 @@ export default function AnalyticsPage() {
   // Mill selections are now managed in Zustand store
 
   // Debug logging
-  console.log('Analytics Page - Raw data from hook:', rawData);
-  console.log('Analytics Page - Transformed data from hook:', data);
-  console.log('Analytics Page - Comparison data:', comparisonData);
-  console.log('Analytics Page - Trend data:', trendData);
-  console.log('Analytics Page - Comparison data length:', comparisonData.length);
-  console.log('Analytics Page - Trend data length:', trendData.length);
+  console.log("Analytics Page - Raw data from hook:", rawData);
+  console.log("Analytics Page - Transformed data from hook:", data);
+  console.log("Analytics Page - Comparison data:", comparisonData);
+  console.log("Analytics Page - Trend data:", trendData);
+  console.log(
+    "Analytics Page - Comparison data length:",
+    comparisonData.length
+  );
+  console.log("Analytics Page - Trend data length:", trendData.length);
 
   // Handler for parameter change
   const handleParameterChange = (parameter: string) => {
@@ -70,56 +71,64 @@ export default function AnalyticsPage() {
   const handleTimeRangeChange = (range: string) => {
     setTimeRange(range);
   };
-  
+
   // The useMillsAnalytics hook handles data fetching automatically when dependencies change
 
   return (
     <div id="analytics-container" className="h-screen flex flex-col p-4">
       <h1 className="text-xl font-bold mb-4">Аналитики</h1>
-      
+
       {/* Controls Section */}
       <div className="mb-4 p-4 border rounded-lg shadow-sm bg-white">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="w-full md:w-1/2">
             <h2 className="text-sm font-medium mb-2">Параметри за анализ</h2>
-            <ParameterSelector 
+            <ParameterSelector
               selectedParameter={selectedParameter}
               onParameterChange={handleParameterChange}
             />
           </div>
-          
+
           <div className="w-full md:w-1/2">
             <h2 className="text-sm font-medium mb-2">Времеви диапазон</h2>
             <div className="flex gap-2">
-              <button 
+              <button
                 onClick={() => handleTimeRangeChange("8h")}
-                className={`px-3 py-1 text-sm rounded ${timeRange === "8h" ? 
-                  "bg-blue-600 text-white" : 
-                  "bg-gray-200 text-gray-800"}`}
+                className={`px-3 py-1 text-sm rounded ${
+                  timeRange === "8h"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-800"
+                }`}
               >
                 8 Часа
               </button>
-              <button 
+              <button
                 onClick={() => handleTimeRangeChange("24h")}
-                className={`px-3 py-1 text-sm rounded ${timeRange === "24h" ? 
-                  "bg-blue-600 text-white" : 
-                  "bg-gray-200 text-gray-800"}`}
+                className={`px-3 py-1 text-sm rounded ${
+                  timeRange === "24h"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-800"
+                }`}
               >
                 24 Часа
               </button>
-              <button 
+              <button
                 onClick={() => handleTimeRangeChange("7d")}
-                className={`px-3 py-1 text-sm rounded ${timeRange === "7d" ? 
-                  "bg-blue-600 text-white" : 
-                  "bg-gray-200 text-gray-800"}`}
+                className={`px-3 py-1 text-sm rounded ${
+                  timeRange === "7d"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-800"
+                }`}
               >
                 7 Дни
               </button>
-              <button 
+              <button
                 onClick={() => handleTimeRangeChange("30d")}
-                className={`px-3 py-1 text-sm rounded ${timeRange === "30d" ? 
-                  "bg-blue-600 text-white" : 
-                  "bg-gray-200 text-gray-800"}`}
+                className={`px-3 py-1 text-sm rounded ${
+                  timeRange === "30d"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-800"
+                }`}
               >
                 30 Дни
               </button>
@@ -127,36 +136,52 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
-      
+
       {/* Tabs Section */}
       <div className="flex-1 flex flex-col min-h-0">
         <div className="grid grid-cols-4 mb-3 border-b bg-white">
           <button
             onClick={() => setActiveTab("comparison")}
-            className={`py-2 text-sm font-medium text-center ${activeTab === "comparison" ? "border-b-2 border-blue-500 text-blue-700" : "text-gray-600"}`}
+            className={`py-2 text-sm font-medium text-center ${
+              activeTab === "comparison"
+                ? "border-b-2 border-blue-500 text-blue-700"
+                : "text-gray-600"
+            }`}
           >
             Сравнение
           </button>
           <button
             onClick={() => setActiveTab("trends")}
-            className={`py-2 text-sm font-medium text-center ${activeTab === "trends" ? "border-b-2 border-blue-500 text-blue-700" : "text-gray-600"}`}
+            className={`py-2 text-sm font-medium text-center ${
+              activeTab === "trends"
+                ? "border-b-2 border-blue-500 text-blue-700"
+                : "text-gray-600"
+            }`}
           >
             Тенденции
           </button>
           <button
             onClick={() => setActiveTab("statistics")}
-            className={`py-2 text-sm font-medium text-center ${activeTab === "statistics" ? "border-b-2 border-blue-500 text-blue-700" : "text-gray-600"}`}
+            className={`py-2 text-sm font-medium text-center ${
+              activeTab === "statistics"
+                ? "border-b-2 border-blue-500 text-blue-700"
+                : "text-gray-600"
+            }`}
           >
             Статистика
           </button>
           <button
             onClick={() => setActiveTab("analytics")}
-            className={`py-2 text-sm font-medium text-center ${activeTab === "analytics" ? "border-b-2 border-blue-500 text-blue-700" : "text-gray-600"}`}
+            className={`py-2 text-sm font-medium text-center ${
+              activeTab === "analytics"
+                ? "border-b-2 border-blue-500 text-blue-700"
+                : "text-gray-600"
+            }`}
           >
             Аналитика
           </button>
         </div>
-        
+
         <div className="flex-1 border rounded-lg shadow-sm bg-white min-h-0">
           {isLoading ? (
             <div className="w-full h-full flex items-center justify-center">
@@ -173,32 +198,32 @@ export default function AnalyticsPage() {
           ) : (
             <>
               {activeTab === "comparison" && (
-                <MillComparisonTab 
-                  parameter={selectedParameter} 
+                <MillComparisonTab
+                  parameter={selectedParameter}
                   timeRange={timeRange}
                   millsData={rawData}
                 />
               )}
-              
+
               {activeTab === "trends" && (
-                <TrendsTab 
+                <TrendsTab
                   parameter={selectedParameter}
                   timeRange={timeRange}
                   trendData={trendData}
                 />
               )}
-              
+
               {activeTab === "statistics" && (
-                <StatisticsTab 
-                  parameter={selectedParameter} 
+                <EnhancedStatisticsTab
+                  parameter={selectedParameter}
                   timeRange={timeRange}
                   millsData={rawData}
                 />
               )}
-              
+
               {activeTab === "analytics" && (
-                <AnalyticsTab 
-                  parameter={selectedParameter} 
+                <EnhancedAnalyticsTab
+                  parameter={selectedParameter}
                   timeRange={timeRange}
                   millsData={rawData}
                 />
