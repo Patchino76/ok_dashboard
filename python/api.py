@@ -524,6 +524,7 @@ async def get_mills_trend_by_tag(
     mill: str, 
     tag: str = "ore",
     trendPoints: int = 500,
+    hours: int = None,
     db: DatabaseManager = Depends(get_db)
 ):
     """
@@ -532,10 +533,11 @@ async def get_mills_trend_by_tag(
     Parameters:
     - mill: The mill identifier (e.g., 'Mill01')
     - tag: The tag category to fetch (default: 'ore')
-    - trendPoints: Number of data points to retrieve (default: 500)
+    - trendPoints: Number of data points to retrieve (default: 500, used if hours not specified)
+    - hours: Number of hours of data to retrieve (takes precedence over trendPoints)
     """
     mills_utils = MillsUtils(db)
-    result = mills_utils.fetch_trend_by_tag(mill, tag, trendPoints)
+    result = mills_utils.fetch_trend_by_tag(mill, tag, trendPoints, hours)
     
     if not result:
         raise HTTPException(status_code=404, detail=f"No trend data found for mill {mill} and tag {tag}")

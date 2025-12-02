@@ -189,6 +189,47 @@ class DatabaseManager:
             logger.error(f"Error fetching batch tag values: {e}")
             return {tag_id: None for tag_id in tag_ids}
     
+    def _get_archive_table_names(self, start_time, end_time):
+        """Get list of archive table names needed for the time range.
+        
+        Tables are named:
+        - LoggerValues (current month)
+        - LoggerValues_Archive_Nov2025, LoggerValues_Archive_Oct2025, etc. (previous months)
+        
+        Args:
+            start_time: Start datetime of the range
+            end_time: End datetime of the range
+            
+        Returns:
+            list: List of table names to query, ordered from oldest to newest
+        """
+        from datetime import datetime
+        
+        tables = []
+        current_date = end_time
+        
+        # Always include current month table
+        tables.append("LoggerValues")
+        
+        # Generate archive table names for previous months
+        # Go back month by month until we pass start_time
+        check_date = datetime(current_date.year, current_date.month, 1)  # First day of current month
+        
+        while check_date > start_time:
+            # Move to previous month
+            if check_date.month == 1:
+                check_date = datetime(check_date.year - 1, 12, 1)
+            else:
+                check_date = datetime(check_date.year, check_date.month - 1, 1)
+            
+            # Format: LoggerValues_Archive_Nov2025
+            month_abbr = check_date.strftime("%b")  # Nov, Oct, Sep, etc.
+            year = check_date.year
+            archive_table = f"LoggerValues_Archive_{month_abbr}{year}"
+            tables.append(archive_table)
+        
+        return tables
+    
     def get_tag_trend(self, tag_id, hours=8):
         """Get historical trend data for a tag
         
@@ -220,39 +261,54 @@ class DatabaseManager:
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=hours)
             
-            # Format times for SQL query
-            query = text("""
-                SELECT LoggerTagID, Value, DATEADD(hour, 3, IndexTime) AS IndexTime 
-                FROM LoggerValues
-                WHERE LoggerTagID IN (:tag_id)
-                AND IndexTime BETWEEN :start_time AND :end_time
-                ORDER BY IndexTime ASC
-            """)
+            # Get list of tables to query (current + archive tables)
+            tables = self._get_archive_table_names(start_time, end_time)
+            logger.info(f"Querying tables for {hours} hours: {tables}")
             
             values = []
             timestamps = []
             
             with self.engine.connect() as conn:
-                result = conn.execute(query, {
-                    "tag_id": tag_id,
-                    "start_time": start_time,
-                    "end_time": end_time
-                }).fetchall()
+                for table_name in tables:
+                    try:
+                        # Build query for this table
+                        query = text(f"""
+                            SELECT LoggerTagID, Value, DATEADD(hour, 3, IndexTime) AS IndexTime 
+                            FROM {table_name}
+                            WHERE LoggerTagID = :tag_id
+                            AND IndexTime BETWEEN :start_time AND :end_time
+                            ORDER BY IndexTime ASC
+                        """)
+                        
+                        result = conn.execute(query, {
+                            "tag_id": tag_id,
+                            "start_time": start_time,
+                            "end_time": end_time
+                        }).fetchall()
+                        
+                        for row in result:
+                            values.append(row.Value)
+                            # Convert timestamp to ISO format
+                            timestamp_iso = row.IndexTime.isoformat() if hasattr(row.IndexTime, 'isoformat') else str(row.IndexTime)
+                            timestamps.append(timestamp_iso)
+                            
+                    except Exception as table_error:
+                        # Table might not exist (e.g., archive for future month)
+                        logger.debug(f"Could not query table {table_name}: {table_error}")
+                        continue
                 
-                if not result or len(result) == 0:
+                if not values:
                     logger.info(f"No trend data found for tag ID {tag_id}")
-                    # Return empty arrays instead of generating synthetic data
                     return {"timestamps": [], "values": []}
-                    
-                for row in result:
-                    values.append(row.Value)
-                    # Convert timestamp to ISO format
-                    timestamp_iso = row.IndexTime.isoformat() if hasattr(row.IndexTime, 'isoformat') else str(row.IndexTime)
-                    timestamps.append(timestamp_iso)
+                
+                # Sort by timestamp (since we're combining multiple tables)
+                combined = list(zip(timestamps, values))
+                combined.sort(key=lambda x: x[0])
+                timestamps, values = zip(*combined) if combined else ([], [])
                 
                 return {
-                    "timestamps": timestamps,
-                    "values": values
+                    "timestamps": list(timestamps),
+                    "values": list(values)
                 }
         except Exception as e:
             logger.error(f"Error fetching trend data for tag ID {tag_id}: {e}")

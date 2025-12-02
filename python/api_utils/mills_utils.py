@@ -85,13 +85,14 @@ class MillsUtils:
                 "title": mill
             }
     
-    def fetch_trend_by_tag(self, mill: str, tag: str, trend_points: int = 500) -> List[Dict[str, Any]]:
+    def fetch_trend_by_tag(self, mill: str, tag: str, trend_points: int = 500, hours: int = None) -> List[Dict[str, Any]]:
         """Get trend data for a specific mill and tag type
         
         Args:
             mill: The mill identifier (e.g., "Mill01")
             tag: The tag category to fetch (e.g., "ore")
-            trend_points: Number of data points to retrieve
+            trend_points: Number of data points to retrieve (used if hours not specified)
+            hours: Number of hours of data to retrieve (takes precedence over trend_points)
             
         Returns:
             List[Dict]: List of timestamp and value pairs
@@ -106,8 +107,15 @@ class MillsUtils:
                 
             tag_id = mill_tag["id"]
             
+            # Use hours if provided, otherwise calculate from trend_points
+            if hours is not None:
+                fetch_hours = max(12, hours)
+            else:
+                # Calculate hours based on trend_points (assuming ~1 point per minute)
+                fetch_hours = max(12, (trend_points // 60) + 1)
+            
             # Get trend data from the database manager
-            trend_result = self.db_manager.get_tag_trend(tag_id, hours=12)
+            trend_result = self.db_manager.get_tag_trend(tag_id, hours=fetch_hours)
             
             # Transform the data into the expected format
             result = []
