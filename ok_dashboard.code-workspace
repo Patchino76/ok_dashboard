@@ -1,11 +1,11 @@
 {
-	"folders": [
-		{
-			"path": "."
-		},
-		{
-			"path": "../ok_ui_templates/industrial-process-control"
-		}
-	],
-	"settings": {}
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../ok_ui_templates/industrial-downtime-analysis"
+    }
+  ],
+  "settings": {}
 }

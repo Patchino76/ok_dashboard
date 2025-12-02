@@ -304,10 +304,11 @@ export const ControlChart: React.FC<ControlChartProps> = ({
               stroke="#3b82f6"
               strokeWidth={1.5}
               dot={(props: any) => {
-                const { cx, cy, payload } = props;
+                const { cx, cy, payload, index } = props;
                 if (payload.isOutOfControl) {
                   return (
                     <circle
+                      key={`dot-${index}`}
                       cx={cx}
                       cy={cy}
                       r={5}
@@ -320,6 +321,7 @@ export const ControlChart: React.FC<ControlChartProps> = ({
                 if (payload.isWarning) {
                   return (
                     <circle
+                      key={`dot-${index}`}
                       cx={cx}
                       cy={cy}
                       r={4}
@@ -329,7 +331,15 @@ export const ControlChart: React.FC<ControlChartProps> = ({
                     />
                   );
                 }
-                return <circle cx={cx} cy={cy} r={2} fill="#3b82f6" />;
+                return (
+                  <circle
+                    key={`dot-${index}`}
+                    cx={cx}
+                    cy={cy}
+                    r={2}
+                    fill="#3b82f6"
+                  />
+                );
               }}
               activeDot={{ r: 6, stroke: "#fff", strokeWidth: 2 }}
             />
