@@ -58,8 +58,9 @@ function getOreTagId(millName: string): number | undefined {
 
 /**
  * Hook to fetch current ore rates for all mills
+ * No automatic refresh - use manual refresh button
  */
-export function useCurrentOreRates(refreshInterval: number = 30) {
+export function useCurrentOreRates() {
   const millsList = millsNames.map((mill) => mill.en);
 
   const queries = useQueries({
@@ -75,8 +76,7 @@ export function useCurrentOreRates(refreshInterval: number = 30) {
         );
         return response.data;
       },
-      staleTime: 0,
-      refetchInterval: refreshInterval * 1000,
+      staleTime: 5 * 60 * 1000, // 5 minutes
       retry: 2,
     })),
   });
@@ -140,14 +140,14 @@ export function useMillOreTrend(
 
 /**
  * Hook to fetch ore trends for all mills and detect downtimes
+ * No automatic refresh - use manual refresh button
  */
 export function useAllMillsDowntimeData(
   timeRange: TimeRange = "30d",
   config: DowntimeConfig = {
     downtimeThreshold: 10,
     minorDowntimeMaxMinutes: 60,
-  },
-  refreshInterval: number = 5 * 60 // 5 minutes
+  }
 ) {
   const millsList = millsNames.map((mill) => mill.en);
   const hours = getHoursForRange(timeRange);
@@ -156,7 +156,7 @@ export function useAllMillsDowntimeData(
   const totalMinutes = days * 24 * 60;
 
   // Fetch current ore rates
-  const currentRates = useCurrentOreRates(30);
+  const currentRates = useCurrentOreRates();
 
   // Fetch trend data for all mills
   const trendQueries = useQueries({
@@ -185,7 +185,6 @@ export function useAllMillsDowntimeData(
         }
       },
       staleTime: 5 * 60 * 1000,
-      refetchInterval: refreshInterval * 1000,
       retry: 2,
     })),
   });
@@ -224,7 +223,7 @@ export function useAllMillsDowntimeData(
     });
 
     // Calculate aggregate metrics
-    const aggregateMetrics = calculateAggregateMetrics(millMetrics);
+    const aggregateMetrics = calculateAggregateMetrics(millMetrics, allEvents);
 
     // Get chart data
     const downtimesByDay = getDowntimesByDay(allEvents, days);
@@ -252,6 +251,8 @@ export function useAllMillsDowntimeData(
       avgMttr: 0,
       totalMinorDowntimes: 0,
       totalMajorDowntimes: 0,
+      totalMinorDurationHours: 0,
+      totalMajorDurationHours: 0,
       totalEvents: 0,
       activeMillsCount: 0,
       totalMillsCount: 12,
@@ -285,6 +286,7 @@ export function useMillDowntimeData(
   const totalMinutes = days * 24 * 60;
 
   // Fetch current ore rate - only when millId is provided
+  // No automatic refresh - use manual refresh button
   const currentRate = useQuery({
     queryKey: ["mill-ore-current", millId],
     queryFn: async (): Promise<MillOreData> => {
@@ -295,8 +297,7 @@ export function useMillDowntimeData(
       return response.data;
     },
     enabled: !!millId, // Don't fetch if millId is empty
-    staleTime: 0,
-    refetchInterval: 30 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
   // Fetch trend data - only when millId is provided

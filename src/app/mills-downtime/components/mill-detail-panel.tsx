@@ -142,7 +142,7 @@ export function MillDetailPanel({
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">
-                Незначителни
+                Кратки
               </Badge>
               <span className="text-sm text-muted-foreground">
                 {"<"} 60 мин
@@ -157,7 +157,7 @@ export function MillDetailPanel({
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <Badge className="bg-red-500/20 text-red-500 border-red-500/30">
-                Значителни
+                ППР
               </Badge>
               <span className="text-sm text-muted-foreground">≥ 60 мин</span>
             </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -7,6 +8,9 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
@@ -19,6 +23,8 @@ import {
 } from "recharts";
 import type { DowntimeByDay } from "../lib/downtime-types";
 
+type CategoryFilter = "all" | "minor" | "major";
+
 interface DowntimeChartProps {
   data: DowntimeByDay[];
   title?: string;
@@ -28,6 +34,9 @@ export function DowntimeChart({
   data,
   title = "Престои по дни",
 }: DowntimeChartProps) {
+  const [showDuration, setShowDuration] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+
   // Format date for display
   const formattedData = data.map((d) => ({
     ...d,
@@ -37,13 +46,80 @@ export function DowntimeChart({
     }),
   }));
 
+  // Select which data keys to use based on mode
+  const minorKey = showDuration ? "minorDuration" : "minor";
+  const majorKey = showDuration ? "majorDuration" : "major";
+
+  // Determine which bars to show
+  const showMinor = categoryFilter === "all" || categoryFilter === "minor";
+  const showMajor = categoryFilter === "all" || categoryFilter === "major";
+
   return (
     <Card className="bg-card border-border">
-      <CardHeader>
-        <CardTitle className="text-foreground">{title}</CardTitle>
-        <CardDescription>
-          Брой престои по категория за всеки ден
-        </CardDescription>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-foreground">{title}</CardTitle>
+            <CardDescription>
+              {showDuration
+                ? "Продължителност на престоите по категория (часове)"
+                : "Брой престои по категория за всеки ден"}
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="duration-mode"
+              className="text-xs text-muted-foreground"
+            >
+              Брой
+            </Label>
+            <Switch
+              id="duration-mode"
+              checked={showDuration}
+              onCheckedChange={setShowDuration}
+            />
+            <Label
+              htmlFor="duration-mode"
+              className="text-xs text-muted-foreground"
+            >
+              Часове
+            </Label>
+          </div>
+          <div className="flex items-center gap-1 ml-4">
+            <Button
+              variant={categoryFilter === "all" ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-7 px-3"
+              onClick={() => setCategoryFilter("all")}
+            >
+              Всички
+            </Button>
+            <Button
+              variant={categoryFilter === "minor" ? "default" : "outline"}
+              size="sm"
+              className={`text-xs h-7 px-3 ${
+                categoryFilter === "minor"
+                  ? "bg-yellow-500 hover:bg-yellow-600 text-black"
+                  : ""
+              }`}
+              onClick={() => setCategoryFilter("minor")}
+            >
+              Кратки
+            </Button>
+            <Button
+              variant={categoryFilter === "major" ? "default" : "outline"}
+              size="sm"
+              className={`text-xs h-7 px-3 ${
+                categoryFilter === "major"
+                  ? "bg-red-500 hover:bg-red-600 text-white"
+                  : ""
+              }`}
+              onClick={() => setCategoryFilter("major")}
+            >
+              ППР
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
@@ -63,7 +139,8 @@ export function DowntimeChart({
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                allowDecimals={false}
+                allowDecimals={showDuration}
+                tickFormatter={(v) => (showDuration ? `${v}h` : v)}
               />
               <Tooltip
                 contentStyle={{
@@ -73,27 +150,41 @@ export function DowntimeChart({
                 }}
                 labelStyle={{ color: "#e5e7eb" }}
                 itemStyle={{ color: "#e5e7eb" }}
+                formatter={(value: number, name: string) => [
+                  showDuration ? `${value.toFixed(1)} h` : value,
+                  name === "minor" || name === "minorDuration"
+                    ? "Кратки"
+                    : "ППР",
+                ]}
               />
-              <Legend
-                wrapperStyle={{ paddingTop: "10px" }}
-                formatter={(value) =>
-                  value === "minor" ? "Незначителни" : "Значителни"
-                }
-              />
-              <Bar
-                dataKey="minor"
-                name="minor"
-                fill="#eab308"
-                radius={[4, 4, 0, 0]}
-                stackId="stack"
-              />
-              <Bar
-                dataKey="major"
-                name="major"
-                fill="#ef4444"
-                radius={[4, 4, 0, 0]}
-                stackId="stack"
-              />
+              {categoryFilter === "all" && (
+                <Legend
+                  wrapperStyle={{ paddingTop: "10px" }}
+                  formatter={(value: string) =>
+                    value === "minor" || value === "minorDuration"
+                      ? "Кратки"
+                      : "ППР"
+                  }
+                />
+              )}
+              {showMinor && (
+                <Bar
+                  dataKey={minorKey}
+                  name={minorKey}
+                  fill="#eab308"
+                  radius={[4, 4, 0, 0]}
+                  stackId="stack"
+                />
+              )}
+              {showMajor && (
+                <Bar
+                  dataKey={majorKey}
+                  name={majorKey}
+                  fill="#ef4444"
+                  radius={[4, 4, 0, 0]}
+                  stackId="stack"
+                />
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>

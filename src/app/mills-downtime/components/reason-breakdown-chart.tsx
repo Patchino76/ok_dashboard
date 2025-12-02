@@ -74,14 +74,12 @@ export function ReasonBreakdownChart({
                 itemStyle={{ color: "#e5e7eb" }}
                 formatter={(value, name) => [
                   value,
-                  name === "minor" ? "Незначителни" : "Значителни",
+                  name === "minor" ? "Кратки" : "ППР",
                 ]}
               />
               <Legend
                 wrapperStyle={{ paddingTop: "10px" }}
-                formatter={(value) =>
-                  value === "minor" ? "Незначителни" : "Значителни"
-                }
+                formatter={(value) => (value === "minor" ? "Кратки" : "ППР")}
               />
               <Bar
                 dataKey="minor"

@@ -74,6 +74,8 @@ export interface AggregateMetrics {
   avgMttr: number;
   totalMinorDowntimes: number;
   totalMajorDowntimes: number;
+  totalMinorDurationHours: number; // Duration of minor downtimes in hours
+  totalMajorDurationHours: number; // Duration of major downtimes in hours
   totalEvents: number;
   activeMillsCount: number;
   totalMillsCount: number;
@@ -100,9 +102,12 @@ export const TIME_RANGE_OPTIONS: TimeRangeOption[] = [
 // Chart data types
 export interface DowntimeByDay {
   date: string;
-  minor: number;
-  major: number;
-  total: number;
+  minor: number; // count of minor events
+  major: number; // count of major events
+  total: number; // total count
+  minorDuration: number; // duration in hours
+  majorDuration: number; // duration in hours
+  totalDuration: number; // total duration in hours
 }
 
 export interface DowntimeByReason {

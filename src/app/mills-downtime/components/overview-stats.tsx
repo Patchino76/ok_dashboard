@@ -61,13 +61,13 @@ export function OverviewStats({ metrics, isLoading }: OverviewStatsProps) {
         trendDirection="neutral"
       />
       <KPICard
-        title="Незначителни"
+        title="Кратки"
         value={metrics.totalMinorDowntimes}
         icon={<CheckCircle className="h-5 w-5" />}
         trendDirection="neutral"
       />
       <KPICard
-        title="Значителни"
+        title="ППР"
         value={metrics.totalMajorDowntimes}
         icon={<Gauge className="h-5 w-5" />}
         trendDirection="neutral"

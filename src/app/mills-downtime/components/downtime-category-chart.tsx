@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -7,6 +8,8 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   PieChart,
   Pie,
@@ -31,29 +34,71 @@ export function DowntimeCategoryChart({
   metrics,
   title = "Разпределение по категория",
 }: DowntimeCategoryChartProps) {
-  const data = [
+  const [showDuration, setShowDuration] = useState(false);
+
+  const countData = [
     {
-      name: "Незначителни",
+      name: "Кратки",
       value: metrics.totalMinorDowntimes,
       color: COLORS.minor,
     },
     {
-      name: "Значителни",
+      name: "ППР",
       value: metrics.totalMajorDowntimes,
       color: COLORS.major,
     },
   ];
 
-  const total = metrics.totalMinorDowntimes + metrics.totalMajorDowntimes;
+  const durationData = [
+    {
+      name: "Кратки",
+      value: metrics.totalMinorDurationHours,
+      color: COLORS.minor,
+    },
+    {
+      name: "ППР",
+      value: metrics.totalMajorDurationHours,
+      color: COLORS.major,
+    },
+  ];
+
+  const data = showDuration ? durationData : countData;
+  const total = showDuration
+    ? metrics.totalMinorDurationHours + metrics.totalMajorDurationHours
+    : metrics.totalMinorDowntimes + metrics.totalMajorDowntimes;
 
   return (
     <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-foreground">{title}</CardTitle>
-        <CardDescription>
-          Съотношение между незначителни ({"<"}60 мин) и значителни (≥60 мин)
-          престои
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-foreground">{title}</CardTitle>
+            <CardDescription>
+              {showDuration
+                ? "Продължителност по категория (часове)"
+                : "Брой престои по категория"}
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="category-duration-mode"
+              className="text-xs text-muted-foreground"
+            >
+              Брой
+            </Label>
+            <Switch
+              id="category-duration-mode"
+              checked={showDuration}
+              onCheckedChange={setShowDuration}
+            />
+            <Label
+              htmlFor="category-duration-mode"
+              className="text-xs text-muted-foreground"
+            >
+              Часове
+            </Label>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
@@ -84,9 +129,13 @@ export function DowntimeCategoryChart({
                 }}
                 itemStyle={{ color: "#e5e7eb" }}
                 formatter={(value: number, name: string) => [
-                  `${value} събития (${
-                    total > 0 ? ((value / total) * 100).toFixed(1) : 0
-                  }%)`,
+                  showDuration
+                    ? `${value.toFixed(1)} ч (${
+                        total > 0 ? ((value / total) * 100).toFixed(1) : 0
+                      }%)`
+                    : `${value} събития (${
+                        total > 0 ? ((value / total) * 100).toFixed(1) : 0
+                      }%)`,
                   name,
                 ]}
               />
@@ -103,15 +152,19 @@ export function DowntimeCategoryChart({
         <div className="mt-4 grid grid-cols-2 gap-4 text-center">
           <div>
             <p className="text-2xl font-bold text-yellow-500">
-              {metrics.totalMinorDowntimes}
+              {showDuration
+                ? `${metrics.totalMinorDurationHours.toFixed(1)}ч`
+                : metrics.totalMinorDowntimes}
             </p>
-            <p className="text-sm text-muted-foreground">Незначителни</p>
+            <p className="text-sm text-muted-foreground">Кратки</p>
           </div>
           <div>
             <p className="text-2xl font-bold text-red-500">
-              {metrics.totalMajorDowntimes}
+              {showDuration
+                ? `${metrics.totalMajorDurationHours.toFixed(1)}ч`
+                : metrics.totalMajorDowntimes}
             </p>
-            <p className="text-sm text-muted-foreground">Значителни</p>
+            <p className="text-sm text-muted-foreground">ППР</p>
           </div>
         </div>
       </CardContent>

@@ -17,6 +17,7 @@ import {
   Tooltip,
   Cell,
   ReferenceLine,
+  LabelList,
 } from "recharts";
 import type { MillComparisonData } from "../lib/downtime-types";
 
@@ -72,6 +73,23 @@ export function MillComparisonChart({
     return config.color;
   };
 
+  // Calculate Y-axis domain - start slightly below the minimum value
+  const getYDomain = (): [number, number] | undefined => {
+    if (data.length === 0) return undefined;
+    const values = data.map((d) => d[metric]);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+
+    if (metric === "availability") {
+      // For availability, start 5% below min, max at 100
+      const domainMin = Math.max(0, Math.floor(minValue - 5));
+      return [domainMin, 100];
+    }
+    // For other metrics, add some padding
+    const padding = (maxValue - minValue) * 0.1 || 1;
+    return [Math.max(0, minValue - padding), maxValue + padding];
+  };
+
   return (
     <Card className="bg-card border-border">
       <CardHeader>
@@ -98,7 +116,8 @@ export function MillComparisonChart({
                 fontSize={12}
                 tickLine={false}
                 axisLine={false}
-                domain={metric === "availability" ? [0, 100] : undefined}
+                domain={getYDomain()}
+                tickFormatter={(v) => `${v}${config.unit}`}
               />
               <Tooltip
                 contentStyle={{
@@ -133,6 +152,15 @@ export function MillComparisonChart({
                     fill={getBarColor(entry[metric])}
                   />
                 ))}
+                <LabelList
+                  dataKey={metric}
+                  position="insideBottom"
+                  offset={8}
+                  fill="#ffffff"
+                  fontSize={11}
+                  fontWeight={600}
+                  formatter={(value: number) => value.toFixed(1)}
+                />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

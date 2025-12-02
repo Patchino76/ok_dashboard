@@ -193,9 +193,18 @@ export function calculateMillMetrics(
  * Calculate aggregate metrics across all mills
  */
 export function calculateAggregateMetrics(
-  millMetrics: MillMetrics[]
+  millMetrics: MillMetrics[],
+  events: DowntimeEvent[] = []
 ): AggregateMetrics {
   const activeMillsCount = millMetrics.filter((m) => m.isRunning).length;
+
+  // Calculate duration by category from events
+  const minorEvents = events.filter((e) => e.category === "minor");
+  const majorEvents = events.filter((e) => e.category === "major");
+  const totalMinorDurationHours =
+    minorEvents.reduce((sum, e) => sum + e.duration, 0) / 60;
+  const totalMajorDurationHours =
+    majorEvents.reduce((sum, e) => sum + e.duration, 0) / 60;
 
   return {
     totalDowntimeHours: millMetrics.reduce(
@@ -223,6 +232,8 @@ export function calculateAggregateMetrics(
       (sum, m) => sum + m.majorDowntimes,
       0
     ),
+    totalMinorDurationHours: Math.round(totalMinorDurationHours * 100) / 100,
+    totalMajorDurationHours: Math.round(totalMajorDurationHours * 100) / 100,
     totalEvents: millMetrics.reduce((sum, m) => sum + m.totalEvents, 0),
     activeMillsCount,
     totalMillsCount: millMetrics.length,
@@ -243,16 +254,39 @@ export function getDowntimesByDay(
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
     const key = date.toISOString().split("T")[0];
-    result[key] = { date: key, minor: 0, major: 0, total: 0 };
+    result[key] = {
+      date: key,
+      minor: 0,
+      major: 0,
+      total: 0,
+      minorDuration: 0,
+      majorDuration: 0,
+      totalDuration: 0,
+    };
   }
 
-  // Count events per day
+  // Count events and sum durations per day
   events.forEach((e) => {
     const key = e.startTime.toISOString().split("T")[0];
     if (result[key]) {
       result[key][e.category]++;
       result[key].total++;
+      // Add duration in hours (e.duration is in minutes)
+      const durationHours = e.duration / 60;
+      if (e.category === "minor") {
+        result[key].minorDuration += durationHours;
+      } else {
+        result[key].majorDuration += durationHours;
+      }
+      result[key].totalDuration += durationHours;
     }
+  });
+
+  // Round durations to 2 decimal places
+  Object.values(result).forEach((day) => {
+    day.minorDuration = Math.round(day.minorDuration * 100) / 100;
+    day.majorDuration = Math.round(day.majorDuration * 100) / 100;
+    day.totalDuration = Math.round(day.totalDuration * 100) / 100;
   });
 
   return Object.values(result);

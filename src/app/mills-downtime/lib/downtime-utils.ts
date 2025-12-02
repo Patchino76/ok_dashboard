@@ -82,7 +82,7 @@ export function getCategoryLabel(
   lang: "en" | "bg" = "bg"
 ): string {
   if (lang === "bg") {
-    return category === "minor" ? "Незначителен" : "Значителен";
+    return category === "minor" ? "Кратък" : "ППР";
   }
   return category === "minor" ? "Minor" : "Major";
 }

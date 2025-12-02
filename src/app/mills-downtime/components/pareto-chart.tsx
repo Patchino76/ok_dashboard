@@ -16,6 +16,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
+  LabelList,
 } from "recharts";
 import type { DowntimeByReason } from "../lib/downtime-types";
 
@@ -104,7 +105,16 @@ export function ParetoChart({
                 fill="#3b82f6"
                 radius={[4, 4, 0, 0]}
                 name="total"
-              />
+              >
+                <LabelList
+                  dataKey="total"
+                  position="insideBottom"
+                  offset={8}
+                  fill="#ffffff"
+                  fontSize={11}
+                  fontWeight={600}
+                />
+              </Bar>
               <Line
                 yAxisId="right"
                 type="monotone"
