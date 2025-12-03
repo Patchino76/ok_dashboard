@@ -22,15 +22,10 @@ export const DEFAULT_DOWNTIME_CONFIG: DowntimeConfig = {
 export type DowntimeCategory = "minor" | "major";
 
 export type DowntimeReason =
-  | "mechanical_failure"
-  | "electrical_fault"
   | "scheduled_maintenance"
-  | "liner_replacement"
-  | "bearing_issue"
-  | "motor_overload"
-  | "feed_chute_blockage"
-  | "lubrication_system"
-  | "unknown";
+  | "mechanical"
+  | "technological"
+  | "electrical";
 
 export interface DowntimeEvent {
   id: string;

@@ -75,7 +75,7 @@ export function detectDowntimeEvents(
         if (duration >= 5) {
           const category: DowntimeCategory =
             duration < config.minorDowntimeMaxMinutes ? "minor" : "major";
-          const reason = getRandomReason();
+          const reason = getRandomReason(category);
 
           events.push({
             id: `DT-${millId}-${downtimeStart.getTime()}`,
@@ -109,7 +109,7 @@ export function detectDowntimeEvents(
     if (duration >= 5) {
       const category: DowntimeCategory =
         duration < config.minorDowntimeMaxMinutes ? "minor" : "major";
-      const reason = getRandomReason();
+      const reason = getRandomReason(category);
 
       events.push({
         id: `DT-${millId}-${downtimeStart.getTime()}`,
@@ -154,10 +154,9 @@ export function calculateMillMetrics(
     totalMinutes > 0 ? (availableMinutes / totalMinutes) * 100 : 100;
 
   // MTBF = Total operating time / Number of failures
+  // When no events exist, MTBF is 0 (no data to calculate from)
   const mtbf =
-    millEvents.length > 0
-      ? availableMinutes / 60 / millEvents.length
-      : totalMinutes / 60;
+    millEvents.length > 0 ? availableMinutes / 60 / millEvents.length : 0;
 
   // MTTR = Total repair time / Number of repairs
   const mttr =
@@ -437,7 +436,7 @@ export function generateMockDowntimeEvents(
 
       const category: DowntimeCategory =
         duration < config.minorDowntimeMaxMinutes ? "minor" : "major";
-      const reason = getRandomReason();
+      const reason = getRandomReason(category);
 
       events.push({
         id: `DT-${mill.id}-${i}-${Date.now()}`,

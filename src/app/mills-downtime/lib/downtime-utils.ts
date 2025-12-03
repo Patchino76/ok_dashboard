@@ -15,34 +15,30 @@ export const DOWNTIME_REASONS: Record<
   DowntimeReason,
   { en: string; bg: string }
 > = {
-  mechanical_failure: { en: "Mechanical Failure", bg: "Механична повреда" },
-  electrical_fault: { en: "Electrical Fault", bg: "Електрическа неизправност" },
   scheduled_maintenance: {
     en: "Scheduled Maintenance",
-    bg: "Планирана поддръжка",
+    bg: "Планиран ремонт",
   },
-  liner_replacement: { en: "Liner Replacement", bg: "Смяна на облицовка" },
-  bearing_issue: { en: "Bearing Issue", bg: "Проблем с лагери" },
-  motor_overload: { en: "Motor Overload", bg: "Претоварване на двигател" },
-  feed_chute_blockage: {
-    en: "Feed Chute Blockage",
-    bg: "Запушване на захранващ улей",
-  },
-  lubrication_system: { en: "Lubrication System", bg: "Система за смазване" },
-  unknown: { en: "Unknown", bg: "Неизвестна" },
+  mechanical: { en: "Mechanical", bg: "Механични" },
+  technological: { en: "Technological", bg: "Технологични" },
+  electrical: { en: "Electrical", bg: "Електрически" },
 };
 
 // All reason keys for random selection
 export const DOWNTIME_REASON_KEYS: DowntimeReason[] = [
-  "mechanical_failure",
-  "electrical_fault",
   "scheduled_maintenance",
-  "liner_replacement",
-  "bearing_issue",
-  "motor_overload",
-  "feed_chute_blockage",
-  "lubrication_system",
+  "mechanical",
+  "technological",
+  "electrical",
 ];
+
+export const MINOR_REASONS: DowntimeReason[] = [
+  "mechanical",
+  "technological",
+  "electrical",
+];
+
+export const MAJOR_REASONS: DowntimeReason[] = ["scheduled_maintenance"];
 
 /**
  * Format duration in minutes to human-readable string
@@ -82,7 +78,7 @@ export function getCategoryLabel(
   lang: "en" | "bg" = "bg"
 ): string {
   if (lang === "bg") {
-    return category === "minor" ? "Кратък" : "ППР";
+    return category === "minor" ? "Кратки" : "ППР";
   }
   return category === "minor" ? "Minor" : "Major";
 }
@@ -90,10 +86,14 @@ export function getCategoryLabel(
 /**
  * Get random downtime reason (for simulation)
  */
-export function getRandomReason(): DowntimeReason {
-  return DOWNTIME_REASON_KEYS[
-    Math.floor(Math.random() * DOWNTIME_REASON_KEYS.length)
-  ];
+export function getRandomReason(category?: DowntimeCategory): DowntimeReason {
+  if (category === "major") {
+    return "scheduled_maintenance";
+  }
+
+  // If minor or unspecified, pick from minor reasons
+  // (Technically major should only be scheduled_maintenance, but for safety)
+  return MINOR_REASONS[Math.floor(Math.random() * MINOR_REASONS.length)];
 }
 
 /**
@@ -106,15 +106,10 @@ export function generateSimulatedNotes(
   if (category === "minor") return undefined;
 
   const notes: Record<DowntimeReason, string> = {
-    mechanical_failure: "Необходима е проверка на механичните компоненти",
-    electrical_fault: "Електрическа диагностика в процес",
-    scheduled_maintenance: "Планова профилактика съгласно график",
-    liner_replacement: "Смяна на износени облицовки",
-    bearing_issue: "Проверка и смяна на лагери",
-    motor_overload: "Проверка на електродвигателя",
-    feed_chute_blockage: "Почистване на захранващата система",
-    lubrication_system: "Проверка на смазочната система",
-    unknown: "Причината се изследва",
+    scheduled_maintenance: "Планиран ремонт съгласно график",
+    mechanical: "Проверка на механични компоненти",
+    technological: "Технологична настройка",
+    electrical: "Електрическа профилактика",
   };
 
   return notes[reason];

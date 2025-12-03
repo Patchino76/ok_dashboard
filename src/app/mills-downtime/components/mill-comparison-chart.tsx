@@ -7,6 +7,7 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
@@ -21,9 +22,13 @@ import {
 } from "recharts";
 import type { MillComparisonData } from "../lib/downtime-types";
 
+type CategoryFilter = "all" | "minor" | "major";
+
 interface MillComparisonChartProps {
   data: MillComparisonData[];
   metric: "availability" | "mtbf" | "mttr";
+  categoryFilter: CategoryFilter;
+  onCategoryFilterChange: (filter: CategoryFilter) => void;
 }
 
 const METRIC_CONFIG = {
@@ -56,6 +61,8 @@ const METRIC_CONFIG = {
 export function MillComparisonChart({
   data,
   metric,
+  categoryFilter,
+  onCategoryFilterChange,
 }: MillComparisonChartProps) {
   const config = METRIC_CONFIG[metric];
 
@@ -92,9 +99,47 @@ export function MillComparisonChart({
 
   return (
     <Card className="bg-card border-border">
-      <CardHeader>
-        <CardTitle className="text-foreground">{config.title}</CardTitle>
-        <CardDescription>{config.description}</CardDescription>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-foreground">{config.title}</CardTitle>
+            <CardDescription>{config.description}</CardDescription>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant={categoryFilter === "all" ? "default" : "outline"}
+              size="sm"
+              className="text-xs h-7 px-3"
+              onClick={() => onCategoryFilterChange("all")}
+            >
+              Всички
+            </Button>
+            <Button
+              variant={categoryFilter === "minor" ? "default" : "outline"}
+              size="sm"
+              className={`text-xs h-7 px-3 ${
+                categoryFilter === "minor"
+                  ? "bg-yellow-500 hover:bg-yellow-600 text-black"
+                  : ""
+              }`}
+              onClick={() => onCategoryFilterChange("minor")}
+            >
+              Кратки
+            </Button>
+            <Button
+              variant={categoryFilter === "major" ? "default" : "outline"}
+              size="sm"
+              className={`text-xs h-7 px-3 ${
+                categoryFilter === "major"
+                  ? "bg-red-500 hover:bg-red-600 text-white"
+                  : ""
+              }`}
+              onClick={() => onCategoryFilterChange("major")}
+            >
+              ППР
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="h-[400px]">

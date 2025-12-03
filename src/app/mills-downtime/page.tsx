@@ -14,12 +14,19 @@ import { ParetoChart } from "./components/pareto-chart";
 import { DowntimeCategoryChart } from "./components/downtime-category-chart";
 import { AvailabilityGauge } from "./components/availability-gauge";
 import {
+  calculateMillMetrics,
+  getMillComparisonData,
+} from "./lib/downtime-detection";
+import { MILLS } from "./lib/downtime-utils";
+import {
   useAllMillsDowntimeData,
   useMillDowntimeData,
   getRecentEvents,
+  TIME_RANGE_OPTIONS,
 } from "./hooks/useDowntimeData";
 import type { TimeRange, DowntimeConfig } from "./lib/downtime-types";
 import { LayoutGrid, BarChart3, Clock, Settings2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function DowntimeDashboardPage() {
   // State
@@ -29,6 +36,9 @@ export default function DowntimeDashboardPage() {
   const [comparisonMetric, setComparisonMetric] = useState<
     "availability" | "mtbf" | "mttr"
   >("availability");
+  const [downtimeFilter, setDowntimeFilter] = useState<
+    "all" | "minor" | "major"
+  >("all");
 
   // Config
   const config: DowntimeConfig = useMemo(
@@ -52,6 +62,32 @@ export default function DowntimeDashboardPage() {
     isError,
     refetch,
   } = useAllMillsDowntimeData(timeRange, config);
+
+  // Recalculate comparison data based on filter
+  const filteredMillComparisonData = useMemo(() => {
+    if (downtimeFilter === "all") return millComparisonData;
+
+    const days =
+      TIME_RANGE_OPTIONS.find((t) => t.value === timeRange)?.days || 30;
+    const totalMinutes = days * 24 * 60;
+
+    // Filter events
+    const filteredEvents = events.filter((e) => e.category === downtimeFilter);
+
+    // Recalculate metrics for each mill
+    const filteredMetrics = MILLS.map((mill) => {
+      const currentData = millMetrics.find((m) => m.millId === mill.id);
+      return calculateMillMetrics(
+        mill.id,
+        filteredEvents,
+        totalMinutes,
+        currentData?.currentOreRate || 0,
+        currentData?.isRunning || false
+      );
+    });
+
+    return getMillComparisonData(filteredMetrics);
+  }, [downtimeFilter, events, millComparisonData, timeRange, millMetrics]);
 
   // Fetch selected mill data
   const selectedMillData = useMillDowntimeData(
@@ -175,28 +211,27 @@ export default function DowntimeDashboardPage() {
             {/* Metric Selector */}
             <div className="flex flex-wrap gap-2">
               {(["availability", "mtbf", "mttr"] as const).map((metric) => (
-                <button
+                <Button
                   key={metric}
+                  variant={comparisonMetric === metric ? "default" : "outline"}
                   onClick={() => setComparisonMetric(metric)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    comparisonMetric === metric
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-muted-foreground hover:text-foreground"
-                  }`}
+                  className="h-9"
                 >
                   {metric === "mtbf"
                     ? "MTBF"
                     : metric === "mttr"
                     ? "MTTR"
                     : "Коеф. движение"}
-                </button>
+                </Button>
               ))}
             </div>
 
             {/* Comparison Chart */}
             <MillComparisonChart
-              data={millComparisonData}
+              data={filteredMillComparisonData}
               metric={comparisonMetric}
+              categoryFilter={downtimeFilter}
+              onCategoryFilterChange={setDowntimeFilter}
             />
 
             {/* Additional Charts */}
