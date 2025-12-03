@@ -34,7 +34,8 @@ export function detectDowntimeEvents(
     minorDowntimeMaxMinutes: 60,
   }
 ): DowntimeEvent[] {
-  if (!trendData || trendData.length < 2) return [];
+  if (!trendData || !Array.isArray(trendData) || trendData.length < 2)
+    return [];
 
   const events: DowntimeEvent[] = [];
   let inDowntime = false;
@@ -375,4 +376,125 @@ export function getMillFeedRateData(
       feedRate: r.value,
     }))
     .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+}
+
+/**
+ * Generate mock downtime events for demonstration when real data is not available
+ */
+function randomInRange(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+export function generateMockDowntimeEvents(
+  mills: typeof MILLS,
+  days: number = 30,
+  config: DowntimeConfig = {
+    downtimeThreshold: 10,
+    minorDowntimeMaxMinutes: 60,
+  }
+): DowntimeEvent[] {
+  const events: DowntimeEvent[] = [];
+  const now = new Date();
+  const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+  mills.forEach((mill) => {
+    // Generate 5-15 events per mill over the period
+    const numEvents = randomInRange(5, 15);
+    const usedTimes: Date[] = [];
+
+    for (let i = 0; i < numEvents; i++) {
+      // Random start time in the period
+      const startOffset = randomInRange(0, days * 24 * 60); // minutes
+      const startTime = new Date(startDate.getTime() + startOffset * 60 * 1000);
+
+      // Random duration: weighted towards shorter downtimes
+      let duration: number;
+      const rand = Math.random();
+      if (rand < 0.6) {
+        // 60% chance: minor downtime (15-59 min)
+        duration = randomInRange(15, 59);
+      } else if (rand < 0.9) {
+        // 30% chance: moderate major downtime (60-180 min)
+        duration = randomInRange(60, 180);
+      } else {
+        // 10% chance: severe major downtime (180-480 min)
+        duration = randomInRange(180, 480);
+      }
+
+      const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
+
+      // Skip if end time is in the future
+      if (endTime > now) continue;
+
+      // Check for overlap with existing events (12 hour buffer)
+      const hasOverlap = usedTimes.some((t) => {
+        const diff = Math.abs(t.getTime() - startTime.getTime());
+        return diff < 12 * 60 * 60 * 1000;
+      });
+      if (hasOverlap) continue;
+
+      usedTimes.push(startTime);
+
+      const category: DowntimeCategory =
+        duration < config.minorDowntimeMaxMinutes ? "minor" : "major";
+      const reason = getRandomReason();
+
+      events.push({
+        id: `DT-${mill.id}-${i}-${Date.now()}`,
+        millId: mill.id,
+        startTime,
+        endTime,
+        duration,
+        category,
+        reason,
+        feedRateBefore: mill.normalFeedRate,
+        feedRateDuring: 0,
+        notes: generateSimulatedNotes(reason, category),
+      });
+    }
+  });
+
+  return events.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+}
+
+/**
+ * Generate mock feed rate data for a mill
+ */
+export function generateMockFeedRateData(
+  millId: string,
+  events: DowntimeEvent[],
+  days: number = 7,
+  normalFeedRate: number = 160
+): Array<{ time: string; feedRate: number }> {
+  const readings: Array<{ time: string; feedRate: number }> = [];
+  const now = new Date();
+  const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const millEvents = events.filter(
+    (e) => e.millId === millId && e.startTime >= startDate
+  );
+
+  // Generate hourly readings
+  for (let t = startDate.getTime(); t <= now.getTime(); t += 60 * 60 * 1000) {
+    const timestamp = new Date(t);
+
+    // Check if this time falls within a downtime event
+    const activeEvent = millEvents.find(
+      (e) => timestamp >= e.startTime && timestamp <= e.endTime
+    );
+
+    let feedRate = normalFeedRate;
+    if (activeEvent) {
+      feedRate = 0;
+    } else {
+      // Add some natural variation (±5%)
+      feedRate = normalFeedRate + (Math.random() - 0.5) * 16;
+    }
+
+    readings.push({
+      time: timestamp.toISOString(),
+      feedRate: Math.max(0, Math.round(feedRate)),
+    });
+  }
+
+  return readings;
 }

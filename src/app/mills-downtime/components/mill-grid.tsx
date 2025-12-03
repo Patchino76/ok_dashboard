@@ -48,9 +48,9 @@ export function MillGrid({
             onClick={() => onSelectMill(metrics.millId)}
           >
             <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="font-semibold text-foreground">
-                  {metrics.millName}
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-bold text-lg text-foreground">
+                  {metrics.millId.replace("Mill", "MA")}
                 </span>
                 <div
                   className={cn(
@@ -60,14 +60,6 @@ export function MillGrid({
                       : "bg-gray-500"
                   )}
                 />
-              </div>
-
-              {/* Current ore rate */}
-              <div className="mb-3 text-center">
-                <span className="text-2xl font-bold text-foreground">
-                  {metrics.currentOreRate.toFixed(0)}
-                </span>
-                <span className="text-sm text-muted-foreground ml-1">t/h</span>
               </div>
 
               <div className="space-y-2 text-xs">
@@ -102,15 +94,15 @@ export function MillGrid({
               <div className="mt-3 flex gap-1">
                 <Badge
                   variant="outline"
-                  className="text-[10px] px-1.5 py-0 bg-yellow-500/10 text-yellow-500 border-yellow-500/30"
+                  className="text-[10px] px-1.5 py-0 bg-orange-500/10 text-orange-500 border-orange-500/30"
                 >
-                  {metrics.minorDowntimes} незн.
+                  Кратки: {metrics.minorDowntimes}
                 </Badge>
                 <Badge
                   variant="outline"
                   className="text-[10px] px-1.5 py-0 bg-red-500/10 text-red-500 border-red-500/30"
                 >
-                  {metrics.majorDowntimes} знач.
+                  ППР: {metrics.majorDowntimes}
                 </Badge>
               </div>
             </CardContent>

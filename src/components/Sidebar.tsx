@@ -19,6 +19,7 @@ import {
   X,
   Zap,
   Factory as FactoryIcon,
+  Clock,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -72,6 +73,11 @@ export default function Sidebar() {
       href: "/mills-ai/optimization-cascade",
       label: "Оптимизация на смилане",
       icon: <Zap className="w-5 h-5" />,
+    },
+    {
+      href: "/mills-downtime",
+      label: "Престои на мелници",
+      icon: <Clock className="w-5 h-5" />,
     },
     // {
     //   href: "/personnel",

@@ -26,7 +26,7 @@ interface DowntimeCategoryChartProps {
 }
 
 const COLORS = {
-  minor: "#eab308",
+  minor: "#f97316",
   major: "#ef4444",
 };
 
@@ -151,7 +151,7 @@ export function DowntimeCategoryChart({
         </div>
         <div className="mt-4 grid grid-cols-2 gap-4 text-center">
           <div>
-            <p className="text-2xl font-bold text-yellow-500">
+            <p className="text-2xl font-bold text-orange-500">
               {showDuration
                 ? `${metrics.totalMinorDurationHours.toFixed(1)}ч`
                 : metrics.totalMinorDowntimes}

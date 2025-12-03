@@ -61,11 +61,10 @@ export function OreRateChart({
     <Card className="bg-card border-border">
       <CardHeader>
         <CardTitle className="text-foreground">
-          Разход на руда - {mill?.nameBg || millId}
+          Разход на руда - {millId.replace("Mill", "MA")}
         </CardTitle>
         <CardDescription>
-          Разход на руда за последните 48 часа (цел: {normalFeedRate} t/h, праг
-          за престой: {downtimeThreshold} t/h)
+          Разход на руда за последните 48 часа (цел: {normalFeedRate} t/h)
         </CardDescription>
       </CardHeader>
       <CardContent>

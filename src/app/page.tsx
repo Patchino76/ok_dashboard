@@ -23,6 +23,7 @@ import {
   LayoutDashboard,
   ArrowRight,
   Factory as FactoryIcon,
+  Timer,
 } from "lucide-react";
 import { useDashboardTags } from "@/hooks/useDashboardTags";
 import { formatNumber } from "@/lib/utils";
@@ -333,6 +334,41 @@ export default function Home() {
                     style={{ backgroundColor: "#f3e8ff", color: "#7c3aed" }}
                   >
                     AI Активен
+                  </Badge>
+                </Box>
+              </Flex>
+            </Card>
+          </Link>
+
+          <Link href="/mills-downtime" className="no-underline">
+            <Card className="bg-gradient-to-br from-white to-red-50/50 h-full hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-400 to-rose-400" />
+              <Flex direction="column" p="5" height="100%">
+                <Flex justify="between" align="center" mb="3">
+                  <Box className="p-3 bg-gradient-to-br from-red-600 to-rose-600 rounded-lg shadow-lg">
+                    <Timer className="h-5 w-5 text-white" />
+                  </Box>
+                  <Box className="size-8 flex items-center justify-center rounded-full bg-red-50 group-hover:bg-red-100 transition-colors">
+                    <ArrowRight className="h-4 w-4 text-red-600" />
+                  </Box>
+                </Flex>
+                <Heading
+                  size="4"
+                  mb="2"
+                  className="bg-gradient-to-r from-red-600 to-rose-600 bg-clip-text text-transparent"
+                >
+                  Престои на мелници
+                </Heading>
+                <Text className="text-gray-500 mb-2">
+                  Анализ на престои, наличност и причини за спиране
+                </Text>
+                <Box className="mt-auto">
+                  <Badge
+                    size="1"
+                    variant="soft"
+                    style={{ backgroundColor: "#fee2e2", color: "#dc2626" }}
+                  >
+                    Активен
                   </Badge>
                 </Box>
               </Flex>

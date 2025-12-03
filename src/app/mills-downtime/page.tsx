@@ -209,11 +209,10 @@ export default function DowntimeDashboardPage() {
           {/* Analysis Tab */}
           <TabsContent value="analysis" className="space-y-6">
             <div className="grid lg:grid-cols-2 gap-6">
-              <ReasonBreakdownChart data={downtimesByReason} />
-              <DowntimeChart data={downtimesByDay} />
+              <ParetoChart data={downtimesByReason} />
+              <DowntimeCategoryChart metrics={aggregateMetrics} />
             </div>
-            <ParetoChart data={downtimesByReason} />
-            <EventsTable events={recentEvents} />
+            <EventsTable events={events} title="Всички събития" />
           </TabsContent>
 
           {/* Details Tab */}

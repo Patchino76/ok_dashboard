@@ -58,12 +58,14 @@ export function MillDetailPanel({
     );
   }
 
+  const millDisplayId = millId.replace("Mill", "MA");
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">
-            {mill?.nameBg || millId}
+            Мелница {millDisplayId}
           </h2>
           <p className="text-muted-foreground">
             {mill?.section} • Капацитет: {mill?.normalFeedRate || 160} t/h
@@ -127,21 +129,21 @@ export function MillDetailPanel({
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
               <span className="text-sm">Общ престой</span>
             </div>
             <p className="text-xl font-bold text-foreground">
               {metrics.totalDowntime.toFixed(1)} часа
             </p>
             <p className="text-sm text-muted-foreground">
-              {metrics.totalEvents} събития
+              {metrics.totalEvents} събития за 30 дни
             </p>
           </CardContent>
         </Card>
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
-              <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">
+              <Badge className="bg-orange-500/20 text-orange-500 border-orange-500/30">
                 Кратки
               </Badge>
               <span className="text-sm text-muted-foreground">
@@ -181,7 +183,7 @@ export function MillDetailPanel({
       <EventsTable
         events={events.slice(0, 5)}
         showMill={false}
-        title={`Последни престои - ${mill?.nameBg || millId}`}
+        title={`Последни събития - ${millDisplayId}`}
         description="Последни инциденти с престой на тази мелница"
       />
     </div>

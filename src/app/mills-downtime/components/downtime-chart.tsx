@@ -171,7 +171,7 @@ export function DowntimeChart({
                 <Bar
                   dataKey={minorKey}
                   name={minorKey}
-                  fill="#eab308"
+                  fill="#f97316"
                   radius={[4, 4, 0, 0]}
                   stackId="stack"
                 />

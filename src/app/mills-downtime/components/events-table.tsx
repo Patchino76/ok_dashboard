@@ -22,7 +22,6 @@ import {
   formatReason,
   getCategoryLabel,
 } from "../lib/downtime-utils";
-import { MILLS } from "../lib/downtime-utils";
 
 interface EventsTableProps {
   events: DowntimeEvent[];
@@ -37,9 +36,8 @@ export function EventsTable({
   title = "Последни престои",
   description = "Последни инциденти с престой на мелниците",
 }: EventsTableProps) {
-  const getMillName = (millId: string) => {
-    const mill = MILLS.find((m) => m.id === millId);
-    return mill?.nameBg || millId;
+  const getMillDisplayId = (millId: string) => {
+    return millId.replace("Mill", "MA");
   };
 
   if (events.length === 0) {
@@ -84,7 +82,7 @@ export function EventsTable({
               <TableRow key={event.id} className="border-border">
                 {showMill && (
                   <TableCell className="font-medium text-foreground">
-                    {getMillName(event.millId)}
+                    {getMillDisplayId(event.millId)}
                   </TableCell>
                 )}
                 <TableCell className="text-muted-foreground">
@@ -105,7 +103,7 @@ export function EventsTable({
                     }
                     className={
                       event.category === "minor"
-                        ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/30"
+                        ? "bg-orange-500/20 text-orange-500 border-orange-500/30"
                         : "bg-red-500/20 text-red-500 border-red-500/30"
                     }
                   >

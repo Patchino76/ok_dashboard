@@ -84,7 +84,7 @@ export function ReasonBreakdownChart({
               <Bar
                 dataKey="minor"
                 name="minor"
-                fill="#eab308"
+                fill="#f97316"
                 radius={[0, 4, 4, 0]}
                 stackId="stack"
               />

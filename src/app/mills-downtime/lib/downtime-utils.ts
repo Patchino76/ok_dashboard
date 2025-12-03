@@ -141,7 +141,7 @@ export function getStatusColor(availability: number): string {
  */
 export function getStatusTextColor(availability: number): string {
   if (availability >= 95) return "text-green-500";
-  if (availability >= 85) return "text-yellow-500";
+  if (availability >= 85) return "text-orange-500";
   return "text-red-500";
 }
 

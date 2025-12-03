@@ -1,8 +1,8 @@
 // Mill configuration
 export interface Mill {
   id: string;
-  name: string;
-  nameBg: string;
+  name: string; // English name (e.g., "Ball Mill 1")
+  nameBg: string; // Bulgarian name (e.g., "Мелница 01")
   section: string;
   normalFeedRate: number; // t/h - configurable per mill
 }
