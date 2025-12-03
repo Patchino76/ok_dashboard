@@ -1,19 +1,19 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
-  TooltipProps
-} from 'recharts';
+  TooltipProps,
+} from "recharts";
 import { getParameterByValue } from "./ParameterSelector";
-import { millsNames } from "@/lib/tags/mills-tags";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
+import { CompactMillsSelector } from "./CompactMillsSelector";
 
 interface MillTrendData {
   mill_name: string;
@@ -45,29 +45,23 @@ const millColors = [
   "#ef4444", // Red
 ];
 
-export const TrendsTab: React.FC<TrendsTabProps> = ({ 
-  parameter, 
-  timeRange, 
-  trendData
- }) => {
+export const TrendsTab: React.FC<TrendsTabProps> = ({
+  parameter,
+  timeRange,
+  trendData,
+}) => {
   // Access mill selection state from Zustand store
-  const { 
-    selectedMills, 
-    allSelected, 
-    toggleMill, 
-    toggleAllMills, 
-    initializeMills 
-  } = useMillSelectionStore();
+  const { selectedMills, initializeMills } = useMillSelectionStore();
   // Ensure parameter is always a string
-  const paramString = typeof parameter === 'object' ? 'Ore' : String(parameter);
-  
+  const paramString = typeof parameter === "object" ? "Ore" : String(parameter);
+
   // Debug logging
-  console.log('TrendsTab received trendData:', trendData);
-  console.log('TrendsTab trendData length:', trendData.length);
+  console.log("TrendsTab received trendData:", trendData);
+  console.log("TrendsTab trendData length:", trendData.length);
   if (trendData.length > 0) {
-    console.log('First trend data sample:', trendData[0]);
+    console.log("First trend data sample:", trendData[0]);
   }
-  
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [parameterUnit, setParameterUnit] = useState<string>("");
@@ -83,28 +77,36 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
   // Initialize mill selections when trend data is available
   useEffect(() => {
     if (trendData && trendData.length > 0) {
-      const millNames = trendData.map(mill => mill.mill_name);
-      
+      const millNames = trendData.map((mill) => mill.mill_name);
+
       // Check if we need to initialize (only if the mills in store don't match current data)
-      const shouldInitialize = millNames.some(name => selectedMills[name] === undefined);
-      
+      const shouldInitialize = millNames.some(
+        (name) => selectedMills[name] === undefined
+      );
+
       if (shouldInitialize) {
         initializeMills(millNames);
       }
     }
   }, [trendData, selectedMills, initializeMills]);
-  
-  // Use store actions for toggles
-  const handleMillToggle = (millName: string) => toggleMill(millName);
-  const handleToggleAll = () => toggleAllMills();
+
+  // Mill names for the selector
+  const millNames = React.useMemo(
+    () => trendData.map((mill) => mill.mill_name),
+    [trendData]
+  );
 
   // Format time range for display
   const formatTimeRange = (): string => {
     switch (timeRange) {
-      case "24h": return "24 часа";
-      case "7d": return "7 дни";
-      case "30d": return "30 дни";
-      default: return String(timeRange);
+      case "24h":
+        return "24 часа";
+      case "7d":
+        return "7 дни";
+      case "30d":
+        return "30 дни";
+      default:
+        return String(timeRange);
     }
   };
 
@@ -114,59 +116,87 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
       timestamp: string;
       [key: string]: string | number;
     }> = [];
-    
+
     if (trendData && trendData.length > 0) {
       // Get all unique timestamps
       const allTimestamps = new Set<string>();
-      trendData.forEach(mill => {
-        mill.timestamps.forEach(ts => allTimestamps.add(ts));
+      trendData.forEach((mill) => {
+        mill.timestamps.forEach((ts) => allTimestamps.add(ts));
       });
-      
+
       // Sort timestamps
       const sortedTimestamps = Array.from(allTimestamps).sort();
-      
+
       // Create data points for each timestamp
-      sortedTimestamps.forEach(timestamp => {
-        const dataPoint: { 
-          timestamp: string; 
+      sortedTimestamps.forEach((timestamp) => {
+        const dataPoint: {
+          timestamp: string;
           [key: string]: string | number;
         } = { timestamp };
-        
+
         // Add mill values for this timestamp
-        trendData.forEach(mill => {
+        trendData.forEach((mill) => {
           const millName = mill.mill_name;
           if (selectedMills[millName]) {
-            const index = mill.timestamps.findIndex(ts => ts === timestamp);
+            const index = mill.timestamps.findIndex((ts) => ts === timestamp);
             if (index !== -1) {
               dataPoint[millName] = mill.values[index];
             }
           }
         });
-        
+
         result.push(dataPoint);
       });
     }
-    
-    console.log('TrendsTab processedData result:', result);
-    console.log('TrendsTab processedData length:', result.length);
+
+    console.log("TrendsTab processedData result:", result);
+    console.log("TrendsTab processedData length:", result.length);
     if (result.length > 0) {
-      console.log('TrendsTab first processed data point:', result[0]);
-      console.log('TrendsTab last processed data point:', result[result.length - 1]);
+      console.log("TrendsTab first processed data point:", result[0]);
+      console.log(
+        "TrendsTab last processed data point:",
+        result[result.length - 1]
+      );
     }
-    
+
     return result;
   }, [trendData, selectedMills]);
 
+  // Format timestamp for X-axis based on time range
+  const formatXAxisTick = (timestamp: string): string => {
+    const date = new Date(timestamp);
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+
+    // For longer time ranges, show date + time
+    if (timeRange === "7d" || timeRange === "30d") {
+      return `${day}.${month} ${hours}:${minutes}`;
+    }
+    // For shorter ranges, show date.month + time
+    return `${day}.${month} ${hours}:${minutes}`;
+  };
+
   // Custom tooltip component
-  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
+  const CustomTooltip = ({
+    active,
+    payload,
+    label,
+  }: TooltipProps<number, string>) => {
     if (!active || !payload || payload.length === 0) return null;
-    
+
     const date = new Date(label);
-    const formattedTime = `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-    
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, "0");
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const formattedDateTime = `${day}.${month}.${year} ${hours}:${minutes}`;
+
     return (
       <div className="bg-white p-3 border rounded shadow-lg">
-        <p className="text-gray-600 mb-2">{formattedTime}</p>
+        <p className="text-gray-600 mb-2 font-medium">{formattedDateTime}</p>
         {payload.map((entry, i) => (
           <div key={`tooltip-${i}`} className="flex justify-between gap-4">
             <span style={{ color: entry.color }}>{entry.name}:</span>
@@ -212,7 +242,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
           </p>
         </div>
       </div>
-      
+
       {/* Main content area with chart and sidebar */}
       <div className="flex flex-grow h-full">
         {/* Chart area - taking most of the space */}
@@ -223,25 +253,30 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
                 data={processedData}
                 margin={{ top: 10, right: 30, left: 0, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                <XAxis 
-                  dataKey="timestamp" 
-                  tickFormatter={(timestamp) => {
-                    const date = new Date(timestamp);
-                    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-                  }}
-                  stroke="#94a3b8"
-                  fontSize={12}
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  opacity={0.3}
                 />
-                <YAxis 
-                  domain={[0, 'auto']}
+                <XAxis
+                  dataKey="timestamp"
+                  tickFormatter={formatXAxisTick}
+                  stroke="#94a3b8"
+                  fontSize={11}
+                  angle={-35}
+                  textAnchor="end"
+                  height={50}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  domain={[0, "auto"]}
                   stroke="#94a3b8"
                   fontSize={12}
                   tickFormatter={(value) => value.toFixed(0)}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 {trendData
-                  .filter(mill => selectedMills[mill.mill_name])
+                  .filter((mill) => selectedMills[mill.mill_name])
                   .map((mill, index) => (
                     <Line
                       key={mill.mill_name}
@@ -262,92 +297,9 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
           )}
         </div>
 
-        {/* Vertical mill selection sidebar - now on the right */}
-        <div className="ml-6 w-48 flex flex-col overflow-y-auto">
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-sm font-medium text-gray-600">Мелници</div>
-            
-            {/* Select/Deselect All Switch */}
-            <div className="flex items-center">
-              <label
-                className="text-xs flex items-center cursor-pointer mr-1"
-                onClick={handleToggleAll}
-              >
-                <span className="truncate">{allSelected ? 'Deselect All' : 'Select All'}</span>
-              </label>
-              <div 
-                className={`relative inline-flex items-center h-4 rounded-full w-8 cursor-pointer transition-colors ease-in-out duration-200 border ${
-                  allSelected ? 'bg-gray-400' : 'bg-gray-200'
-                }`} 
-                style={{ 
-                  borderColor: allSelected ? '#9CA3AF' : '#E5E7EB'
-                }}
-                onClick={handleToggleAll}
-              >
-                <span 
-                  className={`inline-block w-3 h-3 transform rounded-full transition ease-in-out duration-200 ${
-                    allSelected ? 'translate-x-4' : 'translate-x-1'
-                  }`}
-                  style={{ 
-                    backgroundColor: allSelected ? '#4B5563' : '#CBD5E0',
-                    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          
-          {/* Individual mill switches with extra spacing after the header */}
-          <div className="flex flex-col space-y-4 pt-4 border-t border-gray-200">  
-          {trendData.map((mill, index) => {
-            const millName = mill.mill_name;
-            const isSelected = !!selectedMills[millName];
-            const millColor = millColors[index % millColors.length];
-            
-            // Convert MILL_01 to index for millsNames lookup (MILL_01 -> 0, MILL_02 -> 1, etc.)
-            const millIndex = parseInt(millName.replace('MILL_', '')) - 1;
-            const displayName = millsNames[millIndex]?.bg || millName;
-            
-            return (
-              <div key={`mill-${index}-${millName}`} className="flex items-center">
-                <label 
-                  className="text-xs flex items-center cursor-pointer flex-grow mr-1"
-                  onClick={() => handleMillToggle(millName)}
-                >
-                  <span 
-                    className="inline-block mr-1 rounded-sm" 
-                    style={{ 
-                      backgroundColor: millColor,
-                      width: '8px',
-                      height: '8px' 
-                    }}
-                  ></span>
-                  <span className="truncate">{displayName}</span>
-                </label>
-                {/* Smaller grey switch */}
-                <div 
-                  className={`relative inline-flex items-center h-4 rounded-full w-8 cursor-pointer transition-colors ease-in-out duration-200 border ${
-                    isSelected ? 'bg-gray-400' : 'bg-gray-200'
-                  }`} 
-                  style={{ 
-                    borderColor: isSelected ? '#9CA3AF' : '#E5E7EB'
-                  }}
-                  onClick={() => handleMillToggle(millName)}
-                >
-                  <span 
-                    className={`inline-block w-3 h-3 transform rounded-full transition ease-in-out duration-200 ${
-                      isSelected ? 'translate-x-4' : 'translate-x-1'
-                    }`}
-                    style={{ 
-                      backgroundColor: isSelected ? '#4B5563' : '#CBD5E0',
-                      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-          </div>
+        {/* Compact mill selection sidebar */}
+        <div className="ml-4">
+          <CompactMillsSelector mills={millNames} />
         </div>
       </div>
     </div>
