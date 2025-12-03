@@ -6,10 +6,14 @@ import { Button } from "@/components/ui/button";
 import type {
   MillMetrics,
   DowntimeEvent,
+  AggregateMetrics,
   TimeRange,
 } from "../lib/downtime-types";
-import { MILLS, formatDurationBg } from "../lib/downtime-utils";
+import { MILLS } from "../lib/downtime-utils";
+import { TIME_RANGE_OPTIONS } from "../lib/downtime-types";
 import { OreRateChart } from "./ore-rate-chart";
+import { DowntimeTimelineChart } from "./downtime-timeline-chart";
+import { MillComparisonCard } from "./mill-comparison-card";
 import { EventsTable } from "./events-table";
 import { X, Activity, Clock, Wrench, Gauge, AlertTriangle } from "lucide-react";
 
@@ -19,6 +23,8 @@ interface MillDetailPanelProps {
   events: DowntimeEvent[];
   feedRateData: Array<{ time: string; feedRate: number }>;
   downtimeThreshold: number;
+  aggregateMetrics: AggregateMetrics;
+  timeRange: TimeRange;
   onClose: () => void;
   isLoading?: boolean;
 }
@@ -29,10 +35,14 @@ export function MillDetailPanel({
   events,
   feedRateData,
   downtimeThreshold,
+  aggregateMetrics,
+  timeRange,
   onClose,
   isLoading,
 }: MillDetailPanelProps) {
   const mill = MILLS.find((m) => m.id === millId);
+  const days =
+    TIME_RANGE_OPTIONS.find((t) => t.value === timeRange)?.days || 30;
 
   if (isLoading) {
     return (
@@ -136,7 +146,7 @@ export function MillDetailPanel({
               {metrics.totalDowntime.toFixed(1)} часа
             </p>
             <p className="text-sm text-muted-foreground">
-              {metrics.totalEvents} събития за 30 дни
+              {metrics.totalEvents} събития за {days} дни
             </p>
           </CardContent>
         </Card>
@@ -170,6 +180,9 @@ export function MillDetailPanel({
         </Card>
       </div>
 
+      {/* Downtime Timeline Chart */}
+      <DowntimeTimelineChart events={events} millId={millId} days={days} />
+
       {/* Ore Rate Chart */}
       {feedRateData.length > 0 && (
         <OreRateChart
@@ -178,6 +191,12 @@ export function MillDetailPanel({
           downtimeThreshold={downtimeThreshold}
         />
       )}
+
+      {/* Comparison with Average */}
+      <MillComparisonCard
+        millMetrics={metrics}
+        aggregateMetrics={aggregateMetrics}
+      />
 
       {/* Events Table */}
       <EventsTable

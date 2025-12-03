@@ -20,7 +20,6 @@ import {
 import { MILLS } from "./lib/downtime-utils";
 import {
   useAllMillsDowntimeData,
-  useMillDowntimeData,
   getRecentEvents,
   TIME_RANGE_OPTIONS,
 } from "./hooks/useDowntimeData";
@@ -89,12 +88,37 @@ export default function DowntimeDashboardPage() {
     return getMillComparisonData(filteredMetrics);
   }, [downtimeFilter, events, millComparisonData, timeRange, millMetrics]);
 
-  // Fetch selected mill data
-  const selectedMillData = useMillDowntimeData(
-    selectedMill || "",
-    timeRange,
-    config
-  );
+  // Get data for selected mill from already-fetched data
+  const selectedMillData = useMemo(() => {
+    if (!selectedMill) {
+      return {
+        events: [],
+        metrics: null,
+        feedRateData: [],
+        isLoading: false,
+      };
+    }
+
+    // Filter events for the selected mill
+    const millEvents = events.filter((e) => e.millId === selectedMill);
+
+    // Get metrics for the selected mill
+    const metrics = millMetrics.find((m) => m.millId === selectedMill) || null;
+
+    // Get trend data for the selected mill and convert to feedRateData format
+    const trendData = trendDataByMill[selectedMill] || [];
+    const feedRateData = trendData.map((point) => ({
+      time: point.timestamp,
+      feedRate: point.value,
+    }));
+
+    return {
+      events: millEvents,
+      metrics,
+      feedRateData,
+      isLoading,
+    };
+  }, [selectedMill, events, millMetrics, trendDataByMill, isLoading]);
 
   // Get recent events
   const recentEvents = useMemo(
@@ -271,6 +295,8 @@ export default function DowntimeDashboardPage() {
                 events={selectedMillData.events}
                 feedRateData={selectedMillData.feedRateData}
                 downtimeThreshold={downtimeThreshold}
+                aggregateMetrics={aggregateMetrics}
+                timeRange={timeRange}
                 onClose={() => setSelectedMill(undefined)}
                 isLoading={selectedMillData.isLoading}
               />

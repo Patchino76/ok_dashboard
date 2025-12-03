@@ -539,8 +539,9 @@ async def get_mills_trend_by_tag(
     mills_utils = MillsUtils(db)
     result = mills_utils.fetch_trend_by_tag(mill, tag, trendPoints, hours)
     
+    # Return empty array instead of 404 to allow frontend to handle empty state
     if not result:
-        raise HTTPException(status_code=404, detail=f"No trend data found for mill {mill} and tag {tag}")
+        return []
         
     return result
 
