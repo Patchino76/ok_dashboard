@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { DowntimeEvent } from "../lib/downtime-types";
-import { formatDurationBg } from "../lib/downtime-utils";
+import { formatDurationBg, formatReason } from "../lib/downtime-utils";
 
 interface DowntimeTimelineChartProps {
   events: DowntimeEvent[];
@@ -46,23 +46,21 @@ export function DowntimeTimelineChart({
     };
   });
 
-  // Generate time labels
-  const timeLabels = [];
-  const labelCount = Math.min(days, 7); // Max 7 labels
-  const labelInterval = days / labelCount;
+  // Generate time labels - 8 labels to match ore rate chart (tickCount + 1)
+  const labelCount = 7;
+  const timeRange = now.getTime() - startDate.getTime();
+  const labelInterval = timeRange / labelCount;
 
-  for (let i = 0; i <= labelCount; i++) {
-    const date = new Date(
-      startDate.getTime() + i * labelInterval * 24 * 60 * 60 * 1000
-    );
-    timeLabels.push({
+  const timeLabels = Array.from({ length: labelCount + 1 }, (_, i) => {
+    const date = new Date(startDate.getTime() + i * labelInterval);
+    return {
       position: (i / labelCount) * 100,
       label: date.toLocaleDateString("bg-BG", {
         day: "numeric",
         month: "short",
       }),
-    });
-  }
+    };
+  });
 
   // Summary stats
   const minorCount = timelineEvents.filter(
@@ -105,8 +103,8 @@ export function DowntimeTimelineChart({
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Timeline bar */}
-            <div className="relative">
+            {/* Timeline bar - with padding to match ore rate chart */}
+            <div className="relative pl-[50px] pr-[60px]">
               {/* Background bar */}
               <div className="h-12 bg-secondary/30 rounded-lg relative overflow-hidden border border-border">
                 {/* Event blocks */}
@@ -123,7 +121,10 @@ export function DowntimeTimelineChart({
                       width: `${event.width}%`,
                       minWidth: "4px",
                     }}
-                    title={`${event.reason}\n${formatDurationBg(
+                    title={`${formatReason(
+                      event.reason as any,
+                      "bg"
+                    )}\n${formatDurationBg(
                       event.duration
                     )}\n${event.startTime.toLocaleString("bg-BG")}`}
                   />
@@ -131,12 +132,16 @@ export function DowntimeTimelineChart({
               </div>
 
               {/* Time labels */}
-              <div className="relative h-6 mt-1">
+              <div className="relative h-8 mt-1">
                 {timeLabels.map((label, index) => (
                   <span
                     key={index}
-                    className="absolute text-xs text-muted-foreground transform -translate-x-1/2"
-                    style={{ left: `${label.position}%` }}
+                    className="absolute text-[10px] text-muted-foreground origin-top-left"
+                    style={{
+                      left: `${label.position}%`,
+                      transform: "translateX(-50%) rotate(-45deg)",
+                      transformOrigin: "center top",
+                    }}
                   >
                     {label.label}
                   </span>
@@ -162,7 +167,7 @@ export function DowntimeTimelineChart({
                       {event.category === "minor" ? "Кратък" : "ППР"}
                     </Badge>
                     <span className="text-sm text-foreground">
-                      {event.reason}
+                      {formatReason(event.reason as any, "bg")}
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">

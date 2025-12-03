@@ -189,6 +189,7 @@ export function MillDetailPanel({
           data={feedRateData}
           millId={millId}
           downtimeThreshold={downtimeThreshold}
+          days={days}
         />
       )}
 

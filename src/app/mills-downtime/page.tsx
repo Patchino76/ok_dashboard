@@ -26,6 +26,7 @@ import {
 import type { TimeRange, DowntimeConfig } from "./lib/downtime-types";
 import { LayoutGrid, BarChart3, Clock, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LoadingOverlay } from "./components/loading-overlay";
 
 export default function DowntimeDashboardPage() {
   // State
@@ -106,11 +107,14 @@ export default function DowntimeDashboardPage() {
     const metrics = millMetrics.find((m) => m.millId === selectedMill) || null;
 
     // Get trend data for the selected mill and convert to feedRateData format
+    // Sort by timestamp to ensure correct chronological display
     const trendData = trendDataByMill[selectedMill] || [];
-    const feedRateData = trendData.map((point) => ({
-      time: point.timestamp,
-      feedRate: point.value,
-    }));
+    const feedRateData = trendData
+      .map((point) => ({
+        time: point.timestamp,
+        feedRate: point.value,
+      }))
+      .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
     return {
       events: millEvents,
@@ -142,6 +146,9 @@ export default function DowntimeDashboardPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Loading overlay for slow data fetching */}
+      <LoadingOverlay isLoading={isLoading} />
+
       <DashboardHeader
         timeRange={timeRange}
         onTimeRangeChange={setTimeRange}
