@@ -28,8 +28,8 @@ interface MillComparisonChartProps {
 
 const METRIC_CONFIG = {
   availability: {
-    title: "Наличност по мелници",
-    description: "Процент на наличност за всяка мелница",
+    title: "Коеф. движение по мелници",
+    description: "Процент на коеф. движение за всяка мелница",
     unit: "%",
     color: "#22c55e",
     reference: 95,

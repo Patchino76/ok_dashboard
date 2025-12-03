@@ -360,7 +360,7 @@ export default function Home() {
                   Престои на мелници
                 </Heading>
                 <Text className="text-gray-500 mb-2">
-                  Анализ на престои, наличност и причини за спиране
+                  Анализ на престои, коеф. движение и причини за спиране
                 </Text>
                 <Box className="mt-auto">
                   <Badge

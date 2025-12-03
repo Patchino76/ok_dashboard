@@ -134,7 +134,7 @@ export default function DowntimeDashboardPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <AvailabilityGauge
                 value={aggregateMetrics.avgAvailability}
-                title="Обща наличност"
+                title="Обща коеф. движение"
               />
               {bestMill && (
                 <AvailabilityGauge
@@ -188,7 +188,7 @@ export default function DowntimeDashboardPage() {
                     ? "MTBF"
                     : metric === "mttr"
                     ? "MTTR"
-                    : "Наличност"}
+                    : "Коеф. движение"}
                 </button>
               ))}
             </div>

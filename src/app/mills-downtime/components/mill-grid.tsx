@@ -66,7 +66,7 @@ export function MillGrid({
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground flex items-center gap-1">
                     <Activity className="h-3 w-3" />
-                    Наличност
+                    Коеф. движение
                   </span>
                   <span className="font-mono text-foreground">
                     {metrics.availability.toFixed(1)}%

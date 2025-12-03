@@ -33,7 +33,7 @@ export function OverviewStats({ metrics, isLoading }: OverviewStatsProps) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
       <KPICard
-        title="Средна наличност"
+        title="Средна коеф. движение"
         value={metrics.avgAvailability.toFixed(1)}
         unit="%"
         icon={<Activity className="h-5 w-5" />}
