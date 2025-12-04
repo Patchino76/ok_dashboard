@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, RootModel, Field
 from datetime import datetime, timedelta
+import math
+import numpy as np
 
 # Import the DatabaseManager and configuration first before path modifications
 import sys
@@ -608,7 +610,17 @@ def get_all_mills_by_param(
         
         # Convert DataFrame to JSON-serializable format
         result_df['timestamp'] = result_df['timestamp'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+        # Replace NaN/Infinity values with None for JSON compliance
+        result_df = result_df.replace([np.inf, -np.inf, np.nan], None)
         result = result_df.to_dict(orient='records')
+        
+        # Double-check: sanitize any remaining non-JSON-compliant floats
+        def sanitize_value(v):
+            if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+                return None
+            return v
+        
+        result = [{k: sanitize_value(v) for k, v in row.items()} for row in result]
         
         return {
             "parameter": parameter,
