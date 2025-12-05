@@ -31,7 +31,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[90vw] max-w-[1400px] h-[85vh] max-h-[85vh] flex flex-col p-0 gap-0">
+      <DialogContent className="w-[95vw] max-w-[1100px] h-[90vh] max-h-[800px] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 py-4 border-b bg-slate-900/50">
           <DialogTitle className="text-xl text-slate-100">
             {millName}
@@ -43,7 +43,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
 
         <div className="flex-1 bg-slate-950 overflow-auto p-4">
           <svg
-            viewBox="0 0 1200 700"
+            viewBox="-10 40 900 680"
             className="w-full h-full"
             preserveAspectRatio="xMidYMid meet"
           >
@@ -167,7 +167,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 <path d="M 0 0.5 L 3 2 L 0 3.5 Z" fill="#94a3b8" />
               </marker>
 
-              {/* Flow animation pattern */}
+              {/* Flow animation pattern - right direction */}
               <pattern
                 id="flowPattern"
                 patternUnits="userSpaceOnUse"
@@ -180,7 +180,26 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                     attributeName="x"
                     from="0"
                     to="20"
-                    dur="0.5s"
+                    dur="1.2s"
+                    repeatCount="indefinite"
+                  />
+                </rect>
+              </pattern>
+
+              {/* Flow animation pattern - left direction (reverse) */}
+              <pattern
+                id="flowPatternReverse"
+                patternUnits="userSpaceOnUse"
+                width="20"
+                height="10"
+                patternTransform="rotate(0)"
+              >
+                <rect width="10" height="10" fill="#fb923c" opacity="0.6">
+                  <animate
+                    attributeName="x"
+                    from="20"
+                    to="0"
+                    dur="1.2s"
                     repeatCount="indefinite"
                   />
                 </rect>
@@ -245,7 +264,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                РУДА
+                БУНКЕРИ
               </text>
             </g>
 
@@ -265,7 +284,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 x="-42"
                 y="18"
                 fontSize="9"
-                fill="#60a5fa"
+                fill="#a16207"
                 textAnchor="middle"
                 fontWeight="bold"
               >
@@ -301,11 +320,11 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
             {/* ═══════════════════════════════════════════════════════════════ */}
             {/* WATER INPUT */}
             {/* ═══════════════════════════════════════════════════════════════ */}
-            <g transform="translate(20, 260)">
+            <g transform="translate(10, 260)">
               <rect
                 x="0"
                 y="0"
-                width="90"
+                width="120"
                 height="45"
                 rx="5"
                 fill="#1e293b"
@@ -313,17 +332,17 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 strokeWidth="2"
               />
               <text
-                x="45"
+                x="60"
                 y="18"
-                fontSize="11"
+                fontSize="8"
                 fill="#60a5fa"
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                ВОДА
+                ВОДА В МЕЛНИЦАТА
               </text>
               <text
-                x="45"
+                x="60"
                 y="35"
                 fontSize="12"
                 fill="#22c55e"
@@ -336,7 +355,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
 
             {/* Water pipe to mill */}
             <path
-              d="M 110 282 L 170 282 L 170 280"
+              d="M 130 282 L 170 282 L 170 280"
               stroke="#3b82f6"
               strokeWidth="6"
               fill="none"
@@ -502,6 +521,25 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 stroke="#475569"
                 strokeWidth="1"
               />
+
+              {/* Animated rotating fan/rotor on motor */}
+              <g transform={`rotate(${rotation * 3}, 50, 40)`}>
+                {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => (
+                  <line
+                    key={i}
+                    x1="50"
+                    y1="40"
+                    x2={50 + 12 * Math.cos((angle * Math.PI) / 180)}
+                    y2={40 + 12 * Math.sin((angle * Math.PI) / 180)}
+                    stroke="#fbbf24"
+                    strokeWidth="2"
+                    opacity="0.8"
+                  />
+                ))}
+                <circle cx="50" cy="40" r="5" fill="#f59e0b" />
+              </g>
+
+              {/* Shaft coupling */}
               <circle
                 cx="-30"
                 cy="60"
@@ -546,26 +584,27 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
             {/* DISCHARGE from mill to sump */}
             {/* ═══════════════════════════════════════════════════════════════ */}
             <path
-              d="M 330 300 L 330 400 L 410 400"
+              d="M 330 300 L 330 440 L 410 440"
               stroke="url(#pipeHorizontal)"
               strokeWidth="12"
               fill="none"
               strokeLinecap="round"
             />
+            {/* Horizontal animation to sump */}
             <path
-              d="M 330 305 L 330 395"
+              d="M 335 440 L 405 440"
               stroke="url(#flowPattern)"
               strokeWidth="8"
               fill="none"
             />
-            <text x="375" y="390" fontSize="9" fill="#fb923c" fontWeight="500">
+            <text x="375" y="430" fontSize="12" fill="#fb923c" fontWeight="500">
               Пулп
             </text>
 
             {/* ═══════════════════════════════════════════════════════════════ */}
             {/* SUMP TANK */}
             {/* ═══════════════════════════════════════════════════════════════ */}
-            <g transform="translate(410, 360)">
+            <g transform="translate(410, 400)">
               {/* Tank body */}
               <rect
                 x="0"
@@ -607,20 +646,44 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
               >
                 ЗУМПФ
               </text>
+            </g>
+
+            {/* НИВО component - styled like РАЗХОД РУДА */}
+            <g transform="translate(520, 430)">
+              <rect
+                x="0"
+                y="0"
+                width="85"
+                height="45"
+                rx="5"
+                fill="#1e293b"
+                stroke="#3b82f6"
+                strokeWidth="2"
+              />
               <text
-                x="50"
-                y="105"
-                fontSize="10"
+                x="42"
+                y="18"
+                fontSize="9"
+                fill="#60a5fa"
+                textAnchor="middle"
+                fontWeight="bold"
+              >
+                НИВО
+              </text>
+              <text
+                x="42"
+                y="35"
+                fontSize="12"
                 fill="#22c55e"
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                Ниво: 65%
+                1730 mm
               </text>
             </g>
 
             {/* Sump water input - box and pipe pointing to sump */}
-            <g transform="translate(20, 420)">
+            <g transform="translate(20, 452)">
               <rect
                 x="0"
                 y="0"
@@ -653,7 +716,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
               </text>
             </g>
             <path
-              d="M 120 445 L 410 445"
+              d="M 120 475 L 410 475"
               stroke="#3b82f6"
               strokeWidth="6"
               fill="none"
@@ -664,7 +727,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
             {/* ═══════════════════════════════════════════════════════════════ */}
             {/* PUMP */}
             {/* ═══════════════════════════════════════════════════════════════ */}
-            <g transform="translate(460, 530)">
+            <g transform="translate(460, 570)">
               {/* Pump casing */}
               <circle
                 cx="0"
@@ -723,20 +786,45 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
               >
                 ПОМПА
               </text>
-              <text
+            </g>
+
+            {/* ОБОРОТИ component - styled like РАЗХОД РУДА */}
+            <g transform="translate(500, 590)">
+              <rect
                 x="0"
-                y="48"
+                y="0"
+                width="85"
+                height="45"
+                rx="5"
+                fill="#1e293b"
+                stroke="#3b82f6"
+                strokeWidth="2"
+              />
+              <text
+                x="42"
+                y="18"
                 fontSize="9"
+                fill="#60a5fa"
+                textAnchor="middle"
+                fontWeight="bold"
+              >
+                ОБОРОТИ
+              </text>
+              <text
+                x="42"
+                y="35"
+                fontSize="12"
                 fill="#22c55e"
                 textAnchor="middle"
+                fontWeight="bold"
               >
-                1450 RPM
+                800 rpm
               </text>
             </g>
 
             {/* Pipe from sump to pump */}
             <path
-              d="M 460 450 L 460 500"
+              d="M 460 490 L 460 540"
               stroke="url(#pipeGradient)"
               strokeWidth="10"
               fill="none"
@@ -744,31 +832,31 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
 
             {/* Pipe from pump through sensors to hydrocyclone TOP */}
             <path
-              d="M 490 530 L 620 530 L 620 170 L 730 170"
+              d="M 490 570 L 680 570 L 680 170 L 730 170"
               stroke="url(#pipeGradient)"
               strokeWidth="10"
               fill="none"
               strokeLinecap="round"
             />
-            {/* Horizontal animated section to cyclone */}
+            {/* Horizontal animated section to cyclone - starts after vertical pipe */}
             <path
-              d="M 625 170 L 725 170"
+              d="M 685 170 L 725 170"
               stroke="url(#flowPattern)"
               strokeWidth="6"
               fill="none"
             />
             {/* Horizontal animated section from pump */}
             <path
-              d="M 495 530 L 615 530"
+              d="M 495 570 L 675 570"
               stroke="url(#flowPattern)"
               strokeWidth="6"
               fill="none"
             />
 
             {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* PRE-CYCLONE SENSORS - positioned along the pipe */}
+            {/* PRE-CYCLONE SENSORS - to the right of vertical pipe */}
             {/* ═══════════════════════════════════════════════════════════════ */}
-            <g transform="translate(540, 380)">
+            <g transform="translate(700, 420)">
               <rect
                 x="0"
                 y="0"
@@ -903,31 +991,34 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 strokeWidth="1"
               />
 
-              {/* Internal vortex visualization - smaller */}
-              <ellipse
-                cx="0"
-                cy="70"
-                rx="18"
-                ry="5"
-                fill="#3b82f6"
-                opacity="0.3"
-              />
-              <ellipse
-                cx="0"
-                cy="90"
-                rx="12"
-                ry="4"
-                fill="#3b82f6"
-                opacity="0.25"
-              />
-              <ellipse
-                cx="0"
-                cy="110"
-                rx="6"
-                ry="2"
-                fill="#3b82f6"
-                opacity="0.2"
-              />
+              {/* Animated swirling particle inside cyclone */}
+              <g>
+                {/* Rotating small ellipse simulating pulp rotation */}
+                <ellipse
+                  cx={12 * Math.cos(rotation * 0.15)}
+                  cy={80 + 5 * Math.sin(rotation * 0.1)}
+                  rx="4"
+                  ry="2"
+                  fill="#60a5fa"
+                  opacity="0.7"
+                />
+                <ellipse
+                  cx={8 * Math.cos(rotation * 0.15 + Math.PI)}
+                  cy={95 + 3 * Math.sin(rotation * 0.1)}
+                  rx="3"
+                  ry="1.5"
+                  fill="#3b82f6"
+                  opacity="0.6"
+                />
+                <ellipse
+                  cx={4 * Math.cos(rotation * 0.15 + Math.PI / 2)}
+                  cy={110 + 2 * Math.sin(rotation * 0.1)}
+                  rx="2"
+                  ry="1"
+                  fill="#93c5fd"
+                  opacity="0.5"
+                />
+              </g>
 
               {/* Hydrocyclone label - on right side */}
               <text
@@ -942,118 +1033,135 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
               </text>
             </g>
 
-            {/* Overflow pipe to flotation */}
+            {/* Overflow pipe to flotation - with animation */}
             <path
               d="M 760 135 L 760 80 L 870 80"
-              stroke="#fb923c"
-              strokeWidth="8"
+              stroke="url(#pipeHorizontal)"
+              strokeWidth="10"
               fill="none"
               strokeLinecap="round"
-              markerEnd="url(#arrowOrange)"
             />
+            <path
+              d="M 765 80 L 865 80"
+              stroke="url(#flowPattern)"
+              strokeWidth="6"
+              fill="none"
+            />
+            {/* Label above the pipe */}
+            <text
+              x="815"
+              y="65"
+              fontSize="10"
+              fill="#fb923c"
+              textAnchor="middle"
+              fontWeight="bold"
+            >
+              ПУЛП КЪМ ФЛОТАЦИЯ
+            </text>
 
             {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* PSM300 SENSOR */}
+            {/* PSM300 SENSOR - enlarged with two values */}
             {/* ═══════════════════════════════════════════════════════════════ */}
-            <g transform="translate(880, 55)">
+            <g transform="translate(610, 60)">
               <rect
                 x="0"
                 y="0"
-                width="100"
-                height="45"
+                width="130"
+                height="70"
                 rx="5"
                 fill="#0f172a"
                 stroke="#fb923c"
                 strokeWidth="2"
               />
               <text
-                x="50"
+                x="65"
                 y="18"
-                fontSize="10"
+                fontSize="11"
                 fill="#fb923c"
                 textAnchor="middle"
                 fontWeight="bold"
               >
                 PSM300
               </text>
-              <text
-                x="50"
-                y="35"
-                fontSize="9"
-                fill="#94a3b8"
-                textAnchor="middle"
-              >
-                Клас:{" "}
-                <tspan fill="#22c55e" fontWeight="bold">
-                  45 μm
-                </tspan>
+              <text x="10" y="38" fontSize="9" fill="#94a3b8">
+                -80 мк:
               </text>
-            </g>
-
-            {/* To flotation - increased gap */}
-            <g transform="translate(1040, 55)">
-              <rect
-                x="0"
-                y="0"
-                width="100"
-                height="45"
-                rx="5"
-                fill="#1e293b"
-                stroke="#fb923c"
-                strokeWidth="2"
-              />
               <text
-                x="50"
-                y="18"
+                x="120"
+                y="38"
                 fontSize="10"
-                fill="#fb923c"
-                textAnchor="middle"
+                fill="#22c55e"
+                textAnchor="end"
                 fontWeight="bold"
               >
-                КЪМ ФЛОТАЦИЯ
+                45.2%
+              </text>
+              <text x="10" y="55" fontSize="9" fill="#94a3b8">
+                +200 мк:
               </text>
               <text
-                x="50"
-                y="33"
-                fontSize="8"
-                fill="#94a3b8"
-                textAnchor="middle"
+                x="120"
+                y="55"
+                fontSize="10"
+                fill="#22c55e"
+                textAnchor="end"
+                fontWeight="bold"
               >
-                → Следващ етап
+                12.8%
               </text>
             </g>
-
-            <path
-              d="M 980 77 L 1040 77"
-              stroke="#fb923c"
-              strokeWidth="6"
-              fill="none"
-              markerEnd="url(#arrowOrange)"
-            />
 
             {/* ═══════════════════════════════════════════════════════════════ */}
             {/* UNDERFLOW RETURN TO MILL - from bottom of cyclone */}
             {/* ═══════════════════════════════════════════════════════════════ */}
-            {/* Return pipe from cyclone bottom back to mill */}
+            {/* Return pipe from cyclone bottom back to mill - solid pipe with reverse animation */}
             <path
-              d="M 760 300 L 760 340 L 200 340 L 200 280"
-              stroke="#ef4444"
-              strokeWidth="4"
+              d="M 760 300 L 760 340 L 200 340 L 200 300"
+              stroke="url(#pipeHorizontal)"
+              strokeWidth="10"
               fill="none"
               strokeLinecap="round"
-              strokeDasharray="10,5"
-              markerEnd="url(#arrowRed)"
             />
-            <text
-              x="480"
-              y="355"
-              fontSize="9"
-              fill="#ef4444"
-              textAnchor="middle"
-              fontWeight="500"
-            >
-              Рециркулация към мелницата
-            </text>
+            {/* Horizontal animation going LEFT */}
+            <path
+              d="M 755 340 L 205 340"
+              stroke="url(#flowPatternReverse)"
+              strokeWidth="6"
+              fill="none"
+            />
+            {/* ЦИРКУЛАЦИОНЕН ТОВАР component - styled like РАЗХОД РУДА */}
+            <g transform="translate(430, 285)">
+              <rect
+                x="0"
+                y="0"
+                width="120"
+                height="45"
+                rx="5"
+                fill="#1e293b"
+                stroke="#3b82f6"
+                strokeWidth="2"
+              />
+              <text
+                x="60"
+                y="18"
+                fontSize="8"
+                fill="#60a5fa"
+                textAnchor="middle"
+                fontWeight="bold"
+              >
+                ЦИРКУЛАЦИОНЕН ТОВАР
+              </text>
+              <text
+                x="60"
+                y="35"
+                fontSize="12"
+                fill="#22c55e"
+                textAnchor="middle"
+                fontWeight="bold"
+              >
+                2.1
+              </text>
+            </g>
           </svg>
         </div>
 
