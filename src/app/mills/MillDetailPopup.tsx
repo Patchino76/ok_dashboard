@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { useTagValue } from "@/hooks/useTagValue";
+import { millsTags } from "@/lib/tags/mills-tags";
 
 interface MillDetailPopupProps {
   isOpen: boolean;
@@ -14,12 +16,98 @@ interface MillDetailPopupProps {
   millName: string;
 }
 
+// Helper function to extract mill number from mill name (e.g., "Мелница 08" -> 8)
+const extractMillNumber = (millName: string): number => {
+  const match = millName.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : 8; // Default to mill 8
+};
+
+// Helper function to get tag ID from millsTags by feature key and mill number
+const getTagId = (
+  featureKey: keyof typeof millsTags,
+  millNumber: number
+): number | null => {
+  const tagArray = millsTags[featureKey];
+  if (!tagArray || !Array.isArray(tagArray)) return null;
+
+  const millName = `Mill${millNumber.toString().padStart(2, "0")}`;
+  const tag = tagArray.find((t: any) => t.name === millName);
+  return tag?.id ?? null;
+};
+
 const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
   isOpen,
   onClose,
   millName,
 }) => {
   const [rotation, setRotation] = useState(0);
+
+  // Extract mill number from mill name
+  const millNumber = useMemo(() => extractMillNumber(millName), [millName]);
+
+  // Get tag IDs for all parameters
+  const tagIds = useMemo(
+    () => ({
+      ore: getTagId("Ore", millNumber),
+      waterMill: getTagId("WaterMill", millNumber),
+      power: getTagId("Power", millNumber),
+      zumpfLevel: getTagId("ZumpfLevel", millNumber),
+      waterZumpf: getTagId("WaterZumpf", millNumber),
+      pumpRPM: getTagId("PumpRPM", millNumber),
+      pulpHC: getTagId("PulpHC", millNumber),
+      pressureHC: getTagId("PressureHC", millNumber),
+      densityHC: getTagId("DensityHC", millNumber),
+      psi80: getTagId("PSI80", millNumber),
+      psi200: getTagId("PSI200", millNumber),
+    }),
+    [millNumber]
+  );
+
+  // Fetch real-time values using useTagValue hook
+  const { data: oreData } = useTagValue(tagIds.ore ?? undefined, {
+    enabled: isOpen && !!tagIds.ore,
+  });
+  const { data: waterMillData } = useTagValue(tagIds.waterMill ?? undefined, {
+    enabled: isOpen && !!tagIds.waterMill,
+  });
+  const { data: powerData } = useTagValue(tagIds.power ?? undefined, {
+    enabled: isOpen && !!tagIds.power,
+  });
+  const { data: zumpfLevelData } = useTagValue(tagIds.zumpfLevel ?? undefined, {
+    enabled: isOpen && !!tagIds.zumpfLevel,
+  });
+  const { data: waterZumpfData } = useTagValue(tagIds.waterZumpf ?? undefined, {
+    enabled: isOpen && !!tagIds.waterZumpf,
+  });
+  const { data: pumpRPMData } = useTagValue(tagIds.pumpRPM ?? undefined, {
+    enabled: isOpen && !!tagIds.pumpRPM,
+  });
+  const { data: pulpHCData } = useTagValue(tagIds.pulpHC ?? undefined, {
+    enabled: isOpen && !!tagIds.pulpHC,
+  });
+  const { data: pressureHCData } = useTagValue(tagIds.pressureHC ?? undefined, {
+    enabled: isOpen && !!tagIds.pressureHC,
+  });
+  const { data: densityHCData } = useTagValue(tagIds.densityHC ?? undefined, {
+    enabled: isOpen && !!tagIds.densityHC,
+  });
+  const { data: psi80Data } = useTagValue(tagIds.psi80 ?? undefined, {
+    enabled: isOpen && !!tagIds.psi80,
+  });
+  const { data: psi200Data } = useTagValue(tagIds.psi200 ?? undefined, {
+    enabled: isOpen && !!tagIds.psi200,
+  });
+
+  // Helper to format values with fallback
+  const formatValue = (
+    data: any,
+    precision: number = 1,
+    fallback: string = "—"
+  ): string => {
+    if (!data || data.value === null || data.value === undefined)
+      return fallback;
+    return Number(data.value).toFixed(precision);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -298,7 +386,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                45.2 t/h
+                {formatValue(oreData, 0)} t/h
               </text>
             </g>
 
@@ -349,7 +437,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                12.5 m³/h
+                {formatValue(waterMillData, 1)} m³/h
               </text>
             </g>
 
@@ -561,22 +649,13 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
               </text>
               <text
                 x="50"
-                y="110"
+                y="115"
                 fontSize="14"
                 fill="#22c55e"
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                850 kW
-              </text>
-              <text
-                x="50"
-                y="125"
-                fontSize="10"
-                fill="#94a3b8"
-                textAnchor="middle"
-              >
-                18.5 RPM
+                {formatValue(powerData, 0)} kW
               </text>
             </g>
 
@@ -678,7 +757,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                1730 mm
+                {formatValue(zumpfLevelData, 0)} %
               </text>
             </g>
 
@@ -712,7 +791,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                8.3 m³/h
+                {formatValue(waterZumpfData, 1)} m³/h
               </text>
             </g>
             <path
@@ -818,7 +897,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                800 rpm
+                {formatValue(pumpRPMData, 0)} rpm
               </text>
             </g>
 
@@ -889,7 +968,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="end"
                 fontWeight="bold"
               >
-                156 m³/h
+                {formatValue(pulpHCData, 0)} m³/h
               </text>
 
               <text x="10" y="54" fontSize="9" fill="#94a3b8">
@@ -903,7 +982,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="end"
                 fontWeight="bold"
               >
-                185 kPa
+                {formatValue(pressureHCData, 1)} bar
               </text>
 
               <text x="10" y="70" fontSize="9" fill="#94a3b8">
@@ -917,7 +996,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="end"
                 fontWeight="bold"
               >
-                1.65 g/cm³
+                {formatValue(densityHCData, 0)} g/l
               </text>
 
               {/* Status indicator */}
@@ -1094,7 +1173,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="end"
                 fontWeight="bold"
               >
-                45.2%
+                {formatValue(psi80Data, 1)}%
               </text>
               <text x="10" y="55" fontSize="9" fill="#94a3b8">
                 +200 мк:
@@ -1107,7 +1186,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="end"
                 fontWeight="bold"
               >
-                12.8%
+                {formatValue(psi200Data, 1)}%
               </text>
             </g>
 
