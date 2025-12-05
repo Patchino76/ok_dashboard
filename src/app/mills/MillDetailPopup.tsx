@@ -5,8 +5,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/components/ui/dialog";
+import { X } from "lucide-react";
 import { useTagValue } from "@/hooks/useTagValue";
 import { millsTags } from "@/lib/tags/mills-tags";
 
@@ -119,14 +119,18 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="w-[95vw] max-w-[1100px] h-[90vh] max-h-[800px] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 py-4 border-b bg-slate-900/50">
+      <DialogContent className="w-[95vw] max-w-[1100px] h-[90vh] max-h-[800px] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogHeader className="px-6 py-4 border-b bg-slate-900/50 relative rounded-t-lg">
           <DialogTitle className="text-xl text-slate-100">
             {millName}
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
-            Схема на процеса на смилане
-          </DialogDescription>
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-md bg-slate-700 hover:bg-slate-600 transition-colors border border-slate-500"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 text-slate-100" strokeWidth={2.5} />
+          </button>
         </DialogHeader>
 
         <div className="flex-1 bg-slate-950 overflow-auto p-4">
@@ -757,7 +761,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="middle"
                 fontWeight="bold"
               >
-                {formatValue(zumpfLevelData, 0)} %
+                {formatValue(zumpfLevelData, 0)} mm
               </text>
             </g>
 
@@ -996,7 +1000,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
                 textAnchor="end"
                 fontWeight="bold"
               >
-                {formatValue(densityHCData, 0)} g/l
+                {formatValue(densityHCData, 0)} kg/m³
               </text>
 
               {/* Status indicator */}
@@ -1242,13 +1246,6 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
               </text>
             </g>
           </svg>
-        </div>
-
-        <div className="px-6 py-3 border-t bg-slate-900/50 text-xs text-slate-400">
-          <p>
-            ⚙️ Визуализация в реално време • Затворен цикъл на смилане • PSM300
-            мониторинг на размера на частиците
-          </p>
         </div>
       </DialogContent>
     </Dialog>
