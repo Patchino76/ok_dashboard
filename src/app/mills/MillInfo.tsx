@@ -15,24 +15,25 @@ import { TrendChartOre } from "./TrendChartOre";
 // Function to process data points and remove extreme outliers
 const processDataPoints = (values: number[]): number[] => {
   if (values.length <= 2) return values;
-  
+
   // Calculate statistics
   const sum = values.reduce((acc, val) => acc + val, 0);
   const mean = sum / values.length;
-  
+
   // Calculate standard deviation
-  const squareDiffs = values.map(value => {
+  const squareDiffs = values.map((value) => {
     const diff = value - mean;
     return diff * diff;
   });
-  const avgSquareDiff = squareDiffs.reduce((acc, val) => acc + val, 0) / squareDiffs.length;
+  const avgSquareDiff =
+    squareDiffs.reduce((acc, val) => acc + val, 0) / squareDiffs.length;
   const stdDev = Math.sqrt(avgSquareDiff);
-  
+
   // Define threshold for outliers (3 standard deviations)
   const threshold = 3 * stdDev;
-  
+
   // Replace outliers with the mean value to maintain type compatibility
-  return values.map(value => {
+  return values.map((value) => {
     if (Math.abs(value - mean) > threshold) {
       return mean;
     }
@@ -43,9 +44,11 @@ const processDataPoints = (values: number[]): number[] => {
 const MillInfo = ({
   millProps,
   oreTrend,
+  onClick,
 }: {
   millProps: MillInfoProps;
   oreTrend: TrendDataPoint[];
+  onClick?: () => void;
 }) => {
   const [gaugeData, setGaugeData] = useState<SemiCircleGaugeProps>({
     PV: 0,
@@ -81,17 +84,30 @@ const MillInfo = ({
   const [showGraph, setShowGraph] = useState(true);
 
   return (
-    <Card className="w-full h-full flex flex-col">
+    <Card
+      className="w-full h-full flex flex-col cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all duration-200"
+      onClick={onClick}
+    >
       <CardHeader className="pb-2 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <CardTitle className="text-lg text-center sm:text-left">{millProps.title}</CardTitle>
+        <CardTitle className="text-lg text-center sm:text-left">
+          {millProps.title}
+        </CardTitle>
         <div className="flex items-center gap-2">
-          <TrendingUp className={`w-4 h-4 ${showGraph ? 'text-primary' : 'text-muted-foreground'}`} />
+          <TrendingUp
+            className={`w-4 h-4 ${
+              showGraph ? "text-primary" : "text-muted-foreground"
+            }`}
+          />
           <Switch
             checked={showGraph}
             onCheckedChange={setShowGraph}
             aria-label="Toggle between trend chart and gauge"
           />
-          <Gauge className={`w-4 h-4 ${!showGraph ? 'text-primary' : 'text-muted-foreground'}`} />
+          <Gauge
+            className={`w-4 h-4 ${
+              !showGraph ? "text-primary" : "text-muted-foreground"
+            }`}
+          />
         </div>
       </CardHeader>
       <CardContent className="space-y-4 flex-1 flex flex-col">
@@ -99,7 +115,7 @@ const MillInfo = ({
           state={millProps.state}
           gifSrc="/images/mill_running.gif"
           jpgSrc="/images/mill_stopped.jpg"
-          altText={`Mill status: ${millProps.state ? 'Running' : 'Stopped'}`}
+          altText={`Mill status: ${millProps.state ? "Running" : "Stopped"}`}
         />
         <Table className="w-full">
           <TableBody className="grid grid-cols-[120px_1fr_40px]">
@@ -107,11 +123,16 @@ const MillInfo = ({
               <TableCell className="font-medium px-4">Смяна 1</TableCell>
               <TableCell className="px-4">
                 <div className="flex items-center space-x-2">
-                  <Progress 
-                    value={Math.min(100, ((millProps.shift1 || 0) / 1300) * 100)} 
-                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300" 
+                  <Progress
+                    value={Math.min(
+                      100,
+                      ((millProps.shift1 || 0) / 1300) * 100
+                    )}
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300"
                   />
-                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.shift1 || 0)}</span>
+                  <span className="whitespace-nowrap font-medium w-12 text-right">
+                    {Math.round(millProps.shift1 || 0)}
+                  </span>
                 </div>
               </TableCell>
               <TableCell className="font-medium text-center px-1">t</TableCell>
@@ -120,11 +141,16 @@ const MillInfo = ({
               <TableCell className="font-medium px-4">Смяна 2</TableCell>
               <TableCell className="px-4">
                 <div className="flex items-center space-x-2">
-                  <Progress 
-                    value={Math.min(100, ((millProps.shift2 || 0) / 1300) * 100)} 
-                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300" 
+                  <Progress
+                    value={Math.min(
+                      100,
+                      ((millProps.shift2 || 0) / 1300) * 100
+                    )}
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300"
                   />
-                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.shift2 || 0)}</span>
+                  <span className="whitespace-nowrap font-medium w-12 text-right">
+                    {Math.round(millProps.shift2 || 0)}
+                  </span>
                 </div>
               </TableCell>
               <TableCell className="font-medium text-center px-1">t</TableCell>
@@ -133,11 +159,16 @@ const MillInfo = ({
               <TableCell className="font-medium px-4">Смяна 3</TableCell>
               <TableCell className="px-4">
                 <div className="flex items-center space-x-2">
-                  <Progress 
-                    value={Math.min(100, ((millProps.shift3 || 0) / 1300) * 100)} 
-                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300" 
+                  <Progress
+                    value={Math.min(
+                      100,
+                      ((millProps.shift3 || 0) / 1300) * 100
+                    )}
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-blue-300"
                   />
-                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.shift3 || 0)}</span>
+                  <span className="whitespace-nowrap font-medium w-12 text-right">
+                    {Math.round(millProps.shift3 || 0)}
+                  </span>
                 </div>
               </TableCell>
               <TableCell className="font-medium text-center px-1">t</TableCell>
@@ -146,11 +177,13 @@ const MillInfo = ({
               <TableCell className="font-medium px-4">Тотал</TableCell>
               <TableCell className="px-4">
                 <div className="flex items-center space-x-2">
-                  <Progress 
-                    value={Math.min(100, ((millProps.total || 0) / 5000) * 100)} 
-                    className="h-3 bg-secondary flex-1 [&>div]:bg-green-300" 
+                  <Progress
+                    value={Math.min(100, ((millProps.total || 0) / 5000) * 100)}
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-green-300"
                   />
-                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.total || 0)}</span>
+                  <span className="whitespace-nowrap font-medium w-12 text-right">
+                    {Math.round(millProps.total || 0)}
+                  </span>
                 </div>
               </TableCell>
               <TableCell className="font-medium text-center px-1">t</TableCell>
@@ -159,25 +192,31 @@ const MillInfo = ({
               <TableCell className="font-medium px-4">Лента</TableCell>
               <TableCell className="px-4">
                 <div className="flex items-center space-x-2">
-                  <Progress 
-                    value={Math.min(100, ((millProps.ore || 0) / 220) * 100)} 
-                    className="h-3 bg-secondary flex-1 [&>div]:bg-orange-300" 
+                  <Progress
+                    value={Math.min(100, ((millProps.ore || 0) / 220) * 100)}
+                    className="h-3 bg-secondary flex-1 [&>div]:bg-orange-300"
                   />
-                  <span className="whitespace-nowrap font-medium w-12 text-right">{Math.round(millProps.ore || 0)}</span>
+                  <span className="whitespace-nowrap font-medium w-12 text-right">
+                    {Math.round(millProps.ore || 0)}
+                  </span>
                 </div>
               </TableCell>
-              <TableCell className="font-medium text-center px-1">t/h</TableCell>
+              <TableCell className="font-medium text-center px-1">
+                t/h
+              </TableCell>
             </TableRow>
           </TableBody>
         </Table>
         <div className="w-full mt-auto flex-1 min-h-[180px]">
           {showGraph ? (
             <div className="h-full">
-              <TrendChartOre 
+              <TrendChartOre
                 data={{
                   // Process the data to filter out extreme outliers
-                  values: processDataPoints(oreTrend.map(point => point.value)),
-                  timestamps: oreTrend.map(point => point.timestamp),
+                  values: processDataPoints(
+                    oreTrend.map((point) => point.value)
+                  ),
+                  timestamps: oreTrend.map((point) => point.timestamp),
                   target: gaugeData.SP, // Use the setpoint as the target
                 }}
                 min={gaugeData.min}
