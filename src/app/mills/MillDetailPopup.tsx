@@ -135,7 +135,7 @@ const MillDetailPopup: React.FC<MillDetailPopupProps> = ({
 
         <div className="flex-1 bg-slate-950 overflow-auto p-4">
           <svg
-            viewBox="-10 40 900 680"
+            viewBox="-10 40 900 620"
             className="w-full h-full"
             preserveAspectRatio="xMidYMid meet"
           >
