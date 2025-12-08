@@ -22,6 +22,10 @@ export default function AnalyticsPage() {
   const [selectedParameter, setSelectedParameter] = useState<string>("Ore");
   const [timeRange, setTimeRange] = useState<string>("24h");
   const [activeTab, setActiveTab] = useState<string>("comparison");
+  // Shared mill selection for the ModernStatisticsTab so it persists across parameter changes
+  const [statisticsSelectedMills, setStatisticsSelectedMills] = useState<
+    string[]
+  >([]);
 
   // Use useMemo to stabilize the query parameters object
   const queryParams = useMemo(() => {
@@ -219,6 +223,8 @@ export default function AnalyticsPage() {
                   parameter={selectedParameter}
                   timeRange={timeRange}
                   millsData={rawData}
+                  sharedSelectedMills={statisticsSelectedMills}
+                  onSharedSelectedMillsChange={setStatisticsSelectedMills}
                 />
               )}
 

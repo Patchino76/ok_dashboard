@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useEffect } from "react";
 import { getParameterByValue } from "./ParameterSelector";
 import { millsNames } from "@/lib/tags/mills-tags";
 import {
@@ -24,6 +24,8 @@ interface ModernStatisticsTabProps {
   parameter: string;
   timeRange: string;
   millsData: any;
+  sharedSelectedMills: string[];
+  onSharedSelectedMillsChange: (mills: string[]) => void;
 }
 
 interface MillStatistics {
@@ -43,10 +45,12 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   parameter,
   timeRange,
   millsData,
+  sharedSelectedMills,
+  onSharedSelectedMillsChange,
 }) => {
   const parameterInfo = getParameterByValue(parameter);
   // Initialize with first 2 available mills from data
-  const [selectedMills, setSelectedMills] = useState<string[]>([]);
+  const selectedMills = sharedSelectedMills;
 
   // Get all available mills from data
   const allMills = useMemo(() => {
@@ -61,12 +65,12 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     });
   }, [millsData]);
 
-  // Auto-select first mills when data loads
+  // Auto-select first mill when data loads and there is no shared selection yet
   useEffect(() => {
     if (allMills.length > 0 && selectedMills.length === 0) {
-      setSelectedMills([allMills[0]]);
+      onSharedSelectedMillsChange([allMills[0]]);
     }
-  }, [allMills, selectedMills.length]);
+  }, [allMills, selectedMills.length, onSharedSelectedMillsChange]);
 
   const selectedMillsSorted = useMemo(
     () =>
@@ -362,11 +366,22 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     });
   }, [filteredData, selectedMillsSorted]);
 
-  // Toggle mill selection
-  const toggleMill = (mill: string) => {
-    setSelectedMills((prev) =>
-      prev.includes(mill) ? prev.filter((m) => m !== mill) : [...prev, mill]
-    );
+  // Single-select via main mill pill
+  const handleMillClick = (mill: string) => {
+    onSharedSelectedMillsChange([mill]);
+  };
+
+  // Corner checkbox for building multi-selection
+  const handleMillCheckboxClick = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    mill: string
+  ) => {
+    event.stopPropagation();
+    if (selectedMills.includes(mill)) {
+      onSharedSelectedMillsChange(selectedMills.filter((m) => m !== mill));
+    } else {
+      onSharedSelectedMillsChange([...selectedMills, mill]);
+    }
   };
 
   // Get mill display name
@@ -435,19 +450,36 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {allMills.map((mill, idx) => (
-                <button
-                  key={mill}
-                  onClick={() => toggleMill(mill)}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                    selectedMills.includes(mill)
-                      ? "bg-blue-500 text-white shadow-md"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {getMillDisplayName(mill)}
-                </button>
-              ))}
+              {allMills.map((mill) => {
+                const isSelected = selectedMills.includes(mill);
+                return (
+                  <div key={mill} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => handleMillClick(mill)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                        isSelected
+                          ? "bg-blue-500 text-white shadow-md"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {getMillDisplayName(mill)}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => handleMillCheckboxClick(event, mill)}
+                      className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded border text-[9px] ${
+                        isSelected
+                          ? "bg-blue-500 border-blue-500 text-white"
+                          : "bg-white border-gray-300 text-transparent"
+                      }`}
+                      aria-label="Добави към множествен избор"
+                    >
+                      ✓
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
