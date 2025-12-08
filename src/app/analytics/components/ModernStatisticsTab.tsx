@@ -64,9 +64,19 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   // Auto-select first mills when data loads
   useEffect(() => {
     if (allMills.length > 0 && selectedMills.length === 0) {
-      setSelectedMills(allMills.slice(0, Math.min(2, allMills.length)));
+      setSelectedMills([allMills[0]]);
     }
   }, [allMills, selectedMills.length]);
+
+  const selectedMillsSorted = useMemo(
+    () =>
+      [...selectedMills].sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ""));
+        const numB = parseInt(b.replace(/\D/g, ""));
+        return numA - numB;
+      }),
+    [selectedMills]
+  );
 
   // Extract all values and per-mill data
   const { allValues, millValues, timeSeriesData } = useMemo(() => {
@@ -153,60 +163,107 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     return stats;
   }, [millValues]);
 
-  // Filtered data for selected mills
+  // Apply per-mill 4-sigma outlier filtering for chart data
+  // We keep millStatistics based on the original data, but charts use the
+  // cleaned series where values beyond 4 standard deviations are removed.
+  const cleanTimeSeriesData = useMemo(() => {
+    if (!timeSeriesData.length) return [];
+
+    return timeSeriesData.map((d) => {
+      const cleaned: { timestamp: string; [key: string]: any } = {
+        timestamp: d.timestamp,
+      };
+
+      Object.keys(d).forEach((key) => {
+        if (key === "timestamp") return;
+
+        const value = d[key];
+        if (typeof value !== "number") {
+          if (value !== undefined && value !== null) {
+            cleaned[key] = value;
+          }
+          return;
+        }
+
+        const statsForMill = millStatistics[key];
+        if (
+          !statsForMill ||
+          !Number.isFinite(statsForMill.stdDev) ||
+          statsForMill.stdDev === 0
+        ) {
+          // No valid statistics for this mill – keep the value
+          cleaned[key] = value;
+          return;
+        }
+
+        const deviation =
+          Math.abs(value - statsForMill.avgValue) / statsForMill.stdDev;
+
+        // Keep only values within 4 standard deviations
+        if (deviation <= 4) {
+          cleaned[key] = value;
+        }
+      });
+
+      return cleaned;
+    });
+  }, [timeSeriesData, millStatistics]);
+
+  // Filtered data for selected mills (after outlier removal)
   const filteredData = useMemo(() => {
-    return timeSeriesData.filter((d) =>
+    return cleanTimeSeriesData.filter((d) =>
       selectedMills.some((mill) => d[mill] !== undefined)
     );
-  }, [timeSeriesData, selectedMills]);
+  }, [cleanTimeSeriesData, selectedMills]);
 
   // Control chart data
   const controlChartData = useMemo(() => {
-    if (selectedMills.length === 0 || filteredData.length === 0) {
+    if (selectedMillsSorted.length === 0 || filteredData.length === 0) {
       return { data: [], ucl: 0, lcl: 0, mean: 0 };
     }
 
-    // Get values from all selected mills
-    const allSelectedValues: number[] = [];
-    filteredData.forEach((d) => {
-      selectedMills.forEach((mill) => {
+    // Use the per-timestamp average across selected mills as the main series
+    const recent = filteredData.slice(-100);
+    const data = recent.map((d, i) => {
+      const point: any = { index: i, timestamp: d.timestamp };
+      const vals: number[] = [];
+
+      selectedMillsSorted.forEach((mill) => {
         if (d[mill] !== undefined) {
-          allSelectedValues.push(d[mill] as number);
+          const v = d[mill] as number;
+          point[mill] = v;
+          vals.push(v);
         }
       });
+
+      point.value =
+        vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+
+      return point;
     });
 
-    if (allSelectedValues.length === 0) {
+    const valuesForStats = data
+      .map((p: any) => p.value)
+      .filter((v: number | null) => v !== null) as number[];
+
+    if (valuesForStats.length === 0) {
       return { data: [], ucl: 0, lcl: 0, mean: 0 };
     }
 
     const mean =
-      allSelectedValues.reduce((a, b) => a + b, 0) / allSelectedValues.length;
+      valuesForStats.reduce((a, b) => a + b, 0) / valuesForStats.length;
     const stdDev = Math.sqrt(
-      allSelectedValues.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
-        allSelectedValues.length
+      valuesForStats.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
+        valuesForStats.length
     );
 
-    // Create data points for chart
-    const recent = filteredData.slice(-100);
-    const data = recent.map((d, i) => {
-      const point: any = { index: i, timestamp: d.timestamp };
-      selectedMills.forEach((mill) => {
-        if (d[mill] !== undefined) {
-          point[mill] = d[mill];
-          // Check if anomaly
-          point[`${mill}_isAnomaly`] = Math.abs(d[mill] - mean) > 2 * stdDev;
-        }
-      });
-      // Average value for the main line
-      const vals = selectedMills
-        .map((m) => d[m])
-        .filter((v) => v !== undefined) as number[];
-      point.value =
-        vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-      point.isAnomaly =
-        point.value !== null && Math.abs(point.value - mean) > 2 * stdDev;
-      return point;
+    // Mark anomalies based on the aggregated series
+    data.forEach((point: any) => {
+      if (point.value !== null) {
+        point.isAnomaly = Math.abs(point.value - mean) > 2 * stdDev;
+      } else {
+        point.isAnomaly = false;
+      }
     });
 
     return {
@@ -215,7 +272,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
       lcl: mean - 3 * stdDev,
       mean,
     };
-  }, [filteredData, selectedMills]);
+  }, [filteredData, selectedMillsSorted]);
 
   // Y-axis domain for control chart that also includes control limits (UCL/LCL)
   const controlChartYAxisDomain = useMemo(() => {
@@ -240,17 +297,24 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     const minWithLimits = Math.min(dataMin, controlChartData.lcl);
     const maxWithLimits = Math.max(dataMax, controlChartData.ucl);
 
-    return [
-      Math.floor(minWithLimits * 0.95),
-      Math.ceil(maxWithLimits * 1.05),
-    ] as [number, number];
+    if (!Number.isFinite(minWithLimits) || !Number.isFinite(maxWithLimits)) {
+      return ["auto", "auto"] as [number | "auto", number | "auto"];
+    }
+
+    const span = maxWithLimits - minWithLimits || 1; // avoid zero span
+    const padding = span * 0.1; // 10% padding around data + limits
+
+    const lower = minWithLimits - padding;
+    const upper = maxWithLimits + padding;
+
+    return [Math.floor(lower), Math.ceil(upper)] as [number, number];
   }, [controlChartData]);
 
   // Distribution histogram data
   const distributionData = useMemo(() => {
     const selectedValues: number[] = [];
     filteredData.forEach((d) => {
-      selectedMills.forEach((mill) => {
+      selectedMillsSorted.forEach((mill) => {
         if (d[mill] !== undefined) {
           selectedValues.push(d[mill] as number);
         }
@@ -281,20 +345,22 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     });
 
     return histogram;
-  }, [filteredData, selectedMills]);
+  }, [filteredData, selectedMillsSorted]);
 
   // Correlation data (for scatter plot)
+  // We use an explicit numeric index for the X-axis to keep spacing stable
+  // when multiple mills are selected, and format ticks back to time labels.
   const correlationData = useMemo(() => {
-    return filteredData.slice(0, 200).map((d) => {
-      const point: any = { timestamp: d.timestamp };
-      selectedMills.forEach((mill) => {
+    return filteredData.slice(0, 200).map((d, index) => {
+      const point: any = { timestamp: d.timestamp, index };
+      selectedMillsSorted.forEach((mill) => {
         point[mill] = d[mill];
         const millNum = parseInt(mill.replace(/\D/g, ""));
         point.millId = millsNames[millNum - 1]?.bg || mill;
       });
       return point;
     });
-  }, [filteredData, selectedMills]);
+  }, [filteredData, selectedMillsSorted]);
 
   // Toggle mill selection
   const toggleMill = (mill: string) => {
@@ -388,7 +454,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
 
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-          {selectedMills.map((mill) => {
+          {selectedMillsSorted.map((mill) => {
             const stats = millStatistics[mill];
             if (!stats) return null;
 
@@ -450,7 +516,10 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={controlChartData.data}>
+                <LineChart
+                  data={controlChartData.data}
+                  margin={{ top: 8, right: 40, left: 8, bottom: 8 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis
                     dataKey="index"
@@ -469,25 +538,80 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                       borderRadius: "8px",
                     }}
                     labelStyle={{ color: "#374151" }}
+                    labelFormatter={(value, _payload) => {
+                      const index =
+                        typeof value === "number" ? value : Number(value);
+                      if (
+                        !Number.isFinite(index) ||
+                        index < 0 ||
+                        index >= controlChartData.data.length
+                      ) {
+                        return "";
+                      }
+
+                      const point = controlChartData.data[Math.round(index)];
+                      if (!point?.timestamp) return "";
+
+                      const date = new Date(point.timestamp as string);
+                      // Example: 08.12 14:00
+                      const day = String(date.getDate()).padStart(2, "0");
+                      const month = String(date.getMonth() + 1).padStart(
+                        2,
+                        "0"
+                      );
+                      const hours = String(date.getHours()).padStart(2, "0");
+                      const minutes = String(date.getMinutes()).padStart(
+                        2,
+                        "0"
+                      );
+                      return `${day}.${month} ${hours}:${minutes}`;
+                    }}
+                    formatter={(value: any, name: string) => {
+                      if (typeof value === "number" && Number.isFinite(value)) {
+                        const unit = parameterInfo?.unit
+                          ? ` ${parameterInfo.unit}`
+                          : "";
+                        return [`${value.toFixed(1)}${unit}`, name];
+                      }
+                      return [value, name];
+                    }}
                   />
                   <Legend />
                   <ReferenceLine
                     y={controlChartData.ucl}
                     stroke="#ef4444"
                     strokeDasharray="3 3"
-                    label={{ value: "UCL", fill: "#ef4444", fontSize: 11 }}
+                    label={{
+                      value: "UCL",
+                      position: "right",
+                      fill: "#ef4444",
+                      fontSize: 11,
+                      dy: -4,
+                    }}
                   />
                   <ReferenceLine
                     y={controlChartData.mean}
                     stroke="#22c55e"
                     strokeDasharray="3 3"
-                    label={{ value: "Средна", fill: "#22c55e", fontSize: 11 }}
+                    label={{
+                      value: "Средна",
+                      position: "right",
+                      fill: "#22c55e",
+                      fontSize: 11,
+                      dy: -4,
+                    }}
                   />
                   <ReferenceLine
                     y={controlChartData.lcl}
                     stroke="#ef4444"
                     strokeDasharray="3 3"
-                    label={{ value: "LCL", fill: "#ef4444", fontSize: 11 }}
+                    label={{
+                      value: "LCL",
+                      position: "right",
+                      fill: "#ef4444",
+                      fontSize: 11,
+                      dy: -4,
+                    }}
                   />
                   <Line
                     type="monotone"
@@ -577,11 +701,18 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                 <ScatterChart>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis
-                    dataKey="timestamp"
+                    dataKey="index"
+                    type="number"
                     name="Време"
                     stroke="#6b7280"
-                    tickFormatter={(val) => {
-                      const date = new Date(val);
+                    tickFormatter={(val: number) => {
+                      const idx = Math.round(Number(val));
+                      const ts =
+                        idx >= 0 && idx < correlationData.length
+                          ? correlationData[idx].timestamp
+                          : undefined;
+                      if (!ts) return "";
+                      const date = new Date(ts);
                       return `${date.getHours()}:${date
                         .getMinutes()
                         .toString()
@@ -609,7 +740,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                     labelStyle={{ color: "#374151" }}
                   />
                   <Legend />
-                  {selectedMills.map((mill, idx) => (
+                  {selectedMillsSorted.map((mill, idx) => (
                     <Scatter
                       key={mill}
                       name={getMillDisplayName(mill)}
@@ -668,7 +799,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                     labelStyle={{ color: "#374151" }}
                   />
                   <Legend />
-                  {selectedMills.map((mill, idx) => (
+                  {selectedMillsSorted.map((mill, idx) => (
                     <Line
                       key={mill}
                       type="monotone"
@@ -727,7 +858,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedMills.map((mill, idx) => {
+                  {selectedMillsSorted.map((mill, idx) => {
                     const stats = millStatistics[mill];
                     if (!stats) return null;
 
