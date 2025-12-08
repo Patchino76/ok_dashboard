@@ -5,6 +5,7 @@ import React, { useState, useMemo } from "react";
 import { MillComparisonTab } from "./components/MillComparisonTab";
 import { TrendsTab } from "./components/TrendsTab";
 import { EnhancedStatisticsTab } from "./components/EnhancedStatisticsTab";
+import { ModernStatisticsTab } from "./components/ModernStatisticsTab";
 import { EnhancedAnalyticsTab } from "./components/EnhancedAnalyticsTab";
 import { ParameterSelector } from "./components/ParameterSelector";
 
@@ -214,7 +215,7 @@ export default function AnalyticsPage() {
               )}
 
               {activeTab === "statistics" && (
-                <EnhancedStatisticsTab
+                <ModernStatisticsTab
                   parameter={selectedParameter}
                   timeRange={timeRange}
                   millsData={rawData}
