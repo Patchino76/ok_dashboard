@@ -518,11 +518,18 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   ]);
 
   const renderSortIndicator = (column: StatsSortColumn) => {
+    // Inactive column: small, neutral badge
     if (statsSortColumn !== column) {
-      return <span className="ml-1 text-gray-300 text-[10px]">↕</span>;
+      return (
+        <span className="inline-flex items-center justify-center ml-1 h-4 w-4 rounded-full border border-gray-200 bg-gray-50 text-[10px] text-gray-400">
+          ↕
+        </span>
+      );
     }
+
+    // Active sort column: highlighted badge with clear arrow direction
     return (
-      <span className="ml-1 text-gray-500 text-[10px]">
+      <span className="inline-flex items-center justify-center ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-300">
         {statsSortDirection === "asc" ? "↑" : "↓"}
       </span>
     );
