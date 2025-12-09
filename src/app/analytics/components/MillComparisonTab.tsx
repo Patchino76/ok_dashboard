@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { getParameterByValue } from "./ParameterSelector";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
-import { CompactMillsSelector } from "./CompactMillsSelector";
+import { VerticalMillsSelector } from "./MillsSelector";
 import { useMillRangesStore } from "@/lib/store/millRangesStore";
 import { SimpleBarChart } from "./SimpleBarChart";
 
@@ -511,9 +511,9 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
           )}
         </div>
 
-        {/* Compact mill selection sidebar */}
+        {/* Vertical mill selection sidebar */}
         <div className="ml-4">
-          <CompactMillsSelector mills={millNames} />
+          <VerticalMillsSelector mills={millNames} />
         </div>
       </div>
     </div>

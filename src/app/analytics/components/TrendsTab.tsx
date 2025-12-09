@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { getParameterByValue } from "./ParameterSelector";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
-import { CompactMillsSelector } from "./CompactMillsSelector";
+import { VerticalMillsSelector } from "./MillsSelector";
 
 interface MillTrendData {
   mill_name: string;
@@ -297,9 +297,9 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
           )}
         </div>
 
-        {/* Compact mill selection sidebar */}
+        {/* Vertical mill selection sidebar */}
         <div className="ml-4">
-          <CompactMillsSelector mills={millNames} />
+          <VerticalMillsSelector mills={millNames} />
         </div>
       </div>
     </div>

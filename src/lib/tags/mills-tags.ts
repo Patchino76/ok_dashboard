@@ -2,18 +2,18 @@ import { TagDefinition } from "./types";
 
 // Mill names configuration
 export const millsNames = [
-  { en: "Mill01", bg: "Мелница 01" },
-  { en: "Mill02", bg: "Мелница 02" },
-  { en: "Mill03", bg: "Мелница 03" },
-  { en: "Mill04", bg: "Мелница 04" },
-  { en: "Mill05", bg: "Мелница 05" },
-  { en: "Mill06", bg: "Мелница 06" },
-  { en: "Mill07", bg: "Мелница 07" },
-  { en: "Mill08", bg: "Мелница 08" },
-  { en: "Mill09", bg: "Мелница 09" },
-  { en: "Mill10", bg: "Мелница 10" },
-  { en: "Mill11", bg: "Мелница 11" },
-  { en: "Mill12", bg: "Мелница 12" },
+  { en: "Mill01", bg: "МА 01" },
+  { en: "Mill02", bg: "МА 02" },
+  { en: "Mill03", bg: "МА 03" },
+  { en: "Mill04", bg: "МА 04" },
+  { en: "Mill05", bg: "МА 05" },
+  { en: "Mill06", bg: "МА 06" },
+  { en: "Mill07", bg: "МА 07" },
+  { en: "Mill08", bg: "МА 08" },
+  { en: "Mill09", bg: "МА 09" },
+  { en: "Mill10", bg: "МА 10" },
+  { en: "Mill11", bg: "МА 11" },
+  { en: "Mill12", bg: "МА 12" },
 ];
 
 // Mills tags defining the shifts, totals and ore consumption for each mill
