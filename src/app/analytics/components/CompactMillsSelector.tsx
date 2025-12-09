@@ -1,22 +1,9 @@
 "use client";
 import React from "react";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
+import { millColors } from "./MillsSelector";
 
 // Array of colors for mill indicators
-const millColors = [
-  "#4f46e5", // Indigo
-  "#f59e0b", // Amber
-  "#10b981", // Emerald
-  "#ec4899", // Pink
-  "#3b82f6", // Blue
-  "#ef4444", // Red
-  "#8b5cf6", // Purple
-  "#14b8a6", // Teal
-  "#6366f1", // Indigo alt
-  "#84cc16", // Lime
-  "#06b6d4", // Cyan
-  "#d946ef", // Fuchsia
-];
 
 interface CompactMillsSelectorProps {
   /** Array of mill names (e.g., ["MILL_01", "MILL_02", ...] or ["1", "2", ...]) */

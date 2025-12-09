@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import { getParameterByValue } from "./ParameterSelector";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
-import { VerticalMillsSelector } from "./MillsSelector";
+import { VerticalMillsSelector, millColors } from "./MillsSelector";
 import { millsTags } from "@/lib/tags/mills-tags";
 
 interface MillTrendData {
@@ -37,14 +37,6 @@ interface TrendsTabProps {
 }
 
 // Array of colors for mill lines
-const millColors = [
-  "#4f46e5", // Indigo
-  "#f59e0b", // Amber
-  "#10b981", // Emerald
-  "#ec4899", // Pink
-  "#3b82f6", // Blue
-  "#ef4444", // Red
-];
 
 export const TrendsTab: React.FC<TrendsTabProps> = ({
   parameter,

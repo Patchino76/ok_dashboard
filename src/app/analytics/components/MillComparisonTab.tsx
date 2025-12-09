@@ -3,25 +3,11 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import axios from "axios";
 import { getParameterByValue } from "./ParameterSelector";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
-import { VerticalMillsSelector } from "./MillsSelector";
+import { VerticalMillsSelector, millColors } from "./MillsSelector";
 import { useMillRangesStore } from "@/lib/store/millRangesStore";
 import { SimpleBarChart } from "./SimpleBarChart";
 
-// Mill colors for visual consistency with TrendsTab
-const millColors = [
-  "#3b82f6", // blue
-  "#f97316", // orange
-  "#10b981", // green
-  "#ef4444", // red
-  "#8b5cf6", // purple
-  "#f59e0b", // amber
-  "#14b8a6", // teal
-  "#ec4899", // pink
-  "#6366f1", // indigo
-  "#84cc16", // lime
-  "#06b6d4", // cyan
-  "#d946ef", // fuchsia
-];
+// Mill colors for visual consistency with TrendsTab and shared selectors
 
 // Type definition for the mill data
 interface MillData {

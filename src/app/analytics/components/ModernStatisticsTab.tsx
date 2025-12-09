@@ -2,6 +2,7 @@
 import React, { useMemo, useEffect, useState } from "react";
 import { getParameterByValue } from "./ParameterSelector";
 import { millsNames } from "@/lib/tags/mills-tags";
+import { millColors } from "./MillsSelector";
 import {
   LineChart,
   Line,
@@ -435,15 +436,6 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   };
 
   // Color palette for mills (shared with TrendsTab)
-  const millColors = [
-    "#4f46e5", // Indigo
-    "#f59e0b", // Amber
-    "#10b981", // Emerald
-    "#ec4899", // Pink
-    "#3b82f6", // Blue
-    "#ef4444", // Red
-  ];
-
   const getMillColor = (index: number) => millColors[index % millColors.length];
 
   // Sorted mills list for summary table (independent from chart ordering)
@@ -583,7 +575,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                 <div className="inline-flex items-center gap-1 relative group cursor-help">
                   <span>Избор на мелници</span>
                   <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-blue-800 text-[15px]">
                       Какво прави този контрол?
                     </p>
                     <p className="mt-1 text-slate-700">
@@ -714,7 +706,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                     {parameterInfo?.labelBg || parameter}
                   </span>
                   <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-blue-800 text-[15px]">
                       Какво показва тази диаграма?
                     </p>
                     <p className="mt-1 text-slate-700">
@@ -882,7 +874,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                     Разпределение на {parameterInfo?.labelBg || parameter}
                   </span>
                   <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-blue-800 text-[15px]">
                       Какво виждате тук?
                     </p>
                     <p className="mt-1 text-slate-700">
@@ -940,7 +932,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                   <Activity className="w-5 h-5 text-blue-500" />
                   <span>Средна стойност и вариация по мелници</span>
                   <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-blue-800 text-[15px]">
                       Как да четете тази графика?
                     </p>
                     <p className="mt-1 text-slate-700">
@@ -1043,7 +1035,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                   <TrendingUp className="w-5 h-5 text-blue-500" />
                   <span>Тенденции по мелници</span>
                   <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
-                    <p className="font-semibold text-slate-900">
+                    <p className="font-semibold text-blue-800 text-[15px]">
                       Какво показват линиите?
                     </p>
                     <p className="mt-1 text-slate-700">
@@ -1120,7 +1112,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                 <Activity className="w-5 h-5 text-blue-500" />
                 <span>Обобщена статистика по мелници</span>
                 <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
-                  <p className="font-semibold text-slate-900">
+                  <p className="font-semibold text-blue-800 text-[15px]">
                     Как да използвате тази таблица?
                   </p>
                   <p className="mt-1 text-slate-700">

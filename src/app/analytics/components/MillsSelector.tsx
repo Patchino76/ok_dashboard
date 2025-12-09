@@ -5,7 +5,7 @@ import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
 import { millsNames } from "@/lib/tags/mills-tags";
 
 // Shared helpers
-const millColors = [
+export const millColors = [
   "#4f46e5", // Indigo
   "#f59e0b", // Amber
   "#10b981", // Emerald
