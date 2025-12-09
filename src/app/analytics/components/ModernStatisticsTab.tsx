@@ -398,17 +398,8 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     [selectedMillsSorted, millStatistics]
   );
 
-  // Single-select via main mill pill
-  const handleMillClick = (mill: string) => {
-    onSharedSelectedMillsChange([mill]);
-  };
-
-  // Corner checkbox for building multi-selection
-  const handleMillCheckboxClick = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    mill: string
-  ) => {
-    event.stopPropagation();
+  // Helpers for multi-select mill toggling (same logic as vertical selector)
+  const toggleMillSelection = (mill: string) => {
     if (selectedMills.includes(mill)) {
       onSharedSelectedMillsChange(selectedMills.filter((m) => m !== mill));
     } else {
@@ -416,11 +407,25 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     }
   };
 
-  // Select all mills helper
+  // Clicking the main pill toggles the mill in the selection
+  const handleMillClick = (mill: string) => {
+    toggleMillSelection(mill);
+  };
+
+  // Corner checkbox also toggles the same selection (multi-select)
+  const handleMillCheckboxClick = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    mill: string
+  ) => {
+    event.stopPropagation();
+    toggleMillSelection(mill);
+  };
+
+  // Select / deselect all mills helper
   const handleSelectAllMills = () => {
-    if (allMills.length > 0) {
-      onSharedSelectedMillsChange(allMills);
-    }
+    if (allMills.length === 0) return;
+    const allSelected = allMills.every((mill) => selectedMills.includes(mill));
+    onSharedSelectedMillsChange(allSelected ? [] : allMills);
   };
 
   // Get mill display name
@@ -584,9 +589,10 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                       по-долу.
                     </p>
                     <p className="mt-1 text-slate-700">
-                      Щракване върху име на мелница показва само нея, а малката
-                      отметка в ъгъла позволява да изграждате множество избрани
-                      мелници. Бутонът „Всички“ активира всички налични мелници.
+                      Щракване върху име на мелница я добавя или премахва от
+                      избора. Малката отметка в ъгъла прави същото, но ви дава
+                      по-прецизен контрол при много мелници. Бутонът „Всички“
+                      включва или изключва всички налични мелници наведнъж.
                     </p>
                   </div>
                 </div>
@@ -609,7 +615,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                     <button
                       type="button"
                       onClick={() => handleMillClick(mill)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                      className={`min-w-[96px] pl-4 pr-8 py-1.5 rounded-lg text-sm font-medium transition-all ${
                         isSelected
                           ? "bg-blue-500 text-white shadow-md"
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -626,7 +632,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                     <button
                       type="button"
                       onClick={(event) => handleMillCheckboxClick(event, mill)}
-                      className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded border text-[9px] ${
+                      className={`absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded border text-[9px] ${
                         isSelected
                           ? "bg-blue-500 border-blue-500 text-white"
                           : "bg-white border-gray-300 text-transparent"

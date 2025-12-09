@@ -55,14 +55,15 @@ export const HorizontalMillsSelector: React.FC<MillsSelectorProps> = ({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-700">Мелници</span>
         <button
           type="button"
           onClick={toggleAllMills}
-          className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors ${
+          className={`px-2.5 py-1 text-[11px] font-medium rounded-full border ${
             allSelected
               ? "bg-blue-500 text-white border-blue-500 shadow-sm"
-              : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+              : "bg-white text-blue-600 border-blue-500 hover:bg-blue-50"
           }`}
         >
           Всички
@@ -76,26 +77,40 @@ export const HorizontalMillsSelector: React.FC<MillsSelectorProps> = ({
           const label = getMillDisplayLabel(millName);
 
           return (
-            <button
-              key={`h-mill-${millName}-${index}`}
-              type="button"
-              onClick={() => toggleMill(millName)}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs md:text-sm transition-colors shadow-sm ${
-                isSelected
-                  ? "bg-blue-500 text-white border-blue-500"
-                  : "bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200"
-              }`}
-            >
-              <span
-                className="inline-block rounded-full"
-                style={{
-                  backgroundColor: millColor,
-                  width: 8,
-                  height: 8,
+            <div key={`h-mill-${millName}-${index}`} className="relative">
+              <button
+                type="button"
+                onClick={() => toggleMill(millName)}
+                className={`min-w-[96px] pl-4 pr-8 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  isSelected
+                    ? "bg-blue-500 text-white shadow-md"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: millColor }}
+                  />
+                  <span className="whitespace-nowrap">{label}</span>
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleMill(millName);
                 }}
-              />
-              <span className="font-medium whitespace-nowrap">{label}</span>
-            </button>
+                className={`absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded border text-[9px] ${
+                  isSelected
+                    ? "bg-blue-500 border-blue-500 text-white"
+                    : "bg-white border-gray-300 text-transparent"
+                }`}
+                aria-label="Добави към множествен избор"
+              >
+                ✓
+              </button>
+            </div>
           );
         })}
       </div>
