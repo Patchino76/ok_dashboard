@@ -225,7 +225,9 @@ export const SimpleStatisticsTab: React.FC<SimpleStatisticsTabProps> = ({
               ? "24 Часа"
               : timeRange === "7d"
               ? "7 Дни"
-              : "30 Дни"}{" "}
+              : timeRange === "30d"
+              ? "30 Дни"
+              : "60 Дни"}{" "}
             • {globalStats.n.toLocaleString()} измервания
           </p>
         </div>

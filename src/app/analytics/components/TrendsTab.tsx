@@ -14,6 +14,7 @@ import {
 import { getParameterByValue } from "./ParameterSelector";
 import { useMillSelectionStore } from "@/lib/store/millSelectionStore";
 import { VerticalMillsSelector } from "./MillsSelector";
+import { millsTags } from "@/lib/tags/mills-tags";
 
 interface MillTrendData {
   mill_name: string;
@@ -65,13 +66,39 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [parameterUnit, setParameterUnit] = useState<string>("");
+  const [parameterPrecision, setParameterPrecision] = useState<number>(1);
 
   // Get parameter info for display
   useEffect(() => {
     const info = getParameterByValue(paramString);
     if (info && info.unit) {
       setParameterUnit(info.unit);
+    } else {
+      setParameterUnit("");
     }
+
+    // Try to derive precision and unit from millsTags metadata
+    type SimpleTagMeta = { unit?: string; precision?: number };
+    const tagsForParam = (millsTags as Record<string, SimpleTagMeta[]>)[
+      paramString
+    ];
+    if (
+      tagsForParam &&
+      Array.isArray(tagsForParam) &&
+      tagsForParam.length > 0
+    ) {
+      const def = tagsForParam[0];
+      if (def.unit && !info?.unit) {
+        setParameterUnit(def.unit);
+      }
+      if (def.precision !== undefined) {
+        setParameterPrecision(def.precision);
+        return;
+      }
+    }
+
+    // Fallback precision when not defined in tags
+    setParameterPrecision(1);
   }, [paramString]);
 
   // Initialize mill selections when trend data is available
@@ -105,6 +132,8 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
         return "7 дни";
       case "30d":
         return "30 дни";
+      case "60d":
+        return "60 дни";
       default:
         return String(timeRange);
     }
@@ -171,7 +200,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
     const month = (date.getMonth() + 1).toString().padStart(2, "0");
 
     // For longer time ranges, show date + time
-    if (timeRange === "7d" || timeRange === "30d") {
+    if (timeRange === "7d" || timeRange === "30d" || timeRange === "60d") {
       return `${day}.${month} ${hours}:${minutes}`;
     }
     // For shorter ranges, show date.month + time
@@ -201,7 +230,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
           <div key={`tooltip-${i}`} className="flex justify-between gap-4">
             <span style={{ color: entry.color }}>{entry.name}:</span>
             <span className="font-medium">
-              {Number(entry.value).toFixed(1)} {parameterUnit}
+              {Number(entry.value).toFixed(parameterPrecision)} {parameterUnit}
             </span>
           </div>
         ))}
@@ -272,7 +301,7 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
                   domain={[0, "auto"]}
                   stroke="#94a3b8"
                   fontSize={12}
-                  tickFormatter={(value) => value.toFixed(0)}
+                  tickFormatter={(value) => value.toFixed(parameterPrecision)}
                 />
                 <Tooltip content={<CustomTooltip />} />
                 {trendData

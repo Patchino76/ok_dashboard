@@ -20,7 +20,7 @@ import {
 export default function AnalyticsPage() {
   // State for the selected parameter and time range
   const [selectedParameter, setSelectedParameter] = useState<string>("Ore");
-  const [timeRange, setTimeRange] = useState<string>("24h");
+  const [timeRange, setTimeRange] = useState<string>("7d");
   const [activeTab, setActiveTab] = useState<string>("comparison");
   // Shared mill selection for the ModernStatisticsTab so it persists across parameter changes
   const [statisticsSelectedMills, setStatisticsSelectedMills] = useState<
@@ -37,6 +37,8 @@ export default function AnalyticsPage() {
       freq = "15m"; // Use 15-minute intervals for 8h range
     } else if (timeRange === "30d") {
       freq = "6h"; // Use 6-hour intervals for 30d range to reduce data points
+    } else if (timeRange === "60d") {
+      freq = "12h"; // Use 12-hour intervals for 60d range to further reduce points
     }
 
     return {
@@ -136,6 +138,16 @@ export default function AnalyticsPage() {
                 }`}
               >
                 30 Дни
+              </button>
+              <button
+                onClick={() => handleTimeRangeChange("60d")}
+                className={`px-3 py-1 text-sm rounded ${
+                  timeRange === "60d"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-800"
+                }`}
+              >
+                60 Дни
               </button>
             </div>
           </div>

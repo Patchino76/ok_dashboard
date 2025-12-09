@@ -401,7 +401,9 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
               ? "24 Часа"
               : timeRange === "7d"
               ? "7 Дни"
-              : "30 Дни"}
+              : timeRange === "30d"
+              ? "30 Дни"
+              : "60 Дни"}
           </span>
         </div>
         <div>

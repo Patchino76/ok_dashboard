@@ -34,7 +34,7 @@ export interface AnalyticsQueryParams {
 
 /**
  * Custom hook to fetch historical data for all mills by a specific parameter
- * 
+ *
  * @param params Query parameters for the analytics data
  * @param refreshInterval Time in seconds between automatic refetches
  * @returns React Query result with transformed analytics data
@@ -43,8 +43,8 @@ export function useMillsAnalytics(
   params: AnalyticsQueryParams,
   refreshInterval: number | false = false
 ) {
-  const { parameter, start_ts, end_ts, freq = '1h' } = params;
-  
+  const { parameter, start_ts, end_ts, freq = "1h" } = params;
+
   const queryResult = useQuery<AnalyticsResponse>({
     queryKey: ["mills-analytics", parameter, start_ts, end_ts, freq],
     queryFn: async () => {
@@ -55,8 +55,8 @@ export function useMillsAnalytics(
             parameter,
             start_ts,
             end_ts,
-            freq
-          }
+            freq,
+          },
         }
       );
       return response.data;
@@ -68,66 +68,71 @@ export function useMillsAnalytics(
     networkMode: "always",
     retry: 2,
   });
-  
+
   // Transform data for components
   const transformedData = useMemo(() => {
-    if (!queryResult.data?.data || !Array.isArray(queryResult.data.data) || queryResult.data.data.length === 0) {
-      console.log('No data available for transformation');
+    if (
+      !queryResult.data?.data ||
+      !Array.isArray(queryResult.data.data) ||
+      queryResult.data.data.length === 0
+    ) {
+      console.log("No data available for transformation");
       return { comparisonData: [], trendData: [] };
     }
 
-    console.log('Raw API data structure:', queryResult.data);
-    console.log('Data array length:', queryResult.data.data.length);
-    console.log('First row sample:', queryResult.data.data[0]);
+    console.log("Raw API data structure:", queryResult.data);
+    console.log("Data array length:", queryResult.data.data.length);
+    console.log("First row sample:", queryResult.data.data[0]);
 
     // Extract mill names from the first row (excluding timestamp)
     const firstRow = queryResult.data.data[0];
     if (!firstRow) {
-      console.log('No first row data available');
+      console.log("No first row data available");
       return { comparisonData: [], trendData: [] };
     }
-    
-    const millNames = Object.keys(firstRow).filter(key => key !== 'timestamp');
-    console.log('Detected mill names:', millNames);
+
+    const millNames = Object.keys(firstRow).filter(
+      (key) => key !== "timestamp"
+    );
+    console.log("Detected mill names:", millNames);
 
     // Calculate mean values across the time range for each mill
     const millSums = {} as Record<string, { sum: number; count: number }>;
-    millNames.forEach(millName => {
+    millNames.forEach((millName) => {
       millSums[millName] = { sum: 0, count: 0 };
     });
-    
+
     // Calculate sums and counts for each mill
-    queryResult.data.data.forEach(row => {
-      millNames.forEach(millName => {
+    queryResult.data.data.forEach((row) => {
+      millNames.forEach((millName) => {
         if (row[millName] !== null && row[millName] !== undefined) {
           millSums[millName].sum += Number(row[millName]);
           millSums[millName].count += 1;
         }
       });
     });
-    
-    console.log('Mill data aggregation:', millSums);
-    
+
+    console.log("Mill data aggregation:", millSums);
+
     // Create comparison data (mean values for each mill)
-    const comparisonData = millNames.map(millName => {
+    const comparisonData = millNames.map((millName) => {
       const data = millSums[millName];
       const meanValue = data.count > 0 ? data.sum / data.count : 0;
-      
+
       return {
         mill_name: millName,
-        parameter_value: meanValue
+        parameter_value: meanValue,
       };
     });
-    
 
-    console.log('Transformed comparison data:', comparisonData);
+    console.log("Transformed comparison data:", comparisonData);
 
     // Create trend data (all values over time for each mill)
-    const trendData = millNames.map(millName => {
+    const trendData = millNames.map((millName) => {
       const values: number[] = [];
       const timestamps: string[] = [];
 
-      queryResult.data.data.forEach(row => {
+      queryResult.data.data.forEach((row) => {
         if (row[millName] !== null && row[millName] !== undefined) {
           values.push(row[millName]);
           timestamps.push(row.timestamp);
@@ -137,16 +142,16 @@ export function useMillsAnalytics(
       return {
         mill_name: millName,
         values,
-        timestamps
+        timestamps,
       };
     });
 
-    console.log('Transformed trend data sample:', trendData[0]);
-    console.log('Total trend data entries:', trendData.length);
+    console.log("Transformed trend data sample:", trendData[0]);
+    console.log("Total trend data entries:", trendData.length);
 
     return { comparisonData, trendData };
   }, [queryResult.data]);
-  
+
   return {
     data: transformedData,
     rawData: queryResult.data, // Add raw API response for components that need it
@@ -162,13 +167,16 @@ export function useMillsAnalytics(
  * @param timeRange Time range selection (24h, 7d, 30d)
  * @returns Object with start_ts and end_ts in ISO format
  */
-export function getTimeRangeParams(timeRange: string): { start_ts: string, end_ts: string } {
+export function getTimeRangeParams(timeRange: string): {
+  start_ts: string;
+  end_ts: string;
+} {
   // Round down to the nearest hour to stabilize the timestamps
   const now = new Date();
   now.setMinutes(0, 0, 0); // Reset minutes, seconds, and milliseconds to zero
-  
+
   const startDate = new Date(now);
-  
+
   switch (timeRange) {
     case "8h":
       startDate.setHours(now.getHours() - 8);
@@ -179,13 +187,16 @@ export function getTimeRangeParams(timeRange: string): { start_ts: string, end_t
     case "30d":
       startDate.setDate(now.getDate() - 30);
       break;
+    case "60d":
+      startDate.setDate(now.getDate() - 60);
+      break;
     default: // 24h
       startDate.setDate(now.getDate() - 1);
   }
-  
+
   // Return stable timestamps
   return {
     start_ts: startDate.toISOString(),
-    end_ts: now.toISOString()
+    end_ts: now.toISOString(),
   };
 }

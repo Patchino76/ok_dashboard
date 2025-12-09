@@ -567,7 +567,9 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                 ? "24 Часа"
                 : timeRange === "7d"
                 ? "7 Дни"
-                : "30 Дни"}{" "}
+                : timeRange === "30d"
+                ? "30 Дни"
+                : "60 Дни"}{" "}
               • {allValues.length.toLocaleString()} точки данни
             </p>
           </div>
