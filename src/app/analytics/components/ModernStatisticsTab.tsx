@@ -1,12 +1,11 @@
 "use client";
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { getParameterByValue } from "./ParameterSelector";
 import { millsNames } from "@/lib/tags/mills-tags";
 import {
   LineChart,
   Line,
-  ScatterChart,
-  Scatter,
+  ComposedChart,
   BarChart,
   Bar,
   XAxis,
@@ -16,6 +15,7 @@ import {
   Legend,
   ResponsiveContainer,
   ReferenceLine,
+  Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, TrendingUp, Activity, BarChart3 } from "lucide-react";
@@ -41,6 +41,17 @@ interface MillStatistics {
   dataPoints: number;
 }
 
+type StatsSortColumn =
+  | "mill"
+  | "avg"
+  | "stdDev"
+  | "cv"
+  | "min"
+  | "max"
+  | "trend"
+  | "anomalyCount"
+  | "points";
+
 export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   parameter,
   timeRange,
@@ -51,6 +62,13 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   const parameterInfo = getParameterByValue(parameter);
   // Initialize with first 2 available mills from data
   const selectedMills = sharedSelectedMills;
+
+  // Sorting state for summary table
+  const [statsSortColumn, setStatsSortColumn] =
+    useState<StatsSortColumn>("mill");
+  const [statsSortDirection, setStatsSortDirection] = useState<"asc" | "desc">(
+    "asc"
+  );
 
   // Get all available mills from data
   const allMills = useMemo(() => {
@@ -278,6 +296,16 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     };
   }, [filteredData, selectedMillsSorted]);
 
+  // Sorting handler for summary table
+  const handleStatsSort = (column: StatsSortColumn) => {
+    if (statsSortColumn === column) {
+      setStatsSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setStatsSortColumn(column);
+      setStatsSortDirection(column === "mill" ? "asc" : "desc");
+    }
+  };
+
   // Y-axis domain for control chart that also includes control limits (UCL/LCL)
   const controlChartYAxisDomain = useMemo(() => {
     if (!controlChartData.data.length) {
@@ -351,20 +379,24 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     return histogram;
   }, [filteredData, selectedMillsSorted]);
 
-  // Correlation data (for scatter plot)
-  // We use an explicit numeric index for the X-axis to keep spacing stable
-  // when multiple mills are selected, and format ticks back to time labels.
-  const correlationData = useMemo(() => {
-    return filteredData.slice(0, 200).map((d, index) => {
-      const point: any = { timestamp: d.timestamp, index };
-      selectedMillsSorted.forEach((mill) => {
-        point[mill] = d[mill];
-        const millNum = parseInt(mill.replace(/\D/g, ""));
-        point.millId = millsNames[millNum - 1]?.bg || mill;
-      });
-      return point;
-    });
-  }, [filteredData, selectedMillsSorted]);
+  // Summary chart data: average value and CV% per mill
+  const summaryChartData = useMemo(
+    () =>
+      selectedMillsSorted
+        .map((mill) => {
+          const stats = millStatistics[mill];
+          if (!stats) return null;
+          return {
+            mill: stats.displayName,
+            avgValue: stats.avgValue,
+            cv: stats.cv,
+          };
+        })
+        .filter(
+          (d): d is { mill: string; avgValue: number; cv: number } => d !== null
+        ),
+    [selectedMillsSorted, millStatistics]
+  );
 
   // Single-select via main mill pill
   const handleMillClick = (mill: string) => {
@@ -384,29 +416,117 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     }
   };
 
+  // Select all mills helper
+  const handleSelectAllMills = () => {
+    if (allMills.length > 0) {
+      onSharedSelectedMillsChange(allMills);
+    }
+  };
+
   // Get mill display name
   const getMillDisplayName = (millName: string) => {
     const millNumber = parseInt(millName.replace(/\D/g, ""));
     return millsNames[millNumber - 1]?.bg || millName;
   };
 
-  // Color palette for mills
+  // Color palette for mills (shared with TrendsTab)
   const millColors = [
-    "#06b6d4", // cyan
-    "#8b5cf6", // violet
-    "#f59e0b", // amber
-    "#10b981", // emerald
-    "#ef4444", // red
-    "#3b82f6", // blue
-    "#ec4899", // pink
-    "#84cc16", // lime
-    "#f97316", // orange
-    "#6366f1", // indigo
-    "#14b8a6", // teal
-    "#a855f7", // purple
+    "#4f46e5", // Indigo
+    "#f59e0b", // Amber
+    "#10b981", // Emerald
+    "#ec4899", // Pink
+    "#3b82f6", // Blue
+    "#ef4444", // Red
   ];
 
   const getMillColor = (index: number) => millColors[index % millColors.length];
+
+  // Sorted mills list for summary table (independent from chart ordering)
+  const sortedMillsForSummary = useMemo(() => {
+    const mills = [...selectedMillsSorted];
+    const trendRank: Record<MillStatistics["trend"], number> = {
+      down: 0,
+      stable: 1,
+      up: 2,
+    };
+
+    mills.sort((a, b) => {
+      const sa = millStatistics[a];
+      const sb = millStatistics[b];
+      if (!sa || !sb) return 0;
+
+      let va: number | string = 0;
+      let vb: number | string = 0;
+
+      switch (statsSortColumn) {
+        case "mill":
+          va = sa.displayName;
+          vb = sb.displayName;
+          break;
+        case "avg":
+          va = sa.avgValue;
+          vb = sb.avgValue;
+          break;
+        case "stdDev":
+          va = sa.stdDev;
+          vb = sb.stdDev;
+          break;
+        case "cv":
+          va = sa.cv;
+          vb = sb.cv;
+          break;
+        case "min":
+          va = sa.min;
+          vb = sb.min;
+          break;
+        case "max":
+          va = sa.max;
+          vb = sb.max;
+          break;
+        case "trend":
+          va = trendRank[sa.trend];
+          vb = trendRank[sb.trend];
+          break;
+        case "anomalyCount":
+          va = sa.anomalyCount;
+          vb = sb.anomalyCount;
+          break;
+        case "points":
+          va = sa.dataPoints;
+          vb = sb.dataPoints;
+          break;
+      }
+
+      // String vs number comparison
+      if (typeof va === "string" && typeof vb === "string") {
+        const cmp = va.localeCompare(vb, "bg-BG");
+        return statsSortDirection === "asc" ? cmp : -cmp;
+      }
+
+      const na = Number(va);
+      const nb = Number(vb);
+      if (!Number.isFinite(na) || !Number.isFinite(nb)) return 0;
+      return statsSortDirection === "asc" ? na - nb : nb - na;
+    });
+
+    return mills;
+  }, [
+    selectedMillsSorted,
+    millStatistics,
+    statsSortColumn,
+    statsSortDirection,
+  ]);
+
+  const renderSortIndicator = (column: StatsSortColumn) => {
+    if (statsSortColumn !== column) {
+      return <span className="ml-1 text-gray-300 text-[10px]">↕</span>;
+    }
+    return (
+      <span className="ml-1 text-gray-500 text-[10px]">
+        {statsSortDirection === "asc" ? "↑" : "↓"}
+      </span>
+    );
+  };
 
   if (!millsData?.data || millsData.data.length === 0) {
     return (
@@ -444,13 +564,22 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
         {/* Mill Selector */}
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg text-gray-800">
-              Избор на мелници
-            </CardTitle>
+            <div className="flex items-center justify-between gap-4">
+              <CardTitle className="text-lg text-gray-800">
+                Избор на мелници
+              </CardTitle>
+              <button
+                type="button"
+                onClick={handleSelectAllMills}
+                className="px-3 py-1 text-xs font-medium rounded-full border border-blue-500 text-blue-600 hover:bg-blue-50 whitespace-nowrap"
+              >
+                Всички
+              </button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {allMills.map((mill) => {
+              {allMills.map((mill, idx) => {
                 const isSelected = selectedMills.includes(mill);
                 return (
                   <div key={mill} className="relative">
@@ -463,7 +592,13 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                       }`}
                     >
-                      {getMillDisplayName(mill)}
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full"
+                          style={{ backgroundColor: getMillColor(idx) }}
+                        />
+                        {getMillDisplayName(mill)}
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -721,70 +856,85 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
             </CardContent>
           </Card>
 
-          {/* Scatter Plot - Value vs Time Index */}
+          {/* Summary Chart: Average and CV per Mill */}
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-gray-800">
-                Сравнение между мелници
+              <CardTitle className="text-gray-800 flex items-center gap-2">
+                <Activity className="w-5 h-5 text-blue-500" />
+                Средна стойност и вариация по мелници
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <ScatterChart>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis
-                    dataKey="index"
-                    type="number"
-                    name="Време"
-                    stroke="#6b7280"
-                    tickFormatter={(val: number) => {
-                      const idx = Math.round(Number(val));
-                      const ts =
-                        idx >= 0 && idx < correlationData.length
-                          ? correlationData[idx].timestamp
-                          : undefined;
-                      if (!ts) return "";
-                      const date = new Date(ts);
-                      return `${date.getHours()}:${date
-                        .getMinutes()
-                        .toString()
-                        .padStart(2, "0")}`;
-                    }}
-                    tick={{ fontSize: 10 }}
-                  />
-                  <YAxis
-                    name={parameterInfo?.labelBg || parameter}
-                    unit={parameterInfo?.unit ? ` ${parameterInfo.unit}` : ""}
-                    stroke="#6b7280"
-                    tick={{ fontSize: 11 }}
-                    domain={[
-                      (dataMin: number) => Math.floor(dataMin * 0.95),
-                      (dataMax: number) => Math.ceil(dataMax * 1.05),
-                    ]}
-                  />
-                  <Tooltip
-                    cursor={{ strokeDasharray: "3 3" }}
-                    contentStyle={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                    }}
-                    labelStyle={{ color: "#374151" }}
-                  />
-                  <Legend />
-                  {selectedMillsSorted.map((mill, idx) => (
-                    <Scatter
-                      key={mill}
-                      name={getMillDisplayName(mill)}
-                      data={correlationData.filter(
-                        (d) => d[mill] !== undefined
-                      )}
-                      fill={getMillColor(idx)}
-                      dataKey={mill}
+              {summaryChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={summaryChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="mill"
+                      stroke="#6b7280"
+                      tick={{ fontSize: 11 }}
                     />
-                  ))}
-                </ScatterChart>
-              </ResponsiveContainer>
+                    <YAxis
+                      yAxisId="left"
+                      stroke="#6b7280"
+                      tick={{ fontSize: 11 }}
+                      label={{
+                        value: parameterInfo?.unit || "Средна",
+                        angle: -90,
+                        position: "insideLeft",
+                        offset: 10,
+                      }}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="#6b7280"
+                      tick={{ fontSize: 11 }}
+                      label={{
+                        value: "CV %",
+                        angle: 90,
+                        position: "insideRight",
+                        offset: 10,
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                      }}
+                      labelStyle={{ color: "#374151" }}
+                    />
+                    <Legend />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="avgValue"
+                      name="Средна"
+                      radius={[4, 4, 0, 0]}
+                    >
+                      {summaryChartData.map((entry, index) => (
+                        <Cell
+                          key={`avg-${entry.mill}`}
+                          fill={getMillColor(index)}
+                        />
+                      ))}
+                    </Bar>
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="cv"
+                      name="CV %"
+                      stroke="#f97316"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-gray-500">
+                  Няма достатъчно данни за обобщаваща диаграма
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -797,7 +947,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={filteredData.slice(-50)}>
+                <LineChart data={filteredData.slice(-100)}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis
                     dataKey="timestamp"
@@ -861,36 +1011,98 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">
-                      Мелница
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("mill")}
+                        className="flex items-center gap-1"
+                      >
+                        Мелница
+                        {renderSortIndicator("mill")}
+                      </button>
                     </th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      Средна
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("avg")}
+                        className="flex items-center justify-end gap-1 w-full"
+                      >
+                        Средна
+                        {renderSortIndicator("avg")}
+                      </button>
                     </th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      Ст. откл.
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("stdDev")}
+                        className="flex items-center justify-end gap-1 w-full"
+                      >
+                        Ст. откл.
+                        {renderSortIndicator("stdDev")}
+                      </button>
                     </th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      CV %
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("cv")}
+                        className="flex items-center justify-end gap-1 w-full"
+                      >
+                        CV %{renderSortIndicator("cv")}
+                      </button>
                     </th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      Мин
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("min")}
+                        className="flex items-center justify-end gap-1 w-full"
+                      >
+                        Мин
+                        {renderSortIndicator("min")}
+                      </button>
                     </th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      Макс
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("max")}
+                        className="flex items-center justify-end gap-1 w-full"
+                      >
+                        Макс
+                        {renderSortIndicator("max")}
+                      </button>
                     </th>
                     <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                      Тренд
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("trend")}
+                        className="flex items-center justify-center gap-1 w-full"
+                      >
+                        Тренд
+                        {renderSortIndicator("trend")}
+                      </button>
                     </th>
                     <th className="text-center py-3 px-4 font-semibold text-gray-700">
-                      Аномалии
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("anomalyCount")}
+                        className="flex items-center justify-center gap-1 w-full"
+                      >
+                        Аномалии
+                        {renderSortIndicator("anomalyCount")}
+                      </button>
                     </th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">
-                      Точки
+                      <button
+                        type="button"
+                        onClick={() => handleStatsSort("points")}
+                        className="flex items-center justify-end gap-1 w-full"
+                      >
+                        Точки
+                        {renderSortIndicator("points")}
+                      </button>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedMillsSorted.map((mill, idx) => {
+                  {sortedMillsForSummary.map((mill) => {
                     const stats = millStatistics[mill];
                     if (!stats) return null;
 
@@ -903,7 +1115,11 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                           <div className="flex items-center gap-2">
                             <div
                               className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: getMillColor(idx) }}
+                              style={{
+                                backgroundColor: getMillColor(
+                                  Math.max(0, selectedMillsSorted.indexOf(mill))
+                                ),
+                              }}
                             />
                             {stats.displayName}
                           </div>

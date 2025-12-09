@@ -85,6 +85,7 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
   const [statsData, setStatsData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [noDataMessage, setNoDataMessage] = useState<string | null>(null);
   // Using shared mill selection state from parent instead of local state
 
   // Mill names for the selector
@@ -295,20 +296,26 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
 
   // Process mill data when it changes
   useEffect(() => {
-    if (!millsData) {
-      setLoading(false);
-      return;
-    }
-
     try {
       // Process the data passed from the parent
       setLoading(true);
+      setError(null);
 
+      // Handle cases where the backend returned no rows for the
+      // selected parameter and time range. This is a valid state
+      // (not an application error), so we surface it as a neutral
+      // empty state instead of a red error panel.
       if (!millsData || !millsData.data || millsData.data.length === 0) {
-        setError("No data available for this parameter and time range");
+        setNoDataMessage("No data available for this parameter and time range");
+        setChartData([]);
+        setFilteredChartData([]);
+        setStatsData(null);
         setLoading(false);
         return;
       }
+
+      // We have data – clear any previous "no data" message
+      setNoDataMessage(null);
 
       // Extract the mill data
       const extractedData = extractMillDataFromResponse(millsData);
@@ -320,6 +327,8 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
         setStatsData(stats);
       }
     } catch (err: any) {
+      // True processing/transform errors are still surfaced
+      // as an error state.
       setError(err.message || "Failed to process data");
       console.error("Error processing data:", err);
     } finally {
@@ -355,6 +364,14 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
           <div className="h-4 bg-gray-200 rounded w-3/4"></div>
           <div className="h-48 bg-gray-200 rounded w-full"></div>
         </div>
+      </div>
+    );
+  }
+
+  if (noDataMessage) {
+    return (
+      <div className="p-4 h-full flex items-center justify-center bg-gray-50">
+        <p className="text-gray-500 text-sm text-center">{noDataMessage}</p>
       </div>
     );
   }
