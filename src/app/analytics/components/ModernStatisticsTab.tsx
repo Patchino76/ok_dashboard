@@ -573,7 +573,23 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-4">
               <CardTitle className="text-lg text-gray-800">
-                Избор на мелници
+                <div className="inline-flex items-center gap-1 relative group cursor-help">
+                  <span>Избор на мелници</span>
+                  <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
+                    <p className="font-semibold text-slate-900">
+                      Какво прави този контрол?
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Тук избирате кои мелници да участват в анализа и графиките
+                      по-долу.
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Щракване върху име на мелница показва само нея, а малката
+                      отметка в ъгъла позволява да изграждате множество избрани
+                      мелници. Бутонът „Всички“ активира всички налични мелници.
+                    </p>
+                  </div>
+                </div>
               </CardTitle>
               <button
                 type="button"
@@ -682,10 +698,35 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
           {/* Control Chart - Full Width */}
           <Card className="bg-white border-gray-200 shadow-sm lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-gray-800 flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-blue-500" />
-                Статистически контрол на процеса -{" "}
-                {parameterInfo?.labelBg || parameter}
+              <CardTitle className="text-gray-800">
+                <div className="inline-flex items-center gap-2 relative group cursor-help">
+                  <TrendingUp className="w-5 h-5 text-blue-500" />
+                  <span>
+                    Статистически контрол на процеса -{" "}
+                    {parameterInfo?.labelBg || parameter}
+                  </span>
+                  <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
+                    <p className="font-semibold text-slate-900">
+                      Какво показва тази диаграма?
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Диаграмата следи дали процесът за{" "}
+                      {parameterInfo?.labelBg || parameter} е стабилен във
+                      времето спрямо нормалното му поведение.
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Зелената линия е средната стойност на параметъра, а двете
+                      червени линии са горна и долна контролна граница (UCL/LCL)
+                      – зоната, в която процесът се счита за нормален.
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Оранжевите точки отбелязват моменти, в които стойността
+                      излиза извън този диапазон или се държи необичайно – те
+                      подсказват нужда от допълнителна проверка на мелницата и
+                      входните условия.
+                    </p>
+                  </div>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -826,9 +867,29 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
           {/* Distribution Histogram */}
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-gray-800 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-blue-500" />
-                Разпределение на {parameterInfo?.labelBg || parameter}
+              <CardTitle className="text-gray-800">
+                <div className="inline-flex items-center gap-2 relative group cursor-help">
+                  <BarChart3 className="w-5 h-5 text-blue-500" />
+                  <span>
+                    Разпределение на {parameterInfo?.labelBg || parameter}
+                  </span>
+                  <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
+                    <p className="font-semibold text-slate-900">
+                      Какво виждате тук?
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Хистограмата показва колко често параметърът{" "}
+                      {parameterInfo?.labelBg || parameter} приема стойности в
+                      различни интервали.
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Всяка лента е диапазон от стойности, а височината ѝ
+                      показва колко измервания попадат в този диапазон. Така
+                      лесно виждате дали процесът работи в тесен диапазон или
+                      има голяма вариация.
+                    </p>
+                  </div>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -866,9 +927,30 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
           {/* Summary Chart: Average and CV per Mill */}
           <Card className="bg-white border-gray-200 shadow-sm">
             <CardHeader>
-              <CardTitle className="text-gray-800 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-blue-500" />
-                Средна стойност и вариация по мелници
+              <CardTitle className="text-gray-800">
+                <div className="inline-flex items-center gap-2 relative group cursor-help">
+                  <Activity className="w-5 h-5 text-blue-500" />
+                  <span>Средна стойност и вариация по мелници</span>
+                  <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
+                    <p className="font-semibold text-slate-900">
+                      Как да четете тази графика?
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Сините колони показват средната стойност на параметъра за
+                      всяка мелница.
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Оранжевата линия (CV %) показва относителната вариация –
+                      колко нестабилна е всяка мелница спрямо собствената си
+                      средна стойност.
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Висока средна стойност с нисък CV % означава стабилен и
+                      добре контролиран процес, докато висок CV % подсказва
+                      нужда от допълнителен анализ.
+                    </p>
+                  </div>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -949,7 +1031,24 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
           <Card className="bg-white border-gray-200 shadow-sm lg:col-span-2">
             <CardHeader>
               <CardTitle className="text-gray-800">
-                Тенденции по мелници
+                <div className="inline-flex items-center gap-2 relative group cursor-help">
+                  <TrendingUp className="w-5 h-5 text-blue-500" />
+                  <span>Тенденции по мелници</span>
+                  <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
+                    <p className="font-semibold text-slate-900">
+                      Какво показват линиите?
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      Всяка линия описва как се променя параметърът във времето
+                      за избраните мелници.
+                    </p>
+                    <p className="mt-1 text-slate-700">
+                      По наклона и формата на линиите можете да видите
+                      нарастващи, намаляващи или нестабилни тенденции и да ги
+                      сравните между отделните мелници.
+                    </p>
+                  </div>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1009,7 +1108,25 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
         <Card className="bg-white border-gray-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-gray-800">
-              Обобщена статистика по мелници
+              <div className="inline-flex items-center gap-2 relative group cursor-help">
+                <Activity className="w-5 h-5 text-blue-500" />
+                <span>Обобщена статистика по мелници</span>
+                <div className="absolute left-0 top-full mt-2 z-20 w-96 rounded-md bg-white/95 text-slate-900 text-sm px-4 py-2 shadow-xl border border-slate-200 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transform -translate-y-1 pointer-events-none transition-all duration-150 leading-snug">
+                  <p className="font-semibold text-slate-900">
+                    Как да използвате тази таблица?
+                  </p>
+                  <p className="mt-1 text-slate-700">
+                    Таблицата събира основните показатели за всяка мелница –
+                    средна стойност, вариация, минимум, максимум, тенденция и
+                    брой аномалии.
+                  </p>
+                  <p className="mt-1 text-slate-700">
+                    Можете да щраквате върху заглавията на колоните, за да
+                    сортирате мелниците по съответния показател и да
+                    идентифицирате най-добрите и най-проблемните.
+                  </p>
+                </div>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
