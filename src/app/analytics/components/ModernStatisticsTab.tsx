@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo, useEffect, useState } from "react";
 import { getParameterByValue } from "./ParameterSelector";
-import { millsNames } from "@/lib/tags/mills-tags";
+import { millsNames, millsTags } from "@/lib/tags/mills-tags";
 import { millColors } from "./MillsSelector";
 import {
   LineChart,
@@ -61,6 +61,7 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   onSharedSelectedMillsChange,
 }) => {
   const parameterInfo = getParameterByValue(parameter);
+  const [parameterPrecision, setParameterPrecision] = useState<number>(1);
   // Initialize with first 2 available mills from data
   const selectedMills = sharedSelectedMills;
 
@@ -83,6 +84,29 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
       return numA - numB;
     });
   }, [millsData]);
+
+  // Derive display precision from millsTags metadata for the active parameter
+  useEffect(() => {
+    type SimpleTagMeta = { precision?: number };
+    const tagsForParam = (millsTags as Record<string, SimpleTagMeta[]>)[
+      parameter
+    ];
+
+    if (
+      tagsForParam &&
+      Array.isArray(tagsForParam) &&
+      tagsForParam.length > 0
+    ) {
+      const def = tagsForParam[0];
+      if (def.precision !== undefined) {
+        setParameterPrecision(def.precision);
+        return;
+      }
+    }
+
+    // Fallback precision when not defined in tags
+    setParameterPrecision(1);
+  }, [parameter]);
 
   // Auto-select first mill when data loads and there is no shared selection yet
   useEffect(() => {
@@ -334,13 +358,15 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
       return ["auto", "auto"] as [number | "auto", number | "auto"];
     }
 
-    const span = maxWithLimits - minWithLimits || 1; // avoid zero span
+    // If limits collapse to a single value, expand a small symmetric window
+    const rawSpan = maxWithLimits - minWithLimits;
+    const span = rawSpan === 0 ? Math.abs(maxWithLimits || 1) * 0.1 : rawSpan;
     const padding = span * 0.1; // 10% padding around data + limits
 
     const lower = minWithLimits - padding;
     const upper = maxWithLimits + padding;
 
-    return [Math.floor(lower), Math.ceil(upper)] as [number, number];
+    return [lower, upper] as [number, number];
   }, [controlChartData]);
 
   // Distribution histogram data
@@ -936,8 +962,8 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                       Как да четете тази графика?
                     </p>
                     <p className="mt-1 text-slate-700">
-                      Сините колони показват средната стойност на параметъра за
-                      всяка мелница.
+                      Цветните колони показват средната стойност на параметъра
+                      за всяка мелница.
                     </p>
                     <p className="mt-1 text-slate-700">
                       Оранжевата линия (CV %) показва относителната вариация –
@@ -1074,6 +1100,11 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                       (dataMin: number) => Math.floor(dataMin * 0.95),
                       (dataMax: number) => Math.ceil(dataMax * 1.05),
                     ]}
+                    tickFormatter={(value: number) =>
+                      Number.isFinite(value)
+                        ? value.toFixed(parameterPrecision)
+                        : String(value)
+                    }
                   />
                   <Tooltip
                     contentStyle={{
@@ -1085,6 +1116,18 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                       new Date(val).toLocaleString("bg-BG")
                     }
                     labelStyle={{ color: "#374151" }}
+                    formatter={(value: any, name: string) => {
+                      if (typeof value === "number" && Number.isFinite(value)) {
+                        const unit = parameterInfo?.unit
+                          ? ` ${parameterInfo.unit}`
+                          : "";
+                        return [
+                          `${value.toFixed(parameterPrecision)}${unit}`,
+                          name,
+                        ];
+                      }
+                      return [value, name];
+                    }}
                   />
                   <Legend />
                   {selectedMillsSorted.map((mill, idx) => (

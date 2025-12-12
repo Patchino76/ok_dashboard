@@ -5,6 +5,7 @@ from pydantic import BaseModel, RootModel, Field
 from datetime import datetime, timedelta
 import math
 import numpy as np
+from balls_router import router as balls_router
 
 # Import the DatabaseManager and configuration first before path modifications
 import sys
@@ -310,6 +311,9 @@ class TagValue(BaseModel):
     timestamp: str
     unit: Optional[str] = None
     status: Optional[str] = None
+
+
+app.include_router(balls_router)
 
 class TagValueBatch(RootModel):
     """Model for batch tag values response"""
