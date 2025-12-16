@@ -5,6 +5,7 @@ export type DeliveryRow = {
   type: string;
   weight: number;
   operator: string;
+  isDosmilane: boolean;
 };
 
 export type PieDatum = {
@@ -17,4 +18,5 @@ export type BarDatum = {
   target: string;
   value: number;
   color?: string;
+  ballType?: string;
 };

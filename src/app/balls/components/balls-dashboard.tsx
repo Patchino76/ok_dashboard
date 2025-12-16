@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 
 import { BallsHeader } from "./balls-header";
 import { DeliveryTable } from "./delivery-table";
@@ -10,49 +11,124 @@ import { PieDistributionCard } from "./pie-distribution-card";
 import { BarChartCard } from "./bar-chart-card";
 import { SummaryCards, type SummaryCard } from "./summary-cards";
 import { BallsDatePicker } from "./balls-date-picker";
-import { useBallsData } from "../hooks/useBallsData";
 import { useBallsDataRange } from "../hooks/useBallsDataRange";
 import type { BarDatum, DeliveryRow, PieDatum } from "../lib/types";
 
 export default function BallsDashboard() {
+  const [selectedMonth, setSelectedMonth] = useState("2025-12");
   const [selectedDate, setSelectedDate] = useState("2025-12-10");
 
-  const { data, isLoading, isError } = useBallsData(selectedDate);
-
   const monthStartDate = useMemo(() => {
-    const dt = new Date(selectedDate);
-    if (Number.isNaN(dt.getTime())) return selectedDate;
-    const start = new Date(dt.getFullYear(), dt.getMonth(), 1);
-    const y = start.getFullYear();
-    const m = String(start.getMonth() + 1).padStart(2, "0");
-    const d = String(start.getDate()).padStart(2, "0");
+    if (!selectedMonth || selectedMonth.length < 7) return "";
+    return `${selectedMonth}-01`;
+  }, [selectedMonth]);
+
+  const monthEndDate = useMemo(() => {
+    if (!selectedMonth || selectedMonth.length < 7) return "";
+
+    const [yStr, mStr] = selectedMonth.split("-");
+    const year = Number(yStr);
+    const month = Number(mStr);
+    if (!Number.isFinite(year) || !Number.isFinite(month)) return "";
+
+    const today = new Date();
+    const todayY = today.getFullYear();
+    const todayM = today.getMonth() + 1;
+
+    const isCurrentMonth = year === todayY && month === todayM;
+    if (isCurrentMonth) {
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, "0");
+      const d = String(today.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    const last = new Date(year, month, 0);
+    const y = last.getFullYear();
+    const m = String(last.getMonth() + 1).padStart(2, "0");
+    const d = String(last.getDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
-  }, [selectedDate]);
+  }, [selectedMonth]);
+
+  const handleMonthChange = (nextMonth: string) => {
+    setSelectedMonth(nextMonth);
+
+    const newStart =
+      nextMonth && nextMonth.length >= 7 ? `${nextMonth}-01` : "";
+    if (!newStart) return;
+
+    const [yStr, mStr] = nextMonth.split("-");
+    const year = Number(yStr);
+    const month = Number(mStr);
+    if (!Number.isFinite(year) || !Number.isFinite(month)) return;
+
+    const today = new Date();
+    const isCurrentMonth =
+      year === today.getFullYear() && month === today.getMonth() + 1;
+
+    const newEnd = isCurrentMonth
+      ? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}-${String(today.getDate()).padStart(2, "0")}`
+      : (() => {
+          const last = new Date(year, month, 0);
+          return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(
+            2,
+            "0"
+          )}-${String(last.getDate()).padStart(2, "0")}`;
+        })();
+
+    setSelectedDate((prev) => {
+      if (!prev) return newStart;
+      if (prev < newStart) return newStart;
+      if (prev > newEnd) return newEnd;
+      return prev;
+    });
+  };
+
+  const handleDateChange = (nextDate: string) => {
+    setSelectedDate(nextDate);
+    if (nextDate && nextDate.length >= 7) {
+      const nextMonth = nextDate.slice(0, 7);
+      if (nextMonth !== selectedMonth) setSelectedMonth(nextMonth);
+    }
+  };
 
   const {
-    data: monthData,
+    data,
     isLoading: isMonthLoading,
     isError: isMonthError,
-  } = useBallsDataRange(monthStartDate, selectedDate);
+  } = useBallsDataRange(monthStartDate, monthEndDate);
 
-  const dateLabel = useMemo(() => {
-    const dt = new Date(selectedDate);
-    if (Number.isNaN(dt.getTime())) return selectedDate;
-    return new Intl.DateTimeFormat("bg-BG", { dateStyle: "long" }).format(dt);
-  }, [selectedDate]);
-
-  const monthStartLabel = useMemo(() => {
+  const startLabel = useMemo(() => {
     const dt = new Date(monthStartDate);
     if (Number.isNaN(dt.getTime())) return monthStartDate;
     return new Intl.DateTimeFormat("bg-BG", { dateStyle: "long" }).format(dt);
   }, [monthStartDate]);
 
+  const endLabel = useMemo(() => {
+    const dt = new Date(monthEndDate);
+    if (Number.isNaN(dt.getTime())) return monthEndDate;
+    return new Intl.DateTimeFormat("bg-BG", { dateStyle: "long" }).format(dt);
+  }, [monthEndDate, monthStartDate]);
+
   const dateRangeLabel = useMemo(() => {
-    return { start: dateLabel, end: dateLabel };
-  }, [dateLabel]);
+    return { start: startLabel, end: endLabel };
+  }, [endLabel, startLabel]);
 
   const deliveryRows: DeliveryRow[] = useMemo(() => {
     const rows = Array.isArray(data) ? data : [];
+    const filteredRows = selectedDate
+      ? rows.filter((r) => {
+          const dt = new Date(r.MeasureDate);
+          if (Number.isNaN(dt.getTime())) return false;
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, "0");
+          const d = String(dt.getDate()).padStart(2, "0");
+          return `${y}-${m}-${d}` === selectedDate;
+        })
+      : rows;
     const formatter = new Intl.DateTimeFormat("bg-BG", {
       day: "2-digit",
       month: "short",
@@ -61,7 +137,7 @@ export default function BallsDashboard() {
       minute: "2-digit",
     });
 
-    const sorted = [...rows].sort((a, b) => {
+    const sorted = [...filteredRows].sort((a, b) => {
       const da = new Date(a.MeasureDate).getTime();
       const db = new Date(b.MeasureDate).getTime();
       if (Number.isNaN(da) || Number.isNaN(db)) return 0;
@@ -81,9 +157,10 @@ export default function BallsDashboard() {
         type: r.BallsName,
         weight: r.Gross,
         operator: r.Operator,
+        isDosmilane: Boolean(r.IsDosmilane),
       };
     });
-  }, [data]);
+  }, [data, selectedDate]);
 
   const totals = useMemo(() => {
     const rows = Array.isArray(data) ? data : [];
@@ -118,7 +195,7 @@ export default function BallsDashboard() {
   );
 
   const typeDistribution: PieDatum[] = useMemo(() => {
-    const rows = Array.isArray(monthData) ? monthData : [];
+    const rows = Array.isArray(data) ? data : [];
     const byType = new Map<string, number>();
     for (const r of rows) {
       const key = r.BallsName || "";
@@ -131,16 +208,132 @@ export default function BallsDashboard() {
 
     return entries.map((e, idx) => ({
       name: e.name,
-      value: Number(e.tonnes.toFixed(2)),
+      value: Number(e.tonnes.toFixed(1)),
       color: palette[idx % palette.length],
     }));
-  }, [monthData, palette]);
+  }, [data, palette]);
+
+  const oreProcessingStackedKeys = useMemo(() => {
+    return typeDistribution.map((t) => t.name);
+  }, [typeDistribution]);
+
+  const oreProcessingStackedKeyColors = useMemo(() => {
+    return Object.fromEntries(typeDistribution.map((t) => [t.name, t.color]));
+  }, [typeDistribution]);
+
+  const oreProcessingStacked = useMemo(() => {
+    const rows = Array.isArray(data) ? data : [];
+
+    const byMill = new Map<number, Record<string, number>>();
+    for (const r of rows) {
+      const mill = Number(r.MillName);
+      if (!Number.isFinite(mill)) continue;
+      const type = String(r.BallsName || "");
+      const kg = Number(r.Gross) || 0;
+      if (!byMill.has(mill)) byMill.set(mill, {});
+      const entry = byMill.get(mill)!;
+      entry[type] = (entry[type] || 0) + kg / 1000;
+    }
+
+    const labelForMill = (mill: number) => {
+      if (mill === 21) return "Д1";
+      if (mill === 22) return "Д2";
+      return `MA ${String(mill).padStart(2, "0")}`;
+    };
+
+    const sortKeyForMill = (mill: number) => {
+      if (mill === 21) return 1000;
+      if (mill === 22) return 1001;
+      return mill;
+    };
+
+    return Array.from(byMill.entries())
+      .sort(([a], [b]) => sortKeyForMill(a) - sortKeyForMill(b))
+      .map(([mill, totalsByType]) => {
+        const item: Record<string, any> = {
+          target: labelForMill(mill),
+        };
+        let total = 0;
+        let topKey = "";
+        for (const key of oreProcessingStackedKeys) {
+          const v = totalsByType[key] || 0;
+          item[key] = Number(v.toFixed(1));
+          if (v > 0) topKey = key;
+          total += v;
+        }
+        item.__total = Number(total.toFixed(1));
+        item.__topKey = topKey;
+        return item;
+      });
+  }, [data, oreProcessingStackedKeys]);
+
+  const millDailyBars: BarDatum[] = useMemo(() => {
+    if (!selectedDate) return [];
+    const rows = Array.isArray(data) ? data : [];
+
+    const typeColorMap = new Map(
+      typeDistribution.map((t) => [t.name, t.color])
+    );
+
+    const byMill = new Map<
+      number,
+      { totalKg: number; byTypeKg: Map<string, number> }
+    >();
+
+    for (const r of rows) {
+      const dt = new Date(r.MeasureDate);
+      if (Number.isNaN(dt.getTime())) continue;
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, "0");
+      const d = String(dt.getDate()).padStart(2, "0");
+      const iso = `${y}-${m}-${d}`;
+      if (iso !== selectedDate) continue;
+
+      if (Boolean(r.IsDosmilane)) continue;
+
+      const mill = Number(r.MillName);
+      if (!Number.isFinite(mill)) continue;
+
+      const kg = Number(r.Gross) || 0;
+      const ballType = String(r.BallsName || "");
+
+      const entry = byMill.get(mill) ?? {
+        totalKg: 0,
+        byTypeKg: new Map<string, number>(),
+      };
+      entry.totalKg += kg;
+      entry.byTypeKg.set(ballType, (entry.byTypeKg.get(ballType) || 0) + kg);
+      byMill.set(mill, entry);
+    }
+
+    const result: BarDatum[] = Array.from(byMill.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([mill, agg]) => {
+        let dominantType = "";
+        let dominantKg = -1;
+        for (const [t, kg] of agg.byTypeKg.entries()) {
+          if (kg > dominantKg) {
+            dominantKg = kg;
+            dominantType = t;
+          }
+        }
+
+        return {
+          target: `MA ${String(mill).padStart(2, "0")}`,
+          value: Number((agg.totalKg / 1000).toFixed(2)),
+          color: typeColorMap.get(dominantType) || "#94a3b8",
+          ballType: dominantType,
+        };
+      });
+
+    return result;
+  }, [data, selectedDate, typeDistribution]);
 
   const targetDistribution: PieDatum[] = useMemo(() => {
     const rows = Array.isArray(data) ? data : [];
     const byMill = new Map<string, number>();
     for (const r of rows) {
-      const key = `МШЦ ${String(r.MillName).padStart(2, "0")}`;
+      const key = `MA ${String(r.MillName).padStart(2, "0")}`;
       byMill.set(key, (byMill.get(key) || 0) + (Number(r.Gross) || 0));
     }
 
@@ -184,7 +377,7 @@ export default function BallsDashboard() {
       {
         title: "Брой доставки",
         value: String(totals.count),
-        subtitle: "за деня",
+        subtitle: "за периода",
         className:
           "shadow-sm border-gray-200 bg-gradient-to-br from-green-50 to-white",
         valueClassName: "text-3xl font-bold text-green-600",
@@ -213,7 +406,7 @@ export default function BallsDashboard() {
       <div className="max-w-7xl mx-auto space-y-6">
         <BallsHeader
           title="Измерване теглото на подаваните топки"
-          dateLabel={dateLabel}
+          dateLabel={`${dateRangeLabel.start} - ${dateRangeLabel.end}`}
         />
 
         <Tabs defaultValue="delivery" className="w-full">
@@ -225,25 +418,34 @@ export default function BallsDashboard() {
             </TabsList>
 
             <div className="sm:flex-shrink-0">
-              <BallsDatePicker
-                value={selectedDate}
-                onChange={setSelectedDate}
-              />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <span className="text-sm text-gray-600 whitespace-nowrap">
+                  Дата:
+                </span>
+                <div className="w-full sm:w-48">
+                  <Input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => handleDateChange(e.target.value)}
+                    min={monthStartDate || undefined}
+                    max={monthEndDate || undefined}
+                    className="bg-white border-gray-200"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
           <TabsContent value="delivery" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <Card className="lg:col-span-2 shadow-sm border-gray-200">
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              <Card className="lg:col-span-3 shadow-sm border-gray-200">
                 <CardHeader>
-                  <CardTitle className="text-xl">
-                    Дневен разход на топки
-                  </CardTitle>
+                  <CardTitle className="text-xl">Разход на топки</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {isLoading ? (
+                  {isMonthLoading ? (
                     <div className="text-sm text-gray-600">Зареждане...</div>
-                  ) : isError ? (
+                  ) : isMonthError ? (
                     <div className="text-sm text-gray-600">
                       Грешка при зареждане на данните.
                     </div>
@@ -257,22 +459,26 @@ export default function BallsDashboard() {
                 </CardContent>
               </Card>
 
-              <div className="space-y-6">
-                <PieDistributionCard
-                  title={`Тотал по видове топки (${monthStartLabel} - ${dateLabel})`}
-                  data={isMonthLoading || isMonthError ? [] : typeDistribution}
-                  height={250}
-                  showLegendList
-                  labelFormatter={({ name, value }) =>
-                    value > 0 ? `${name}: ${value}t` : ""
-                  }
-                />
-
-                <PieDistributionCard
-                  title="По целеви МШЦ"
-                  data={targetDistribution}
-                  height={200}
-                />
+              <div className="space-y-6 lg:col-span-2">
+                <Card className="shadow-sm border-gray-200">
+                  <CardHeader>
+                    <CardTitle className="text-lg">
+                      По целеви МШЦ (за деня)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <BarChartCard
+                      title=""
+                      data={isMonthLoading || isMonthError ? [] : millDailyBars}
+                      useBarColors
+                      height={320}
+                      showLegend={false}
+                      showTitle={false}
+                      axisTickFontSize={10}
+                      showValueLabels
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </div>
           </TabsContent>
@@ -280,7 +486,7 @@ export default function BallsDashboard() {
           <TabsContent value="analytics" className="space-y-6">
             <Card className="shadow-sm border-gray-200">
               <CardHeader>
-                <CardTitle className="text-xl">
+                <CardTitle>
                   Справки за изминали периоди на зареждане с топки и преработка
                   на руда
                 </CardTitle>
@@ -295,20 +501,18 @@ export default function BallsDashboard() {
                   useBarColors
                   barFill="#ec4899"
                 />
-
-                <BarChartCard
-                  title="Тотал зареждане с топки"
-                  data={oreProcessing}
-                  barFill="#ec4899"
-                />
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="reports">
+          <TabsContent value="reports" className="space-y-6">
             <Card className="shadow-sm border-gray-200">
-              <CardHeader>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>Справки и Експорт</CardTitle>
+                <BallsDatePicker
+                  value={selectedMonth}
+                  onChange={handleMonthChange}
+                />
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
@@ -316,6 +520,54 @@ export default function BallsDashboard() {
                 </p>
               </CardContent>
             </Card>
+
+            <Card className="shadow-sm border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Тотал зареждане с топки
+                </CardTitle>
+                <p className="text-sm text-gray-500 mt-2">
+                  от {dateRangeLabel.start} до {dateRangeLabel.end}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <BarChartCard
+                  title=""
+                  data={oreProcessingStacked}
+                  barFill="#ec4899"
+                  showTitle={false}
+                  showLegend={false}
+                  yAxisUnit="t"
+                  showValueLabels
+                  axisTickFontSize={11}
+                  valueDecimals={1}
+                  stackedKeys={oreProcessingStackedKeys}
+                  stackedKeyColors={oreProcessingStackedKeyColors}
+                  height={360}
+                />
+              </CardContent>
+            </Card>
+
+            <PieDistributionCard
+              title={`Тотал по видове топки (${dateRangeLabel.start} - ${dateRangeLabel.end})`}
+              data={
+                isMonthLoading || isMonthError
+                  ? []
+                  : typeDistribution.map((row) => ({
+                      ...row,
+                      value: Number(row.value.toFixed(1)),
+                    }))
+              }
+              height={420}
+              showLegendList
+              labelFormatter={({
+                name,
+                value,
+              }: {
+                name: string;
+                value: number;
+              }) => (value > 0 ? `${name}: ${value.toFixed(1)}t` : "")}
+            />
           </TabsContent>
         </Tabs>
 

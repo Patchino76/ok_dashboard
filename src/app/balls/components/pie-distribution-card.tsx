@@ -26,11 +26,11 @@ export function PieDistributionCard({
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={height}>
-          <PieChart>
+          <PieChart margin={{ top: 18, right: 140, bottom: 18, left: 140 }}>
             <Pie
               data={data}
               cx="50%"
-              cy="50%"
+              cy="48%"
               labelLine={false}
               label={({ name, value }) => {
                 const n = String(name);
@@ -41,8 +41,8 @@ export function PieDistributionCard({
                 return `${n}: ${v}t`;
               }}
               outerRadius={Math.min(
-                90,
-                Math.max(60, Math.floor(height * 0.32))
+                150,
+                Math.max(80, Math.floor(height * 0.38))
               )}
               fill="#8884d8"
               dataKey="value"
@@ -69,7 +69,9 @@ export function PieDistributionCard({
                   />
                   <span className="text-gray-700">{item.name}</span>
                 </div>
-                <span className="font-semibold">{item.value} [t]</span>
+                <span className="font-semibold">
+                  {item.value.toFixed(1)} [t]
+                </span>
               </div>
             ))}
           </div>
