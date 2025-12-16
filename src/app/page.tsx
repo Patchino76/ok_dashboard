@@ -18,6 +18,7 @@ import {
   Activity,
   AreaChart,
   GitFork,
+  CircleDashed,
   Clock,
   TrendingUp,
   LayoutDashboard,
@@ -215,6 +216,41 @@ export default function Home() {
                     size="1"
                     variant="soft"
                     style={{ backgroundColor: "#dbeafe", color: "#2563eb" }}
+                  >
+                    Активен
+                  </Badge>
+                </Box>
+              </Flex>
+            </Card>
+          </Link>
+
+          <Link href="/balls" className="no-underline">
+            <Card className="bg-gradient-to-br from-white to-slate-50/50 h-full hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-400 to-gray-400" />
+              <Flex direction="column" p="5" height="100%">
+                <Flex justify="between" align="center" mb="3">
+                  <Box className="p-3 bg-gradient-to-br from-slate-700 to-gray-700 rounded-lg shadow-lg">
+                    <CircleDashed className="h-5 w-5 text-white" />
+                  </Box>
+                  <Box className="size-8 flex items-center justify-center rounded-full bg-slate-50 group-hover:bg-slate-100 transition-colors">
+                    <ArrowRight className="h-4 w-4 text-slate-700" />
+                  </Box>
+                </Flex>
+                <Heading
+                  size="4"
+                  mb="2"
+                  className="bg-gradient-to-r from-slate-700 to-gray-700 bg-clip-text text-transparent"
+                >
+                  Топки
+                </Heading>
+                <Text className="text-gray-500 mb-2">
+                  Измерване теглото на подаваните топки
+                </Text>
+                <Box className="mt-auto">
+                  <Badge
+                    size="1"
+                    variant="soft"
+                    style={{ backgroundColor: "#f1f5f9", color: "#334155" }}
                   >
                     Активен
                   </Badge>

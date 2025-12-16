@@ -88,11 +88,45 @@ def _shift_from_datetime(dt: datetime) -> int:
 
 
 @router.get("/balls_data", response_model=List[BallsDataRow])
-async def get_balls_data(date: str = Query(..., description="Date filter. Supported: YYYY-MM-DD or M/D/YYYY")):
-    try:
-        requested_date = _parse_balls_date(date)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid date format: {date}. Use YYYY-MM-DD or M/D/YYYY.")
+async def get_balls_data(
+    date: Optional[str] = Query(None, description="Date filter. Supported: YYYY-MM-DD or M/D/YYYY"),
+    start_date: Optional[str] = Query(None, description="Start date for range filter. Supported: YYYY-MM-DD or M/D/YYYY"),
+    end_date: Optional[str] = Query(None, description="End date for range filter. Supported: YYYY-MM-DD or M/D/YYYY"),
+):
+    if not date and not start_date:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required query parameter. Provide either 'date' or 'start_date' (optionally with 'end_date').",
+        )
+
+    requested_date = None
+    requested_start = None
+    requested_end = None
+
+    if date:
+        try:
+            requested_date = _parse_balls_date(date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid date format: {date}. Use YYYY-MM-DD or M/D/YYYY.")
+    else:
+        try:
+            requested_start = _parse_balls_date(start_date or "")
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid start_date format: {start_date}. Use YYYY-MM-DD or M/D/YYYY.",
+            )
+
+        if end_date:
+            try:
+                requested_end = _parse_balls_date(end_date)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid end_date format: {end_date}. Use YYYY-MM-DD or M/D/YYYY.",
+                )
+        else:
+            requested_end = requested_start
 
     items_map = _load_balls_items_map()
 
@@ -117,8 +151,14 @@ async def get_balls_data(date: str = Query(..., description="Date filter. Suppor
 
                 row_date = row_dt.date()
 
-                if row_date != requested_date:
-                    continue
+                if requested_date is not None:
+                    if row_date != requested_date:
+                        continue
+                else:
+                    if requested_start is None or requested_end is None:
+                        continue
+                    if row_date < requested_start or row_date > requested_end:
+                        continue
 
                 balls_name_raw = (row.get("BallsName") or "").strip()
                 normalized_balls_name = _normalize_ball_type(balls_name_raw)

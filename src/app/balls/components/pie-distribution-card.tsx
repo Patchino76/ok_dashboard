@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import type { PieDatum } from "../lib/mock-data";
+import type { PieDatum } from "../lib/types";
 
 type PieDistributionCardProps = {
   title: string;

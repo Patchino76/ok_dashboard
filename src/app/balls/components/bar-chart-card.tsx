@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import type { BarDatum } from "../lib/mock-data";
+import type { BarDatum } from "../lib/types";
 
 type BarChartCardProps = {
   title: string;

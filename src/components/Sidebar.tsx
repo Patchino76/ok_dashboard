@@ -60,6 +60,11 @@ export default function Sidebar() {
       icon: <GitFork className="w-5 h-5" />,
     },
     {
+      href: "/balls",
+      label: "Топки",
+      icon: <CircleDashed className="w-5 h-5" />,
+    },
+    {
       href: "/mills-forecasting",
       label: "Производство",
       icon: <FactoryIcon className="w-5 h-5" />,

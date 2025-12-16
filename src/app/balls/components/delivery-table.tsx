@@ -1,6 +1,6 @@
 "use client";
 
-import type { DeliveryRow } from "../lib/mock-data";
+import type { DeliveryRow } from "../lib/types";
 
 type DeliveryTableProps = {
   rows: DeliveryRow[];
