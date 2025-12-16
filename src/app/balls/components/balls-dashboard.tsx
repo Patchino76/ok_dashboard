@@ -558,7 +558,7 @@ export default function BallsDashboard() {
                       value: Number(row.value.toFixed(1)),
                     }))
               }
-              height={420}
+              height={260}
               showLegendList
               labelFormatter={({
                 name,
