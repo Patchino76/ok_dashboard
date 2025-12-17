@@ -313,6 +313,58 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error fetching trend data for tag ID {tag_id}: {e}")
             return {"timestamps": [], "values": []}
+
+    def get_tag_history_range(self, tag_id, start_time: datetime, end_time: datetime):
+        try:
+            tables = self._get_archive_table_names(start_time, end_time)
+
+            values = []
+            timestamps = []
+
+            with self.engine.connect() as conn:
+                for table_name in tables:
+                    try:
+                        query = text(f"""
+                            SELECT LoggerTagID, Value, DATEADD(hour, 3, IndexTime) AS IndexTime
+                            FROM {table_name}
+                            WHERE LoggerTagID = :tag_id
+                            AND IndexTime BETWEEN :start_time AND :end_time
+                            ORDER BY IndexTime ASC
+                        """)
+                        result = conn.execute(
+                            query,
+                            {
+                                "tag_id": tag_id,
+                                "start_time": start_time,
+                                "end_time": end_time,
+                            },
+                        ).fetchall()
+
+                        for row in result:
+                            values.append(row.Value)
+                            timestamps.append(
+                                row.IndexTime.isoformat()
+                                if hasattr(row.IndexTime, "isoformat")
+                                else str(row.IndexTime)
+                            )
+
+                    except Exception as table_error:
+                        logger.debug(
+                            f"Could not query table {table_name} for tag range: {table_error}"
+                        )
+                        continue
+
+            if not values:
+                return {"timestamps": [], "values": []}
+
+            combined = list(zip(timestamps, values))
+            combined.sort(key=lambda x: x[0])
+            timestamps, values = zip(*combined) if combined else ([], [])
+
+            return {"timestamps": list(timestamps), "values": list(values)}
+        except Exception as e:
+            logger.error(f"Error fetching range history for tag ID {tag_id}: {e}")
+            return {"timestamps": [], "values": []}
     
     def get_tag_states(self, state_tag_ids):
         """Get the boolean states for multiple tags

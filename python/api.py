@@ -508,6 +508,120 @@ def get_ore_by_mill(mill: str, db: DatabaseManager = Depends(get_db)):
         
     return result
 
+
+@app.get("/api/mills/ore-daily")
+def get_mills_ore_daily(
+    start_date: str,
+    end_date: str,
+    db: DatabaseManager = Depends(get_db),
+):
+    try:
+        try:
+            start_d = datetime.fromisoformat(start_date).date()
+            end_d = datetime.fromisoformat(end_date).date()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use ISO format (YYYY-MM-DD).",
+            )
+
+        if end_d < start_d:
+            raise HTTPException(
+                status_code=400,
+                detail="end_date must be >= start_date",
+            )
+
+        if not hasattr(db, "get_tag_history_range"):
+            raise HTTPException(
+                status_code=500,
+                detail="Backend needs restart: DatabaseManager.get_tag_history_range is not available",
+            )
+
+        from tags_definition import mills_tags
+
+        production_start = datetime.combine(start_d, datetime.min.time()) + timedelta(
+            hours=6
+        )
+        production_end = datetime.combine(
+            end_d + timedelta(days=1), datetime.min.time()
+        ) + timedelta(hours=6)
+
+        days_count = (end_d - start_d).days + 1
+        if days_count <= 0:
+            return []
+
+        def safe_float(v):
+            try:
+                if v is None:
+                    return None
+                return float(v)
+            except Exception:
+                return None
+
+        def sum_counter_increases(values):
+            nums = [safe_float(v) for v in values]
+            nums = [v for v in nums if v is not None]
+            if len(nums) < 2:
+                return None
+
+            total = 0.0
+            prev = nums[0]
+            for v in nums[1:]:
+                if v >= prev:
+                    total += v - prev
+                else:
+                    total += v
+                prev = v
+            return float(total)
+
+        result = []
+
+        for mill_tag in mills_tags.get("total", []):
+            tag_id = mill_tag.get("id")
+            mill_name = str(mill_tag.get("name") or "")
+            if not tag_id or not mill_name.lower().startswith("mill"):
+                continue
+
+            try:
+                mill_number = int(mill_name[4:])
+            except Exception:
+                continue
+
+            history = db.get_tag_history_range(tag_id, production_start, production_end)
+            timestamps = history.get("timestamps") or []
+            values = history.get("values") or []
+
+            buckets = [[] for _ in range(days_count)]
+            for ts_str, v in zip(timestamps, values):
+                try:
+                    ts = datetime.fromisoformat(ts_str)
+                except Exception:
+                    continue
+
+                if ts < production_start or ts >= production_end:
+                    continue
+
+                idx = int((ts - production_start).total_seconds() // (24 * 3600))
+                if 0 <= idx < days_count:
+                    buckets[idx].append(v)
+
+            for day_idx in range(days_count):
+                ore_t = sum_counter_increases(buckets[day_idx])
+                result.append(
+                    {
+                        "date": (start_d + timedelta(days=day_idx)).isoformat(),
+                        "mill": mill_number,
+                        "ore_t": ore_t,
+                    }
+                )
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in /api/mills/ore-daily: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/mills/ore-by-mill")
 def get_ore_by_mill_query(mill: str, db: DatabaseManager = Depends(get_db)):
     """

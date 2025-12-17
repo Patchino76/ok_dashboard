@@ -12,6 +12,7 @@ import { BarChartCard } from "./bar-chart-card";
 import { SummaryCards, type SummaryCard } from "./summary-cards";
 import { BallsDatePicker } from "./balls-date-picker";
 import { useBallsDataRange } from "../hooks/useBallsDataRange";
+import { useOreDaily } from "../hooks/useOreDaily";
 import type { BarDatum, DeliveryRow, PieDatum } from "../lib/types";
 
 export default function BallsDashboard() {
@@ -100,6 +101,12 @@ export default function BallsDashboard() {
     isLoading: isMonthLoading,
     isError: isMonthError,
   } = useBallsDataRange(monthStartDate, monthEndDate);
+
+  const {
+    data: oreDaily,
+    isLoading: isOreDailyLoading,
+    isError: isOreDailyError,
+  } = useOreDaily(monthStartDate, monthEndDate);
 
   const startLabel = useMemo(() => {
     const dt = new Date(monthStartDate);
@@ -364,6 +371,74 @@ export default function BallsDashboard() {
     }));
   }, [targetDistribution]);
 
+  const specificConsumptionBars: BarDatum[] = useMemo(() => {
+    if (!monthStartDate || !monthEndDate) return [];
+
+    const byMill = new Map<number, { ballsKgSum: number; oreTSum: number }>();
+    for (let mill = 1; mill <= 12; mill += 1) {
+      byMill.set(mill, { ballsKgSum: 0, oreTSum: 0 });
+    }
+
+    const oreRows = Array.isArray(oreDaily) ? oreDaily : [];
+    for (const r of oreRows) {
+      const mill = Number((r as any)?.mill);
+      if (!Number.isFinite(mill) || mill < 1 || mill > 12) continue;
+      const oreTraw = (r as any)?.ore_t;
+      const oreT =
+        oreTraw === null || oreTraw === undefined ? null : Number(oreTraw);
+      if (!oreT || !Number.isFinite(oreT) || oreT <= 0) continue;
+
+      const acc = byMill.get(mill);
+      if (!acc) continue;
+      acc.oreTSum += oreT;
+    }
+
+    const productionDayKey = (dt: Date) => {
+      const d = new Date(dt);
+      if (Number.isNaN(d.getTime())) return "";
+      if (d.getHours() < 6) d.setDate(d.getDate() - 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    };
+
+    const ballRows = Array.isArray(data) ? data : [];
+    for (const r of ballRows) {
+      if (Boolean((r as any).IsDosmilane)) continue;
+
+      const mill = Number((r as any).MillName);
+      if (!Number.isFinite(mill) || mill < 1 || mill > 12) continue;
+
+      const dt = new Date((r as any).MeasureDate);
+      const dayKey = productionDayKey(dt);
+      if (!dayKey) continue;
+      if (dayKey < monthStartDate || dayKey > monthEndDate) continue;
+
+      const kg = Number((r as any).Gross) || 0;
+      const acc = byMill.get(mill);
+      if (!acc) continue;
+      acc.ballsKgSum += kg;
+    }
+
+    const bars: BarDatum[] = [];
+    for (let mill = 1; mill <= 12; mill += 1) {
+      const acc = byMill.get(mill);
+      if (!acc || acc.oreTSum <= 0) continue;
+
+      const v = acc.ballsKgSum / acc.oreTSum;
+      if (!Number.isFinite(v)) continue;
+
+      bars.push({
+        target: `MA ${String(mill).padStart(2, "0")}`,
+        value: Number(v.toFixed(2)),
+        color: palette[(mill - 1) % palette.length],
+      });
+    }
+
+    return bars;
+  }, [data, monthStartDate, monthEndDate, oreDaily, palette]);
+
   const summaryCards: SummaryCard[] = useMemo(() => {
     return [
       {
@@ -501,6 +576,38 @@ export default function BallsDashboard() {
                   useBarColors
                   barFill="#ec4899"
                 />
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-sm border-gray-200">
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  Специфичен разход на топки (kg/t руда)
+                </CardTitle>
+                <p className="text-sm text-gray-500 mt-2">
+                  Производствен ден: 06:00 - 06:00 | MA 01 - MA 12 | без
+                  досмилане
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {isOreDailyLoading ? (
+                  <div className="text-sm text-gray-600">Зареждане...</div>
+                ) : isOreDailyError ? (
+                  <div className="text-sm text-gray-600">
+                    Грешка при зареждане на данните за руда.
+                  </div>
+                ) : (
+                  <BarChartCard
+                    title="Σ kg / Σ t (месец)"
+                    data={specificConsumptionBars}
+                    useBarColors
+                    height={340}
+                    yAxisUnit="kg/t"
+                    valueDecimals={2}
+                    showValueLabels
+                    axisTickFontSize={11}
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>
