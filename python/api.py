@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import math
 import numpy as np
 from balls_router import router as balls_router
+from sqlalchemy import text as sql_text
 
 # Import the DatabaseManager and configuration first before path modifications
 import sys
@@ -37,6 +38,175 @@ import logging
 
 # Configure logging
 logger = logging.getLogger('api')
+
+_pg_connector = None
+
+_PG_MILL_COLUMNS = {
+    "Ore",
+    "WaterMill",
+    "WaterZumpf",
+    "Power",
+    "ZumpfLevel",
+    "PressureHC",
+    "DensityHC",
+    "FE",
+    "PulpHC",
+    "PumpRPM",
+    "MotorAmp",
+    "PSI80",
+    "PSI200",
+}
+
+
+def _get_pg_connector():
+    global _pg_connector
+    if _pg_connector is not None:
+        return _pg_connector
+
+    mills_xgboost_path = os.path.join(os.path.dirname(__file__), "mills-xgboost")
+    if mills_xgboost_path not in sys.path:
+        sys.path.insert(0, mills_xgboost_path)
+
+    database_path = os.path.join(mills_xgboost_path, "app", "database")
+    if database_path not in sys.path:
+        sys.path.append(database_path)
+    from db_connector import MillsDataConnector
+
+    import importlib.util
+
+    settings_path = os.path.join(mills_xgboost_path, "config", "settings.py")
+    spec = importlib.util.spec_from_file_location("settings_module", settings_path)
+    settings_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(settings_module)
+    settings = settings_module.Settings()
+
+    _pg_connector = MillsDataConnector(
+        host=settings.DB_HOST,
+        port=settings.DB_PORT,
+        dbname=settings.DB_NAME,
+        user=settings.DB_USER,
+        password=settings.DB_PASSWORD,
+    )
+    return _pg_connector
+
+
+def _parse_resolution_to_seconds(resolution: str) -> int:
+    r = (resolution or "").strip().lower()
+    if not r:
+        raise HTTPException(status_code=400, detail="resolution is required")
+
+    units = {"min": 60, "h": 3600, "d": 86400}
+    num = ""
+    unit = ""
+    for ch in r:
+        if ch.isdigit() and not unit:
+            num += ch
+        else:
+            unit += ch
+
+    if not num or unit not in units:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid resolution. Use like 1min, 5min, 1h, 1d.",
+        )
+
+    n = int(num)
+    if n <= 0:
+        raise HTTPException(status_code=400, detail="resolution must be > 0")
+    return n * units[unit]
+
+
+def _normalize_agg(agg: str) -> str:
+    a = (agg or "avg").strip().lower()
+    allowed = {"avg", "sum", "min", "max"}
+    if a not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid agg. Allowed: avg, sum, min, max.",
+        )
+    return a
+
+
+def _normalize_period(period: str) -> str:
+    p = (period or "none").strip().lower()
+    if p in {"24h", "daily"}:
+        p = "day"
+    allowed = {"none", "day", "month", "year"}
+    if p not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid aggregation_period. Allowed: none, day, month, year.",
+        )
+    return p
+
+
+def _parse_iso_datetime(ts: str) -> datetime:
+    if ts is None:
+        raise HTTPException(status_code=400, detail="start_ts and end_ts are required")
+    try:
+        dt = datetime.fromisoformat(ts)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid timestamp format. Use ISO format (YYYY-MM-DDTHH:MM:SS).",
+        )
+
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(tz=None).replace(tzinfo=None)
+    return dt
+
+
+def _bucket_expr_for_resolution(column_name: str, resolution: str) -> str:
+    r = (resolution or "").strip().lower()
+    if not r:
+        raise HTTPException(status_code=400, detail="resolution is required")
+
+    num = ""
+    unit = ""
+    for ch in r:
+        if ch.isdigit() and not unit:
+            num += ch
+        else:
+            unit += ch
+
+    if not num:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid resolution. Use like 1min, 5min, 1h, 1d.",
+        )
+
+    n = int(num)
+    if n <= 0:
+        raise HTTPException(status_code=400, detail="resolution must be > 0")
+
+    ts_col = column_name
+
+    if unit == "min":
+        # Bucket within each hour.
+        return (
+            f"date_trunc('hour', {ts_col}) + "
+            f"make_interval(mins => (floor(extract(minute from {ts_col}) / :bucket_n) * :bucket_n)::int)"
+        )
+
+    if unit == "h":
+        # Bucket within each day.
+        return (
+            f"date_trunc('day', {ts_col}) + "
+            f"make_interval(hours => (floor(extract(hour from {ts_col}) / :bucket_n) * :bucket_n)::int)"
+        )
+
+    if unit == "d":
+        if n != 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Only 1d resolution is supported (use aggregation_period for larger periods).",
+            )
+        return f"date_trunc('day', {ts_col})"
+
+    raise HTTPException(
+        status_code=400,
+        detail="Invalid resolution. Use like 1min, 5min, 1h, 1d.",
+    )
 
 # Create directories for models and logs if needed
 import os
@@ -621,6 +791,169 @@ def get_mills_ore_daily(
     except Exception as e:
         logger.error(f"Error in /api/mills/ore-daily: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/mills/series")
+def get_mill_series(
+    mill_number: int = Query(..., ge=1, le=12),
+    parameter: str = Query(...),
+    start_ts: str = Query(...),
+    end_ts: str = Query(...),
+    resolution: str = Query("1min"),
+    aggregation_period: str = Query("none"),
+    agg: str = Query("avg"),
+    production_day_start_hour: int = Query(6, ge=0, le=23),
+):
+    start_dt = _parse_iso_datetime(start_ts)
+    end_dt = _parse_iso_datetime(end_ts)
+    if end_dt <= start_dt:
+        raise HTTPException(status_code=400, detail="end_ts must be > start_ts")
+
+    param = (parameter or "").strip()
+    if param not in _PG_MILL_COLUMNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid parameter. Allowed: {', '.join(sorted(_PG_MILL_COLUMNS))}",
+        )
+
+    period = _normalize_period(aggregation_period)
+    agg_norm = _normalize_agg(agg)
+
+    res = (resolution or "").strip().lower()
+    num = ""
+    unit = ""
+    for ch in res:
+        if ch.isdigit() and not unit:
+            num += ch
+        else:
+            unit += ch
+    if not num:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid resolution. Use like 1min, 5min, 1h, 1d.",
+        )
+    bucket_n = int(num)
+    bucket_expr = _bucket_expr_for_resolution('"TimeStamp"', resolution)
+
+    table = f"MILL_{mill_number:02d}"
+    col = f'"{param}"'
+
+    if agg_norm == "avg":
+        bucket_value_expr = f"avg({col})"
+    elif agg_norm == "sum":
+        bucket_value_expr = f"sum({col})"
+    elif agg_norm == "min":
+        bucket_value_expr = f"min({col})"
+    else:
+        bucket_value_expr = f"max({col})"
+
+    base_sql = f"""
+        with buckets as (
+            select
+                {bucket_expr} as bucket_ts,
+                {bucket_value_expr} as bucket_value,
+                count({col}) as samples
+            from mills."{table}"
+            where "TimeStamp" >= :start_ts
+              and "TimeStamp" < :end_ts
+            group by 1
+        )
+    """
+
+    if period == "none":
+        final_sql = (
+            base_sql
+            + """
+            select bucket_ts as ts, bucket_value as value, samples
+            from buckets
+            order by 1
+            """
+        )
+        key_name = "ts"
+    else:
+        if period == "day":
+            key_expr = "date_trunc('day', bucket_ts - make_interval(hours => :pdh))::date"
+            key_name = "date"
+        elif period == "month":
+            key_expr = "date_trunc('month', bucket_ts - make_interval(hours => :pdh))::date"
+            key_name = "month"
+        else:
+            key_expr = "date_trunc('year', bucket_ts - make_interval(hours => :pdh))::date"
+            key_name = "year"
+
+        if agg_norm == "avg":
+            value_expr = (
+                "case when sum(samples) = 0 then null "
+                "else sum(bucket_value * samples) / sum(samples) end"
+            )
+        elif agg_norm == "sum":
+            value_expr = "sum(bucket_value)"
+        elif agg_norm == "min":
+            value_expr = "min(bucket_value)"
+        else:
+            value_expr = "max(bucket_value)"
+
+        final_sql = (
+            base_sql
+            + f"""
+            select
+                {key_expr} as period_key,
+                {value_expr} as value,
+                sum(samples) as samples
+            from buckets
+            group by 1
+            order by 1
+            """
+        )
+
+    try:
+        connector = _get_pg_connector()
+        with connector.engine.connect() as conn:
+            rows = conn.execute(
+                sql_text(final_sql),
+                {
+                    "start_ts": start_dt,
+                    "end_ts": end_dt,
+                    "bucket_n": bucket_n,
+                    "pdh": int(production_day_start_hour),
+                },
+            ).mappings().all()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    out: List[Dict[str, Union[str, float, int, None]]] = []
+    for r in rows:
+        if period == "none":
+            ts_val = r.get("ts")
+            out.append(
+                {
+                    "ts": ts_val.isoformat() if hasattr(ts_val, "isoformat") else str(ts_val),
+                    "value": float(r["value"]) if r.get("value") is not None else None,
+                    "samples": int(r.get("samples") or 0),
+                }
+            )
+        else:
+            key_val = r.get("period_key")
+            if period == "day":
+                key_str = key_val.isoformat() if hasattr(key_val, "isoformat") else str(key_val)
+            elif period == "month":
+                if hasattr(key_val, "year") and hasattr(key_val, "month"):
+                    key_str = f"{key_val.year:04d}-{key_val.month:02d}"
+                else:
+                    key_str = str(key_val)
+            else:
+                key_str = str(getattr(key_val, "year", key_val))
+
+            out.append(
+                {
+                    key_name: key_str,
+                    "value": float(r["value"]) if r.get("value") is not None else None,
+                    "samples": int(r.get("samples") or 0),
+                }
+            )
+
+    return out
 
 @app.get("/api/mills/ore-by-mill")
 def get_ore_by_mill_query(mill: str, db: DatabaseManager = Depends(get_db)):

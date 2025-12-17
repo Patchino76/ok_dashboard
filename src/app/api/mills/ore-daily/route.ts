@@ -18,9 +18,19 @@ export async function GET(request: NextRequest) {
       throw new Error("NEXT_PUBLIC_API_URL is not defined");
     }
 
-    const response = await fetch(
-      `${apiUrl}/api/mills/ore-daily?start_date=${start_date}&end_date=${end_date}`
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25_000);
+
+    let response: Response;
+    try {
+      const qs = new URLSearchParams({ start_date, end_date });
+      response = await fetch(`${apiUrl}/api/mills/ore-daily?${qs.toString()}`, {
+        signal: controller.signal,
+        next: { revalidate: 300 },
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const raw = await response.text();
     let data: any = raw;

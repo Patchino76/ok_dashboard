@@ -15,6 +15,7 @@ export function useOreDaily(startDate: string, endDate: string) {
     queryFn: async () => {
       const response = await apiClient.get<OreDailyRow[]>("/mills/ore-daily", {
         params: { start_date: startDate, end_date: endDate },
+        timeout: 30000,
       });
       return response.data;
     },

@@ -4,6 +4,9 @@ import React, { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import * as XLSX from "xlsx";
 
 import { BallsHeader } from "./balls-header";
 import { DeliveryTable } from "./delivery-table";
@@ -476,6 +479,144 @@ export default function BallsDashboard() {
     ];
   }, [totals]);
 
+  const handleExportToExcel = () => {
+    try {
+      const rows = Array.isArray(data) ? data : [];
+      if (!selectedMonth || selectedMonth.length < 7) {
+        toast.error("Моля изберете месец");
+        return;
+      }
+
+      if (rows.length === 0) {
+        toast.error("Няма данни за избрания период");
+        return;
+      }
+
+      const monthStart = `${selectedMonth}-01`;
+      const [yStr, mStr] = selectedMonth.split("-");
+      const year = Number(yStr);
+      const month = Number(mStr);
+      if (!Number.isFinite(year) || !Number.isFinite(month)) {
+        toast.error("Невалиден месец");
+        return;
+      }
+
+      const today = new Date();
+      const todayIso = `${today.getFullYear()}-${String(
+        today.getMonth() + 1
+      ).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+      let maxIso = "";
+      for (const r of rows) {
+        const dt = new Date(r.MeasureDate);
+        if (Number.isNaN(dt.getTime())) continue;
+        const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(
+          2,
+          "0"
+        )}-${String(dt.getDate()).padStart(2, "0")}`;
+        if (iso.slice(0, 7) !== selectedMonth) continue;
+        if (iso > maxIso) maxIso = iso;
+      }
+
+      if (!maxIso) {
+        toast.error("Няма валидни дати за експортиране");
+        return;
+      }
+
+      const isCurrentMonth =
+        year === today.getFullYear() && month === today.getMonth() + 1;
+      const monthLastCalendarDay = new Date(year, month, 0);
+      const monthLastIso = `${monthLastCalendarDay.getFullYear()}-${String(
+        monthLastCalendarDay.getMonth() + 1
+      ).padStart(2, "0")}-${String(monthLastCalendarDay.getDate()).padStart(
+        2,
+        "0"
+      )}`;
+
+      const endIso = isCurrentMonth
+        ? maxIso < todayIso
+          ? maxIso
+          : todayIso
+        : monthLastIso;
+
+      if (endIso < monthStart) {
+        toast.error("Няма данни в избрания месец");
+        return;
+      }
+
+      const workbook = XLSX.utils.book_new();
+
+      const formatDateTime = (value: string) => {
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return value;
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        const hh = String(dt.getHours()).padStart(2, "0");
+        const mm = String(dt.getMinutes()).padStart(2, "0");
+        return `${y}-${m}-${d} ${hh}:${mm}`;
+      };
+
+      for (
+        let cursor = new Date(`${monthStart}T00:00:00`);
+        ;
+        cursor.setDate(cursor.getDate() + 1)
+      ) {
+        const dayIso = `${cursor.getFullYear()}-${String(
+          cursor.getMonth() + 1
+        ).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+
+        if (dayIso > endIso) break;
+
+        const dayRows = rows.filter((r) => {
+          const dt = new Date(r.MeasureDate);
+          if (Number.isNaN(dt.getTime())) return false;
+          const iso = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(
+            2,
+            "0"
+          )}-${String(dt.getDate()).padStart(2, "0")}`;
+          return iso === dayIso;
+        });
+
+        const dayRowsSorted = [...dayRows].sort((a, b) => {
+          const da = new Date(a.MeasureDate).getTime();
+          const db = new Date(b.MeasureDate).getTime();
+          if (Number.isNaN(da) || Number.isNaN(db)) return 0;
+          return da - db;
+        });
+
+        const sheetData = dayRowsSorted.map((r) => ({
+          "Дата / Час": formatDateTime(r.MeasureDate),
+          См: r.Shift,
+          МШЦ: r.MillName,
+          "Вид топки": r.BallsName,
+          "Тегло [кг.]": r.Gross,
+          Оператор: r.Operator,
+          Група: r.IsDosmilane ? "Досмилане" : "Мелнично",
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(sheetData, {
+          header: [
+            "Дата / Час",
+            "См",
+            "МШЦ",
+            "Вид топки",
+            "Тегло [кг.]",
+            "Оператор",
+            "Група",
+          ],
+        });
+        XLSX.utils.book_append_sheet(workbook, worksheet, dayIso);
+      }
+
+      const fileName = `balls_${selectedMonth}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+      toast.success("Експортът е готов");
+    } catch (e) {
+      toast.error("Грешка при експортиране");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -616,10 +757,20 @@ export default function BallsDashboard() {
             <Card className="shadow-sm border-gray-200">
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle>Справки и Експорт</CardTitle>
-                <BallsDatePicker
-                  value={selectedMonth}
-                  onChange={handleMonthChange}
-                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <BallsDatePicker
+                    value={selectedMonth}
+                    onChange={handleMonthChange}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={handleExportToExcel}
+                    disabled={isMonthLoading || isMonthError}
+                    className="bg-white border-gray-200"
+                  >
+                    Export to Excel
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
