@@ -630,7 +630,7 @@ export default function BallsDashboard() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="overflow-x-auto">
                 <TabsList className="w-full bg-white border border-gray-200 sm:w-auto sm:min-w-[520px] min-w-max">
-                  <TabsTrigger value="delivery">Подаване</TabsTrigger>
+                  <TabsTrigger value="delivery">Зареждане</TabsTrigger>
                   <TabsTrigger value="analytics">Аналитика</TabsTrigger>
                   <TabsTrigger value="reports">Справки</TabsTrigger>
                 </TabsList>
@@ -657,7 +657,7 @@ export default function BallsDashboard() {
           </div>
 
           <TabsContent value="delivery" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-7 gap-6">
               <Card className="lg:col-span-3 xl:col-span-4 shadow-sm border-gray-200">
                 <CardHeader>
                   <CardTitle className="text-xl">Разход на топки</CardTitle>
@@ -679,11 +679,11 @@ export default function BallsDashboard() {
                 </CardContent>
               </Card>
 
-              <div className="space-y-6 lg:col-span-2 xl:col-span-2">
+              <div className="space-y-6 lg:col-span-2 xl:col-span-3">
                 <Card className="shadow-sm border-gray-200">
                   <CardHeader>
                     <CardTitle className="text-lg">
-                      По целеви МШЦ (за деня)
+                      По мелници (за деня)
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

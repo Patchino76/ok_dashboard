@@ -29,6 +29,54 @@ type BarChartCardProps = {
   valueDecimals?: number;
 };
 
+type RoundedStackSegmentProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  payload?: any;
+  dataKey: string;
+  stackedKeys?: string[];
+};
+
+function RoundedStackSegment({
+  x = 0,
+  y = 0,
+  width = 0,
+  height = 0,
+  fill = "#000",
+  payload,
+  dataKey,
+  stackedKeys,
+}: RoundedStackSegmentProps) {
+  if (width <= 0 || height <= 0) return null;
+
+  const topKeyFromPayload = payload?.__topKey;
+  const fallbackTopKey = stackedKeys?.length
+    ? stackedKeys[stackedKeys.length - 1]
+    : undefined;
+  const isTop = String(topKeyFromPayload ?? fallbackTopKey ?? "") === dataKey;
+
+  if (!isTop) {
+    return <rect x={x} y={y} width={width} height={height} fill={fill} />;
+  }
+
+  const r = Math.min(8, Math.floor(width / 2), Math.floor(height / 2));
+
+  const d = [
+    `M ${x} ${y + r}`,
+    `A ${r} ${r} 0 0 1 ${x + r} ${y}`,
+    `H ${x + width - r}`,
+    `A ${r} ${r} 0 0 1 ${x + width} ${y + r}`,
+    `V ${y + height}`,
+    `H ${x}`,
+    "Z",
+  ].join(" ");
+
+  return <path d={d} fill={fill} />;
+}
+
 export function BarChartCard({
   title,
   data,
@@ -103,7 +151,13 @@ export function BarChartCard({
                 name={key}
                 stackId="a"
                 fill={stackedKeyColors?.[key] || barFill}
-                radius={idx === stackedKeys!.length - 1 ? [8, 8, 0, 0] : 0}
+                shape={(props: any) => (
+                  <RoundedStackSegment
+                    {...props}
+                    dataKey={key}
+                    stackedKeys={stackedKeys}
+                  />
+                )}
               >
                 {showValueLabels && idx === stackedKeys!.length - 1 ? (
                   <LabelList
