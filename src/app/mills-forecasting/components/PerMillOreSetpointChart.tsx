@@ -37,8 +37,8 @@ const getAdjustmentColor = (adjustment: number): string => {
 
 const getAdjustmentLabel = (adjustment: number): string => {
   const rounded = Math.round(adjustment);
-  if (rounded === 0) return "0 t/h";
-  return `${rounded > 0 ? "+" : ""}${rounded} t/h`;
+  if (rounded === 0) return "0";
+  return `${rounded > 0 ? "+" : ""}${rounded}`;
 };
 
 export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({

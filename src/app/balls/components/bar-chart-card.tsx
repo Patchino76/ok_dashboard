@@ -79,7 +79,7 @@ export function BarChartCard({
               const label = typeof name === "string" ? name : "Тонаж";
               const ballType = props?.payload?.ballType;
               const suffix = ballType ? ` (${String(ballType)})` : "";
-              const unitSuffix = yAxisUnit ? ` ${yAxisUnit}` : "";
+              const unitSuffix = "";
               return [
                 Number.isFinite(v)
                   ? `${v.toFixed(valueDecimals)}${unitSuffix}`
@@ -113,9 +113,7 @@ export function BarChartCard({
                     formatter={(v: unknown) => {
                       const n = typeof v === "number" ? v : Number(v);
                       if (!Number.isFinite(n)) return "";
-                      return yAxisUnit
-                        ? `${n.toFixed(valueDecimals)} ${yAxisUnit}`
-                        : n.toFixed(valueDecimals);
+                      return n.toFixed(valueDecimals);
                     }}
                     style={{
                       fill: "#111827",
@@ -145,9 +143,7 @@ export function BarChartCard({
                   formatter={(v: unknown) => {
                     const n = typeof v === "number" ? v : Number(v);
                     if (!Number.isFinite(n)) return "";
-                    return yAxisUnit
-                      ? `${n.toFixed(valueDecimals)} ${yAxisUnit}`
-                      : n.toFixed(valueDecimals);
+                    return n.toFixed(valueDecimals);
                   }}
                   style={{ fill: "#111827", fontSize: axisTickFontSize ?? 11 }}
                 />

@@ -19,9 +19,9 @@ export function DeliveryTable({ rows }: DeliveryTableProps) {
 
     return (
       <div>
-        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm font-semibold text-gray-800">{title}</div>
-          <div className="text-right whitespace-nowrap text-base font-semibold text-gray-700">
+          <div className="text-left sm:text-right whitespace-normal sm:whitespace-nowrap text-sm sm:text-base font-semibold text-gray-700">
             <span className="font-extrabold text-gray-900">
               {sectionRows.length}
             </span>{" "}

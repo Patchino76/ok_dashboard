@@ -618,43 +618,47 @@ export default function BallsDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="max-w-screen-2xl mx-auto space-y-6">
         <BallsHeader
           title="Измерване теглото на подаваните топки"
           dateLabel={`${dateRangeLabel.start} - ${dateRangeLabel.end}`}
         />
 
         <Tabs defaultValue="delivery" className="w-full">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <TabsList className="grid w-full grid-cols-3 bg-white border border-gray-200 sm:w-auto sm:min-w-[520px]">
-              <TabsTrigger value="delivery">Подаване</TabsTrigger>
-              <TabsTrigger value="analytics">Аналитика</TabsTrigger>
-              <TabsTrigger value="reports">Справки</TabsTrigger>
-            </TabsList>
+          <div className="sticky top-0 z-10 -mx-4 px-4 py-2 bg-gradient-to-b from-gray-50/95 to-gray-50/60 backdrop-blur sm:static sm:mx-0 sm:px-0 sm:py-0 sm:bg-transparent sm:backdrop-blur-0">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="overflow-x-auto">
+                <TabsList className="w-full bg-white border border-gray-200 sm:w-auto sm:min-w-[520px] min-w-max">
+                  <TabsTrigger value="delivery">Подаване</TabsTrigger>
+                  <TabsTrigger value="analytics">Аналитика</TabsTrigger>
+                  <TabsTrigger value="reports">Справки</TabsTrigger>
+                </TabsList>
+              </div>
 
-            <div className="sm:flex-shrink-0">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <span className="text-sm text-gray-600 whitespace-nowrap">
-                  Дата:
-                </span>
-                <div className="w-full sm:w-48">
-                  <Input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => handleDateChange(e.target.value)}
-                    min={monthStartDate || undefined}
-                    max={monthEndDate || undefined}
-                    className="bg-white border-gray-200"
-                  />
+              <div className="sm:flex-shrink-0">
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-sm text-gray-600 whitespace-nowrap">
+                    Дата:
+                  </span>
+                  <div className="w-full sm:w-48">
+                    <Input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                      min={monthStartDate || undefined}
+                      max={monthEndDate || undefined}
+                      className="bg-white border-gray-200"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           <TabsContent value="delivery" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              <Card className="lg:col-span-3 shadow-sm border-gray-200">
+            <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+              <Card className="lg:col-span-3 xl:col-span-4 shadow-sm border-gray-200">
                 <CardHeader>
                   <CardTitle className="text-xl">Разход на топки</CardTitle>
                 </CardHeader>
@@ -675,7 +679,7 @@ export default function BallsDashboard() {
                 </CardContent>
               </Card>
 
-              <div className="space-y-6 lg:col-span-2">
+              <div className="space-y-6 lg:col-span-2 xl:col-span-2">
                 <Card className="shadow-sm border-gray-200">
                   <CardHeader>
                     <CardTitle className="text-lg">
@@ -700,57 +704,60 @@ export default function BallsDashboard() {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            <Card className="shadow-sm border-gray-200">
-              <CardHeader>
-                <CardTitle>
-                  Справки за изминали периоди на зареждане с топки и преработка
-                  на руда
-                </CardTitle>
-                <p className="text-sm text-gray-500 mt-2">
-                  от {dateRangeLabel.start} до {dateRangeLabel.end}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-8">
-                <BarChartCard
-                  title="Зареждане според типа топки"
-                  data={loadingByTarget}
-                  useBarColors
-                  barFill="#ec4899"
-                />
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Специфичен разход на топки (kg/t руда)
-                </CardTitle>
-                <p className="text-sm text-gray-500 mt-2">
-                  Производствен ден: 06:00 - 06:00 | MA 01 - MA 12 | без
-                  досмилане
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {isOreDailyLoading ? (
-                  <div className="text-sm text-gray-600">Зареждане...</div>
-                ) : isOreDailyError ? (
-                  <div className="text-sm text-gray-600">
-                    Грешка при зареждане на данните за руда.
-                  </div>
-                ) : (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card className="shadow-sm border-gray-200">
+                <CardHeader>
+                  <CardTitle>
+                    Справки за изминали периоди на зареждане с топки и
+                    преработка на руда
+                  </CardTitle>
+                  <p className="text-sm text-gray-500 mt-2">
+                    от {dateRangeLabel.start} до {dateRangeLabel.end}
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-8">
                   <BarChartCard
-                    title="Σ kg / Σ t (месец)"
-                    data={specificConsumptionBars}
+                    title="Зареждане според типа топки"
+                    data={loadingByTarget}
                     useBarColors
-                    height={340}
-                    yAxisUnit="kg/t"
-                    valueDecimals={2}
+                    barFill="#ec4899"
                     showValueLabels
-                    axisTickFontSize={11}
                   />
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    Специфичен разход на топки (kg/t руда)
+                  </CardTitle>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Производствен ден: 06:00 - 06:00 | MA 01 - MA 12 | без
+                    досмилане
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {isOreDailyLoading ? (
+                    <div className="text-sm text-gray-600">Зареждане...</div>
+                  ) : isOreDailyError ? (
+                    <div className="text-sm text-gray-600">
+                      Грешка при зареждане на данните за руда.
+                    </div>
+                  ) : (
+                    <BarChartCard
+                      title="Σ kg / Σ t (месец)"
+                      data={specificConsumptionBars}
+                      useBarColors
+                      height={340}
+                      yAxisUnit="kg/t"
+                      valueDecimals={2}
+                      showValueLabels
+                      axisTickFontSize={11}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-6">
@@ -779,53 +786,55 @@ export default function BallsDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-gray-200">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  Тотал зареждане с топки
-                </CardTitle>
-                <p className="text-sm text-gray-500 mt-2">
-                  от {dateRangeLabel.start} до {dateRangeLabel.end}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <BarChartCard
-                  title=""
-                  data={oreProcessingStacked}
-                  barFill="#ec4899"
-                  showTitle={false}
-                  showLegend={false}
-                  yAxisUnit="t"
-                  showValueLabels
-                  axisTickFontSize={11}
-                  valueDecimals={1}
-                  stackedKeys={oreProcessingStackedKeys}
-                  stackedKeyColors={oreProcessingStackedKeyColors}
-                  height={360}
-                />
-              </CardContent>
-            </Card>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <Card className="shadow-sm border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    Тотал зареждане с топки
+                  </CardTitle>
+                  <p className="text-sm text-gray-500 mt-2">
+                    от {dateRangeLabel.start} до {dateRangeLabel.end}
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <BarChartCard
+                    title=""
+                    data={oreProcessingStacked}
+                    barFill="#ec4899"
+                    showTitle={false}
+                    showLegend={false}
+                    yAxisUnit="t"
+                    showValueLabels
+                    axisTickFontSize={11}
+                    valueDecimals={1}
+                    stackedKeys={oreProcessingStackedKeys}
+                    stackedKeyColors={oreProcessingStackedKeyColors}
+                    height={360}
+                  />
+                </CardContent>
+              </Card>
 
-            <PieDistributionCard
-              title={`Тотал по видове топки (${dateRangeLabel.start} - ${dateRangeLabel.end})`}
-              data={
-                isMonthLoading || isMonthError
-                  ? []
-                  : typeDistribution.map((row) => ({
-                      ...row,
-                      value: Number(row.value.toFixed(1)),
-                    }))
-              }
-              height={260}
-              showLegendList
-              labelFormatter={({
-                name,
-                value,
-              }: {
-                name: string;
-                value: number;
-              }) => (value > 0 ? `${name}: ${value.toFixed(1)}t` : "")}
-            />
+              <PieDistributionCard
+                title={`Тотал по видове топки (${dateRangeLabel.start} - ${dateRangeLabel.end})`}
+                data={
+                  isMonthLoading || isMonthError
+                    ? []
+                    : typeDistribution.map((row) => ({
+                        ...row,
+                        value: Number(row.value.toFixed(1)),
+                      }))
+                }
+                height={260}
+                showLegendList
+                labelFormatter={({
+                  name,
+                  value,
+                }: {
+                  name: string;
+                  value: number;
+                }) => (value > 0 ? `${name}: ${value.toFixed(1)}t` : "")}
+              />
+            </div>
           </TabsContent>
         </Tabs>
 

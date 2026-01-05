@@ -7,8 +7,8 @@ type BallsHeaderProps = {
 
 export function BallsHeader({ title, dateLabel }: BallsHeaderProps) {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-      <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{title}</h1>
       <p className="text-sm text-gray-500 mt-2">{dateLabel}</p>
     </div>
   );
