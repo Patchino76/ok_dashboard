@@ -14,17 +14,11 @@ interface ForecastLayoutProps {
   shift1Target: number;
   shift2Target: number;
   shift3Target: number;
-  shift1Locked: boolean;
-  shift2Locked: boolean;
-  shift3Locked: boolean;
   dayTarget: number;
   currentOreRate: number;
   uncertaintyPercent: number;
   currentTime?: Date | null;
   onChangeDayTarget: (value: number) => void;
-  onAdjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
-  onToggleShiftLock: (shiftIndex: 1 | 2 | 3) => void;
-  canLockShift: (shiftIndex: 1 | 2 | 3) => boolean;
   onChangeUncertainty: (value: number) => void;
 }
 
@@ -33,17 +27,11 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
   shift1Target,
   shift2Target,
   shift3Target,
-  shift1Locked,
-  shift2Locked,
-  shift3Locked,
   dayTarget,
   currentOreRate,
   uncertaintyPercent,
   currentTime,
   onChangeDayTarget,
-  onAdjustShiftTarget,
-  onToggleShiftLock,
-  canLockShift,
   onChangeUncertainty,
 }) => {
   return (
@@ -89,14 +77,8 @@ export const ForecastLayout: FC<ForecastLayoutProps> = ({
             shift1Target={shift1Target}
             shift2Target={shift2Target}
             shift3Target={shift3Target}
-            shift1Locked={shift1Locked}
-            shift2Locked={shift2Locked}
-            shift3Locked={shift3Locked}
             dayTarget={dayTarget}
             currentOreRate={currentOreRate}
-            onAdjustShiftTarget={onAdjustShiftTarget}
-            onToggleShiftLock={onToggleShiftLock}
-            canLockShift={canLockShift}
           />
         </Card>
 

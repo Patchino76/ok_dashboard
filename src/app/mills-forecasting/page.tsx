@@ -19,9 +19,6 @@ export default function MillsForecastingPage() {
     shift1Target,
     shift2Target,
     shift3Target,
-    shift1Locked,
-    shift2Locked,
-    shift3Locked,
     dayTarget,
     currentOreRate,
     adjustedOreRate,
@@ -31,11 +28,7 @@ export default function MillsForecastingPage() {
     actualDayProduction,
     isRealTimeMode,
     setDayTarget,
-    setAllTargets,
-    adjustShiftTarget,
-    toggleShiftLock,
-    canLockShift,
-    calculateInitialShiftTargets,
+    recalculateShiftTargets,
     setUncertaintyPercent,
     setSelectedMills,
     updateRealTimeData,
@@ -96,8 +89,8 @@ export default function MillsForecastingPage() {
 
   // Initialize shift targets on mount
   useEffect(() => {
-    calculateInitialShiftTargets();
-  }, []);
+    recalculateShiftTargets();
+  }, [recalculateShiftTargets]);
 
   // Calculate forecast using real-time data
   const { currentTime, forecast } = useProductionForecast({
@@ -129,43 +122,8 @@ export default function MillsForecastingPage() {
   };
 
   const handleReset = () => {
-    if (forecast) {
-      // Calculate ideal forecast based on current rate and 0% uncertainty
-      const currentRate = currentOreRate;
-      const idealDayTotal =
-        forecast.productionToday + forecast.hoursToEndOfDay * currentRate;
-
-      const shift = forecast.shiftInfo.shift;
-      const currentShiftForecast =
-        forecast.productionSoFar + forecast.hoursToShiftEnd * currentRate;
-      const futureShiftForecast = 8 * currentRate;
-
-      let s1 = 0,
-        s2 = 0,
-        s3 = 0;
-
-      if (shift === 1) {
-        s1 = currentShiftForecast;
-        s2 = futureShiftForecast;
-        s3 = futureShiftForecast;
-      } else if (shift === 2) {
-        s2 = currentShiftForecast;
-        s3 = futureShiftForecast;
-        // S1 is past. S1 = Day - S2 - S3.
-        s1 = Math.max(0, idealDayTotal - s2 - s3);
-      } else {
-        // shift === 3
-        s3 = currentShiftForecast;
-        // S1 + S2 is past.
-        const pastTotal = Math.max(0, idealDayTotal - s3);
-        // Distribute past actuals equally (or proportionally if we had data, but equal is safe fallback)
-        s1 = pastTotal / 2;
-        s2 = pastTotal / 2;
-      }
-
-      // Set all targets simultaneously to avoid auto-distribution logic
-      setAllTargets(idealDayTotal, s1, s2, s3);
-    }
+    // Simply reset to defaults - shift targets will auto-calculate
+    setDayTarget(TARGET_RANGES.day.default);
     setUncertaintyPercent(0);
     setSelectedMills([]);
   };
@@ -214,17 +172,11 @@ export default function MillsForecastingPage() {
         shift1Target={shift1Target}
         shift2Target={shift2Target}
         shift3Target={shift3Target}
-        shift1Locked={shift1Locked}
-        shift2Locked={shift2Locked}
-        shift3Locked={shift3Locked}
         dayTarget={dayTarget}
         currentOreRate={currentOreRate}
         uncertaintyPercent={uncertaintyPercent}
         currentTime={currentTime}
         onChangeDayTarget={setDayTarget}
-        onAdjustShiftTarget={adjustShiftTarget}
-        onToggleShiftLock={toggleShiftLock}
-        canLockShift={canLockShift}
         onChangeUncertainty={setUncertaintyPercent}
       />
     </div>

@@ -1,25 +1,20 @@
 import { FC } from "react";
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
   CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
   Legend,
-  ReferenceLine,
   ComposedChart,
+  Bar,
   Line,
 } from "recharts";
 import type { Forecast } from "../types/forecasting";
-import { VerticalShiftSlider } from "./shared/VerticalShiftSlider";
+import { useForecastingStore } from "../stores/forecastingStore";
+import { Clock, CheckCircle, TrendingUp } from "lucide-react";
 
-// Fixed slider bounds - completely static, never changes
-const SLIDER_MIN = 10000;
-const SLIDER_MAX = 20000;
-
-// Custom tooltip with rates
+// Custom tooltip with rates and status
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -48,14 +43,8 @@ interface ShiftPerformanceChartProps {
   shift1Target: number;
   shift2Target: number;
   shift3Target: number;
-  shift1Locked: boolean;
-  shift2Locked: boolean;
-  shift3Locked: boolean;
   dayTarget: number;
   currentOreRate: number;
-  onAdjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
-  onToggleShiftLock: (shiftIndex: 1 | 2 | 3) => void;
-  canLockShift: (shiftIndex: 1 | 2 | 3) => boolean;
 }
 
 export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
@@ -63,15 +52,12 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
   shift1Target,
   shift2Target,
   shift3Target,
-  shift1Locked,
-  shift2Locked,
-  shift3Locked,
   dayTarget,
   currentOreRate,
-  onAdjustShiftTarget,
-  onToggleShiftLock,
-  canLockShift,
 }) => {
+  // Get calculated shift data from store
+  const { calculatedShifts } = useForecastingStore();
+
   // Calculate rates for tooltip
   const getRates = (target: number) => ({
     actual: currentOreRate,
@@ -85,28 +71,34 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
       actual:
         forecast.shiftInfo.shift === 1
           ? forecast.productionSoFar
-          : currentOreRate * 8,
+          : calculatedShifts.shift1.isActual
+          ? shift1Target
+          : 0,
       expected:
         forecast.shiftInfo.shift === 1
           ? forecast.forecastShiftExpected
-          : currentOreRate * 8 * forecast.uncertainty.factor,
+          : shift1Target,
       target: shift1Target,
       rates: getRates(shift1Target),
+      isActual: calculatedShifts.shift1.isActual,
+      hoursRemaining: calculatedShifts.shift1.hoursRemaining,
     },
     {
       shift: "См.2 (14-22)",
       actual:
         forecast.shiftInfo.shift === 2
           ? forecast.productionSoFar
-          : forecast.shiftInfo.shift > 2
-          ? currentOreRate * 8
+          : calculatedShifts.shift2.isActual
+          ? shift2Target
           : 0,
       expected:
         forecast.shiftInfo.shift === 2
           ? forecast.forecastShiftExpected
-          : currentOreRate * 8 * forecast.uncertainty.factor,
+          : shift2Target,
       target: shift2Target,
       rates: getRates(shift2Target),
+      isActual: calculatedShifts.shift2.isActual,
+      hoursRemaining: calculatedShifts.shift2.hoursRemaining,
     },
     {
       shift: "См.3 (22-06)",
@@ -114,100 +106,176 @@ export const ShiftPerformanceChart: FC<ShiftPerformanceChartProps> = ({
       expected:
         forecast.shiftInfo.shift === 3
           ? forecast.forecastShiftExpected
-          : currentOreRate * 8 * forecast.uncertainty.factor,
+          : shift3Target,
       target: shift3Target,
       rates: getRates(shift3Target),
+      isActual: calculatedShifts.shift3.isActual,
+      hoursRemaining: calculatedShifts.shift3.hoursRemaining,
     },
   ];
 
   const totalShiftTargets = shift1Target + shift2Target + shift3Target;
-  const isBalanced = Math.abs(totalShiftTargets - dayTarget) < 1;
+  const isBalanced = Math.abs(totalShiftTargets - dayTarget) < 100;
+
+  // Format number as Kt
+  const formatKt = (val: number) => `${(val / 1000).toFixed(1)}k`;
 
   return (
-    <div className="space-y-2">
-      {/* Total validation header */}
-      <div className="flex items-center justify-end text-xs">
+    <div className="space-y-3">
+      {/* Shift Target Cards - Read-only display */}
+      <div className="grid grid-cols-3 gap-3">
+        {/* Shift 1 */}
+        <div
+          className={`p-3 rounded-lg border ${
+            calculatedShifts.shift1.isActual
+              ? "bg-blue-50 border-blue-200"
+              : forecast.shiftInfo.shift === 1
+              ? "bg-blue-100 border-blue-300 ring-2 ring-blue-400"
+              : "bg-slate-50 border-slate-200"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-slate-600">
+              См.1 (06-14)
+            </span>
+            {calculatedShifts.shift1.isActual ? (
+              <CheckCircle className="h-3 w-3 text-blue-500" />
+            ) : forecast.shiftInfo.shift === 1 ? (
+              <Clock className="h-3 w-3 text-blue-600 animate-pulse" />
+            ) : (
+              <TrendingUp className="h-3 w-3 text-slate-400" />
+            )}
+          </div>
+          <div className="text-lg font-bold text-blue-700">
+            {formatKt(shift1Target)}
+          </div>
+          <div className="text-[10px] text-slate-500">
+            {calculatedShifts.shift1.isActual
+              ? "Завършена"
+              : forecast.shiftInfo.shift === 1
+              ? `${calculatedShifts.shift1.hoursRemaining.toFixed(1)}ч оставащи`
+              : "Бъдеща"}
+          </div>
+        </div>
+
+        {/* Shift 2 */}
+        <div
+          className={`p-3 rounded-lg border ${
+            calculatedShifts.shift2.isActual
+              ? "bg-orange-50 border-orange-200"
+              : forecast.shiftInfo.shift === 2
+              ? "bg-orange-100 border-orange-300 ring-2 ring-orange-400"
+              : "bg-slate-50 border-slate-200"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-slate-600">
+              См.2 (14-22)
+            </span>
+            {calculatedShifts.shift2.isActual ? (
+              <CheckCircle className="h-3 w-3 text-orange-500" />
+            ) : forecast.shiftInfo.shift === 2 ? (
+              <Clock className="h-3 w-3 text-orange-600 animate-pulse" />
+            ) : (
+              <TrendingUp className="h-3 w-3 text-slate-400" />
+            )}
+          </div>
+          <div className="text-lg font-bold text-orange-700">
+            {formatKt(shift2Target)}
+          </div>
+          <div className="text-[10px] text-slate-500">
+            {calculatedShifts.shift2.isActual
+              ? "Завършена"
+              : forecast.shiftInfo.shift === 2
+              ? `${calculatedShifts.shift2.hoursRemaining.toFixed(1)}ч оставащи`
+              : "Бъдеща"}
+          </div>
+        </div>
+
+        {/* Shift 3 */}
+        <div
+          className={`p-3 rounded-lg border ${
+            calculatedShifts.shift3.isActual
+              ? "bg-purple-50 border-purple-200"
+              : forecast.shiftInfo.shift === 3
+              ? "bg-purple-100 border-purple-300 ring-2 ring-purple-400"
+              : "bg-slate-50 border-slate-200"
+          }`}
+        >
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-medium text-slate-600">
+              См.3 (22-06)
+            </span>
+            {calculatedShifts.shift3.isActual ? (
+              <CheckCircle className="h-3 w-3 text-purple-500" />
+            ) : forecast.shiftInfo.shift === 3 ? (
+              <Clock className="h-3 w-3 text-purple-600 animate-pulse" />
+            ) : (
+              <TrendingUp className="h-3 w-3 text-slate-400" />
+            )}
+          </div>
+          <div className="text-lg font-bold text-purple-700">
+            {formatKt(shift3Target)}
+          </div>
+          <div className="text-[10px] text-slate-500">
+            {calculatedShifts.shift3.isActual
+              ? "Завършена"
+              : forecast.shiftInfo.shift === 3
+              ? `${calculatedShifts.shift3.hoursRemaining.toFixed(1)}ч оставащи`
+              : "Бъдеща"}
+          </div>
+        </div>
+      </div>
+
+      {/* Summary row */}
+      <div className="flex items-center justify-between text-xs px-1">
+        <span className="text-slate-500">
+          Необходима скорост:{" "}
+          <strong className="text-slate-700">
+            {calculatedShifts.requiredRate.toFixed(0)} t/h
+          </strong>
+        </span>
         <span
-          className={`text-xs font-medium ${
+          className={`font-medium ${
             isBalanced ? "text-green-600" : "text-red-600"
           }`}
         >
-          Общо: {Math.round(totalShiftTargets)}t / {Math.round(dayTarget)}t
+          Общо: {formatKt(totalShiftTargets)} / {formatKt(dayTarget)}
           {isBalanced ? " ✓" : " ⚠️"}
         </span>
       </div>
 
-      {/* Sliders on left + Chart on right */}
-      <div className="flex items-center gap-4">
-        {/* Shift Target Sliders - Left Side */}
-        <div className="flex gap-3 pr-4 border-r">
-          <VerticalShiftSlider
-            label="См.1"
-            value={shift1Target}
-            min={SLIDER_MIN}
-            max={SLIDER_MAX}
-            color="blue"
-            isLocked={shift1Locked}
-            canLock={canLockShift(1)}
-            onChange={(value) => onAdjustShiftTarget(1, value)}
-            onToggleLock={() => onToggleShiftLock(1)}
-          />
-          <VerticalShiftSlider
-            label="См.2"
-            value={shift2Target}
-            min={SLIDER_MIN}
-            max={SLIDER_MAX}
-            color="orange"
-            isLocked={shift2Locked}
-            canLock={canLockShift(2)}
-            onChange={(value) => onAdjustShiftTarget(2, value)}
-            onToggleLock={() => onToggleShiftLock(2)}
-          />
-          <VerticalShiftSlider
-            label="См.3"
-            value={shift3Target}
-            min={SLIDER_MIN}
-            max={SLIDER_MAX}
-            color="purple"
-            isLocked={shift3Locked}
-            canLock={canLockShift(3)}
-            onChange={(value) => onAdjustShiftTarget(3, value)}
-            onToggleLock={() => onToggleShiftLock(3)}
-          />
-        </div>
-
-        {/* Bar Chart - Right Side */}
-        <div className="flex-1 h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="shift" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar
-                dataKey="actual"
-                fill="#3b82f6"
-                name="Фактическо / Текущо"
-                barSize={40}
-              />
-              <Bar
-                dataKey="expected"
-                fill={forecast.uncertainty.color}
-                name="Прогнозирано (с несигурност)"
-                barSize={40}
-              />
-              <Line
-                type="monotone"
-                dataKey="target"
-                stroke="#a855f7"
-                strokeWidth={2}
-                name="Цел (Плъзгач)"
-                dot={{ r: 4 }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+      {/* Bar Chart */}
+      <div className="h-48">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="shift" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            <Bar
+              dataKey="actual"
+              fill="#3b82f6"
+              name="Фактическо"
+              barSize={30}
+            />
+            <Bar
+              dataKey="expected"
+              fill={forecast.uncertainty.color}
+              name="Прогноза"
+              barSize={30}
+            />
+            <Line
+              type="monotone"
+              dataKey="target"
+              stroke="#a855f7"
+              strokeWidth={2}
+              name="Цел (авто)"
+              dot={{ r: 4 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );

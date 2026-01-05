@@ -6,23 +6,22 @@ import {
 } from "../constants";
 import type { ProductionDataUpdate } from "../types/production";
 
+/**
+ * Calculated shift targets based on daily target and current time
+ * Past shifts use actual production, current/future shifts distribute remaining evenly
+ */
+interface CalculatedShiftTargets {
+  shift1: { target: number; isActual: boolean; hoursRemaining: number };
+  shift2: { target: number; isActual: boolean; hoursRemaining: number };
+  shift3: { target: number; isActual: boolean; hoursRemaining: number };
+  requiredRate: number; // Required rate to meet daily target
+}
+
 interface ForecastingSettings {
   // ==================== USER-ADJUSTABLE SETTINGS ====================
 
-  /** Target production for shift 1 (06:00-14:00) in tons */
-  shift1Target: number;
-
-  /** Target production for shift 2 (14:00-22:00) in tons */
-  shift2Target: number;
-
-  /** Target production for shift 3 (22:00-06:00) in tons */
-  shift3Target: number;
-
-  /** Target production for current day (tons) */
+  /** Target production for current day (tons) - THE MAIN CONTROL */
   dayTarget: number;
-
-  /** User-adjusted ore rate for forecasting (t/h) */
-  adjustedOreRate: number;
 
   /** Uncertainty percentage: 0-30% (0 = best, 30 = worst) */
   uncertaintyPercent: number;
@@ -30,10 +29,10 @@ interface ForecastingSettings {
   /** Selected mills for adjustment (empty = all mills) */
   selectedMills: string[];
 
-  /** Lock states for shift targets (true = locked, false = unlocked) */
-  shift1Locked: boolean;
-  shift2Locked: boolean;
-  shift3Locked: boolean;
+  // ==================== CALCULATED SHIFT TARGETS (READ-ONLY) ====================
+
+  /** Automatically calculated shift targets based on daily target and current moment */
+  calculatedShifts: CalculatedShiftTargets;
 
   // ==================== REAL-TIME DATA (FROM API) ====================
 
@@ -45,6 +44,10 @@ interface ForecastingSettings {
 
   /** Actual production so far today (tons) */
   actualDayProduction: number;
+
+  /** Actual production for completed shifts today */
+  shift1Actual: number;
+  shift2Actual: number;
 
   /** Number of currently active mills */
   activeMillsCount: number;
@@ -62,20 +65,11 @@ interface ForecastingSettings {
 
   // ==================== ACTIONS ====================
 
-  /** Set day target and recalculate shift targets proportionally */
+  /** Set day target and recalculate shift targets automatically */
   setDayTarget: (target: number) => void;
 
-  /** Set all targets simultaneously (day and shifts) */
-  setAllTargets: (day: number, s1: number, s2: number, s3: number) => void;
-
-  /** Adjust a specific shift target and redistribute to maintain daily total */
-  adjustShiftTarget: (shiftIndex: 1 | 2 | 3, newValue: number) => void;
-
-  /** Calculate initial shift targets based on daily target and current conditions */
-  calculateInitialShiftTargets: (dailyTarget?: number) => void;
-
-  /** Set adjusted ore rate for forecasting */
-  setAdjustedOreRate: (rate: number) => void;
+  /** Recalculate shift targets based on current time and actual production */
+  recalculateShiftTargets: () => void;
 
   /** Set uncertainty percentage */
   setUncertaintyPercent: (percent: number) => void;
@@ -95,45 +89,99 @@ interface ForecastingSettings {
   /** Reset all settings to defaults */
   resetToDefaults: () => void;
 
-  /** Sync adjusted ore rate with current ore rate (for real-time mode) */
-  syncAdjustedRateWithCurrent: () => void;
+  // ==================== LEGACY COMPATIBILITY (for existing components) ====================
 
-  /** Toggle lock state for a specific shift */
-  toggleShiftLock: (shiftIndex: 1 | 2 | 3) => void;
-
-  /** Check if a shift can be locked (max 2 locked at a time) */
-  canLockShift: (shiftIndex: 1 | 2 | 3) => boolean;
+  /** Get shift1 target (calculated) */
+  shift1Target: number;
+  shift2Target: number;
+  shift3Target: number;
+  adjustedOreRate: number;
 }
+
+/**
+ * Helper: Get current shift info based on time
+ */
+const getShiftInfo = (now: Date) => {
+  const hour = now.getHours();
+  if (hour >= 6 && hour < 14)
+    return { shift: 1 as const, startHour: 6, endHour: 14 };
+  if (hour >= 14 && hour < 22)
+    return { shift: 2 as const, startHour: 14, endHour: 22 };
+  return { shift: 3 as const, startHour: 22, endHour: 6 };
+};
+
+/**
+ * Helper: Calculate hours remaining in current shift
+ */
+const getHoursRemainingInShift = (now: Date): number => {
+  const hour = now.getHours();
+  const minutes = now.getMinutes();
+  const { shift, endHour } = getShiftInfo(now);
+
+  if (shift === 3) {
+    // S3 wraps around midnight (22:00 -> 06:00)
+    return hour >= 22 ? 24 - hour + 6 - minutes / 60 : 6 - hour - minutes / 60;
+  }
+  return endHour - hour - minutes / 60;
+};
+
+/**
+ * Helper: Calculate hours remaining until end of production day (06:00)
+ */
+const getHoursToEndOfDay = (now: Date): number => {
+  const hour = now.getHours();
+  const minutes = now.getMinutes();
+  // Production day ends at 06:00
+  if (hour >= 6) {
+    return 24 - hour + 6 - minutes / 60;
+  }
+  return 6 - hour - minutes / 60;
+};
 
 /**
  * Zustand store for mills forecasting settings and real-time data
  *
- * This store manages:
- * - User-adjustable forecast settings (targets, rates, uncertainty)
- * - Real-time production data from API
- * - UI state (mode, loading)
+ * SIMPLIFIED APPROACH:
+ * - User sets ONLY the daily target
+ * - Shift targets are AUTOMATICALLY calculated based on:
+ *   - Past shifts: Use actual production (can't change the past)
+ *   - Current shift: Actual so far + (remaining hours × required rate)
+ *   - Future shifts: Distribute remaining evenly based on hours
  */
 export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
   // ==================== INITIAL STATE ====================
 
-  // User settings - initialized from constants
-  shift1Target: TARGET_RANGES.shift.default,
-  shift2Target: TARGET_RANGES.shift.default,
-  shift3Target: TARGET_RANGES.shift.default,
+  // User setting - THE MAIN CONTROL
   dayTarget: TARGET_RANGES.day.default,
-  adjustedOreRate: ORE_RATE_RANGES.default,
   uncertaintyPercent: UNCERTAINTY_RANGES.default,
   selectedMills: [],
 
-  // Lock states - all unlocked by default
-  shift1Locked: false,
-  shift2Locked: false,
-  shift3Locked: false,
+  // Calculated shift targets (auto-updated)
+  calculatedShifts: {
+    shift1: {
+      target: TARGET_RANGES.day.default / 3,
+      isActual: false,
+      hoursRemaining: 8,
+    },
+    shift2: {
+      target: TARGET_RANGES.day.default / 3,
+      isActual: false,
+      hoursRemaining: 8,
+    },
+    shift3: {
+      target: TARGET_RANGES.day.default / 3,
+      isActual: false,
+      hoursRemaining: 8,
+    },
+    requiredRate: TARGET_RANGES.day.default / 24,
+  },
 
-  // Real-time data - initialized with defaults
+  // Real-time data
   currentOreRate: ORE_RATE_RANGES.default,
   actualShiftProduction: 0,
   actualDayProduction: 0,
+  shift1Actual: 0,
+  shift2Actual: 0,
   activeMillsCount: 0,
   lastDataUpdate: null,
 
@@ -141,344 +189,238 @@ export const useForecastingStore = create<ForecastingSettings>((set, get) => ({
   isRealTimeMode: true,
   isLoading: false,
 
+  // Legacy compatibility - these are synced from calculatedShifts
+  shift1Target: TARGET_RANGES.day.default / 3,
+  shift2Target: TARGET_RANGES.day.default / 3,
+  shift3Target: TARGET_RANGES.day.default / 3,
+  adjustedOreRate: ORE_RATE_RANGES.default,
+
   // ==================== ACTIONS ====================
 
-  setDayTarget: (target) => {
+  setDayTarget: (target: number) => {
     console.log("📊 Setting day target:", target);
     set({ dayTarget: target });
-    // Recalculate shift targets proportionally
-    get().calculateInitialShiftTargets(target);
+    // Recalculate shift targets automatically
+    get().recalculateShiftTargets();
   },
 
-  setAllTargets: (day, s1, s2, s3) => {
-    console.log("📊 Setting all targets:", { day, s1, s2, s3 });
-    set({
-      dayTarget: day,
-      shift1Target: s1,
-      shift2Target: s2,
-      shift3Target: s3,
-    });
-  },
-
-  adjustShiftTarget: (shiftIndex, newValue) => {
+  recalculateShiftTargets: () => {
     const state = get();
     const {
-      shift1Target,
-      shift2Target,
-      shift3Target,
       dayTarget,
-      shift1Locked,
-      shift2Locked,
-      shift3Locked,
-    } = state;
-
-    console.log(`🎯 Adjusting shift ${shiftIndex} target to:`, newValue);
-
-    // Calculate the delta
-    const currentValues = [shift1Target, shift2Target, shift3Target];
-    const lockStates = [shift1Locked, shift2Locked, shift3Locked];
-    const oldValue = currentValues[shiftIndex - 1];
-    const delta = newValue - oldValue;
-
-    // Get unlocked shifts (excluding the one being adjusted)
-    const otherUnlockedIndices = [0, 1, 2].filter(
-      (i) => i !== shiftIndex - 1 && !lockStates[i]
-    );
-
-    // Redistribute delta proportionally to other UNLOCKED shifts only
-    const newValues = [...currentValues];
-    newValues[shiftIndex - 1] = newValue;
-
-    if (otherUnlockedIndices.length > 0) {
-      const otherUnlockedTotal = otherUnlockedIndices.reduce(
-        (sum, i) => sum + currentValues[i],
-        0
-      );
-
-      if (otherUnlockedTotal > 0) {
-        otherUnlockedIndices.forEach((i) => {
-          const proportion = currentValues[i] / otherUnlockedTotal;
-          newValues[i] = currentValues[i] - delta * proportion;
-          // Ensure non-negative values
-          newValues[i] = Math.max(100, newValues[i]);
-        });
-      } else {
-        // If other unlocked shifts are 0, distribute equally
-        const lockedTotal = [0, 1, 2]
-          .filter((i) => lockStates[i])
-          .reduce((sum, i) => sum + currentValues[i], 0);
-        const remaining = dayTarget - newValue - lockedTotal;
-        otherUnlockedIndices.forEach((i) => {
-          newValues[i] = remaining / otherUnlockedIndices.length;
-        });
-      }
-    }
-
-    // Normalize to ensure exact sum equals daily target (only adjust unlocked shifts)
-    const currentSum = newValues.reduce((sum, val) => sum + val, 0);
-    if (Math.abs(currentSum - dayTarget) > 0.01) {
-      const unlockedIndices = [0, 1, 2].filter((i) => !lockStates[i]);
-      const unlockedSum = unlockedIndices.reduce(
-        (sum, i) => sum + newValues[i],
-        0
-      );
-      const lockedSum = [0, 1, 2]
-        .filter((i) => lockStates[i])
-        .reduce((sum, i) => sum + newValues[i], 0);
-      const targetUnlockedSum = dayTarget - lockedSum;
-      const adjustmentFactor =
-        unlockedSum > 0 ? targetUnlockedSum / unlockedSum : 1;
-
-      unlockedIndices.forEach((i) => {
-        newValues[i] = newValues[i] * adjustmentFactor;
-      });
-    }
-
-    console.log("🔄 Redistributed shift targets:", {
-      S1: Math.round(newValues[0]) + (lockStates[0] ? " 🔒" : ""),
-      S2: Math.round(newValues[1]) + (lockStates[1] ? " 🔒" : ""),
-      S3: Math.round(newValues[2]) + (lockStates[2] ? " 🔒" : ""),
-      total: Math.round(newValues[0] + newValues[1] + newValues[2]),
-      dailyTarget: dayTarget,
-    });
-
-    set({
-      shift1Target: newValues[0],
-      shift2Target: newValues[1],
-      shift3Target: newValues[2],
-    });
-  },
-
-  calculateInitialShiftTargets: (dailyTarget) => {
-    const state = get();
-    const target = dailyTarget || state.dayTarget;
-    const {
+      actualDayProduction,
+      actualShiftProduction,
+      shift1Actual,
+      shift2Actual,
       currentOreRate,
-      activeMillsCount,
-      shift1Target,
-      shift2Target,
-      shift3Target,
-      shift1Locked,
-      shift2Locked,
-      shift3Locked,
     } = state;
 
-    console.log(
-      "🧮 Calculating initial shift targets for daily target:",
-      target
-    );
+    const now = new Date();
+    const { shift: currentShift } = getShiftInfo(now);
+    const hoursRemainingInShift = getHoursRemainingInShift(now);
+    const hoursToEndOfDay = getHoursToEndOfDay(now);
 
-    // Get locked shifts and their total
-    const lockStates = [shift1Locked, shift2Locked, shift3Locked];
-    const currentValues = [shift1Target, shift2Target, shift3Target];
-    const lockedIndices = [0, 1, 2].filter((i) => lockStates[i]);
-    const unlockedIndices = [0, 1, 2].filter((i) => !lockStates[i]);
-
-    // If all shifts are locked, don't recalculate
-    if (unlockedIndices.length === 0) {
-      console.log("⚠️ All shifts locked, skipping recalculation");
-      return;
-    }
-
-    // Calculate locked total
-    const lockedTotal = lockedIndices.reduce(
-      (sum, i) => sum + currentValues[i],
-      0
-    );
-    const remainingTarget = target - lockedTotal;
-
-    console.log("🔒 Lock status:", {
-      lockedShifts: lockedIndices.map((i) => `S${i + 1}`).join(", ") || "none",
-      lockedTotal: Math.round(lockedTotal),
-      remainingTarget: Math.round(remainingTarget),
+    console.log("🧮 Auto-calculating shift targets:", {
+      dayTarget,
+      currentShift,
+      hoursRemainingInShift: hoursRemainingInShift.toFixed(1),
+      hoursToEndOfDay: hoursToEndOfDay.toFixed(1),
+      actualDayProduction,
+      actualShiftProduction,
     });
 
-    // Simple proportional distribution based on typical shift patterns
-    // S1 (06-14): Usually highest production (35%)
-    // S2 (14-22): Medium production (33%)
-    // S3 (22-06): Lower production due to maintenance (32%)
+    // Calculate remaining production needed
+    const remainingForDay = Math.max(0, dayTarget - actualDayProduction);
 
-    // If we have real-time data, adjust based on current ore rate
-    let s1Weight = 0.35;
-    let s2Weight = 0.33;
-    let s3Weight = 0.32;
+    // Calculate required rate to meet daily target
+    const requiredRate =
+      hoursToEndOfDay > 0 ? remainingForDay / hoursToEndOfDay : currentOreRate;
 
-    // Adjust weights based on current conditions if available
-    if (currentOreRate > 0 && activeMillsCount > 0) {
-      // Higher ore rate suggests better conditions, favor current/next shift
-      const currentHour = new Date().getHours();
-      if (currentHour >= 6 && currentHour < 14) {
-        // Currently in S1
-        s1Weight = 0.36;
-        s2Weight = 0.33;
-        s3Weight = 0.31;
-      } else if (currentHour >= 14 && currentHour < 22) {
-        // Currently in S2
-        s1Weight = 0.34;
-        s2Weight = 0.35;
-        s3Weight = 0.31;
-      } else {
-        // Currently in S3
-        s1Weight = 0.34;
-        s2Weight = 0.33;
-        s3Weight = 0.33;
-      }
+    // Build shift targets based on current shift
+    let s1Target: number, s2Target: number, s3Target: number;
+    let s1IsActual = false,
+      s2IsActual = false,
+      s3IsActual = false;
+    let s1Hours = 0,
+      s2Hours = 0,
+      s3Hours = 0;
+
+    if (currentShift === 1) {
+      // We're in S1: S1 = actual + remaining, S2 & S3 are future
+      s1Hours = hoursRemainingInShift;
+      s2Hours = 8;
+      s3Hours = 8;
+
+      const futureHours = s1Hours + s2Hours + s3Hours;
+      const rateForRemaining =
+        futureHours > 0 ? remainingForDay / futureHours : currentOreRate;
+
+      s1Target = actualShiftProduction + s1Hours * rateForRemaining;
+      s2Target = s2Hours * rateForRemaining;
+      s3Target = s3Hours * rateForRemaining;
+    } else if (currentShift === 2) {
+      // We're in S2: S1 is past (use actual), S2 = actual + remaining, S3 is future
+      s1IsActual = true;
+      s1Target =
+        shift1Actual > 0
+          ? shift1Actual
+          : actualDayProduction - actualShiftProduction;
+      s1Hours = 0;
+
+      s2Hours = hoursRemainingInShift;
+      s3Hours = 8;
+
+      const remainingAfterS1 = Math.max(0, dayTarget - s1Target);
+      const futureHours = s2Hours + s3Hours;
+      const rateForRemaining =
+        futureHours > 0 ? remainingAfterS1 / futureHours : currentOreRate;
+
+      s2Target = actualShiftProduction + s2Hours * rateForRemaining;
+      s3Target = s3Hours * rateForRemaining;
+    } else {
+      // We're in S3: S1 & S2 are past, S3 = actual + remaining
+      s1IsActual = true;
+      s2IsActual = true;
+
+      // Use stored actuals or estimate from day total
+      s1Target =
+        shift1Actual > 0
+          ? shift1Actual
+          : (actualDayProduction - actualShiftProduction) * 0.5;
+      s2Target =
+        shift2Actual > 0
+          ? shift2Actual
+          : (actualDayProduction - actualShiftProduction) * 0.5;
+      s1Hours = 0;
+      s2Hours = 0;
+
+      s3Hours = hoursRemainingInShift;
+      const remainingAfterS1S2 = Math.max(0, dayTarget - s1Target - s2Target);
+      const rateForRemaining =
+        s3Hours > 0 ? remainingAfterS1S2 / s3Hours : currentOreRate;
+
+      s3Target = actualShiftProduction + s3Hours * rateForRemaining;
     }
 
-    const weights = [s1Weight, s2Weight, s3Weight];
-
-    // Calculate new values
-    const newValues = [...currentValues];
-
-    // Only recalculate unlocked shifts
-    if (unlockedIndices.length > 0) {
-      // Get total weight of unlocked shifts
-      const unlockedWeightTotal = unlockedIndices.reduce(
-        (sum, i) => sum + weights[i],
-        0
-      );
-
-      // Distribute remaining target proportionally among unlocked shifts
-      unlockedIndices.forEach((i) => {
-        const proportion = weights[i] / unlockedWeightTotal;
-        newValues[i] = remainingTarget * proportion;
-      });
-    }
+    const calculatedShifts: CalculatedShiftTargets = {
+      shift1: {
+        target: s1Target,
+        isActual: s1IsActual,
+        hoursRemaining: s1Hours,
+      },
+      shift2: {
+        target: s2Target,
+        isActual: s2IsActual,
+        hoursRemaining: s2Hours,
+      },
+      shift3: {
+        target: s3Target,
+        isActual: s3IsActual,
+        hoursRemaining: s3Hours,
+      },
+      requiredRate,
+    };
 
     console.log("✅ Calculated shift targets:", {
-      S1: Math.round(newValues[0]) + (lockStates[0] ? " 🔒" : ""),
-      S2: Math.round(newValues[1]) + (lockStates[1] ? " 🔒" : ""),
-      S3: Math.round(newValues[2]) + (lockStates[2] ? " 🔒" : ""),
-      total: Math.round(newValues[0] + newValues[1] + newValues[2]),
+      S1: `${Math.round(s1Target)}t ${
+        s1IsActual ? "(actual)" : `(${s1Hours.toFixed(1)}h remaining)`
+      }`,
+      S2: `${Math.round(s2Target)}t ${
+        s2IsActual ? "(actual)" : `(${s2Hours.toFixed(1)}h remaining)`
+      }`,
+      S3: `${Math.round(s3Target)}t ${
+        s3IsActual ? "(actual)" : `(${s3Hours.toFixed(1)}h remaining)`
+      }`,
+      total: Math.round(s1Target + s2Target + s3Target),
+      requiredRate: `${requiredRate.toFixed(1)} t/h`,
     });
 
+    // Update both calculated shifts and legacy compatibility properties
     set({
-      shift1Target: newValues[0],
-      shift2Target: newValues[1],
-      shift3Target: newValues[2],
+      calculatedShifts,
+      shift1Target: s1Target,
+      shift2Target: s2Target,
+      shift3Target: s3Target,
+      adjustedOreRate: currentOreRate,
     });
   },
 
-  setAdjustedOreRate: (rate) => {
-    console.log("⚙️ Setting adjusted ore rate:", rate);
-    set({ adjustedOreRate: rate });
-  },
-
-  setUncertaintyPercent: (percent) => {
+  setUncertaintyPercent: (percent: number) => {
     console.log("🎲 Setting uncertainty percent:", percent);
     set({ uncertaintyPercent: percent });
   },
 
-  setSelectedMills: (mills) => {
+  setSelectedMills: (mills: string[]) => {
     console.log("🏭 Setting selected mills:", mills);
     set({ selectedMills: mills });
   },
 
-  updateRealTimeData: (data) => {
+  updateRealTimeData: (data: ProductionDataUpdate) => {
+    const state = get();
+    const now = new Date();
+    const { shift: currentShift } = getShiftInfo(now);
+
     console.log("🔄 Updating real-time data:", {
       currentOreRate: data.currentOreRate,
       actualShiftProduction: data.actualShiftProduction,
       actualDayProduction: data.actualDayProduction,
       activeMillsCount: data.activeMillsCount,
+      currentShift,
     });
+
+    // Track actual production for past shifts
+    // When shift changes, store the previous shift's final production
+    let { shift1Actual, shift2Actual } = state;
+
+    // If we're in S2 and S1 actual is 0, estimate S1 from day production
+    if (
+      currentShift === 2 &&
+      shift1Actual === 0 &&
+      data.actualDayProduction > data.actualShiftProduction
+    ) {
+      shift1Actual = data.actualDayProduction - data.actualShiftProduction;
+    }
+    // If we're in S3, estimate S1+S2 split
+    if (currentShift === 3 && shift1Actual === 0 && shift2Actual === 0) {
+      const pastProduction =
+        data.actualDayProduction - data.actualShiftProduction;
+      shift1Actual = pastProduction * 0.52; // S1 usually slightly higher
+      shift2Actual = pastProduction * 0.48;
+    }
 
     set({
       currentOreRate: data.currentOreRate,
       actualShiftProduction: data.actualShiftProduction,
       actualDayProduction: data.actualDayProduction,
       activeMillsCount: data.activeMillsCount,
+      shift1Actual,
+      shift2Actual,
       lastDataUpdate: new Date(),
     });
 
-    // In real-time mode, sync adjusted rate with current rate
-    if (get().isRealTimeMode) {
-      set({ adjustedOreRate: data.currentOreRate });
-    }
+    // Recalculate shift targets with new data
+    get().recalculateShiftTargets();
   },
 
   toggleRealTimeMode: () => {
     const newMode = !get().isRealTimeMode;
     console.log("🔄 Toggling real-time mode:", newMode ? "ON" : "OFF");
-
     set({ isRealTimeMode: newMode });
-
-    // When switching to real-time mode, sync adjusted rate with current
-    if (newMode) {
-      get().syncAdjustedRateWithCurrent();
-    }
   },
 
-  setLoading: (loading) => {
+  setLoading: (loading: boolean) => {
     set({ isLoading: loading });
   },
 
   resetToDefaults: () => {
     console.log("🔄 Resetting to defaults");
-    const defaultDayTarget = TARGET_RANGES.day.default;
     set({
-      dayTarget: defaultDayTarget,
-      adjustedOreRate: ORE_RATE_RANGES.default,
+      dayTarget: TARGET_RANGES.day.default,
       uncertaintyPercent: UNCERTAINTY_RANGES.default,
       selectedMills: [],
+      shift1Actual: 0,
+      shift2Actual: 0,
     });
-    // Recalculate shift targets
-    get().calculateInitialShiftTargets(defaultDayTarget);
-  },
-
-  syncAdjustedRateWithCurrent: () => {
-    const { currentOreRate } = get();
-    console.log("🔄 Syncing adjusted rate with current:", currentOreRate);
-    set({ adjustedOreRate: currentOreRate });
-  },
-
-  toggleShiftLock: (shiftIndex) => {
-    const state = get();
-    const lockStates = [
-      state.shift1Locked,
-      state.shift2Locked,
-      state.shift3Locked,
-    ];
-    const currentLockState = lockStates[shiftIndex - 1];
-
-    // If trying to lock, check if we can
-    if (!currentLockState && !state.canLockShift(shiftIndex)) {
-      console.warn(
-        `⚠️ Cannot lock shift ${shiftIndex}: Maximum 2 shifts can be locked`
-      );
-      return;
-    }
-
-    console.log(
-      `🔒 Toggling lock for shift ${shiftIndex}: ${
-        currentLockState ? "UNLOCK" : "LOCK"
-      }`
-    );
-
-    // Update lock state
-    const updates: Partial<ForecastingSettings> = {};
-    if (shiftIndex === 1) updates.shift1Locked = !currentLockState;
-    if (shiftIndex === 2) updates.shift2Locked = !currentLockState;
-    if (shiftIndex === 3) updates.shift3Locked = !currentLockState;
-
-    set(updates);
-  },
-
-  canLockShift: (shiftIndex) => {
-    const state = get();
-    const lockStates = [
-      state.shift1Locked,
-      state.shift2Locked,
-      state.shift3Locked,
-    ];
-    const currentLockState = lockStates[shiftIndex - 1];
-
-    // If already locked, can always unlock
-    if (currentLockState) return true;
-
-    // Count currently locked shifts
-    const lockedCount = lockStates.filter((locked) => locked).length;
-
-    // Can lock if less than 2 shifts are currently locked
-    return lockedCount < 2;
+    get().recalculateShiftTargets();
   },
 }));
