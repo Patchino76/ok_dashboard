@@ -157,7 +157,7 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
       <div className="space-y-1">
         <div className="flex justify-between text-xs">
           <span className="text-slate-500 font-medium">
-            Обща скорост на руда
+            Разход на руда на всички МА
           </span>
           <div className="flex gap-3">
             <span className="text-slate-600">
@@ -174,11 +174,11 @@ export const PerMillOreSetpointChart: FC<PerMillOreSetpointChartProps> = ({
             </span>
           </div>
         </div>
-        <div className="h-4 bg-slate-100 rounded-sm relative overflow-hidden">
-          {/* Target Marker Line */}
+        <div className="h-5 bg-slate-100 rounded-sm relative overflow-hidden">
+          {/* Target Marker Line - Red and prominent */}
           <div
-            className="absolute top-0 bottom-0 w-0.5 bg-black z-10"
-            style={{ left: `${targetPercent}%` }}
+            className="absolute -top-1 -bottom-1 w-1 bg-red-600 z-10 rounded-full shadow-sm"
+            style={{ left: `${targetPercent}%`, transform: "translateX(-50%)" }}
           />
           {/* Current Rate Bar */}
           <div
