@@ -34,6 +34,14 @@ export default function MillsForecastingPage() {
     updateRealTimeData,
   } = useForecastingStore();
 
+  const hourNow = new Date().getHours();
+  const shiftTargetForForecast =
+    hourNow >= 6 && hourNow < 14
+      ? shift1Target
+      : hourNow >= 14 && hourNow < 22
+      ? shift2Target
+      : shift3Target;
+
   // Fetch real-time production data from API (refreshes every 20 seconds)
   const { data: productionData, isLoading: isLoadingProduction } =
     useMillsProductionData(20);
@@ -94,7 +102,7 @@ export default function MillsForecastingPage() {
 
   // Calculate forecast using real-time data
   const { currentTime, forecast } = useProductionForecast({
-    shiftTarget: shift1Target, // Use shift1Target for current shift calculations
+    shiftTarget: shiftTargetForForecast,
     dayTarget,
     currentOreRate,
     adjustedOreRate,
