@@ -358,6 +358,14 @@ export function MVParameterCard({
 
   const [sliderDomainMin, sliderDomainMax] = yAxisDomain;
 
+  // Chart domain based on optimization bounds for better zoom
+  const chartDomain = useMemo((): [number, number] => {
+    // Add padding around the opt bounds for better visualization
+    const range = optBoundsHi - optBoundsLo;
+    const padding = range * 0.15; // 15% padding
+    return [optBoundsLo - padding, optBoundsHi + padding];
+  }, [optBoundsLo, optBoundsHi]);
+
   // Initialize optimization bounds from Y-axis domain (only once or when Y-axis changes)
   useEffect(() => {
     const storeBounds = mvOptimizationBounds[parameter.id];
@@ -686,7 +694,7 @@ export function MVParameterCard({
                   tickFormatter={formatTime}
                 />
                 <YAxis
-                  domain={yAxisDomain}
+                  domain={chartDomain}
                   hide={false}
                   width={40}
                   tick={{ fontSize: 10 }}
@@ -694,7 +702,7 @@ export function MVParameterCard({
                     value >= 1 ? value.toFixed(0) : value.toFixed(2)
                   }
                   interval={0}
-                  allowDataOverflow={false}
+                  allowDataOverflow={true}
                   axisLine={true}
                   tickLine={true}
                   tickMargin={3}

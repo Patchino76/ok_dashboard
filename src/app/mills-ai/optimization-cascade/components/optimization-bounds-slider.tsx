@@ -47,16 +47,15 @@ export function OptimizationBoundsSlider({
       // Calculate percentage (inverted for vertical, 0 at bottom)
       const percentage = 1 - mouseY / containerHeight;
 
-      // Map to value range
+      // Map to value range - NO clamping, allow values beyond min/max
       const value = min + percentage * (max - min);
 
-      // Clamp to bounds
-      const clampedValue = Math.max(min, Math.min(max, value));
-
       if (isDraggingLo) {
-        onLoChange(Math.min(clampedValue, hiValue - 0.1));
+        // Only ensure lo stays below hi
+        onLoChange(Math.min(value, hiValue - 0.1));
       } else if (isDraggingHi) {
-        onHiChange(Math.max(clampedValue, loValue + 0.1));
+        // Only ensure hi stays above lo
+        onHiChange(Math.max(value, loValue + 0.1));
       }
     };
 
@@ -85,8 +84,11 @@ export function OptimizationBoundsSlider({
   ]);
 
   // Calculate positions (0% = bottom, 100% = top)
-  const loPosition = ((loValue - min) / (max - min)) * 100;
-  const hiPosition = ((hiValue - min) / (max - min)) * 100;
+  // Clamp visual position to 0-100% so handles stay within track
+  const loPositionRaw = ((loValue - min) / (max - min)) * 100;
+  const hiPositionRaw = ((hiValue - min) / (max - min)) * 100;
+  const loPosition = Math.max(0, Math.min(100, loPositionRaw));
+  const hiPosition = Math.max(0, Math.min(100, hiPositionRaw));
 
   return (
     <div className="flex justify-center h-full" style={{ width: "28px" }}>

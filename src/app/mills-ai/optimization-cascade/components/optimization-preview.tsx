@@ -11,6 +11,7 @@ import {
   TrendingUp,
   ArrowRight,
   Info,
+  CheckCircle,
 } from "lucide-react";
 
 interface OptimizationPreviewProps {
@@ -24,7 +25,9 @@ interface OptimizationPreviewProps {
   isReady: boolean;
   onStartOptimization: () => void;
   onReset?: () => void;
+  onApplyValues?: () => void;
   isOptimizing: boolean;
+  hasResults: boolean;
   resetLabel?: string;
 }
 
@@ -39,7 +42,9 @@ export function OptimizationPreview({
   isReady,
   onStartOptimization,
   onReset,
+  onApplyValues,
   isOptimizing,
+  hasResults,
   resetLabel = "Нулиране",
 }: OptimizationPreviewProps) {
   const estimatedTime = Math.ceil(nTrials * 0.05); // ~50ms per trial estimate
@@ -133,6 +138,18 @@ export function OptimizationPreview({
               </>
             )}
           </Button>
+
+          {onApplyValues && hasResults && (
+            <Button
+              onClick={onApplyValues}
+              className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white px-4"
+              disabled={isOptimizing}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Приложи стойностите
+            </Button>
+          )}
+
           {onReset && (
             <Button
               onClick={onReset}

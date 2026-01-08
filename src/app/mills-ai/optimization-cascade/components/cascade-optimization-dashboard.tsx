@@ -48,9 +48,9 @@ import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 import { cascadeBG } from "../translations/bg";
 import { CascadeModelInsights } from "./cascade-model-insights";
 import { OptimizationResultsDisplay } from "./optimization-results-display";
-import { SystemStatusBar } from "./system-status-bar";
+// import { SystemStatusBar } from "./system-status-bar";
 import { OptimizationPreview, TolerancePresets } from "./optimization-preview";
-import { CascadeMiniFlow } from "./cascade-mini-flow";
+// import { CascadeMiniFlow } from "./cascade-mini-flow";
 
 export default function CascadeOptimizationDashboard() {
   // Cascade optimization store
@@ -1780,40 +1780,14 @@ export default function CascadeOptimizationDashboard() {
 
           {/* Optimization Tab */}
           <TabsContent value="optimization" className="space-y-6">
-            {/* System Status Bar */}
-            <SystemStatusBar
-              isModelLoaded={!!modelMetadata}
-              isRealTimeActive={!!xgboostStore.dataUpdateInterval}
-              isOptimizing={isOptimizing}
-              lastUpdated={lastDataUpdate}
-              onRefresh={async () => {
-                await fetchRealTimeData();
-                setLastDataUpdate(Date.now());
-                toast.success("Данните са обновени");
-              }}
-              modelName={modelName || undefined}
-              currentMill={currentMill}
-              featureCount={getAllFeatures().length}
-            />
-
-            {/* Mini Cascade Flow Diagram */}
-            {modelMetadata && (
-              <CascadeMiniFlow
-                mvCount={getFeatureClassification()?.mv_features?.length || 0}
-                cvCount={getFeatureClassification()?.cv_features?.length || 0}
-                dvCount={getFeatureClassification()?.dv_features?.length || 0}
-                targetVariable={getTargetVariable()}
-                isOptimizing={isOptimizing}
-                hasResults={!!optimizationResults}
-              />
-            )}
-
             <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-blue-600" />
-                  {cascadeBG.optimization.configuration}
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5 text-amber-500" />
+                    {cascadeBG.tabs.optimization}
+                  </CardTitle>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Model Information - Compact */}
@@ -1943,11 +1917,44 @@ export default function CascadeOptimizationDashboard() {
                       return values;
                     })()}
                     onApplyValues={(values) => {
+                      // 1. Update the underlying store values first
                       Object.entries(values).forEach(([paramId, value]) => {
                         updateCascadeSliderValue(paramId, value);
+                        cascadeStore.updateSliderSP(paramId, value); // Update the purple simulation slider handle
                         updateXgboostSliderValue(paramId, value);
                       });
-                      toast.success("Оптималните стойности са приложени");
+
+                      // 2. Prepare the combined MV values for the prediction call
+                      const currentMVs = cascadeStore.getMVSliderValues();
+                      const allMVValues = { ...currentMVs, ...values };
+
+                      // 3. Trigger a new prediction calculation immediately using the applied values
+                      predictCascade(
+                        allMVValues,
+                        cascadeStore.getDVSliderValues(),
+                        modelType,
+                        modelType === "gpr"
+                      )
+                        .then((prediction) => {
+                          if (
+                            prediction &&
+                            typeof prediction.predicted_target === "number"
+                          ) {
+                            cascadeStore.setSimulationTarget(
+                              prediction.predicted_target
+                            );
+                            cascadeStore.updateCVPredictions(
+                              prediction.predicted_cvs
+                            );
+                            toast.success(
+                              "Оптималните стойности са приложени и прогнозата е обновена"
+                            );
+                          }
+                        })
+                        .catch((err) => {
+                          console.error("Prediction after apply failed:", err);
+                          toast.error("Прогнозата не можа да бъде обновена");
+                        });
                     }}
                   />
                 )}
@@ -2341,20 +2348,20 @@ export default function CascadeOptimizationDashboard() {
                 return (
                   <>
                     {renderParameterSection(
-                      cascadeBG.parameters.controlledFull,
-                      cascadeBG.parameters.controlledDescription,
-                      cvParams,
-                      "CV",
-                      "text-blue-600",
-                      "📊"
-                    )}
-                    {renderParameterSection(
                       cascadeBG.parameters.manipulatedFull,
                       cascadeBG.parameters.manipulatedDescription,
                       mvParams,
                       "MV",
                       "text-amber-600",
                       "🎛️"
+                    )}
+                    {renderParameterSection(
+                      cascadeBG.parameters.controlledFull,
+                      cascadeBG.parameters.controlledDescription,
+                      cvParams,
+                      "CV",
+                      "text-blue-600",
+                      "📊"
                     )}
                     {renderParameterSection(
                       cascadeBG.parameters.disturbanceFull,

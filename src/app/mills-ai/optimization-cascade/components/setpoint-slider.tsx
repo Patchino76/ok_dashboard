@@ -46,9 +46,8 @@ export function SetpointSlider({
       // Map to value range
       const newValue = min + percentage * (max - min);
 
-      // Clamp to bounds and round to step
-      const clampedValue = Math.max(min, Math.min(max, newValue));
-      const steppedValue = Math.round(clampedValue / step) * step;
+      // Round to step - NO clamping, allow values beyond min/max
+      const steppedValue = Math.round(newValue / step) * step;
 
       onChange(steppedValue);
     };
@@ -68,7 +67,9 @@ export function SetpointSlider({
   }, [isDragging, min, max, step, onChange]);
 
   // Calculate position (0% = bottom, 100% = top)
-  const position = ((value - min) / (max - min)) * 100;
+  // Clamp visual position to 0-100% so handle stays within track
+  const positionRaw = ((value - min) / (max - min)) * 100;
+  const position = Math.max(0, Math.min(100, positionRaw));
 
   return (
     <div className="flex justify-center h-full" style={{ width: "28px" }}>
