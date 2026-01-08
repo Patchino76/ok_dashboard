@@ -15,6 +15,7 @@ import {
   Download,
   ChevronDown,
   ChevronUp,
+  Zap,
 } from "lucide-react";
 import {
   BarChart,
@@ -142,15 +143,30 @@ export function OptimizationResultsDisplay({
             >
               {performanceRating.label}
             </Badge>
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-xs font-normal text-slate-400">
-                {isCollapsed ? "Покажи детайли" : "Скрий детайли"}
-              </span>
-              {isCollapsed ? (
-                <ChevronDown className="h-5 w-5 text-slate-400" />
-              ) : (
-                <ChevronUp className="h-5 w-5 text-slate-400" />
+            <div className="ml-auto flex items-center gap-4">
+              {results.best_mv_values && onApplyValues && (
+                <Button
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onApplyValues(results.best_mv_values);
+                  }}
+                  className="bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 shadow-sm animate-pulse-subtle"
+                >
+                  <Zap className="h-4 w-4" />
+                  Приложи стойностите
+                </Button>
               )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-normal text-slate-400">
+                  {isCollapsed ? "Покажи детайли" : "Скрий детайли"}
+                </span>
+                {isCollapsed ? (
+                  <ChevronDown className="h-5 w-5 text-slate-400" />
+                ) : (
+                  <ChevronUp className="h-5 w-5 text-slate-400" />
+                )}
+              </div>
             </div>
           </CardTitle>
         </CardHeader>
@@ -367,6 +383,15 @@ export function OptimizationResultsDisplay({
                         }
                       )}
                     </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* MV Distribution Histograms */}
       {!isCollapsed && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {Object.entries(results.best_mv_values).map(
