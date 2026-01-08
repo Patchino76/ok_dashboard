@@ -1,13 +1,26 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
+import {
+  Clock,
+  Calendar,
+  CalendarDays,
+  Download,
+  BarChart3,
+  TrendingUp,
+  Activity,
+  Lightbulb,
+} from "lucide-react";
 
 // Import our components
 import { MillComparisonTab } from "./components/MillComparisonTab";
 import { TrendsTab } from "./components/TrendsTab";
-import { EnhancedStatisticsTab } from "./components/EnhancedStatisticsTab";
 import { ModernStatisticsTab } from "./components/ModernStatisticsTab";
 import { EnhancedAnalyticsTab } from "./components/EnhancedAnalyticsTab";
-import { ParameterSelector } from "./components/ParameterSelector";
+import {
+  ParameterSelector,
+  getParameterByValue,
+} from "./components/ParameterSelector";
+import { QuickActionsPanel } from "./components/QuickActionsPanel";
 
 // Import our custom hook
 import {
@@ -56,19 +69,6 @@ export default function AnalyticsPage() {
   const comparisonData = data?.comparisonData || [];
   const trendData = data?.trendData || [];
 
-  // Mill selections are now managed in Zustand store
-
-  // Debug logging
-  console.log("Analytics Page - Raw data from hook:", rawData);
-  console.log("Analytics Page - Transformed data from hook:", data);
-  console.log("Analytics Page - Comparison data:", comparisonData);
-  console.log("Analytics Page - Trend data:", trendData);
-  console.log(
-    "Analytics Page - Comparison data length:",
-    comparisonData.length
-  );
-  console.log("Analytics Page - Trend data length:", trendData.length);
-
   // Handler for parameter change
   const handleParameterChange = (parameter: string) => {
     setSelectedParameter(parameter);
@@ -79,17 +79,75 @@ export default function AnalyticsPage() {
     setTimeRange(range);
   };
 
-  // The useMillsAnalytics hook handles data fetching automatically when dependencies change
+  // Export data to CSV
+  const handleExportData = useCallback(() => {
+    if (!rawData?.data || rawData.data.length === 0) {
+      alert("Няма данни за експортиране");
+      return;
+    }
+
+    const paramInfo = getParameterByValue(selectedParameter);
+    const headers = Object.keys(rawData.data[0]);
+    const csvContent = [
+      headers.join(","),
+      ...rawData.data.map((row: any) =>
+        headers.map((h) => row[h] ?? "").join(",")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `analytics_${
+        paramInfo?.label || selectedParameter
+      }_${timeRange}_${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [rawData, selectedParameter, timeRange]);
+
+  // Time range options with icons
+  const timeRangeOptions = [
+    { value: "8h", label: "Смяна", icon: Clock },
+    { value: "24h", label: "Ден", icon: Calendar },
+    { value: "7d", label: "Седмица", icon: CalendarDays },
+    { value: "30d", label: "Месец", icon: CalendarDays },
+  ];
+
+  // Tab options with icons
+  const tabOptions = [
+    { value: "comparison", label: "Сравнение", icon: BarChart3 },
+    { value: "trends", label: "Тенденции", icon: TrendingUp },
+    { value: "statistics", label: "Статистика", icon: Activity },
+    { value: "analytics", label: "Аналитика", icon: Lightbulb },
+  ];
 
   return (
     <div id="analytics-container" className="h-screen flex flex-col p-4">
-      <h1 className="text-xl font-bold mb-4">Аналитики</h1>
+      {/* Header with title and export button */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold">Аналитики</h1>
+        <button
+          onClick={handleExportData}
+          disabled={isLoading || !rawData?.data?.length}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          <span className="hidden sm:inline">Експорт CSV</span>
+        </button>
+      </div>
 
       {/* Controls Section */}
       <div className="mb-4 p-4 border rounded-lg shadow-sm bg-white">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="w-full md:w-1/2">
-            <h2 className="text-sm font-medium mb-2">Параметри за анализ</h2>
+            <h2 className="text-sm font-medium mb-2 text-gray-600">
+              Параметър
+            </h2>
             <ParameterSelector
               selectedParameter={selectedParameter}
               onParameterChange={handleParameterChange}
@@ -97,106 +155,55 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="w-full md:w-1/2">
-            <h2 className="text-sm font-medium mb-2">Времеви диапазон</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleTimeRangeChange("8h")}
-                className={`px-3 py-1 text-sm rounded ${
-                  timeRange === "8h"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-800"
-                }`}
-              >
-                8 Часа
-              </button>
-              <button
-                onClick={() => handleTimeRangeChange("24h")}
-                className={`px-3 py-1 text-sm rounded ${
-                  timeRange === "24h"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-800"
-                }`}
-              >
-                24 Часа
-              </button>
-              <button
-                onClick={() => handleTimeRangeChange("7d")}
-                className={`px-3 py-1 text-sm rounded ${
-                  timeRange === "7d"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-800"
-                }`}
-              >
-                7 Дни
-              </button>
-              <button
-                onClick={() => handleTimeRangeChange("30d")}
-                className={`px-3 py-1 text-sm rounded ${
-                  timeRange === "30d"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-800"
-                }`}
-              >
-                30 Дни
-              </button>
-              <button
-                onClick={() => handleTimeRangeChange("60d")}
-                className={`px-3 py-1 text-sm rounded ${
-                  timeRange === "60d"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-800"
-                }`}
-              >
-                60 Дни
-              </button>
+            <h2 className="text-sm font-medium mb-2 text-gray-600">Период</h2>
+            <div className="flex flex-wrap gap-2">
+              {timeRangeOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleTimeRangeChange(option.value)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-all ${
+                      timeRange === option.value
+                        ? "bg-blue-600 text-white shadow-md"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
 
+      {/* Quick Actions Panel - Shows mill alerts */}
+      {!isLoading && (rawData?.data?.length ?? 0) > 0 && (
+        <QuickActionsPanel millsData={rawData} parameter={selectedParameter} />
+      )}
+
       {/* Tabs Section */}
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="grid grid-cols-4 mb-3 border-b bg-white">
-          <button
-            onClick={() => setActiveTab("comparison")}
-            className={`py-2 text-sm font-medium text-center ${
-              activeTab === "comparison"
-                ? "border-b-2 border-blue-500 text-blue-700"
-                : "text-gray-600"
-            }`}
-          >
-            Сравнение
-          </button>
-          <button
-            onClick={() => setActiveTab("trends")}
-            className={`py-2 text-sm font-medium text-center ${
-              activeTab === "trends"
-                ? "border-b-2 border-blue-500 text-blue-700"
-                : "text-gray-600"
-            }`}
-          >
-            Тенденции
-          </button>
-          <button
-            onClick={() => setActiveTab("statistics")}
-            className={`py-2 text-sm font-medium text-center ${
-              activeTab === "statistics"
-                ? "border-b-2 border-blue-500 text-blue-700"
-                : "text-gray-600"
-            }`}
-          >
-            Статистика
-          </button>
-          <button
-            onClick={() => setActiveTab("analytics")}
-            className={`py-2 text-sm font-medium text-center ${
-              activeTab === "analytics"
-                ? "border-b-2 border-blue-500 text-blue-700"
-                : "text-gray-600"
-            }`}
-          >
-            Аналитика
-          </button>
+        <div className="flex gap-1 mb-3 p-1 bg-gray-100 rounded-lg">
+          {tabOptions.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-md transition-all ${
+                  activeTab === tab.value
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-gray-600 hover:text-gray-800"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex-1 border rounded-lg shadow-sm bg-white min-h-0">

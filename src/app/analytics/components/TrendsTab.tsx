@@ -36,8 +36,6 @@ interface TrendsTabProps {
   trendData: MillTrendData[];
 }
 
-// Array of colors for mill lines
-
 export const TrendsTab: React.FC<TrendsTabProps> = ({
   parameter,
   timeRange,
@@ -47,13 +45,6 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
   const { selectedMills, initializeMills } = useMillSelectionStore();
   // Ensure parameter is always a string
   const paramString = typeof parameter === "object" ? "Ore" : String(parameter);
-
-  // Debug logging
-  console.log("TrendsTab received trendData:", trendData);
-  console.log("TrendsTab trendData length:", trendData.length);
-  if (trendData.length > 0) {
-    console.log("First trend data sample:", trendData[0]);
-  }
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +109,8 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
   // Format time range for display
   const formatTimeRange = (): string => {
     switch (timeRange) {
+      case "8h":
+        return "8 часа";
       case "24h":
         return "24 часа";
       case "7d":
@@ -168,16 +161,6 @@ export const TrendsTab: React.FC<TrendsTabProps> = ({
 
         result.push(dataPoint);
       });
-    }
-
-    console.log("TrendsTab processedData result:", result);
-    console.log("TrendsTab processedData length:", result.length);
-    if (result.length > 0) {
-      console.log("TrendsTab first processed data point:", result[0]);
-      console.log(
-        "TrendsTab last processed data point:",
-        result[result.length - 1]
-      );
     }
 
     return result;

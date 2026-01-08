@@ -19,7 +19,14 @@ import {
   Cell,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, TrendingUp, Activity, BarChart3 } from "lucide-react";
+import {
+  AlertCircle,
+  TrendingUp,
+  Activity,
+  BarChart3,
+  X,
+  Clock,
+} from "lucide-react";
 
 interface ModernStatisticsTabProps {
   parameter: string;
@@ -40,6 +47,13 @@ interface MillStatistics {
   anomalyCount: number;
   trend: "up" | "down" | "stable";
   dataPoints: number;
+}
+
+interface AnomalyDetail {
+  timestamp: string;
+  value: number;
+  deviation: number;
+  type: "high" | "low";
 }
 
 type StatsSortColumn =
@@ -71,6 +85,11 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   const [statsSortDirection, setStatsSortDirection] = useState<"asc" | "desc">(
     "asc"
   );
+
+  // State for anomaly details modal
+  const [selectedMillForAnomalies, setSelectedMillForAnomalies] = useState<
+    string | null
+  >(null);
 
   // Get all available mills from data
   const allMills = useMemo(() => {
@@ -210,6 +229,40 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
     return stats;
   }, [millValues]);
 
+  // Calculate anomaly details for a specific mill
+  const getAnomalyDetails = useMemo(() => {
+    return (millName: string): AnomalyDetail[] => {
+      const stats = millStatistics[millName];
+      if (!stats || !timeSeriesData.length) return [];
+
+      const anomalies: AnomalyDetail[] = [];
+      const mean = stats.avgValue;
+      const stdDev = stats.stdDev;
+
+      timeSeriesData.forEach((record) => {
+        const value = record[millName];
+        if (typeof value !== "number" || !Number.isFinite(value)) return;
+
+        const deviation = stdDev > 0 ? (value - mean) / stdDev : 0;
+        if (Math.abs(deviation) > 2) {
+          anomalies.push({
+            timestamp: record.timestamp,
+            value: Number(value.toFixed(2)),
+            deviation: Number(deviation.toFixed(2)),
+            type: deviation > 0 ? "high" : "low",
+          });
+        }
+      });
+
+      // Sort by timestamp descending (most recent first)
+      anomalies.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+      return anomalies;
+    };
+  }, [millStatistics, timeSeriesData]);
+
   // Apply per-mill 4-sigma outlier filtering for chart data
   // We keep millStatistics based on the original data, but charts use the
   // cleaned series where values beyond 4 standard deviations are removed.
@@ -266,12 +319,18 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
   // Control chart data
   const controlChartData = useMemo(() => {
     if (selectedMillsSorted.length === 0 || filteredData.length === 0) {
-      return { data: [], ucl: 0, lcl: 0, mean: 0 };
+      return { data: [], ucl: 0, lcl: 0, mean: 0, isSingleMill: false };
     }
 
-    // Use the per-timestamp average across selected mills as the main series
-    const recent = filteredData.slice(-100);
-    const data = recent.map((d, i) => {
+    const isSingleMill = selectedMillsSorted.length === 1;
+    const singleMillName = isSingleMill ? selectedMillsSorted[0] : null;
+    const singleMillStats = singleMillName
+      ? millStatistics[singleMillName]
+      : null;
+
+    // Use all data points (limit to 200 for performance)
+    const dataToUse = filteredData.slice(-200);
+    const data = dataToUse.map((d, i) => {
       const point: any = { index: i, timestamp: d.timestamp };
       const vals: number[] = [];
 
@@ -283,30 +342,44 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
         }
       });
 
+      // For single mill, use that mill's value directly; for multiple, use average
       point.value =
-        vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+        isSingleMill && singleMillName && d[singleMillName] !== undefined
+          ? d[singleMillName]
+          : vals.length > 0
+          ? vals.reduce((a, b) => a + b, 0) / vals.length
+          : null;
 
       return point;
     });
 
-    const valuesForStats = data
-      .map((p: any) => p.value)
-      .filter((v: number | null) => v !== null) as number[];
+    let mean: number;
+    let stdDev: number;
 
-    if (valuesForStats.length === 0) {
-      return { data: [], ucl: 0, lcl: 0, mean: 0 };
+    if (isSingleMill && singleMillStats) {
+      // Use the individual mill's pre-calculated statistics (matches KPI card)
+      mean = singleMillStats.avgValue;
+      stdDev = singleMillStats.stdDev;
+    } else {
+      // Calculate stats from aggregated values for multiple mills
+      const valuesForStats = data
+        .map((p: any) => p.value)
+        .filter((v: number | null) => v !== null) as number[];
+
+      if (valuesForStats.length === 0) {
+        return { data: [], ucl: 0, lcl: 0, mean: 0, isSingleMill };
+      }
+
+      mean = valuesForStats.reduce((a, b) => a + b, 0) / valuesForStats.length;
+      stdDev = Math.sqrt(
+        valuesForStats.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
+          valuesForStats.length
+      );
     }
 
-    const mean =
-      valuesForStats.reduce((a, b) => a + b, 0) / valuesForStats.length;
-    const stdDev = Math.sqrt(
-      valuesForStats.reduce((a, b) => a + Math.pow(b - mean, 2), 0) /
-        valuesForStats.length
-    );
-
-    // Mark anomalies based on the aggregated series
+    // Mark anomalies using the same 2σ threshold as KPI cards
     data.forEach((point: any) => {
-      if (point.value !== null) {
+      if (point.value !== null && stdDev > 0) {
         point.isAnomaly = Math.abs(point.value - mean) > 2 * stdDev;
       } else {
         point.isAnomaly = false;
@@ -318,8 +391,9 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
       ucl: mean + 3 * stdDev,
       lcl: mean - 3 * stdDev,
       mean,
+      isSingleMill,
     };
-  }, [filteredData, selectedMillsSorted]);
+  }, [filteredData, selectedMillsSorted, millStatistics]);
 
   // Sorting handler for summary table
   const handleStatsSort = (column: StatsSortColumn) => {
@@ -708,10 +782,15 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
                     </span>
                   </div>
                   {stats.anomalyCount > 0 && (
-                    <div className="flex items-center gap-2 text-amber-600 text-xs pt-2 border-t border-gray-200">
+                    <button
+                      onClick={() => setSelectedMillForAnomalies(mill)}
+                      className="flex items-center gap-2 text-amber-600 text-xs pt-2 border-t border-gray-200 w-full hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                    >
                       <AlertCircle className="w-3 h-3" />
-                      <span>{stats.anomalyCount} аномалии открити</span>
-                    </div>
+                      <span className="underline">
+                        {stats.anomalyCount} аномалии открити
+                      </span>
+                    </button>
                   )}
                 </CardContent>
               </Card>
@@ -1349,6 +1428,134 @@ export const ModernStatisticsTab: React.FC<ModernStatisticsTabProps> = ({
           </CardContent>
         </Card>
       </div>
+
+      {/* Anomaly Details Modal */}
+      {selectedMillForAnomalies && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b bg-amber-50">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-6 h-6 text-amber-600" />
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Аномалии -{" "}
+                    {millStatistics[selectedMillForAnomalies]?.displayName}
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    {getAnomalyDetails(selectedMillForAnomalies).length}{" "}
+                    отклонения над 2σ
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedMillForAnomalies(null)}
+                className="p-2 hover:bg-amber-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-auto max-h-[60vh]">
+              {getAnomalyDetails(selectedMillForAnomalies).length === 0 ? (
+                <p className="text-gray-500 text-center py-8">
+                  Няма открити аномалии
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {getAnomalyDetails(selectedMillForAnomalies).map(
+                    (anomaly, idx) => {
+                      const date = new Date(anomaly.timestamp);
+                      const formattedDate = `${String(date.getDate()).padStart(
+                        2,
+                        "0"
+                      )}.${String(date.getMonth() + 1).padStart(
+                        2,
+                        "0"
+                      )}.${date.getFullYear()}`;
+                      const formattedTime = `${String(date.getHours()).padStart(
+                        2,
+                        "0"
+                      )}:${String(date.getMinutes()).padStart(2, "0")}`;
+
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-center justify-between p-3 rounded-lg border ${
+                            anomaly.type === "high"
+                              ? "bg-red-50 border-red-200"
+                              : "bg-blue-50 border-blue-200"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`p-2 rounded-full ${
+                                anomaly.type === "high"
+                                  ? "bg-red-100"
+                                  : "bg-blue-100"
+                              }`}
+                            >
+                              <Clock
+                                className={`w-4 h-4 ${
+                                  anomaly.type === "high"
+                                    ? "text-red-600"
+                                    : "text-blue-600"
+                                }`}
+                              />
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {formattedDate} в {formattedTime}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                {anomaly.type === "high"
+                                  ? "Над нормата"
+                                  : "Под нормата"}{" "}
+                                ({anomaly.deviation > 0 ? "+" : ""}
+                                {anomaly.deviation}σ)
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p
+                              className={`text-lg font-bold ${
+                                anomaly.type === "high"
+                                  ? "text-red-600"
+                                  : "text-blue-600"
+                              }`}
+                            >
+                              {anomaly.value} {parameterInfo?.unit}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              Средна:{" "}
+                              {
+                                millStatistics[selectedMillForAnomalies]
+                                  ?.avgValue
+                              }{" "}
+                              {parameterInfo?.unit}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t bg-gray-50">
+              <button
+                onClick={() => setSelectedMillForAnomalies(null)}
+                className="w-full py-2 px-4 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition-colors"
+              >
+                Затвори
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

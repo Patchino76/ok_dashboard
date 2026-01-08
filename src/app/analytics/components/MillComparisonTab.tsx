@@ -55,16 +55,6 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
     low: number;
     high: number;
   }>({ low: 0, high: 0 });
-  // Debug logging
-  console.log("MillComparisonTab received millsData:", millsData);
-  console.log(
-    "MillComparisonTab millsData structure:",
-    millsData ? Object.keys(millsData) : "No data"
-  );
-  if (millsData?.data) {
-    console.log("MillComparisonTab data array length:", millsData.data.length);
-    console.log("MillComparisonTab first data sample:", millsData.data[0]);
-  }
 
   const [chartData, setChartData] = useState<any[]>([]);
   const [filteredChartData, setFilteredChartData] = useState<MillData[]>([]);
@@ -107,13 +97,6 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
       // Calculate thresholds using the store's helper function
       const thresholds = calculateThresholds(values);
       setCurrentThresholds(thresholds);
-
-      // Debug logging
-      console.log("Current thresholds:", thresholds);
-      console.log("Current percentage thresholds:", {
-        lowThreshold,
-        highThreshold,
-      });
     }
   }, [filteredChartData, calculateThresholds, lowThreshold, highThreshold]);
 
@@ -137,21 +120,13 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
         );
       });
       latestRecord = allRecords[0];
-      console.log("Using latest record by timestamp:", latestRecord);
     } else {
       // Just use the first record if no timestamp
       latestRecord = allRecords[0];
-      console.log("No timestamps found, using first record:", latestRecord);
     }
 
     // Try to directly extract mill data using different approaches
     const extractedData: MillData[] = [];
-
-    // Log all available keys for debugging
-    console.log(
-      "Available keys in record:",
-      latestRecord ? Object.keys(latestRecord) : "No record available"
-    );
 
     // APPROACH 1: Handle case where we have multiple records, each for one mill
     if (
@@ -163,12 +138,6 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
       const latestTimestamp = latestRecord.timestamp;
       const latestRecords = allRecords.filter(
         (record: any) => record.timestamp === latestTimestamp
-      );
-
-      console.log(
-        "Using multiple records approach with",
-        latestRecords.length,
-        "records"
       );
 
       latestRecords.forEach((record: any) => {
@@ -205,10 +174,6 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
             millName = millName.replace(/mill/i, "");
           }
 
-          console.log(
-            `Found potential mill data: ${key} -> ${millName} = ${value}`
-          );
-
           extractedData.push({
             mill_name: millName,
             parameter_value: Number(value.toFixed(2)),
@@ -231,7 +196,6 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
       return a.mill_name.localeCompare(b.mill_name);
     });
 
-    console.log("Final extracted mill data:", extractedData);
     return extractedData;
   };
 
@@ -316,7 +280,6 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
       // True processing/transform errors are still surfaced
       // as an error state.
       setError(err.message || "Failed to process data");
-      console.error("Error processing data:", err);
     } finally {
       setLoading(false);
     }
@@ -383,7 +346,9 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
             {parameterInfo?.unit || ""}
           </span>
           <span className="ml-4 text-gray-500">
-            {timeRange === "24h"
+            {timeRange === "8h"
+              ? "8 Часа"
+              : timeRange === "24h"
               ? "24 Часа"
               : timeRange === "7d"
               ? "7 Дни"
@@ -400,82 +365,30 @@ export const MillComparisonTab: React.FC<MillComparisonTabProps> = ({
         </div>
       </div>
 
-      {/* Range Settings Controls */}
-      <div className="p-4 border-b">
-        <div className="flex items-center mb-2">
-          <h3 className="text-sm font-medium">Bar Color Thresholds</h3>
-          <div className="ml-auto flex items-center gap-2">
-            <div className="flex items-center">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: lowColor }}
-              ></div>
-              <span className="ml-1 text-xs text-gray-500">Low</span>
-            </div>
-            <div className="flex items-center">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: yellowColor }}
-              ></div>
-              <span className="ml-1 text-xs text-gray-500">Medium</span>
-            </div>
-            <div className="flex items-center">
-              <div
-                className="w-3 h-3 rounded-full"
-                style={{ backgroundColor: highColor }}
-              ></div>
-              <span className="ml-1 text-xs text-gray-500">High</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {/* Low Threshold */}
+      {/* Color Legend - Simplified */}
+      <div className="px-4 py-2 border-b flex items-center gap-4">
+        <span className="text-xs text-gray-500">Легенда:</span>
+        <div className="flex items-center gap-3">
           <div className="flex items-center">
-            <label className="text-xs text-gray-500 w-20">Low Threshold:</label>
-            <input
-              type="number"
-              value={currentThresholds.low.toFixed(2)}
-              onChange={(e) => {
-                // Convert back to percentage to store in the ranges store
-                const mean = statsData?.avg || 0;
-                if (mean > 0) {
-                  const newValue = Number(e.target.value);
-                  const percentage = (newValue / mean - 1) * 100;
-                  setLowThreshold(percentage);
-                }
-              }}
-              className="w-20 px-2 py-1 text-sm border rounded"
-              step="1"
-            />
-            <span className="ml-1 text-xs text-gray-500">
-              {parameterInfo?.unit}
-            </span>
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: lowColor }}
+            ></div>
+            <span className="ml-1 text-xs text-gray-500">Ниско</span>
           </div>
-
-          {/* High Threshold */}
           <div className="flex items-center">
-            <label className="text-xs text-gray-500 w-20">
-              High Threshold:
-            </label>
-            <input
-              type="number"
-              value={currentThresholds.high.toFixed(2)}
-              onChange={(e) => {
-                // Convert back to percentage to store in the ranges store
-                const mean = statsData?.avg || 0;
-                if (mean > 0) {
-                  const newValue = Number(e.target.value);
-                  const percentage = (newValue / mean - 1) * 100;
-                  setHighThreshold(percentage);
-                }
-              }}
-              className="w-20 px-2 py-1 text-sm border rounded"
-              step="1"
-            />
-            <span className="ml-1 text-xs text-gray-500">
-              {parameterInfo?.unit}
-            </span>
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: yellowColor }}
+            ></div>
+            <span className="ml-1 text-xs text-gray-500">Средно</span>
+          </div>
+          <div className="flex items-center">
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: highColor }}
+            ></div>
+            <span className="ml-1 text-xs text-gray-500">Високо</span>
           </div>
         </div>
       </div>
