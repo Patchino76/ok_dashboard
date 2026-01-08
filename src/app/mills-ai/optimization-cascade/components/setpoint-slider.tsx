@@ -71,11 +71,11 @@ export function SetpointSlider({
   const position = ((value - min) / (max - min)) * 100;
 
   return (
-    <div className="flex items-start h-full">
-      {/* Simplified slim track */}
+    <div className="flex justify-center h-full" style={{ width: "28px" }}>
+      {/* Slim track - centered */}
       <div
         ref={containerRef}
-        className="relative w-3 bg-purple-100 dark:bg-purple-900/50 rounded-full"
+        className="relative w-2 bg-purple-200 dark:bg-purple-900/50 rounded-full"
         style={{ height }}
       >
         {/* Active range fill from bottom */}
@@ -84,10 +84,10 @@ export function SetpointSlider({
           style={{ height: `${position}%` }}
         />
 
-        {/* Setpoint marker - simple circle */}
+        {/* Setpoint marker - pill shape for larger numbers */}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize transition-transform ${
-            isDragging ? "scale-125" : "hover:scale-110"
+          className={`absolute left-1/2 cursor-ns-resize transition-transform ${
+            isDragging ? "scale-110" : "hover:scale-105"
           }`}
           style={{
             bottom: `${position}%`,
@@ -99,8 +99,11 @@ export function SetpointSlider({
           }}
           title={`SP: ${Math.round(value)}`}
         >
-          <div className="w-5 h-5 rounded-full bg-purple-500 border-2 border-white shadow-md flex items-center justify-center">
-            <span className="text-[8px] font-bold text-white">
+          <div
+            className="px-1 rounded-sm bg-purple-500 border border-white shadow-sm"
+            style={{ height: "14px", display: "flex", alignItems: "center" }}
+          >
+            <span className="text-[8px] font-semibold text-white whitespace-nowrap leading-none">
               {Math.round(value)}
             </span>
           </div>

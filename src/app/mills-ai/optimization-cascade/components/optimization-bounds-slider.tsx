@@ -89,11 +89,11 @@ export function OptimizationBoundsSlider({
   const hiPosition = ((hiValue - min) / (max - min)) * 100;
 
   return (
-    <div className="flex items-start h-full">
-      {/* Simplified slim track */}
+    <div className="flex justify-center h-full" style={{ width: "28px" }}>
+      {/* Slim track - centered */}
       <div
         ref={containerRef}
-        className="relative w-3 bg-slate-200 dark:bg-slate-700 rounded-full"
+        className="relative w-2 bg-slate-200 dark:bg-slate-700 rounded-full"
         style={{ height }}
       >
         {/* Range fill between lo and hi */}
@@ -105,10 +105,10 @@ export function OptimizationBoundsSlider({
           }}
         />
 
-        {/* Hi bound marker - simple circle */}
+        {/* Hi bound marker - pill shape for larger numbers */}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize transition-transform ${
-            isDraggingHi ? "scale-125" : "hover:scale-110"
+          className={`absolute left-1/2 cursor-ns-resize transition-transform ${
+            isDraggingHi ? "scale-110" : "hover:scale-105"
           }`}
           style={{
             bottom: `${hiPosition}%`,
@@ -120,17 +120,20 @@ export function OptimizationBoundsSlider({
           }}
           title={`Макс: ${Math.round(hiValue)}`}
         >
-          <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-md flex items-center justify-center">
-            <span className="text-[8px] font-bold text-white">
+          <div
+            className="px-1 rounded-sm bg-red-500 border border-white shadow-sm"
+            style={{ height: "14px", display: "flex", alignItems: "center" }}
+          >
+            <span className="text-[8px] font-semibold text-white whitespace-nowrap leading-none">
               {Math.round(hiValue)}
             </span>
           </div>
         </div>
 
-        {/* Lo bound marker - simple circle */}
+        {/* Lo bound marker - pill shape for larger numbers */}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize transition-transform ${
-            isDraggingLo ? "scale-125" : "hover:scale-110"
+          className={`absolute left-1/2 cursor-ns-resize transition-transform ${
+            isDraggingLo ? "scale-110" : "hover:scale-105"
           }`}
           style={{
             bottom: `${loPosition}%`,
@@ -140,10 +143,13 @@ export function OptimizationBoundsSlider({
             e.preventDefault();
             setIsDraggingLo(true);
           }}
-          title={`Мин: ${Math.round(loValue)}`}
+          title={`Мін: ${Math.round(loValue)}`}
         >
-          <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-md flex items-center justify-center">
-            <span className="text-[8px] font-bold text-white">
+          <div
+            className="px-1 rounded-sm bg-blue-500 border border-white shadow-sm"
+            style={{ height: "14px", display: "flex", alignItems: "center" }}
+          >
+            <span className="text-[8px] font-semibold text-white whitespace-nowrap leading-none">
               {Math.round(loValue)}
             </span>
           </div>

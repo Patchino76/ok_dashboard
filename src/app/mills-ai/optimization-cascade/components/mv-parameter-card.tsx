@@ -629,8 +629,8 @@ export function MVParameterCard({
         </div>
 
         <div className="flex h-40">
-          {/* Sliders on the left - compact */}
-          <div className="flex items-start gap-1 pr-2">
+          {/* Sliders on the left with spacing */}
+          <div className="flex items-start gap-2 pr-3">
             {/* Optimization bounds slider */}
             <OptimizationBoundsSlider
               loValue={optBoundsLo}
