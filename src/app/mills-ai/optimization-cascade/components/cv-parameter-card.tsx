@@ -4,7 +4,11 @@ import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { millsParameters } from "../../data/mills-parameters";
-import { cascadeBG, getParameterNameBG } from "../translations/bg";
+import {
+  cascadeBG,
+  getParameterNameBG,
+  getParameterDescriptionBG,
+} from "../translations/bg";
 import {
   Area,
   ComposedChart,
@@ -134,44 +138,55 @@ export function CVParameterCard({
 
   const yAxisDomain = useMemo((): [number, number] => {
     // Smart adaptive Y-axis scaling for better trend visibility
-    
+
     // Priority 1: Use actual trend data if available (this is what we want to see clearly)
     const trendValues = filteredTrend.map((d) => d.value);
-    
+
     // Priority 2: Include important reference values
     const referenceValues = [
       typeof proposedSetpoint === "number" ? proposedSetpoint : undefined,
       latestPrediction !== null ? latestPrediction : undefined,
       distributionMedian,
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
-    
+
     // If we have trend data, focus on it for better zoom
     if (trendValues.length > 0) {
       const trendMin = Math.min(...trendValues);
       const trendMax = Math.max(...trendValues);
       const trendRange = trendMax - trendMin;
-      
+
       // Include reference values in the domain calculation
       const allRelevantValues = [...trendValues, ...referenceValues];
       const dataMin = Math.min(...allRelevantValues);
       const dataMax = Math.max(...allRelevantValues);
       const dataRange = dataMax - dataMin;
-      
+
       // Adaptive padding: smaller padding for tightly clustered data
       // Use 2% padding if data is very tight, up to 8% for wider ranges
-      const paddingPercent = dataRange < trendRange * 0.1 ? 0.02 : 
-                             dataRange < trendRange * 0.5 ? 0.05 : 0.08;
+      const paddingPercent =
+        dataRange < trendRange * 0.1
+          ? 0.02
+          : dataRange < trendRange * 0.5
+          ? 0.05
+          : 0.08;
       const padding = Math.max(dataRange * paddingPercent, trendRange * 0.02);
-      
+
       // Ensure shading bounds are visible if they're close to the data
-      const lowerBound = distributionPercentiles?.p5 ?? distributionBounds?.[0] ?? rangeValue[0];
-      const upperBound = distributionPercentiles?.p95 ?? distributionBounds?.[1] ?? rangeValue[1];
-      
+      const lowerBound =
+        distributionPercentiles?.p5 ?? distributionBounds?.[0] ?? rangeValue[0];
+      const upperBound =
+        distributionPercentiles?.p95 ??
+        distributionBounds?.[1] ??
+        rangeValue[1];
+
       let finalMin = dataMin - padding;
       let finalMax = dataMax + padding;
-      
+
       // If distributions are shown, ALWAYS include shading bounds in domain to prevent overflow
-      if (showDistributions && (distributionBounds || distributionPercentiles)) {
+      if (
+        showDistributions &&
+        (distributionBounds || distributionPercentiles)
+      ) {
         finalMin = Math.min(finalMin, lowerBound);
         finalMax = Math.max(finalMax, upperBound);
         // Add small padding beyond bounds to ensure they're fully visible
@@ -187,17 +202,17 @@ export function CVParameterCard({
           finalMax = Math.max(finalMax, upperBound + padding * 0.5);
         }
       }
-      
+
       console.log(`📊 CV ${parameter.id} Smart Y-axis:`, {
         trendRange: trendRange.toFixed(3),
         dataRange: dataRange.toFixed(3),
-        paddingPercent: (paddingPercent * 100).toFixed(1) + '%',
-        domain: [finalMin.toFixed(3), finalMax.toFixed(3)]
+        paddingPercent: (paddingPercent * 100).toFixed(1) + "%",
+        domain: [finalMin.toFixed(3), finalMax.toFixed(3)],
       });
-      
+
       return [finalMin, finalMax];
     }
-    
+
     // Fallback: No trend data, use bounds and references
     const fallbackValues = [
       ...referenceValues,
@@ -206,16 +221,16 @@ export function CVParameterCard({
       distributionBounds?.[0],
       distributionBounds?.[1],
     ].filter((v): v is number => v !== undefined && Number.isFinite(v));
-    
+
     if (fallbackValues.length === 0) {
       const mid = (rangeValue[0] + rangeValue[1]) / 2;
       return [mid - 1, mid + 1];
     }
-    
+
     const min = Math.min(...fallbackValues);
     const max = Math.max(...fallbackValues);
     const pad = (max - min || 1) * 0.1;
-    
+
     return [min - pad, max + pad];
   }, [
     filteredTrend,
@@ -234,14 +249,13 @@ export function CVParameterCard({
   const upperBound =
     distributionPercentiles?.p95 ?? distributionBounds?.[1] ?? rangeValue[1];
   // Use actual distribution median (p50) - don't calculate fallback
-  const medianValue =
-    distributionPercentiles?.p50 ?? distributionMedian;
+  const medianValue = distributionPercentiles?.p50 ?? distributionMedian;
 
   // Debug logging for distribution values
   if (showDistributions && (distributionPercentiles || distributionMedian)) {
     console.log(`📊 CV ${parameter.id} Distribution Values:`, {
       lowerBound: lowerBound.toFixed(2),
-      medianValue: medianValue?.toFixed(2) ?? 'N/A',
+      medianValue: medianValue?.toFixed(2) ?? "N/A",
       upperBound: upperBound.toFixed(2),
       percentiles: distributionPercentiles,
       rawMedian: distributionMedian,
@@ -280,10 +294,32 @@ export function CVParameterCard({
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
+            <CardTitle
+              className="text-base font-medium flex items-center gap-2 cursor-help"
+              title={
+                getParameterDescriptionBG(parameter.id, millsParameters) ||
+                `Контролирана променлива: ${parameter.id}`
+              }
+            >
               <span className="text-xl text-blue-600">{parameter.icon}</span>
               {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
+            <span className="text-xs text-slate-400 flex items-center gap-1">
+              <svg
+                className="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+              CV • Прогнозирана
+            </span>
           </div>
           <span className="text-xs text-slate-500">
             {cascadeBG.parameters.targetRange}: {rangeValue[0].toFixed(1)} –{" "}
@@ -357,7 +393,7 @@ export function CVParameterCard({
               <Tooltip
                 content={({ active, payload, label }) => {
                   if (!active || !payload || !payload.length) return null;
-                  
+
                   return (
                     <div
                       style={{
@@ -369,35 +405,67 @@ export function CVParameterCard({
                         fontSize: "11px",
                       }}
                     >
-                      <div style={{ fontSize: "10px", fontWeight: "500", marginBottom: "4px", color: "#e2e8f0" }}>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "500",
+                          marginBottom: "4px",
+                          color: "#e2e8f0",
+                        }}
+                      >
                         Час: {formatTime(label)}
                       </div>
                       {payload
-                        .filter((entry: any) => entry.dataKey !== "hiValue" && entry.dataKey !== "loValue")
+                        .filter(
+                          (entry: any) =>
+                            entry.dataKey !== "hiValue" &&
+                            entry.dataKey !== "loValue"
+                        )
                         .map((entry: any, index: number) => {
                           const value = entry.value;
-                          const formattedValue = value >= 1 ? value.toFixed(2) : value.toPrecision(3);
-                          
+                          const formattedValue =
+                            value >= 1
+                              ? value.toFixed(2)
+                              : value.toPrecision(3);
+
                           // Determine label and color based on dataKey
                           let displayLabel = entry.name;
                           let labelColor = "#e2e8f0";
-                          
+
                           if (entry.dataKey === "value") {
                             displayLabel = "PV";
                             labelColor = "#7dd3fc"; // sky-300 (light blue)
                           }
-                          
+
                           return (
-                            <div key={index} style={{ fontSize: "11px", padding: "1px 0", color: labelColor }}>
-                              <span style={{ fontWeight: "500" }}>{displayLabel}:</span>{" "}
+                            <div
+                              key={index}
+                              style={{
+                                fontSize: "11px",
+                                padding: "1px 0",
+                                color: labelColor,
+                              }}
+                            >
+                              <span style={{ fontWeight: "500" }}>
+                                {displayLabel}:
+                              </span>{" "}
                               {formattedValue} {parameter.unit}
                             </div>
                           );
                         })}
                       {latestPrediction !== null && (
-                        <div style={{ fontSize: "11px", padding: "1px 0", color: "#c084fc" }}>
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            padding: "1px 0",
+                            color: "#c084fc",
+                          }}
+                        >
                           <span style={{ fontWeight: "500" }}>SP:</span>{" "}
-                          {latestPrediction >= 1 ? latestPrediction.toFixed(2) : latestPrediction.toPrecision(3)} {parameter.unit}
+                          {latestPrediction >= 1
+                            ? latestPrediction.toFixed(2)
+                            : latestPrediction.toPrecision(3)}{" "}
+                          {parameter.unit}
                         </div>
                       )}
                     </div>

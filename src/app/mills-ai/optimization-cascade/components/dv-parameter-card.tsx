@@ -47,7 +47,7 @@ export function DVParameterCard({
 
   // For hasTrend=true: use PV value (read-only), for hasTrend=false: use slider value
   const [sliderValue, setSliderValue] = useState<number>(parameter.value);
-  
+
   // Sync slider value with parameter.value when hasTrend is true (PV updates)
   useEffect(() => {
     if (hasTrend) {
@@ -251,7 +251,13 @@ export function DVParameterCard({
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
+            <CardTitle
+              className="text-base font-medium flex items-center gap-2 cursor-help"
+              title={
+                getParameterDescriptionBG(parameter.id, millsParameters) ||
+                `Смущаваща променлива: ${parameter.id}`
+              }
+            >
               <span className="text-xl text-emerald-600">{parameter.icon}</span>
               {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
@@ -263,7 +269,7 @@ export function DVParameterCard({
                 {cascadeBG.parameters.disturbanceShort}
               </Badge>
               <span className="text-xs text-slate-500">
-                {cascadeBG.parameters.disturbance}
+                DV • {hasTrend ? "Реално време" : "Ръчно"}
               </span>
             </div>
           </div>
@@ -281,7 +287,9 @@ export function DVParameterCard({
                 </div>
                 <div className="text-2xl font-bold flex items-center gap-1 text-emerald-600">
                   {parameter.value.toFixed(2)}
-                  <span className="text-xs text-slate-500">{parameter.unit}</span>
+                  <span className="text-xs text-slate-500">
+                    {parameter.unit}
+                  </span>
                   {isPredicting && (
                     <span className="ml-2 text-sm text-emerald-500 animate-spin">
                       ⏳
@@ -320,7 +328,9 @@ export function DVParameterCard({
                         borderRadius: "6px",
                         backdropFilter: "blur(8px)",
                       }}
-                      labelFormatter={(label) => `Час: ${formatTime(label as number)}`}
+                      labelFormatter={(label) =>
+                        `Час: ${formatTime(label as number)}`
+                      }
                       formatter={(value: number) => [
                         `${value.toFixed(2)} ${parameter.unit}`,
                         "PV",
@@ -346,7 +356,9 @@ export function DVParameterCard({
             {/* Info message - slider disabled for real-time DVs */}
             <div className="flex items-center gap-2 text-xs text-slate-500 bg-emerald-50 dark:bg-emerald-950/30 p-2 rounded">
               <span>📡</span>
-              <span>Стойността се актуализира автоматично от реално време данни</span>
+              <span>
+                Стойността се актуализира автоматично от реално време данни
+              </span>
             </div>
           </div>
         ) : (

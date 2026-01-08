@@ -48,6 +48,9 @@ import { OptimizationJob } from "../../hooks/useAdvancedCascadeOptimization";
 import { cascadeBG } from "../translations/bg";
 import { CascadeModelInsights } from "./cascade-model-insights";
 import { OptimizationResultsDisplay } from "./optimization-results-display";
+import { SystemStatusBar } from "./system-status-bar";
+import { OptimizationPreview, TolerancePresets } from "./optimization-preview";
+import { CascadeMiniFlow } from "./cascade-mini-flow";
 
 export default function CascadeOptimizationDashboard() {
   // Cascade optimization store
@@ -241,7 +244,7 @@ export default function CascadeOptimizationDashboard() {
     resetFeatures: resetXgboostFeatures,
     updateSliderValue: updateXgboostSliderValue,
   } = xgboostStore;
-  
+
   // Model type from cascade store
   const { modelType, setModelType } = cascadeStore;
   // Keep XGBoost store in real-time mode to allow PV value updates
@@ -325,7 +328,12 @@ export default function CascadeOptimizationDashboard() {
         dvValues,
       });
 
-      const prediction = await predictCascade(mvSliderValues, dvValues, modelType, modelType === "gpr");
+      const prediction = await predictCascade(
+        mvSliderValues,
+        dvValues,
+        modelType,
+        modelType === "gpr"
+      );
 
       if (
         prediction &&
@@ -418,8 +426,11 @@ export default function CascadeOptimizationDashboard() {
   >(null);
   const [targetTolerance, setTargetTolerance] = useState<number>(1.0); // Default 1.0%
   const [optimizationResults, setOptimizationResults] = useState<any>(null);
-  const [modelPredictionTrend, setModelPredictionTrend] = useState<Array<{timestamp: number; value: number}>>([]);
+  const [modelPredictionTrend, setModelPredictionTrend] = useState<
+    Array<{ timestamp: number; value: number }>
+  >([]);
   const [isCalculatingTrend, setIsCalculatingTrend] = useState(false);
+  const [lastDataUpdate, setLastDataUpdate] = useState<number | null>(null);
 
   // TIME-BASED CASCADE PREDICTION (Orange SP) - Only triggered by new time points in targetData
   // This should NOT be triggered by parameter changes, only by new timestamps
@@ -487,7 +498,12 @@ export default function CascadeOptimizationDashboard() {
 
     (async () => {
       try {
-        const prediction = await predictCascade(mvValues, dvValues, modelType, modelType === "gpr");
+        const prediction = await predictCascade(
+          mvValues,
+          dvValues,
+          modelType,
+          modelType === "gpr"
+        );
         if (
           prediction &&
           typeof prediction.predicted_target === "number" &&
@@ -499,7 +515,9 @@ export default function CascadeOptimizationDashboard() {
           console.log(
             "✅ TIME-BASED prediction completed (Orange SP):",
             prediction.predicted_target.toFixed(2),
-            prediction.target_uncertainty ? `± ${prediction.target_uncertainty.toFixed(2)}` : ''
+            prediction.target_uncertainty
+              ? `± ${prediction.target_uncertainty.toFixed(2)}`
+              : ""
           );
           console.log(
             "   Updated testPredictionTarget, simulationTarget remains unchanged"
@@ -537,48 +555,55 @@ export default function CascadeOptimizationDashboard() {
       }
 
       setIsCalculatingTrend(true);
-      console.log("📊 Calculating model prediction trend from historical MV values...");
+      console.log(
+        "📊 Calculating model prediction trend from historical MV values..."
+      );
 
       try {
-        const predictions: Array<{timestamp: number; value: number}> = [];
+        const predictions: Array<{ timestamp: number; value: number }> = [];
         const mvFeatures = modelInfo.featureClassification.mv_features || [];
         const dvFeatures = modelInfo.featureClassification.dv_features || [];
-        
+
         // Sample points from targetData (smooth by taking every Nth point)
         const sampleInterval = Math.max(1, Math.floor(targetData.length / 50)); // Max 50 points
-        const sampledData = targetData.filter((_, index) => index % sampleInterval === 0);
-        
-        console.log(`   Sampled ${sampledData.length} points from ${targetData.length} total points`);
-        
+        const sampledData = targetData.filter(
+          (_, index) => index % sampleInterval === 0
+        );
+
+        console.log(
+          `   Sampled ${sampledData.length} points from ${targetData.length} total points`
+        );
+
         // Make predictions for each sampled point
         for (const dataPoint of sampledData) {
           // Get MV values at this timestamp from parameter TREND data (not current slider values!)
           const mvValues: Record<string, number> = {};
           let allMVsAvailable = true;
-          
+
           for (const mvName of mvFeatures) {
-            const param = parameters.find(p => p.id === mvName);
+            const param = parameters.find((p) => p.id === mvName);
             if (!param || !param.trend || param.trend.length === 0) {
               allMVsAvailable = false;
               break;
             }
-            
+
             // Find the trend value closest to this timestamp
             const trendPoint = param.trend.find(
               (t) => Math.abs(t.timestamp - dataPoint.timestamp) < 30000 // Within 30 seconds
             );
-            
-            if (trendPoint && typeof trendPoint.value === 'number') {
+
+            if (trendPoint && typeof trendPoint.value === "number") {
               mvValues[mvName] = trendPoint.value;
             } else {
               // Fallback: use the closest available trend point
-              const closestPoint = param.trend.reduce((prev, curr) => 
-                Math.abs(curr.timestamp - dataPoint.timestamp) < Math.abs(prev.timestamp - dataPoint.timestamp) 
-                  ? curr 
+              const closestPoint = param.trend.reduce((prev, curr) =>
+                Math.abs(curr.timestamp - dataPoint.timestamp) <
+                Math.abs(prev.timestamp - dataPoint.timestamp)
+                  ? curr
                   : prev
               );
-              
-              if (closestPoint && typeof closestPoint.value === 'number') {
+
+              if (closestPoint && typeof closestPoint.value === "number") {
                 mvValues[mvName] = closestPoint.value;
               } else {
                 allMVsAvailable = false;
@@ -586,21 +611,23 @@ export default function CascadeOptimizationDashboard() {
               }
             }
           }
-          
+
           if (!allMVsAvailable) {
             continue;
           }
-          
+
           // Get DV values at this timestamp from parameter TREND data (not slider values!)
           const dvValues: Record<string, number> = {};
           let allDVsAvailable = true;
-          
+
           for (const dvName of dvFeatures) {
-            const param = parameters.find(p => p.id === dvName);
+            const param = parameters.find((p) => p.id === dvName);
             if (!param || !param.trend || param.trend.length === 0) {
               // DVs might not have trend data (lab parameters), use slider value as fallback
-              const sliderValue = useCascadeOptimizationStore.getState().getDVSliderValues([dvName])[dvName];
-              if (typeof sliderValue === 'number') {
+              const sliderValue = useCascadeOptimizationStore
+                .getState()
+                .getDVSliderValues([dvName])[dvName];
+              if (typeof sliderValue === "number") {
                 dvValues[dvName] = sliderValue;
               } else {
                 allDVsAvailable = false;
@@ -608,28 +635,31 @@ export default function CascadeOptimizationDashboard() {
               }
               continue;
             }
-            
+
             // Find the trend value closest to this timestamp
             const trendPoint = param.trend.find(
               (t) => Math.abs(t.timestamp - dataPoint.timestamp) < 30000 // Within 30 seconds
             );
-            
-            if (trendPoint && typeof trendPoint.value === 'number') {
+
+            if (trendPoint && typeof trendPoint.value === "number") {
               dvValues[dvName] = trendPoint.value;
             } else {
               // Fallback: use the closest available trend point
-              const closestPoint = param.trend.reduce((prev, curr) => 
-                Math.abs(curr.timestamp - dataPoint.timestamp) < Math.abs(prev.timestamp - dataPoint.timestamp) 
-                  ? curr 
+              const closestPoint = param.trend.reduce((prev, curr) =>
+                Math.abs(curr.timestamp - dataPoint.timestamp) <
+                Math.abs(prev.timestamp - dataPoint.timestamp)
+                  ? curr
                   : prev
               );
-              
-              if (closestPoint && typeof closestPoint.value === 'number') {
+
+              if (closestPoint && typeof closestPoint.value === "number") {
                 dvValues[dvName] = closestPoint.value;
               } else {
                 // Final fallback: use slider value
-                const sliderValue = useCascadeOptimizationStore.getState().getDVSliderValues([dvName])[dvName];
-                if (typeof sliderValue === 'number') {
+                const sliderValue = useCascadeOptimizationStore
+                  .getState()
+                  .getDVSliderValues([dvName])[dvName];
+                if (typeof sliderValue === "number") {
                   dvValues[dvName] = sliderValue;
                 } else {
                   allDVsAvailable = false;
@@ -638,21 +668,30 @@ export default function CascadeOptimizationDashboard() {
               }
             }
           }
-          
+
           if (!allDVsAvailable) {
             continue;
           }
-          
+
           // Debug: Log MV and DV values for first few points to verify they're changing
           if (predictions.length < 3) {
-            console.log(`   📊 Timestamp ${new Date(dataPoint.timestamp).toLocaleTimeString()}:`);
+            console.log(
+              `   📊 Timestamp ${new Date(
+                dataPoint.timestamp
+              ).toLocaleTimeString()}:`
+            );
             console.log(`      MV values =`, mvValues);
             console.log(`      DV values =`, dvValues);
           }
-          
+
           // Make prediction with historical MV and DV values at this timestamp
           try {
-            const prediction = await predictCascade(mvValues, dvValues, modelType, modelType === "gpr");
+            const prediction = await predictCascade(
+              mvValues,
+              dvValues,
+              modelType,
+              modelType === "gpr"
+            );
             if (
               prediction &&
               typeof prediction.predicted_target === "number" &&
@@ -660,17 +699,21 @@ export default function CascadeOptimizationDashboard() {
             ) {
               predictions.push({
                 timestamp: dataPoint.timestamp,
-                value: prediction.predicted_target
+                value: prediction.predicted_target,
               });
             }
           } catch (error) {
-            console.warn(`   Failed to predict for timestamp ${dataPoint.timestamp}:`, error);
+            console.warn(
+              `   Failed to predict for timestamp ${dataPoint.timestamp}:`,
+              error
+            );
           }
         }
-        
-        console.log(`✅ Calculated ${predictions.length} model prediction points`);
+
+        console.log(
+          `✅ Calculated ${predictions.length} model prediction points`
+        );
         setModelPredictionTrend(predictions);
-        
       } catch (error) {
         console.error("❌ Failed to calculate model prediction trend:", error);
       } finally {
@@ -705,7 +748,7 @@ export default function CascadeOptimizationDashboard() {
     xgboostParameters.forEach((xgboostParam) => {
       // Check if this is a DV parameter with hasTrend enabled
       const paramConfig = millsParameters.find((p) => p.id === xgboostParam.id);
-      const isDVWithTrend = 
+      const isDVWithTrend =
         paramConfig?.varType === "DV" && paramConfig?.hasTrend === true;
 
       if (isDVWithTrend) {
@@ -720,7 +763,11 @@ export default function CascadeOptimizationDashboard() {
         );
       }
     });
-  }, [xgboostParameters, modelInfo?.featureClassification, updateCascadeDVsFromXGBoost]);
+  }, [
+    xgboostParameters,
+    modelInfo?.featureClassification,
+    updateCascadeDVsFromXGBoost,
+  ]);
 
   // Trigger trend data update when optimization tab is activated
   useEffect(() => {
@@ -738,6 +785,7 @@ export default function CascadeOptimizationDashboard() {
         try {
           // Trigger immediate data fetch to populate trends
           await fetchRealTimeData();
+          setLastDataUpdate(Date.now()); // Track last update time
           console.log("✅ Trend data refreshed for optimization tab");
 
           // Initialize MV slider values with current PV values
@@ -745,7 +793,7 @@ export default function CascadeOptimizationDashboard() {
           const currentXgboostParams = xgboostStore.parameters;
           initializeMVSlidersWithPVs(currentXgboostParams);
 
-          toast.success("Trend data refreshed and MV sliders initialized");
+          toast.success("Данните са обновени");
         } catch (error) {
           console.error(
             "❌ Error fetching trend data for optimization tab:",
@@ -1164,10 +1212,14 @@ export default function CascadeOptimizationDashboard() {
   };
 
   const handleModelTypeChange = async (newModelType: "xgb" | "gpr") => {
-    console.log(`🔄 Model type change requested: ${modelType} → ${newModelType}`);
+    console.log(
+      `🔄 Model type change requested: ${modelType} → ${newModelType}`
+    );
 
     if (newModelType === modelType) {
-      console.log(`⏭️ Model type change skipped - already using ${newModelType}`);
+      console.log(
+        `⏭️ Model type change skipped - already using ${newModelType}`
+      );
       return;
     }
 
@@ -1176,10 +1228,14 @@ export default function CascadeOptimizationDashboard() {
       setModelType(newModelType);
 
       // Reload model for current mill with new model type
-      console.log(`📥 Reloading ${newModelType.toUpperCase()} model for mill ${currentMill}`);
+      console.log(
+        `📥 Reloading ${newModelType.toUpperCase()} model for mill ${currentMill}`
+      );
       await loadModelForMill(currentMill, newModelType);
 
-      console.log(`✅ Successfully switched to ${newModelType.toUpperCase()} model`);
+      console.log(
+        `✅ Successfully switched to ${newModelType.toUpperCase()} model`
+      );
       toast.success(`Switched to ${newModelType.toUpperCase()} model`);
     } catch (error) {
       console.error("Error switching model type:", error);
@@ -1220,7 +1276,7 @@ export default function CascadeOptimizationDashboard() {
       // Set MV bounds from user-adjustable optimization bounds (or fallback to parameter bounds)
       const mvBounds: Record<string, [number, number]> = {};
       const { mvOptimizationBounds } = useCascadeOptimizationStore.getState();
-      
+
       featureClassification.mv_features.forEach((paramId) => {
         // Use user-adjusted optimization bounds if available, otherwise use parameter bounds
         const optBounds = mvOptimizationBounds[paramId] ||
@@ -1522,7 +1578,7 @@ export default function CascadeOptimizationDashboard() {
                             {cascadeBG.mill.noModels}
                           </div>
                         )}
-                        
+
                         {/* Model Type Selector */}
                         <div className="mt-4 space-y-2">
                           <div className="flex items-center gap-2">
@@ -1533,7 +1589,9 @@ export default function CascadeOptimizationDashboard() {
                           </div>
                           <div className="flex gap-2">
                             <Button
-                              variant={modelType === "xgb" ? "default" : "outline"}
+                              variant={
+                                modelType === "xgb" ? "default" : "outline"
+                              }
                               size="sm"
                               onClick={() => handleModelTypeChange("xgb")}
                               disabled={isLoadingModel}
@@ -1542,7 +1600,9 @@ export default function CascadeOptimizationDashboard() {
                               XGBoost
                             </Button>
                             <Button
-                              variant={modelType === "gpr" ? "default" : "outline"}
+                              variant={
+                                modelType === "gpr" ? "default" : "outline"
+                              }
                               size="sm"
                               onClick={() => handleModelTypeChange("gpr")}
                               disabled={isLoadingModel}
@@ -1720,6 +1780,34 @@ export default function CascadeOptimizationDashboard() {
 
           {/* Optimization Tab */}
           <TabsContent value="optimization" className="space-y-6">
+            {/* System Status Bar */}
+            <SystemStatusBar
+              isModelLoaded={!!modelMetadata}
+              isRealTimeActive={!!xgboostStore.dataUpdateInterval}
+              isOptimizing={isOptimizing}
+              lastUpdated={lastDataUpdate}
+              onRefresh={async () => {
+                await fetchRealTimeData();
+                setLastDataUpdate(Date.now());
+                toast.success("Данните са обновени");
+              }}
+              modelName={modelName || undefined}
+              currentMill={currentMill}
+              featureCount={getAllFeatures().length}
+            />
+
+            {/* Mini Cascade Flow Diagram */}
+            {modelMetadata && (
+              <CascadeMiniFlow
+                mvCount={getFeatureClassification()?.mv_features?.length || 0}
+                cvCount={getFeatureClassification()?.cv_features?.length || 0}
+                dvCount={getFeatureClassification()?.dv_features?.length || 0}
+                targetVariable={getTargetVariable()}
+                isOptimizing={isOptimizing}
+                hasResults={!!optimizationResults}
+              />
+            )}
+
             <Card className="shadow-lg border-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1728,35 +1816,32 @@ export default function CascadeOptimizationDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Model Information */}
-                <Card className="p-4 bg-slate-50 border-slate-200">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Мелница</div>
-                      <div className="text-sm font-semibold text-slate-800">
-                        Мелница {currentMill}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Тип модел</div>
-                      <div className="text-sm font-semibold text-slate-800 uppercase">
-                        {modelType === "gpr" ? "GPR" : "XGBoost"}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Целева променлива</div>
-                      <div className="text-sm font-semibold text-slate-800">
-                        {getTargetVariable()}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Брой параметри</div>
-                      <div className="text-sm font-semibold text-slate-800">
-                        {getAllFeatures().length}
-                      </div>
-                    </div>
+                {/* Model Information - Compact */}
+                <div className="flex items-center gap-6 text-sm flex-wrap py-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Мелница:</span>
+                    <span className="font-semibold">М{currentMill}</span>
                   </div>
-                </Card>
+                  <span className="text-slate-300">|</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Модел:</span>
+                    <span className="font-semibold uppercase">
+                      {modelType === "gpr" ? "GPR" : "XGBoost"}
+                    </span>
+                  </div>
+                  <span className="text-slate-300">|</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Цел:</span>
+                    <span className="font-semibold">{getTargetVariable()}</span>
+                  </div>
+                  <span className="text-slate-300">|</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500">Параметри:</span>
+                    <span className="font-semibold">
+                      {getAllFeatures().length}
+                    </span>
+                  </div>
+                </div>
 
                 {/* Optimization Controls */}
                 {modelType === "gpr" && (
@@ -1769,13 +1854,22 @@ export default function CascadeOptimizationDashboard() {
                             className="text-slate-400 hover:text-slate-600"
                             title="Оптимизацията с несигурност минимизира както целевата стойност, така и несигурността на прогнозата, водейки до по-надеждни решения."
                           >
-                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            <svg
+                              className="h-4 w-4"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                clipRule="evenodd"
+                              />
                             </svg>
                           </button>
                         </div>
                         <div className="text-xs text-slate-500">
-                          Използва несигурността на GPR модела за по-надеждна оптимизация
+                          Използва несигурността на GPR модела за по-надеждна
+                          оптимизация
                         </div>
                       </div>
                       <Switch
@@ -1787,58 +1881,43 @@ export default function CascadeOptimizationDashboard() {
                   </Card>
                 )}
 
-                {/* Tolerance Parameter */}
-                <Card className="p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col flex-1">
-                      <div className="text-sm font-medium">
-                        Толеранс на целта
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        Допустимо отклонение от целевата стойност (±%)
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-slate-500">±</span>
-                      <input
-                        type="number"
-                        min="0.1"
-                        max="5.0"
-                        step="0.1"
-                        value={targetTolerance}
-                        onChange={(e) => setTargetTolerance(parseFloat(e.target.value) || 1.0)}
-                        disabled={isOptimizing}
-                        className="w-16 px-2 py-1 text-sm border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <span className="text-xs text-slate-500">%</span>
-                    </div>
-                  </div>
+                {/* Tolerance Presets */}
+                <Card className="p-4">
+                  <TolerancePresets
+                    currentTolerance={targetTolerance}
+                    onToleranceChange={setTargetTolerance}
+                    disabled={isOptimizing}
+                  />
                 </Card>
 
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleStartOptimization}
-                    disabled={isOptimizing || !modelName}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {isOptimizing ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {cascadeBG.optimization.running}
-                      </>
-                    ) : (
-                      cascadeBG.optimization.startOptimization
-                    )}
-                  </Button>
-                  <Button
-                    onClick={handleResetOptimization}
-                    variant="outline"
-                    className="text-slate-700 border-slate-300 hover:bg-slate-50"
-                    disabled={isOptimizing}
-                  >
-                    {cascadeBG.actions.reset}
-                  </Button>
-                </div>
+                {/* Optimization Preview & Start */}
+                <OptimizationPreview
+                  targetValue={targetSetpoint}
+                  targetUnit={targetUnit}
+                  targetVariable={getTargetVariable()}
+                  tolerance={targetTolerance}
+                  mvCount={getFeatureClassification()?.mv_features?.length || 0}
+                  nTrials={cascadeStore.nTrials || 100}
+                  mvBounds={(() => {
+                    const { mvOptimizationBounds } =
+                      useCascadeOptimizationStore.getState();
+                    const featureClassification = getFeatureClassification();
+                    const bounds: Record<string, [number, number]> = {};
+                    featureClassification?.mv_features?.forEach(
+                      (paramId: string) => {
+                        bounds[paramId] = mvOptimizationBounds[paramId] ||
+                          optimizationBounds[paramId] ||
+                          parameterBounds[paramId] || [0, 100];
+                      }
+                    );
+                    return bounds;
+                  })()}
+                  isReady={!!modelMetadata}
+                  onStartOptimization={handleStartOptimization}
+                  onReset={handleResetOptimization}
+                  isOptimizing={isOptimizing}
+                  resetLabel={cascadeBG.actions.reset}
+                />
 
                 {/* Error Display */}
                 {(error || advancedError) && (
@@ -1854,6 +1933,22 @@ export default function CascadeOptimizationDashboard() {
                     results={optimizationResults}
                     targetVariable={getTargetVariable()}
                     targetUnit={targetUnit}
+                    currentValues={(() => {
+                      const values: Record<string, number> = {};
+                      parameters.forEach((p) => {
+                        if (p.varType === "MV") {
+                          values[p.id] = p.value;
+                        }
+                      });
+                      return values;
+                    })()}
+                    onApplyValues={(values) => {
+                      Object.entries(values).forEach(([paramId, value]) => {
+                        updateCascadeSliderValue(paramId, value);
+                        updateXgboostSliderValue(paramId, value);
+                      });
+                      toast.success("Оптималните стойности са приложени");
+                    }}
                   />
                 )}
               </CardContent>

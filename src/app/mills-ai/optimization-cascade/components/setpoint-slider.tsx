@@ -72,24 +72,22 @@ export function SetpointSlider({
 
   return (
     <div className="flex items-start h-full">
-      {/* Slider track and marker container - no Y-axis */}
+      {/* Simplified slim track */}
       <div
         ref={containerRef}
-        className="relative w-6 bg-gradient-to-b from-purple-100 via-purple-50 to-purple-100 dark:from-purple-900 dark:via-purple-950 dark:to-purple-900 rounded-lg shadow-inner border border-purple-200 dark:border-purple-700"
+        className="relative w-3 bg-purple-100 dark:bg-purple-900/50 rounded-full"
         style={{ height }}
       >
-        {/* Active range fill from bottom to current value - thinner */}
+        {/* Active range fill from bottom */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 w-3 bottom-0 bg-gradient-to-b from-purple-500/40 to-purple-400/40 rounded-lg"
-          style={{
-            height: `${position}%`,
-          }}
+          className="absolute left-0 right-0 bottom-0 bg-purple-400 rounded-full opacity-50"
+          style={{ height: `${position}%` }}
         />
 
-        {/* Setpoint marker (purple) - shorter height, centered on fill bar */}
+        {/* Setpoint marker - simple circle */}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize group transition-all ${
-            isDragging ? "scale-110" : "hover:scale-105"
+          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize transition-transform ${
+            isDragging ? "scale-125" : "hover:scale-110"
           }`}
           style={{
             bottom: `${position}%`,
@@ -97,16 +95,14 @@ export function SetpointSlider({
           }}
           onMouseDown={(e) => {
             e.preventDefault();
-            e.stopPropagation();
             setIsDragging(true);
           }}
-          onContextMenu={(e) => e.preventDefault()}
+          title={`SP: ${Math.round(value)}`}
         >
-          {/* Shorter marker with integrated value */}
-          <div className="px-2 py-0.5 rounded-md bg-gradient-to-br from-purple-400 to-purple-600 shadow-lg border-2 border-white dark:border-slate-900">
-            <div className="text-white text-[10px] font-bold whitespace-nowrap leading-tight">
+          <div className="w-5 h-5 rounded-full bg-purple-500 border-2 border-white shadow-md flex items-center justify-center">
+            <span className="text-[8px] font-bold text-white">
               {Math.round(value)}
-            </div>
+            </span>
           </div>
         </div>
       </div>

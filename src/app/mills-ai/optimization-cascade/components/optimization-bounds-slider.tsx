@@ -73,7 +73,16 @@ export function OptimizationBoundsSlider({
         document.removeEventListener("mouseup", handleMouseUp);
       };
     }
-  }, [isDraggingLo, isDraggingHi, min, max, loValue, hiValue, onLoChange, onHiChange]);
+  }, [
+    isDraggingLo,
+    isDraggingHi,
+    min,
+    max,
+    loValue,
+    hiValue,
+    onLoChange,
+    onHiChange,
+  ]);
 
   // Calculate positions (0% = bottom, 100% = top)
   const loPosition = ((loValue - min) / (max - min)) * 100;
@@ -81,25 +90,25 @@ export function OptimizationBoundsSlider({
 
   return (
     <div className="flex items-start h-full">
-      {/* Slider track and markers container - no Y-axis */}
+      {/* Simplified slim track */}
       <div
         ref={containerRef}
-        className="relative w-6 bg-gradient-to-b from-slate-100 via-slate-50 to-slate-100 dark:from-slate-700 dark:via-slate-800 dark:to-slate-700 rounded-lg shadow-inner border border-slate-200 dark:border-slate-600"
+        className="relative w-3 bg-slate-200 dark:bg-slate-700 rounded-full"
         style={{ height }}
       >
-        {/* Range fill between lo and hi - thinner */}
+        {/* Range fill between lo and hi */}
         <div
-          className="absolute left-1/2 -translate-x-1/2 w-3 bg-gradient-to-b from-blue-400/30 via-purple-400/30 to-red-400/30 rounded-lg"
+          className="absolute left-0 right-0 bg-gradient-to-b from-red-400 via-amber-300 to-blue-400 rounded-full opacity-60"
           style={{
             bottom: `${loPosition}%`,
             height: `${hiPosition - loPosition}%`,
           }}
         />
 
-        {/* Hi bound marker (red) - shorter height, centered on fill bar */}
+        {/* Hi bound marker - simple circle */}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize group transition-all ${
-            isDraggingHi ? "scale-110" : "hover:scale-105"
+          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize transition-transform ${
+            isDraggingHi ? "scale-125" : "hover:scale-110"
           }`}
           style={{
             bottom: `${hiPosition}%`,
@@ -107,23 +116,21 @@ export function OptimizationBoundsSlider({
           }}
           onMouseDown={(e) => {
             e.preventDefault();
-            e.stopPropagation();
             setIsDraggingHi(true);
           }}
-          onContextMenu={(e) => e.preventDefault()}
+          title={`Макс: ${Math.round(hiValue)}`}
         >
-          {/* Shorter marker with integrated value */}
-          <div className="px-2 py-0.5 rounded-md bg-gradient-to-br from-red-400 to-red-600 shadow-lg border-2 border-white dark:border-slate-900">
-            <div className="text-white text-[10px] font-bold whitespace-nowrap leading-tight">
+          <div className="w-4 h-4 rounded-full bg-red-500 border-2 border-white shadow-md flex items-center justify-center">
+            <span className="text-[8px] font-bold text-white">
               {Math.round(hiValue)}
-            </div>
+            </span>
           </div>
         </div>
 
-        {/* Lo bound marker (blue) - shorter height, centered on fill bar */}
+        {/* Lo bound marker - simple circle */}
         <div
-          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize group transition-all ${
-            isDraggingLo ? "scale-110" : "hover:scale-105"
+          className={`absolute left-1/2 -translate-x-1/2 cursor-ns-resize transition-transform ${
+            isDraggingLo ? "scale-125" : "hover:scale-110"
           }`}
           style={{
             bottom: `${loPosition}%`,
@@ -131,16 +138,14 @@ export function OptimizationBoundsSlider({
           }}
           onMouseDown={(e) => {
             e.preventDefault();
-            e.stopPropagation();
             setIsDraggingLo(true);
           }}
-          onContextMenu={(e) => e.preventDefault()}
+          title={`Мин: ${Math.round(loValue)}`}
         >
-          {/* Shorter marker with integrated value */}
-          <div className="px-2 py-0.5 rounded-md bg-gradient-to-br from-blue-400 to-blue-600 shadow-lg border-2 border-white dark:border-slate-900">
-            <div className="text-white text-[10px] font-bold whitespace-nowrap leading-tight">
+          <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-md flex items-center justify-center">
+            <span className="text-[8px] font-bold text-white">
               {Math.round(loValue)}
-            </div>
+            </span>
           </div>
         </div>
       </div>

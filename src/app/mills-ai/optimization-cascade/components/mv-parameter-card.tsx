@@ -71,7 +71,7 @@ export function MVParameterCard({
   );
   const [isPredicting, setIsPredicting] = useState(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // Optimization bounds state (lo/hi markers)
   const [optBoundsLo, setOptBoundsLo] = useState<number>(_bounds[0]);
   const [optBoundsHi, setOptBoundsHi] = useState<number>(_bounds[1]);
@@ -361,52 +361,60 @@ export function MVParameterCard({
   // Initialize optimization bounds from Y-axis domain (only once or when Y-axis changes)
   useEffect(() => {
     const storeBounds = mvOptimizationBounds[parameter.id];
-    
+
     // If store has bounds, use them
     if (storeBounds && boundsInitializedRef.current) {
       return; // Already initialized, don't override user adjustments
     }
-    
+
     // Initialize to Y-axis domain (chart visible range)
     const initialLo = Math.max(yAxisDomain[0], sliderDomainMin);
     const initialHi = Math.min(yAxisDomain[1], sliderDomainMax);
-    
+
     setOptBoundsLo(initialLo);
     setOptBoundsHi(initialHi);
     updateMVOptimizationBounds(parameter.id, [initialLo, initialHi]);
     boundsInitializedRef.current = true;
   }, [parameter.id, yAxisDomain, sliderDomainMin, sliderDomainMax]);
-  
+
   // Clamp optimization bounds when Y-axis domain changes
   useEffect(() => {
     if (!boundsInitializedRef.current) return;
-    
+
     const [domainMin, domainMax] = yAxisDomain;
-    
+
     // Use a callback to get current values to avoid dependency issues
     setOptBoundsLo((currentLo) => {
       if (currentLo < domainMin) {
-        console.log(`🔧 Clamping ${parameter.id} lo bound: ${currentLo} → ${domainMin}`);
+        console.log(
+          `🔧 Clamping ${parameter.id} lo bound: ${currentLo} → ${domainMin}`
+        );
         return domainMin;
       } else if (currentLo > domainMax) {
-        console.log(`🔧 Clamping ${parameter.id} lo bound: ${currentLo} → ${domainMax}`);
+        console.log(
+          `🔧 Clamping ${parameter.id} lo bound: ${currentLo} → ${domainMax}`
+        );
         return domainMax;
       }
       return currentLo;
     });
-    
+
     setOptBoundsHi((currentHi) => {
       if (currentHi > domainMax) {
-        console.log(`🔧 Clamping ${parameter.id} hi bound: ${currentHi} → ${domainMax}`);
+        console.log(
+          `🔧 Clamping ${parameter.id} hi bound: ${currentHi} → ${domainMax}`
+        );
         return domainMax;
       } else if (currentHi < domainMin) {
-        console.log(`🔧 Clamping ${parameter.id} hi bound: ${currentHi} → ${domainMin}`);
+        console.log(
+          `🔧 Clamping ${parameter.id} hi bound: ${currentHi} → ${domainMin}`
+        );
         return domainMin;
       }
       return currentHi;
     });
   }, [yAxisDomain, parameter.id]);
-  
+
   // Update store when bounds change
   useEffect(() => {
     if (boundsInitializedRef.current) {
@@ -528,61 +536,102 @@ export function MVParameterCard({
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <div className="flex flex-col gap-1">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
+            <CardTitle
+              className="text-base font-medium flex items-center gap-2 cursor-help"
+              title={
+                getParameterDescriptionBG(parameter.id, millsParameters) ||
+                `Манипулирана променлива: ${parameter.id}`
+              }
+            >
               <span className="text-xl text-amber-600">{parameter.icon}</span>
               {getParameterNameBG(parameter.id, millsParameters)}
             </CardTitle>
+            <span className="text-xs text-slate-400">MV • Манипулирана</span>
           </div>
-          <Badge
-            variant={isInRange ? "outline" : "secondary"}
-            className={
-              isInRange
-                ? "bg-amber-100 text-amber-800 border-amber-200"
-                : "bg-red-100 text-red-800 border-red-200"
-            }
-          >
-            {isInRange ? "В граници" : "Извън граници"}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleSliderChange(parameter.value)}
+              className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-slate-400 hover:text-amber-600 transition-colors"
+              title="Нулирай към PV"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+            </button>
+            <Badge
+              variant={isInRange ? "outline" : "secondary"}
+              className={
+                isInRange
+                  ? "bg-amber-100 text-amber-800 border-amber-200"
+                  : "bg-red-100 text-red-800 border-red-200"
+              }
+            >
+              {isInRange ? "В граници" : "Извън граници"}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <div className="text-sm text-slate-500 dark:text-slate-400">
-              {cascadeBG.card.currentValue}
+      <CardContent className="space-y-2 pt-2">
+        {/* Compact inline values */}
+        <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="text-slate-500">PV:</span>
+              <span className="font-bold text-slate-700">
+                {parameter.value.toFixed(1)}
+              </span>
+              <span className="text-[10px] text-slate-400">
+                {parameter.unit}
+              </span>
             </div>
-            <div className="text-2xl font-bold flex items-center gap-1">
-              {parameter.value.toFixed(2)}
-              <span className="text-xs text-slate-500">{parameter.unit}</span>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <div className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              {cascadeBG.card.setpoint} ({cascadeBG.card.sp})
+            <div className="flex items-center gap-1.5">
+              <span className="text-purple-500">SP:</span>
+              <span className="font-bold text-purple-600">
+                {sliderValue.toFixed(1)}
+              </span>
               {isPredicting && (
-                <div className="animate-spin h-3 w-3 border border-slate-400 border-t-transparent rounded-full"></div>
+                <div className="animate-spin h-3 w-3 border border-purple-400 border-t-transparent rounded-full"></div>
               )}
             </div>
-            <div
-              className="text-2xl font-bold flex items-center gap-1"
-              style={{ color: "#f97316" }}
-            >
-              {isPredicting
-                ? "..."
-                : typeof distributionMedian === "number"
-                ? distributionMedian.toFixed(2)
-                : typeof proposedSetpoint === "number"
-                ? proposedSetpoint.toFixed(2)
-                : "--"}
-              <span className="text-xs text-slate-500">{parameter.unit}</span>
-            </div>
+          </div>
+          <div
+            className={`flex items-center gap-1 text-xs font-medium ${
+              sliderValue - parameter.value > 0
+                ? "text-emerald-600"
+                : sliderValue - parameter.value < 0
+                ? "text-red-500"
+                : "text-slate-400"
+            }`}
+          >
+            <span>
+              Δ {sliderValue - parameter.value > 0 ? "+" : ""}
+              {(sliderValue - parameter.value).toFixed(1)}
+            </span>
+            <span className="text-slate-400">
+              (
+              {(
+                ((sliderValue - parameter.value) / parameter.value) *
+                100
+              ).toFixed(0)}
+              %)
+            </span>
           </div>
         </div>
 
-        <div className="flex h-48 sm:h-56">
-          {/* Sliders on the left - aligned to chart Y-axis */}
-          <div className="flex items-start pl-2 pr-3 gap-2" style={{ paddingTop: '5px', paddingBottom: '5px' }}>
-            {/* Modern optimization bounds slider */}
+        <div className="flex h-40">
+          {/* Sliders on the left - compact */}
+          <div className="flex items-start gap-1 pr-2">
+            {/* Optimization bounds slider */}
             <OptimizationBoundsSlider
               loValue={optBoundsLo}
               hiValue={optBoundsHi}
@@ -591,10 +640,9 @@ export function MVParameterCard({
               onLoChange={(value) => setOptBoundsLo(value)}
               onHiChange={(value) => setOptBoundsHi(value)}
               unit={parameter.unit}
-              height="calc(100% - 10px)"
+              height="100%"
             />
-            
-            {/* Modern purple setpoint slider */}
+            {/* Setpoint slider */}
             <SetpointSlider
               value={sliderValue}
               min={sliderDomainMin}
@@ -602,10 +650,10 @@ export function MVParameterCard({
               step={sliderStep}
               onChange={(value) => handleSliderChange(value)}
               unit={parameter.unit}
-              height="calc(100% - 10px)"
+              height="100%"
             />
           </div>
-          
+
           {/* Trend chart - maximum available space */}
           <div className="flex-1 h-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
