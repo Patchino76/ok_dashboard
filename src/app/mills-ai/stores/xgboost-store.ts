@@ -12,19 +12,19 @@ import { millsParameters } from "../data/mills-parameters";
  */
 function applyMovingAverageSmoothing(
   trend: Array<{ timestamp: number; value: number }>,
-  windowSize: number = 5
+  windowSize: number = 5,
 ): Array<{ timestamp: number; value: number }> {
   if (trend.length === 0 || windowSize <= 1) {
     return trend;
   }
 
   const smoothed: Array<{ timestamp: number; value: number }> = [];
-  
+
   for (let i = 0; i < trend.length; i++) {
     // Calculate window boundaries
     const windowStart = Math.max(0, i - Math.floor(windowSize / 2));
     const windowEnd = Math.min(trend.length, windowStart + windowSize);
-    
+
     // Calculate average value in window
     let sum = 0;
     let count = 0;
@@ -32,13 +32,13 @@ function applyMovingAverageSmoothing(
       sum += trend[j].value;
       count++;
     }
-    
+
     smoothed.push({
       timestamp: trend[i].timestamp,
       value: sum / count,
     });
   }
-  
+
   return smoothed;
 }
 
@@ -50,7 +50,7 @@ function applyMovingAverageSmoothing(
  */
 function resampleTrendData(
   trend: Array<{ timestamp: number; value: number }>,
-  targetPointCount: number
+  targetPointCount: number,
 ): Array<{ timestamp: number; value: number }> {
   if (trend.length === 0 || trend.length <= targetPointCount) {
     return trend;
@@ -58,12 +58,12 @@ function resampleTrendData(
 
   const resampled: Array<{ timestamp: number; value: number }> = [];
   const step = trend.length / targetPointCount;
-  
+
   for (let i = 0; i < targetPointCount; i++) {
     const index = Math.floor(i * step);
     resampled.push(trend[index]);
   }
-  
+
   return resampled;
 }
 
@@ -123,7 +123,7 @@ interface XgboostState {
   setModelMetadata: (
     features: string[],
     target: string,
-    lastTrained: string | null
+    lastTrained: string | null,
   ) => void;
   startSimulation: () => void;
   stopSimulation: () => void;
@@ -138,7 +138,7 @@ interface XgboostState {
     featureName: string,
     value: number,
     timestamp: number,
-    trend?: Array<{ timestamp: number; value: number }>
+    trend?: Array<{ timestamp: number; value: number }>,
   ) => void;
   resetFeatures: () => void;
   setDisplayHours: (hours: number) => void;
@@ -240,9 +240,12 @@ const getTagId = (targetKey: string, millNumber: number): number | null => {
 
   if (!tagInfo) {
     console.error(
-      `Mill ${millNumber} (${millName}) not found for target ${targetKey}`
+      `Mill ${millNumber} (${millName}) not found for target ${targetKey}`,
     );
-    console.error(`Available mills in ${targetKey}:`, tags?.map(t => t.name));
+    console.error(
+      `Available mills in ${targetKey}:`,
+      tags?.map((t) => t.name),
+    );
     return null;
   }
 
@@ -415,7 +418,7 @@ export const useXgboostStore = create<XgboostState>()(
                     { timestamp: Date.now(), value },
                   ].slice(-50), // Keep last 50 points
                 }
-              : param
+              : param,
           ),
         })),
 
@@ -500,7 +503,7 @@ export const useXgboostStore = create<XgboostState>()(
           } catch (e) {
             console.warn(
               "stopRealTimeUpdates raised an error (safe to ignore):",
-              e
+              e,
             );
           }
 
@@ -586,14 +589,14 @@ export const useXgboostStore = create<XgboostState>()(
             sliderValues: {
               ...state.sliderValues,
               ...Object.fromEntries(
-                updatedParameters.map((p) => [p.id, p.value])
+                updatedParameters.map((p) => [p.id, p.value]),
               ),
             },
           };
 
           console.log(
             "✅ XGBoost Store: Updated state with modelFeatures:",
-            newState.modelFeatures
+            newState.modelFeatures,
           );
           return newState;
         });
@@ -634,7 +637,7 @@ export const useXgboostStore = create<XgboostState>()(
 
         if (!modelFeatures || modelFeatures.length === 0) {
           console.warn(
-            "❌ No model features available for real-time data fetch"
+            "❌ No model features available for real-time data fetch",
           );
           console.warn("Current modelFeatures:", modelFeatures);
           set({ isFetching: false }); // Reset fetching flag
@@ -656,7 +659,7 @@ export const useXgboostStore = create<XgboostState>()(
           const shouldFetchTrends = (() => {
             const s = useXgboostStore.getState();
             const anyParamMissingTrend = s.parameters.some(
-              (p) => p.trend.length === 0
+              (p) => p.trend.length === 0,
             );
             const noTargetTrend = s.targetData.length === 0;
             // Always fetch trends when displayHours changes from previous fetch
@@ -697,22 +700,22 @@ export const useXgboostStore = create<XgboostState>()(
             // Check if this is a calculated parameter
             if (calculatedParameters.includes(featureName)) {
               console.log(
-                `🧮 Skipping real-time data fetch for calculated parameter: ${featureName}`
+                `🧮 Skipping real-time data fetch for calculated parameter: ${featureName}`,
               );
               return null;
             }
 
             // Check if this parameter has real-time trend data available
             const parameterConfig = millsParameters.find(
-              (p) => p.id === featureName
+              (p) => p.id === featureName,
             );
             // Skip only DVs that don't have real-time data (hasTrend: false or undefined)
-            const isLabParameterWithoutTrend = 
+            const isLabParameterWithoutTrend =
               parameterConfig?.varType === "DV" && !parameterConfig?.hasTrend;
 
             if (isLabParameterWithoutTrend) {
               console.log(
-                `⚗️ Skipping real-time data fetch for lab parameter without trend: ${featureName}`
+                `⚗️ Skipping real-time data fetch for lab parameter without trend: ${featureName}`,
               );
               return null;
             }
@@ -720,20 +723,20 @@ export const useXgboostStore = create<XgboostState>()(
             // Map the feature name to the correct mills tags key
             const millsTagKey = featureMapping[featureName] || featureName;
             console.log(
-              `Feature "${featureName}" mapped to millsTagKey: "${millsTagKey}"`
+              `Feature "${featureName}" mapped to millsTagKey: "${millsTagKey}"`,
             );
 
             const tagId = getTagId(millsTagKey, currentMill);
             if (!tagId) {
               console.warn(
-                `Could not find tag ID for feature ${featureName} (mapped to ${millsTagKey}) and mill ${currentMill}`
+                `Could not find tag ID for feature ${featureName} (mapped to ${millsTagKey}) and mill ${currentMill}`,
               );
               console.warn("Available millsTags keys:", Object.keys(millsTags));
               return null;
             }
 
             console.log(
-              `Fetching data for feature ${featureName} -> tag ID ${tagId}`
+              `Fetching data for feature ${featureName} -> tag ID ${tagId}`,
             );
 
             try {
@@ -744,30 +747,28 @@ export const useXgboostStore = create<XgboostState>()(
               // Optionally fetch trend data on first load only (retention window)
               let trendData = { timestamps: [], values: [] } as any;
               if (shouldFetchTrends) {
-                const apiUrl =
-                  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
                 // Use displayHours for API calls, but fall back to TREND_RETENTION_HOURS if needed
                 const fetchHours =
                   stateAtStart.displayHours || TREND_RETENTION_HOURS;
                 console.log(
-                  `Fetching trend data for ${featureName} with ${fetchHours} hours window`
+                  `Fetching trend data for ${featureName} with ${fetchHours} hours window`,
                 );
                 const trendResponse = await fetch(
-                  `${apiUrl}/api/tag-trend/${tagId}?hours=${fetchHours}`,
+                  `/api/tag-trend/${tagId}?hours=${fetchHours}`,
                   {
                     headers: { Accept: "application/json" },
                     cache: "no-store",
-                  }
+                  },
                 );
                 if (trendResponse.ok) {
                   trendData = await trendResponse.json();
                   console.log(
                     `Received trend data for ${featureName}:`,
-                    trendData
+                    trendData,
                   );
                 } else {
                   console.warn(
-                    `Failed to fetch trend data for ${featureName}: ${trendResponse.statusText}`
+                    `Failed to fetch trend data for ${featureName}: ${trendResponse.statusText}`,
                   );
                 }
               }
@@ -813,7 +814,7 @@ export const useXgboostStore = create<XgboostState>()(
             } catch (error) {
               console.error(
                 `Error fetching data for feature ${featureName}:`,
-                error
+                error,
               );
             }
             return null;
@@ -826,7 +827,7 @@ export const useXgboostStore = create<XgboostState>()(
             const targetTagId = getTagId(modelTarget, currentMill);
             if (targetTagId) {
               console.log(
-                `Fetching target PV data for ${modelTarget} -> tag ID ${targetTagId}`
+                `Fetching target PV data for ${modelTarget} -> tag ID ${targetTagId}`,
               );
 
               // Fetch current target value
@@ -834,7 +835,7 @@ export const useXgboostStore = create<XgboostState>()(
                 .then((tagData) => {
                   console.log(
                     `Received target PV data for ${modelTarget}:`,
-                    tagData
+                    tagData,
                   );
                   if (tagData && typeof tagData.value === "number") {
                     // Use polling time for consistency and uniqueness
@@ -849,39 +850,37 @@ export const useXgboostStore = create<XgboostState>()(
                 .catch((error) => {
                   console.error(
                     `Error fetching target PV data for ${modelTarget}:`,
-                    error
+                    error,
                   );
                   return null;
                 });
 
               // Fetch target trend data (retention window) only if needed
               if (shouldFetchTrends) {
-                const apiUrl =
-                  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
                 // Use displayHours for API calls, but fall back to TREND_RETENTION_HOURS if needed
                 const fetchHours =
                   stateAtStart.displayHours || TREND_RETENTION_HOURS;
                 console.log(
-                  `Fetching target trend data for ${modelTarget} with ${fetchHours} hours window`
+                  `Fetching target trend data for ${modelTarget} with ${fetchHours} hours window`,
                 );
                 targetTrendPromise = fetch(
-                  `${apiUrl}/api/tag-trend/${targetTagId}?hours=${fetchHours}`,
+                  `/api/tag-trend/${targetTagId}?hours=${fetchHours}`,
                   {
                     headers: { Accept: "application/json" },
                     cache: "no-store",
-                  }
+                  },
                 )
                   .then(async (response) => {
                     if (response.ok) {
                       const data = await response.json();
                       console.log(
                         `Received target trend data for ${modelTarget}:`,
-                        data
+                        data,
                       );
                       return data;
                     } else {
                       console.warn(
-                        `Failed to fetch target trend data for ${modelTarget}: ${response.statusText}`
+                        `Failed to fetch target trend data for ${modelTarget}: ${response.statusText}`,
                       );
                       return { timestamps: [], values: [] };
                     }
@@ -889,7 +888,7 @@ export const useXgboostStore = create<XgboostState>()(
                   .catch((error) => {
                     console.error(
                       `Error fetching target trend data for ${modelTarget}:`,
-                      error
+                      error,
                     );
                     return { timestamps: [], values: [] };
                   });
@@ -901,7 +900,7 @@ export const useXgboostStore = create<XgboostState>()(
               }
             } else {
               console.warn(
-                `Could not find tag ID for target ${modelTarget} and mill ${currentMill}`
+                `Could not find tag ID for target ${modelTarget} and mill ${currentMill}`,
               );
             }
           }
@@ -917,7 +916,7 @@ export const useXgboostStore = create<XgboostState>()(
           // Drop results if model changed while awaiting
           if (useXgboostStore.getState().modelName !== requestModelName) {
             console.warn(
-              "🛑 Dropping stale fetchRealTimeData results due to model change"
+              "🛑 Dropping stale fetchRealTimeData results due to model change",
             );
             return;
           }
@@ -930,46 +929,55 @@ export const useXgboostStore = create<XgboostState>()(
           console.log("Target trend data:", targetTrendData);
 
           // Get target trend point count for resampling
-          const targetTrendPointCount = targetTrendData && Array.isArray(targetTrendData) 
-            ? targetTrendData.length 
-            : 0;
+          const targetTrendPointCount =
+            targetTrendData && Array.isArray(targetTrendData)
+              ? targetTrendData.length
+              : 0;
 
           // Update parameters with real-time data
           featureResults.forEach((result) => {
             if (result) {
               let processedTrend = result.trend;
-              
+
               // Check if this parameter has smoothing enabled
-              const paramConfig = millsParameters.find((p) => p.id === result.featureName);
+              const paramConfig = millsParameters.find(
+                (p) => p.id === result.featureName,
+              );
               if (paramConfig?.hasSmoothing && processedTrend.length > 0) {
                 console.log(
-                  `📊 Applying smoothing to ${result.featureName} (${processedTrend.length} points)`
+                  `📊 Applying smoothing to ${result.featureName} (${processedTrend.length} points)`,
                 );
-                
+
                 // Apply moving average smoothing
                 processedTrend = applyMovingAverageSmoothing(processedTrend, 5);
-                
+
                 // Resample to match target trend point count if available
-                if (targetTrendPointCount > 0 && processedTrend.length > targetTrendPointCount) {
+                if (
+                  targetTrendPointCount > 0 &&
+                  processedTrend.length > targetTrendPointCount
+                ) {
                   console.log(
-                    `📊 Resampling ${result.featureName} from ${processedTrend.length} to ${targetTrendPointCount} points`
+                    `📊 Resampling ${result.featureName} from ${processedTrend.length} to ${targetTrendPointCount} points`,
                   );
-                  processedTrend = resampleTrendData(processedTrend, targetTrendPointCount);
+                  processedTrend = resampleTrendData(
+                    processedTrend,
+                    targetTrendPointCount,
+                  );
                 }
-                
+
                 console.log(
-                  `✅ Smoothing complete for ${result.featureName}: ${processedTrend.length} points`
+                  `✅ Smoothing complete for ${result.featureName}: ${processedTrend.length} points`,
                 );
               }
-              
+
               console.log(
-                `Updating parameter ${result.featureName} with value ${result.value} and trend data`
+                `Updating parameter ${result.featureName} with value ${result.value} and trend data`,
               );
               state.updateParameterFromRealData(
                 result.featureName,
                 result.value,
                 result.timestamp,
-                processedTrend
+                processedTrend,
               );
             }
           });
@@ -977,48 +985,68 @@ export const useXgboostStore = create<XgboostState>()(
           // Calculate CirculativeLoad in real-time if we have the required parameters
           const oreParam = state.parameters.find((p) => p.id === "Ore");
           const pulpHCParam = state.parameters.find((p) => p.id === "PulpHC");
-          const densityHCParam = state.parameters.find((p) => p.id === "DensityHC");
-          
+          const densityHCParam = state.parameters.find(
+            (p) => p.id === "DensityHC",
+          );
+
           if (oreParam && pulpHCParam && densityHCParam && oreParam.value > 0) {
-            console.log("🧮 Calculating CirculativeLoad from real-time values...");
-            console.log(`  Ore: ${oreParam.value}, PulpHC: ${pulpHCParam.value}, DensityHC: ${densityHCParam.value}`);
-            
+            console.log(
+              "🧮 Calculating CirculativeLoad from real-time values...",
+            );
+            console.log(
+              `  Ore: ${oreParam.value}, PulpHC: ${pulpHCParam.value}, DensityHC: ${densityHCParam.value}`,
+            );
+
             // Constants from db_connector.py
             const rho_solid = 2900; // kg/m³
             const rho_water = 1000; // kg/m³
-            
+
             // Step 1: Calculate volumetric concentration (C_v)
-            const C_v = Math.max(0, Math.min(1, (densityHCParam.value - rho_water) / (rho_solid - rho_water)));
-            
+            const C_v = Math.max(
+              0,
+              Math.min(
+                1,
+                (densityHCParam.value - rho_water) / (rho_solid - rho_water),
+              ),
+            );
+
             // Step 2: Calculate mass concentration (C_m)
             const numerator = C_v * rho_solid;
             const denominator = C_v * rho_solid + (1 - C_v) * rho_water;
             const C_m = numerator / denominator;
-            
+
             // Step 3: Calculate mass flow of solids to cyclone (t/h)
-            const M_solid_to_cyclone = (pulpHCParam.value * densityHCParam.value * C_m) / 1000;
-            
+            const M_solid_to_cyclone =
+              (pulpHCParam.value * densityHCParam.value * C_m) / 1000;
+
             // Step 4: Calculate circulative load ratio
-            const circulativeLoad = (M_solid_to_cyclone - oreParam.value) / oreParam.value;
-            
-            console.log(`  ✓ CirculativeLoad calculated: ${circulativeLoad.toFixed(3)}`);
-            console.log(`    C_v: ${C_v.toFixed(4)}, C_m: ${C_m.toFixed(4)}, M_solid: ${M_solid_to_cyclone.toFixed(2)} t/h`);
-            
+            const circulativeLoad =
+              (M_solid_to_cyclone - oreParam.value) / oreParam.value;
+
+            console.log(
+              `  ✓ CirculativeLoad calculated: ${circulativeLoad.toFixed(3)}`,
+            );
+            console.log(
+              `    C_v: ${C_v.toFixed(4)}, C_m: ${C_m.toFixed(4)}, M_solid: ${M_solid_to_cyclone.toFixed(2)} t/h`,
+            );
+
             // Update CirculativeLoad parameter with calculated value
             const timestamp = Date.now();
             state.updateParameterFromRealData(
               "CirculativeLoad",
               circulativeLoad,
               timestamp,
-              [] // No trend data from API, will be built up over time
+              [], // No trend data from API, will be built up over time
             );
           } else {
-            console.log("⚠️ Cannot calculate CirculativeLoad - missing required parameters or Ore = 0");
+            console.log(
+              "⚠️ Cannot calculate CirculativeLoad - missing required parameters or Ore = 0",
+            );
           }
 
           // Use our new clean dual data source prediction logic
           const validFeatureResults = featureResults.filter(
-            (result) => result !== null
+            (result) => result !== null,
           );
           const isCascadeModel =
             state.modelName && state.modelName.includes("cascade_mill_");
@@ -1029,17 +1057,17 @@ export const useXgboostStore = create<XgboostState>()(
             !isCascadeModel
           ) {
             console.log(
-              "Real-time data updated, triggering prediction with current values (real-time mode)"
+              "Real-time data updated, triggering prediction with current values (real-time mode)",
             );
             // Only trigger automatic predictions in real-time mode and for non-cascade models
             await state.predictWithCurrentValues();
           } else if (state.isSimulationMode) {
             console.log(
-              "Real-time data updated, but skipping automatic prediction (simulation mode)"
+              "Real-time data updated, but skipping automatic prediction (simulation mode)",
             );
           } else if (isCascadeModel) {
             console.log(
-              "🚫 CASCADE MODEL: Skipping basic XGBoost predictions - cascade models should use cascade predictions only"
+              "🚫 CASCADE MODEL: Skipping basic XGBoost predictions - cascade models should use cascade predictions only",
             );
           }
 
@@ -1080,7 +1108,7 @@ export const useXgboostStore = create<XgboostState>()(
 
                   // Check if we already have data for this timestamp to preserve existing SP values
                   const existingPoint = state.targetData.find(
-                    (p) => Math.abs(p.timestamp - ts) < 60000
+                    (p) => Math.abs(p.timestamp - ts) < 60000,
                   ); // within 1 minute
                   const existingSP = existingPoint?.sp;
 
@@ -1091,17 +1119,17 @@ export const useXgboostStore = create<XgboostState>()(
                     pv: value, // PV is the actual measured historical value
                     sp: existingSP !== undefined ? existingSP : null, // preserve existing SP or set to null for historical data
                   } as TargetData;
-                }
+                },
               );
 
               // Sort all points by timestamp to ensure proper order
               allPoints.sort(
-                (a: TargetData, b: TargetData) => a.timestamp - b.timestamp
+                (a: TargetData, b: TargetData) => a.timestamp - b.timestamp,
               );
 
               // Filter to only include points from the retention window
               targetTrendPoints = allPoints.filter(
-                (point: TargetData) => point.timestamp >= retentionAgo
+                (point: TargetData) => point.timestamp >= retentionAgo,
               );
 
               // If we have points but none in the retention window, keep the most recent points
@@ -1122,16 +1150,18 @@ export const useXgboostStore = create<XgboostState>()(
                     timestamp:
                       timeNow -
                       Math.round(
-                        (displayHours * 60 - index * spacingMinutes) * 60 * 1000
+                        (displayHours * 60 - index * spacingMinutes) *
+                          60 *
+                          1000,
                       ),
-                  })
+                  }),
                 );
               }
 
               console.log(
                 "Processed target trend points with SP:",
                 effectiveSP,
-                targetTrendPoints
+                targetTrendPoints,
               );
             }
 
@@ -1148,7 +1178,7 @@ export const useXgboostStore = create<XgboostState>()(
             console.log("🕐 REAL-TIME UPDATE:");
             console.log(
               "Target result timestamp (raw):",
-              targetResult.timestamp
+              targetResult.timestamp,
             );
 
             // Ensure timestamp is a JavaScript number (milliseconds since epoch)
@@ -1157,7 +1187,7 @@ export const useXgboostStore = create<XgboostState>()(
               normalizedTimestamp = new Date(targetResult.timestamp).getTime();
               console.log(
                 "Converted string timestamp to number:",
-                normalizedTimestamp
+                normalizedTimestamp,
               );
             } else {
               normalizedTimestamp = targetResult.timestamp;
@@ -1170,7 +1200,7 @@ export const useXgboostStore = create<XgboostState>()(
               "Normalized timestamp:",
               normalizedTimestamp,
               "→",
-              new Date(normalizedTimestamp).toLocaleString()
+              new Date(normalizedTimestamp).toLocaleString(),
             );
             console.log("Target result value (PV):", targetResult.value);
             console.log("Current target (for SP):", state.currentTarget);
@@ -1190,14 +1220,14 @@ export const useXgboostStore = create<XgboostState>()(
               typeof currentSP === "number" && Number.isFinite(currentSP)
                 ? currentSP
                 : typeof lastSP === "number" && Number.isFinite(lastSP)
-                ? lastSP
-                : null; // Don't fallback to PV to avoid overlap
+                  ? lastSP
+                  : null; // Don't fallback to PV to avoid overlap
 
             console.log(
               "Current PV:",
               targetResult.value,
               "Effective SP:",
-              effectiveSP
+              effectiveSP,
             );
 
             // Create new data point with updated PV and preserved SP
@@ -1283,7 +1313,7 @@ export const useXgboostStore = create<XgboostState>()(
             dataUpdateInterval: intervalId,
           },
           false,
-          "setRealTimeUpdateInterval"
+          "setRealTimeUpdateInterval",
         );
 
         // Fetch initial data immediately
@@ -1312,7 +1342,7 @@ export const useXgboostStore = create<XgboostState>()(
             dataUpdateInterval: null,
           },
           false,
-          "stopRealTimeUpdates"
+          "stopRealTimeUpdates",
         );
       },
 
@@ -1320,7 +1350,7 @@ export const useXgboostStore = create<XgboostState>()(
         featureName,
         value,
         timestamp,
-        trend = []
+        trend = [],
       ) =>
         set((state) => {
           // Preserve user-set slider values during real-time updates; do not auto-sync to PV
@@ -1340,7 +1370,7 @@ export const useXgboostStore = create<XgboostState>()(
                         ? trend // Use the entire fetched trend data
                         : [...param.trend, { timestamp, value }].slice(-50), // Add current point to existing trend
                   }
-                : param
+                : param,
             ),
             sliderValues: updatedSliderValues,
           };
@@ -1357,7 +1387,7 @@ export const useXgboostStore = create<XgboostState>()(
 
           console.log(
             "Reset sliders to current PV values",
-            updatedSliderValues
+            updatedSliderValues,
           );
 
           return {
@@ -1409,7 +1439,7 @@ export const useXgboostStore = create<XgboostState>()(
         // Always trigger immediate API call for fresh data when time window changes
         const state = useXgboostStore.getState();
         console.log(
-          `Time window changed to ${hours}h, triggering immediate API refresh...`
+          `Time window changed to ${hours}h, triggering immediate API refresh...`,
         );
         state.fetchRealTimeData();
       },
@@ -1420,20 +1450,20 @@ export const useXgboostStore = create<XgboostState>()(
 
         if (modelName && modelName.includes("cascade_mill_")) {
           console.log(
-            "🚫 CASCADE MODEL: Prediction requests are handled exclusively through cascade endpoints. Skipping legacy /api/v1/ml/predict call."
+            "🚫 CASCADE MODEL: Prediction requests are handled exclusively through cascade endpoints. Skipping legacy /api/v1/ml/predict call.",
           );
         } else {
           console.warn(
-            "⚠️ Legacy /api/v1/ml/predict endpoint has been disabled. No prediction request was sent."
+            "⚠️ Legacy /api/v1/ml/predict endpoint has been disabled. No prediction request was sent.",
           );
         }
 
         set({ currentTarget: null });
       },
-    })
+    }),
     // {
     //   name: "xgboost-simulation-storage"
     // }
     // )
-  )
+  ),
 );

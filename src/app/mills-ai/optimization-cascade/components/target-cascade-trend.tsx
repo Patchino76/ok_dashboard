@@ -48,7 +48,7 @@ interface TargetFractionDisplayProps {
   predictionSetpoint?: number | null;
   predictionUncertainty?: number | null; // GPR uncertainty (σ)
   modelType?: "xgb" | "gpr";
-  modelPredictionTrend?: Array<{timestamp: number; value: number}>;
+  modelPredictionTrend?: Array<{ timestamp: number; value: number }>;
   isCalculatingTrend?: boolean;
 }
 
@@ -149,7 +149,7 @@ TargetFractionDisplayProps) {
       const modelPrediction = modelPredictionTrend.find(
         (pred) => Math.abs(pred.timestamp - item.timestamp) < 30000 // Within 30 seconds
       );
-      
+
       return {
         time: item.timestamp,
         value: item.value,
@@ -212,9 +212,7 @@ TargetFractionDisplayProps) {
     : currentPV?.toFixed(1) ?? null;
   const simulationPercent = toPercent(simulationTarget);
   const simulationDisplayValue =
-    typeof simulationTarget === "number"
-      ? simulationTarget.toFixed(1)
-      : null;
+    typeof simulationTarget === "number" ? simulationTarget.toFixed(1) : null;
   // Removed spPercent calculation - using targetSetpoint directly
 
   return (
@@ -294,11 +292,12 @@ TargetFractionDisplayProps) {
                           {predictionDisplayValue ? (
                             <>
                               {predictionDisplayValue}
-                              {modelType === "gpr" && predictionUncertainty !== null && (
-                                <span className="ml-1 text-sm font-normal text-slate-500">
-                                  ± {predictionUncertainty.toFixed(2)}
-                                </span>
-                              )}
+                              {modelType === "gpr" &&
+                                predictionUncertainty !== null && (
+                                  <span className="ml-1 text-sm font-normal text-slate-500">
+                                    ± {predictionUncertainty.toFixed(2)}
+                                  </span>
+                                )}
                               <span className="ml-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                                 {targetUnit}
                               </span>
@@ -322,9 +321,7 @@ TargetFractionDisplayProps) {
                             Simulation SP
                           </span>
                         </div>
-                        <span
-                          className="text-2xl font-semibold leading-none text-purple-600"
-                        >
+                        <span className="text-2xl font-semibold leading-none text-purple-600">
                           {simulationDisplayValue ? (
                             <>
                               {simulationDisplayValue}
@@ -453,7 +450,11 @@ TargetFractionDisplayProps) {
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
                       <span>Model Prediction</span>
-                      {isCalculatingTrend && <span className="text-xs text-slate-400">(calculating...)</span>}
+                      {isCalculatingTrend && (
+                        <span className="text-xs text-slate-400">
+                          (calculating...)
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="flex items-center gap-1">
@@ -540,8 +541,13 @@ TargetFractionDisplayProps) {
                       <YAxis
                         stroke="#6b7280"
                         tick={{ fill: "#6b7280", fontSize: 12 }}
-                        domain={[scaleMin, scaleMax]}
-                        tickFormatter={(value) => value.toString()}
+                        domain={[
+                          (dataMin: number) =>
+                            Math.floor(Math.min(dataMin, scaleMin) * 0.95),
+                          (dataMax: number) =>
+                            Math.ceil(Math.max(dataMax, scaleMax) * 1.05),
+                        ]}
+                        tickFormatter={(value) => value.toFixed(1)}
                         width={60}
                         label={{
                           value: targetUnit,
@@ -570,30 +576,62 @@ TargetFractionDisplayProps) {
                           props: any
                         ) => {
                           // Map line names to display labels and colors
-                          const lineConfig: Record<string, { label: string; color: string }> = {
-                            "Process Variable (PV)": { label: "PV", color: "#10b981" },
-                            "Model Prediction (Historical)": { label: "Calc", color: "#eab308" },
-                            "Target Setpoint (Manual)": { label: "Target SP", color: "#f97316" },
-                            "Optimization Target": { label: "Opt Target", color: "#f97316" },
+                          const lineConfig: Record<
+                            string,
+                            { label: string; color: string }
+                          > = {
+                            "Process Variable (PV)": {
+                              label: "PV",
+                              color: "#10b981",
+                            },
+                            "Model Prediction (Historical)": {
+                              label: "Calc",
+                              color: "#eab308",
+                            },
+                            "Target Setpoint (Manual)": {
+                              label: "Target SP",
+                              color: "#f97316",
+                            },
+                            "Optimization Target": {
+                              label: "Opt Target",
+                              color: "#f97316",
+                            },
                           };
-                          
-                          const config = lineConfig[name] || { label: name, color: "#6b7280" };
-                          const displayValue = props.payload[name === "Process Variable (PV)" ? "pv" : 
-                                                             name === "Model Prediction (Historical)" ? "modelPrediction" :
-                                                             "value"];
-                          
+
+                          const config = lineConfig[name] || {
+                            label: name,
+                            color: "#6b7280",
+                          };
+                          const displayValue =
+                            props.payload[
+                              name === "Process Variable (PV)"
+                                ? "pv"
+                                : name === "Model Prediction (Historical)"
+                                ? "modelPrediction"
+                                : "value"
+                            ];
+
                           // Don't show if value is null/undefined
-                          if (displayValue === null || displayValue === undefined) {
+                          if (
+                            displayValue === null ||
+                            displayValue === undefined
+                          ) {
                             return null;
                           }
-                          
+
                           return [
                             <span key="value" style={{ color: config.color }}>
-                              {`${config.label}: ${formatTooltipValue(displayValue)}${targetUnit}`}
+                              {`${config.label}: ${formatTooltipValue(
+                                displayValue
+                              )}${targetUnit}`}
                             </span>,
                             <span
                               key="name"
-                              style={{ color: config.color, opacity: 0.7, fontSize: "0.9em" }}
+                              style={{
+                                color: config.color,
+                                opacity: 0.7,
+                                fontSize: "0.9em",
+                              }}
                             >
                               ({targetVariable || "PSI80"})
                             </span>,

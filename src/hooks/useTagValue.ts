@@ -8,10 +8,8 @@ import { useQuery, UseQueryOptions } from "@tanstack/react-query";
  * Fetch current value of a tag by its ID
  */
 export async function fetchTagValue(tagId: number) {
-  // Get API URL from environment or use default
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
-  const response = await fetch(`${apiUrl}/api/tag-value/${tagId}`, {
+  // Use relative URL — proxied to FastAPI via Next.js rewrites
+  const response = await fetch(`/api/tag-value/${tagId}`, {
     headers: { Accept: "application/json" },
     cache: "no-store",
   });
@@ -27,7 +25,7 @@ export async function fetchTagValue(tagId: number) {
     // If no valid data and not OK status, throw error
     if (!response.ok) {
       throw new Error(
-        `Failed to fetch value for tag ${tagId}: ${response.statusText}`
+        `Failed to fetch value for tag ${tagId}: ${response.statusText}`,
       );
     }
 
@@ -44,7 +42,7 @@ export async function fetchTagValue(tagId: number) {
  */
 export function useTagValue(
   tagId?: number,
-  options: { enabled?: boolean; refetchInterval?: number } = {}
+  options: { enabled?: boolean; refetchInterval?: number } = {},
 ) {
   const { enabled = true, ...restOptions } = options;
   const { data, error, isLoading, isError, refetch } = useQuery({

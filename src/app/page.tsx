@@ -16,12 +16,9 @@ import {
   BarChart,
   FileSpreadsheet,
   Activity,
-  AreaChart,
   GitFork,
   CircleDashed,
   Clock,
-  TrendingUp,
-  LayoutDashboard,
   ArrowRight,
   Factory as FactoryIcon,
   Timer,
@@ -58,22 +55,16 @@ export default function Home() {
     {
       label: "Мелнично: Разход на руда",
       value: loading ? "..." : `${formatNumber(mfcOre, 0)} t/h`,
-      trend: mfcOre > 2000 ? "+5.2%" : "-2.1%",
-      positive: mfcOre > 2000,
       active: tagData?.["MFC-MILLS_SUMORE_1_11"]?.active ?? false,
     },
     {
       label: "Флотация: Общо извличане",
       value: loading ? "..." : `${formatNumber(recovery, 1)}%`,
-      trend: recovery > 85 ? "+3.7%" : "-1.5%",
-      positive: recovery > 85,
       active: tagData?.["RECOVERY_LINEALL_CU_LONG"]?.active ?? false,
     },
     {
       label: "Флотация: Технологичен концентрат",
       value: loading ? "..." : `${formatNumber(concentrate, 1)}%`,
-      trend: concentrate > 25 ? "+2.3%" : "-0.8%",
-      positive: concentrate > 25,
       active: tagData?.["CUFLOTAS2-S7-400PV_CU_LINE_10"]?.active ?? false,
     },
   ];
@@ -133,15 +124,7 @@ export default function Home() {
                     </Badge>
                   )}
                 </Flex>
-                <Flex justify="between" align="center">
-                  <Heading size="6">{stat.value}</Heading>
-                  <Badge color={stat.positive ? "green" : "red"} variant="soft">
-                    <Flex align="center" gap="1">
-                      <TrendingUp className="h-3 w-3" />
-                      <Text size="1">{stat.trend}</Text>
-                    </Flex>
-                  </Badge>
-                </Flex>
+                <Heading size="6">{stat.value}</Heading>
               </Flex>
             </Card>
           ))}
@@ -322,7 +305,7 @@ export default function Home() {
                     variant="soft"
                     style={{ backgroundColor: "#f5f3ff", color: "#7c3aed" }}
                   >
-                    Очаквайте скоро
+                    Активен
                   </Badge>
                 </Box>
               </Flex>
@@ -418,7 +401,7 @@ export default function Home() {
         <Heading size="4" mb="3">
           Инструменти за данни
         </Heading>
-        <Card className="bg-gradient-to-br from-white to-cyan-50/50 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer overflow-hidden group border-0 shadow-lg">
+        <Card className="bg-gradient-to-br from-white to-cyan-50/50 overflow-hidden border-0 shadow-lg opacity-75">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-teal-400" />
           <Flex direction="column" p="5">
             <Flex justify="between" align="center" mb="3">

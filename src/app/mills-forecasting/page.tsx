@@ -39,8 +39,8 @@ export default function MillsForecastingPage() {
     hourNow >= 6 && hourNow < 14
       ? shift1Target
       : hourNow >= 14 && hourNow < 22
-      ? shift2Target
-      : shift3Target;
+        ? shift2Target
+        : shift3Target;
 
   // Fetch real-time production data from API (refreshes every 20 seconds)
   const { data: productionData, isLoading: isLoadingProduction } =
@@ -85,7 +85,7 @@ export default function MillsForecastingPage() {
         const oreValue = mill.ore || 0;
         rates[englishName] = oreValue;
         console.log(
-          `  Mapping ${mill.title} → ${englishName}: ${oreValue} t/h`
+          `  Mapping ${mill.title} → ${englishName}: ${oreValue} t/h`,
         );
       }
     });
@@ -141,8 +141,8 @@ export default function MillsForecastingPage() {
       <div className="flex items-center justify-center h-full">
         <Card className="px-4 py-3 text-xs text-slate-600">
           {isLoadingProduction
-            ? "Loading production data..."
-            : "Calculating forecast..."}
+            ? "Зареждане на данни..."
+            : "Изчисляване на прогноза..."}
         </Card>
       </div>
     );
