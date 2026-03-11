@@ -44,16 +44,26 @@ SERVER_URL = "http://localhost:8003/mcp"
 # ── Demo analysis requests ───────────────────────────────────────────────────
 # Each request triggers the full multi-agent pipeline.
 
+# DEMO_REQUESTS = [
+#     (
+#         "Mill 8 Comprehensive Analysis",
+#         "Perform a comprehensive analysis of Mill 8 for the last 30 days. "
+#         "Include: EDA with distribution plots for key variables (Ore, PSI80, DensityHC, MotorAmp), "
+#         "SPC control charts for PSI80 and Ore feed rate, "
+#         "correlation heatmap between all numeric variables, "
+#         "anomaly detection using Z-scores for PSI80 and Ore, "
+#         "and a downtime analysis identifying periods where Ore < 10 t/h. "
+#         "Generate a full report with charts and recommendations for the plant manager."
+#     ),
+# ]
+
 DEMO_REQUESTS = [
     (
-        "Mill 8 Comprehensive Analysis",
-        "Perform a comprehensive analysis of Mill 8 for the last 30 days. "
-        "Include: EDA with distribution plots for key variables (Ore, PSI80, DensityHC, MotorAmp), "
-        "SPC control charts for PSI80 and Ore feed rate, "
-        "correlation heatmap between all numeric variables, "
-        "anomaly detection using Z-scores for PSI80 and Ore, "
-        "and a downtime analysis identifying periods where Ore < 10 t/h. "
-        "Generate a full report with charts and recommendations for the plant manager."
+        "Mill Ore Load Comparison",
+        "Сравни средното натоварване по руда на всички мелници  за последните 72 часа. Генерирай сравнителни графики.\
+         Изчисли също стандартните отклонения, сравни ги графично и дай хистограмите. \
+         При изчисленията елиминирай престоите (там където рудата е по-малка от 50 т/ч) \
+         Мелница 11 по принцип работи с ниско натоварване.",
     ),
 ]
 
@@ -69,7 +79,7 @@ async def run_analysis(graph, label: str, user_input: str) -> None:
         {"messages": [HumanMessage(content=user_input)]},
         config={
             "configurable": {"thread_id": label},
-            "recursion_limit": 50,
+            "recursion_limit": 100,
         },
     )
 

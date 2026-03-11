@@ -169,7 +169,7 @@ query_mill_data_input_schema = {
         },
         "store_name": {
             "type": "string",
-            "description": "Name to store the DataFrame under. Default: 'mill_data'.",
+            "description": "Name to store the DataFrame under. Default: 'mill_data_{mill_number}' (e.g. 'mill_data_8'). Use get_df('mill_data_8') in execute_python to access it.",
         },
     },
     "required": ["mill_number"],
@@ -193,7 +193,7 @@ async def query_mill_data(arguments: dict) -> list[types.TextContent]:
     mill_number = arguments.get("mill_number")
     start_date = arguments.get("start_date")
     end_date = arguments.get("end_date")
-    store_name = arguments.get("store_name", "mill_data")
+    store_name = arguments.get("store_name") or f"mill_data_{mill_number}"
 
     if mill_number is None or not (1 <= mill_number <= 12):
         raise ValueError("mill_number is required and must be between 1 and 12")

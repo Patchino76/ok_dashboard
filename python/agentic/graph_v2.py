@@ -13,6 +13,7 @@ for improvements (up to 1 rework per stage). This produces higher quality
 output while maintaining deterministic stage progression.
 """
 
+from datetime import datetime, timedelta
 from typing import TypedDict
 
 from langchain_core.messages import (
@@ -56,144 +57,95 @@ DATA_LOADER_PROMPT = f"""{DOMAIN_CONTEXT}
 
 You are the Data Loader. Your ONLY job is to call query_mill_data to load data.
 
-Extract the mill number from the user request. Call query_mill_data with mill_number (required).
-If a date range is mentioned, pass start_date and end_date.
-After the tool returns, write a brief summary of what was loaded (rows, date range, columns).
-Do NOT call any other tool. Do NOT analyze the data."""
+CRITICAL: ALWAYS compute start_date and end_date to filter at SQL level. Never load full tables.
+- "last 24 hours" → end_date = today's date, start_date = yesterday's date (ISO format YYYY-MM-DD)
+- "last 30 days" → end_date = today, start_date = 30 days ago
+- "last week" → end_date = today, start_date = 7 days ago
+- Today's date: {{TODAY_DATE}}. Use this to compute date ranges.
+- If no time range is mentioned, default to last 30 days.
+
+RULES:
+- Extract mill number(s) from the request. If "all mills" → load mills 1 through 12.
+- ALWAYS pass start_date and end_date to every query_mill_data call.
+- Each mill is stored automatically as 'mill_data_N' (e.g. mill_data_1, mill_data_8).
+- After loading, write a brief summary: mills loaded, rows per mill, date range.
+- Do NOT call any other tool. Do NOT analyze the data."""
 
 ANALYST_PROMPT = f"""{DOMAIN_CONTEXT}
 
-You are the Data Analyst. The data is already loaded as a DataFrame named 'mill_data'.
+You are the Data Analyst. Data has been loaded by the data_loader.
 
-Call execute_python with a SINGLE block of Python code that performs ALL analyses below.
-The code MUST be well-structured and produce HIGH QUALITY charts.
+ACCESSING DATA:
+- Call list_dfs() first to see all loaded DataFrames and their shapes
+- Single mill: df = get_df('mill_data_8')  — for mill 8
+- Multiple mills: use a loop: for i in range(1, 13): df = get_df(f'mill_data_{{i}}')
+- The variable `df` is pre-set to the first loaded DataFrame
 
-Required analyses:
-1. **EDA** — Distribution histograms with KDE for: Ore, PSI80, DensityHC, MotorAmp
-2. **SPC** — Shewhart control charts (mean ± 3σ) for PSI80 and Ore. Mark out-of-control points in red.
-3. **Correlations** — Heatmap of df.corr() for all numeric columns with annotations
-4. **Anomaly detection** — Z-scores for PSI80 and Ore (threshold=3). Print counts and top 5 timestamps.
-5. **Downtime** — Identify contiguous periods where Ore < 10 t/h. Print number of events, total hours, longest event.
-6. **Time series overview** — Plot Ore and PSI80 over time on separate subplots to show trends.
+Call execute_python with a SINGLE block of Python code.
+ALWAYS start your code with:
+```
+print("Loaded DataFrames:", list_dfs())
+```
+
+For MULTI-MILL comparison requests:
+- Build a summary dict/DataFrame with stats per mill (mean Ore, std, etc.)
+- Create bar charts comparing mills side-by-side
+- Use the LAST 24 hours of data if requested: df_recent = df[df.index >= df.index.max() - pd.Timedelta(hours=24)]
+
+For SINGLE-MILL analysis requests:
+- EDA: distributions for Ore, PSI80, DensityHC, MotorAmp
+- SPC: control charts (mean ± 3σ) for PSI80 and Ore
+- Correlations: heatmap of df.corr()
+- Anomaly detection: Z-scores (threshold=3)
+- Downtime: periods where Ore < 10 t/h
 
 CHART QUALITY RULES (CRITICAL):
 - Use `sns.set_theme(style='whitegrid', font_scale=1.2)` at the start
-- Figure sizes: distributions (10,6), SPC charts (14,5), heatmap (12,10), time series (14,8)
+- Figure sizes: bar charts (14,7), distributions (10,6), SPC (14,5), heatmap (12,10)
 - All axes MUST have labels with units: 'Ore Feed Rate (t/h)', 'PSI80 (μm)', etc.
-- All charts MUST have descriptive titles: 'Mill 8 — Ore Feed Rate Distribution'
-- SPC charts: green dashed center line, red dashed UCL/LCL, red scatter for OOC points
-- Heatmap: use annot=True, fmt='.2f', cmap='RdBu_r', center=0
-- Histograms: use bins=50, add vertical lines for mean (green) and ±3σ (red dashed)
+- All charts MUST have descriptive titles
+- For bar charts: use different colors per mill, add value labels on bars, rotate x-labels if needed
 - Save ALL charts: plt.savefig(os.path.join(OUTPUT_DIR, 'filename.png'), dpi=150, bbox_inches='tight')
 - ALWAYS call plt.close() after each savefig
-- Use descriptive filenames: 'mill_8_ore_distribution.png', 'mill_8_psi80_spc.png', etc.
 
 OUTPUT RULES:
-- Print descriptive stats table for Ore, PSI80, DensityHC, MotorAmp
-- Print SPC results: mean, std, UCL, LCL, number of OOC points for each variable
-- Print anomaly counts and top 5 anomaly timestamps for each variable
-- Print downtime summary: number of events, total hours, mean duration, max duration
-- Print top 5 strongest correlations (excluding self-correlations)"""
+- Print all key statistics to stdout (the reporter will use these numbers)
+- Print a summary table at the end"""
 
 CODE_REVIEWER_PROMPT = f"""{DOMAIN_CONTEXT}
 
 You are the Code Reviewer. Validate the analysis outputs.
 
 1. Call list_output_files to see what charts were generated
-2. Review the stdout output from the analyst for errors or missing analyses
-3. Check that ALL required charts exist:
-   - 4 distribution plots (Ore, PSI80, DensityHC, MotorAmp)
-   - 2 SPC control charts (PSI80, Ore)
-   - 1 correlation heatmap
-   - 1 time series overview (if requested)
-4. If any charts are MISSING, call execute_python with code to generate ONLY the missing ones
-5. If everything is complete, write a validation summary listing all generated files
+2. Review the stdout from previous steps for errors
+3. If there are NO chart files (.png), call execute_python to regenerate them
+4. If charts exist and stdout has meaningful results, write a short validation summary
 
-Do NOT regenerate charts that already exist. Only fill gaps."""
+Do NOT regenerate charts that already exist. Only fix errors or fill gaps."""
 
 REPORTER_PROMPT = f"""{DOMAIN_CONTEXT}
 
 You are the Reporter. Write a COMPREHENSIVE professional Markdown analysis report.
 
-1. First call list_output_files to get the exact chart filenames
-2. Then call write_markdown_report with the full report content
+STEPS:
+1. Call list_output_files to get the exact chart filenames
+2. Read through ALL previous messages to extract statistics and findings
+3. Call write_markdown_report with the full report content
 
-The report MUST follow this structure and be DETAILED (at least 2000 words):
-
-# Mill [N] Comprehensive Analysis Report
-
-## 1. Executive Summary
-3-4 sentences covering: overall mill health assessment, most critical finding,
-key risk identified, and primary recommendation.
-
-## 2. Data Overview
-- Dataset: number of rows, time period (start — end), sampling frequency
-- Variables analyzed: list all 13 process variables with brief descriptions
-- Data quality: any NaN counts, gaps in time series
-
-## 3. Exploratory Data Analysis
-### 3.1 Ore Feed Rate
-- Statistical summary (mean, std, min, max, quartiles) with actual numbers
-- Distribution shape description (normal, skewed, bimodal?)
-- ![Ore Distribution](exact_filename.png)
-
-### 3.2 Grinding Quality (PSI80)
-- Same statistical detail as above
-- ![PSI80 Distribution](exact_filename.png)
-
-### 3.3 Hydrocyclone Density (DensityHC)
-- Statistical summary and distribution analysis
-- ![DensityHC Distribution](exact_filename.png)
-
-### 3.4 Motor Current (MotorAmp)
-- Statistical summary and distribution analysis
-- ![MotorAmp Distribution](exact_filename.png)
-
-## 4. Statistical Process Control
-### 4.1 Ore Feed Rate Control Chart
-- Center line (mean), UCL, LCL values
-- Number and percentage of out-of-control points
-- Interpretation: is the process in statistical control?
-- ![Ore SPC](exact_filename.png)
-
-### 4.2 PSI80 Control Chart
-- Same detail as above
-- ![PSI80 SPC](exact_filename.png)
-
-## 5. Correlation Analysis
-- Top 5 strongest positive correlations with values
-- Top 5 strongest negative correlations with values
-- Key insights for operators (which variables are linked)
-- ![Correlation Heatmap](exact_filename.png)
-
-## 6. Anomaly Detection
-- Method: Z-score with threshold = 3
-- PSI80: number of anomalies, percentage of total data, notable timestamps
-- Ore: number of anomalies, percentage of total data, notable timestamps
-- Pattern analysis: are anomalies clustered or random?
-
-## 7. Downtime Analysis
-- Definition: periods where Ore < 10 t/h
-- Number of downtime events
-- Total downtime hours and percentage of total time
-- Longest single downtime event (duration and timestamp)
-- Average downtime duration
-
-## 8. Conclusions & Recommendations
-1. [Specific actionable recommendation with justification]
-2. [Specific actionable recommendation with justification]
-3. [Specific actionable recommendation with justification]
-4. [Specific actionable recommendation with justification]
-5. [Specific actionable recommendation with justification]
-
----
-*Report generated by Agentic Analysis System*
+Report MUST include:
+- **Title** matching the analysis request
+- **Executive Summary**: 3-4 sentences with the key findings and actual numbers
+- **Data Overview**: what data was loaded, time range, number of records
+- **Findings sections**: organize by the analyses performed, include actual numbers from stdout
+- **Charts**: embed EVERY .png file from list_output_files using ![description](exact_filename.png)
+- **Conclusions & Recommendations**: 3-5 specific actionable items
 
 CRITICAL RULES:
 - Use EXACT filenames from list_output_files — only reference charts that actually exist
-- Include ACTUAL numbers from the analysis (means, stds, counts, etc.)
-- Do NOT use placeholder text like 'X anomalies were detected' — use real numbers
-- Every section must have substantive content, not just headers"""
+- Include ACTUAL numbers from the analysis (means, stds, counts) — extract from prior messages
+- Do NOT use placeholder text — use real numbers from the analysis
+- Every section must have substantive content, not just headers
+- The report should be at least 1000 words"""
 
 MANAGER_REVIEW_PROMPT = f"""{DOMAIN_CONTEXT}
 
@@ -216,9 +168,31 @@ Be concise. One line is enough."""
 
 def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
     llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL, google_api_key=api_key)
-    llm_with_tools = llm.bind_tools(tools)
 
-    # ── Message compression ──────────────────────────────────────────
+    # ── Per-specialist tool binding ─────────────────────────────────────
+    tools_by_name = {t.name: t for t in tools}
+    TOOL_SETS = {
+        "data_loader": ["query_mill_data", "query_combined_data", "get_db_schema"],
+        "analyst":     ["execute_python", "list_output_files"],
+        "code_reviewer": ["execute_python", "list_output_files"],
+        "reporter":    ["list_output_files", "write_markdown_report"],
+    }
+    specialist_llms = {}
+    for stage_name, tool_names in TOOL_SETS.items():
+        stage_tools = [tools_by_name[n] for n in tool_names if n in tools_by_name]
+        specialist_llms[stage_name] = llm.bind_tools(stage_tools)
+
+    # ── Message helpers ─────────────────────────────────────────────────
+    def truncate(text: str, limit: int) -> str:
+        return text[:limit] + "\n... [truncated]" if len(text) > limit else text
+
+    def normalize_content(content) -> str:
+        """Gemini sometimes returns list of dicts instead of str."""
+        if isinstance(content, list):
+            texts = [item.get("text", "") if isinstance(item, dict) else str(item) for item in content]
+            return " ".join(texts).strip()
+        return str(content) if content else ""
+
     def compress_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
         if len(messages) > MAX_MESSAGES_WINDOW + 1:
             messages = [messages[0]] + messages[-(MAX_MESSAGES_WINDOW):]
@@ -226,19 +200,16 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         compressed = []
         for msg in messages:
             if isinstance(msg, ToolMessage):
-                content = msg.content if isinstance(msg.content, str) else str(msg.content)
-                if len(content) > MAX_TOOL_OUTPUT_CHARS:
-                    compressed.append(ToolMessage(
-                        content=content[:MAX_TOOL_OUTPUT_CHARS] + "\n... [truncated]",
-                        tool_call_id=msg.tool_call_id, name=msg.name,
-                    ))
-                else:
-                    compressed.append(msg)
+                content = normalize_content(msg.content)
+                compressed.append(ToolMessage(
+                    content=truncate(content, MAX_TOOL_OUTPUT_CHARS),
+                    tool_call_id=msg.tool_call_id, name=msg.name,
+                ))
             elif isinstance(msg, AIMessage):
-                content = msg.content or ""
+                content = normalize_content(msg.content)
                 if len(content) > MAX_AI_MSG_CHARS:
                     compressed.append(AIMessage(
-                        content=content[:MAX_AI_MSG_CHARS] + "\n... [truncated]",
+                        content=truncate(content, MAX_AI_MSG_CHARS),
                         name=getattr(msg, "name", None),
                         tool_calls=msg.tool_calls if msg.tool_calls else [],
                     ))
@@ -253,21 +224,92 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         clean = []
         for msg in messages:
             if isinstance(msg, ToolMessage):
-                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                content = normalize_content(msg.content)
                 clean.append(AIMessage(
-                    content=f"[Tool result from {msg.name}]: {content[:800]}",
+                    content=f"[Tool result from {msg.name}]: {truncate(content, 800)}",
                     name=msg.name,
                 ))
             elif isinstance(msg, AIMessage) and msg.tool_calls:
-                text = msg.content or f"[{getattr(msg, 'name', 'agent')} requested tools]"
+                text = normalize_content(msg.content) or f"[{getattr(msg, 'name', 'agent')} requested tools]"
                 clean.append(AIMessage(content=text, name=getattr(msg, "name", None)))
             else:
                 clean.append(msg)
         return clean
 
-    # ── Specialist node factory ──────────────────────────────────────
+    # ── Focused context builder ─────────────────────────────────────────
+    def build_focused_context(all_msgs: list[BaseMessage], stage_name: str) -> list[BaseMessage]:
+        """Give each specialist ONLY what it needs:
+        1. The original user request (HumanMessage)
+        2. A compact summary of prior stages (data loaded, analysis results)
+        3. This stage's own messages + tool results (for the tool-call loop)
+        """
+        user_msg = None
+        prior_summary_parts = []
+        current_stage_msgs = []
+
+        # Identify which tool_call_ids belong to this stage
+        my_tool_call_ids = set()
+        for msg in all_msgs:
+            if isinstance(msg, AIMessage) and getattr(msg, "name", None) == stage_name and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    my_tool_call_ids.add(tc.get("id"))
+
+        for msg in all_msgs:
+            # 1. Capture original user request
+            if isinstance(msg, HumanMessage) and user_msg is None:
+                user_msg = msg
+                continue
+
+            msg_name = getattr(msg, "name", None)
+
+            # 2. Messages from THIS stage → keep them for the tool loop
+            if msg_name == stage_name:
+                current_stage_msgs.append(msg)
+                continue
+
+            # Tool results for THIS stage's tool calls → keep
+            if isinstance(msg, ToolMessage) and msg.tool_call_id in my_tool_call_ids:
+                content = normalize_content(msg.content)
+                current_stage_msgs.append(ToolMessage(
+                    content=truncate(content, MAX_TOOL_OUTPUT_CHARS),
+                    tool_call_id=msg.tool_call_id, name=msg.name,
+                ))
+                continue
+
+            # 3. Messages from OTHER stages → summarize compactly
+            if isinstance(msg, ToolMessage) and msg.name == "query_mill_data":
+                content = normalize_content(msg.content)
+                if "loaded" in content.lower():
+                    prior_summary_parts.append(truncate(content, 150))
+            elif isinstance(msg, ToolMessage) and msg.name == "execute_python":
+                content = normalize_content(msg.content)
+                prior_summary_parts.append(f"[python output]: {truncate(content, 800)}")
+            elif isinstance(msg, AIMessage) and msg_name and msg_name != "manager" and not msg.tool_calls:
+                content = normalize_content(msg.content)
+                if content:
+                    prior_summary_parts.append(f"[{msg_name}]: {truncate(content, 300)}")
+            elif msg_name == "manager" and isinstance(msg, AIMessage):
+                content = normalize_content(msg.content)
+                if "REWORK" in content and stage_name in content:
+                    current_stage_msgs.append(msg)  # manager feedback for this stage
+
+        # Assemble
+        result = []
+        if user_msg:
+            result.append(user_msg)
+
+        if prior_summary_parts:
+            # Compact: only last few summaries to keep context tight
+            summary = "[Prior analysis context]:\n" + "\n".join(prior_summary_parts[-6:])
+            result.append(HumanMessage(content=summary))
+
+        result.extend(compress_messages(current_stage_msgs))
+        return result
+
+    # ── Specialist node factory ────────────────────────────────────────────
+    today = datetime.now().strftime("%Y-%m-%d")
     PROMPTS = {
-        "data_loader": DATA_LOADER_PROMPT,
+        "data_loader": DATA_LOADER_PROMPT.replace("{TODAY_DATE}", today),
         "analyst": ANALYST_PROMPT,
         "code_reviewer": CODE_REVIEWER_PROMPT,
         "reporter": REPORTER_PROMPT,
@@ -275,6 +317,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
 
     def make_specialist_node(name: str):
         system_prompt = PROMPTS[name]
+        stage_llm = specialist_llms[name]
 
         def specialist_node(state: AnalysisState) -> dict:
             iteration = sum(1 for m in state["messages"] if getattr(m, "name", None) == name) + 1
@@ -289,10 +332,19 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
                     )],
                 }
 
-            messages = [SystemMessage(content=system_prompt)] + compress_messages(state["messages"])
+            # Build focused context: user request + prior-stage summary + current stage msgs
+            raw_msgs = state["messages"]
+            focused = build_focused_context(raw_msgs, name)
+            messages = [SystemMessage(content=system_prompt)] + focused
+
+            # DEBUG: show what we're sending to the LLM
+            print(f"  [{name}] Context: {len(focused)} msgs, types: {[type(m).__name__ for m in focused]}")
+            for i, m in enumerate(focused):
+                content = m.content if isinstance(m.content, str) else str(m.content)
+                print(f"    msg[{i}] {type(m).__name__}: {content[:100]}...")
 
             try:
-                response = llm_with_tools.invoke(messages)
+                response = stage_llm.invoke(messages)
             except Exception as e:
                 error_str = str(e)
                 print(f"  [{name}] LLM error: {error_str[:200]}")
@@ -302,6 +354,14 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
                         name=name,
                     )],
                 }
+
+            # DEBUG: show raw response
+            print(f"  [{name}] Raw response: content_type={type(response.content).__name__}, tool_calls={len(response.tool_calls) if response.tool_calls else 0}")
+            if response.tool_calls:
+                print(f"  [{name}] Raw tool_calls: {[tc['name'] for tc in response.tool_calls]}")
+
+            # Normalize Gemini list-format content to string
+            response.content = normalize_content(response.content)
 
             if response.tool_calls:
                 tool_names = [tc["name"] for tc in response.tool_calls]
@@ -351,12 +411,26 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
                 "stage_attempts": {**attempts, current: attempt_count + 1},
             }
 
-        content = response.content if isinstance(response.content, str) else str(response.content)
-        decision = "ACCEPT" if "ACCEPT" in content.upper() else "REWORK"
+        raw = response.content
+        if isinstance(raw, list):
+            # Gemini sometimes returns [{"type": "text", "text": "..."}]
+            texts = [item.get("text", "") if isinstance(item, dict) else str(item) for item in raw]
+            content = " ".join(texts).strip()
+        else:
+            content = str(raw).strip()
+
+        # Default to ACCEPT unless REWORK is explicitly stated
+        if content.upper().startswith("REWORK") or "REWORK:" in content.upper():
+            decision = "REWORK"
+            stamped = f"REWORK: {content}"
+        else:
+            decision = "ACCEPT"
+            stamped = f"ACCEPT: {content}"
+
         print(f"  [manager] Decision: {decision} — {content[:150]}")
 
         return {
-            "messages": [AIMessage(content=content, name="manager")],
+            "messages": [AIMessage(content=stamped, name="manager")],
             "stage_attempts": {**attempts, current: attempt_count + 1},
         }
 
@@ -407,12 +481,12 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         content = last.content if isinstance(last.content, str) else str(last.content)
         current = state.get("current_stage", "data_loader")
 
-        # If REWORK, send back to current specialist
-        if "REWORK" in content.upper():
+        # Only rework if message explicitly starts with REWORK:
+        if content.startswith("REWORK:"):
             print(f"  [manager] Sending {current} back for rework.")
             return f"{current}_entry"
 
-        # ACCEPT — advance to next stage
+        # Everything else (ACCEPT:, errors, etc.) → advance
         idx = STAGES.index(current) if current in STAGES else 0
         if idx + 1 < len(STAGES):
             next_stage = STAGES[idx + 1]
@@ -421,7 +495,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         print(f"\n  ──→ Pipeline complete!")
         return "end"
 
-    # ── Stage entry nodes ────────────────────────────────────────────
+    # ── Stage entry nodes ────────────────────────────────────────
     def make_stage_entry(stage_name: str):
         def entry_node(state: AnalysisState) -> dict:
             return {"current_stage": stage_name}
