@@ -1,13 +1,16 @@
 """
-graph.py — Sequential multi-agent LangGraph for Ore Dressing Plant Analysis
-=============================================================================
-Deterministic sequential pipeline — no LLM-based routing:
+graph_v2.py — Hybrid multi-agent LangGraph for Ore Dressing Plant Analysis
+===========================================================================
+Deterministic stage order with manager QA review between stages:
 
-  [START] → [data_loader] ↔ [tools] → [analyst] ↔ [tools] →
-            [code_reviewer] ↔ [tools] → [reporter] ↔ [tools] → [END]
+  [START] → [data_loader] ↔ [tools] → [manager_review] →
+            [analyst] ↔ [tools] → [manager_review] →
+            [code_reviewer] ↔ [tools] → [manager_review] →
+            [reporter] ↔ [tools] → [END]
 
-Each specialist loops with tools until it returns a message without tool_calls,
-then automatically advances to the next stage. No manager needed.
+The manager reviews after each stage and can send the specialist back
+for improvements (up to 1 rework per stage). This produces higher quality
+output while maintaining deterministic stage progression.
 """
 
 from typing import TypedDict
@@ -22,21 +25,23 @@ from langgraph.graph import StateGraph, MessagesState, END, START
 GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
 # Token-budget controls
-MAX_TOOL_OUTPUT_CHARS = 1500
-MAX_AI_MSG_CHARS = 2000
-MAX_MESSAGES_WINDOW = 10
-MAX_SPECIALIST_ITERS = 3
+MAX_TOOL_OUTPUT_CHARS = 2000
+MAX_AI_MSG_CHARS = 3000
+MAX_MESSAGES_WINDOW = 14
+MAX_SPECIALIST_ITERS = 5
 
 
 # ── State ────────────────────────────────────────────────────────────────────
 
 class AnalysisState(MessagesState):
     current_stage: str
+    stage_attempts: dict  # track rework attempts per stage
 
 
 # ── Sequential workflow ──────────────────────────────────────────────────────
 
 STAGES = ["data_loader", "analyst", "code_reviewer", "reporter"]
+MAX_REWORKS_PER_STAGE = 1  # manager can send back once per stage
 
 
 # ── System prompts ───────────────────────────────────────────────────────────
@@ -58,67 +63,153 @@ Do NOT call any other tool. Do NOT analyze the data."""
 
 ANALYST_PROMPT = f"""{DOMAIN_CONTEXT}
 
-You are the Data Analyst. The data is already loaded as a DataFrame.
+You are the Data Analyst. The data is already loaded as a DataFrame named 'mill_data'.
 
-Call execute_python with a SINGLE block of Python code that does ALL of the following:
-1. EDA: df.describe() for key vars, distribution histograms for Ore, PSI80, DensityHC, MotorAmp
-2. SPC: Control charts (mean ± 3σ) for PSI80 and Ore, count out-of-control points
-3. Correlations: heatmap of df.corr() for all numeric columns
-4. Anomaly detection: Z-scores for PSI80 and Ore (threshold=3), print counts
-5. Downtime: identify periods where Ore < 10 (group contiguous blocks), print total hours
+Call execute_python with a SINGLE block of Python code that performs ALL analyses below.
+The code MUST be well-structured and produce HIGH QUALITY charts.
 
-RULES:
-- The DataFrame is available as `df` (already loaded with TimeStamp index)
-- Save EVERY chart: plt.savefig(os.path.join(OUTPUT_DIR, 'filename.png'), dpi=150, bbox_inches='tight')
-- ALWAYS call plt.close() after each figure
-- Use sns.set_style('whitegrid') at the start
-- Print all key statistics to stdout
-- Use descriptive filenames like 'mill_8_ore_distribution.png'"""
+Required analyses:
+1. **EDA** — Distribution histograms with KDE for: Ore, PSI80, DensityHC, MotorAmp
+2. **SPC** — Shewhart control charts (mean ± 3σ) for PSI80 and Ore. Mark out-of-control points in red.
+3. **Correlations** — Heatmap of df.corr() for all numeric columns with annotations
+4. **Anomaly detection** — Z-scores for PSI80 and Ore (threshold=3). Print counts and top 5 timestamps.
+5. **Downtime** — Identify contiguous periods where Ore < 10 t/h. Print number of events, total hours, longest event.
+6. **Time series overview** — Plot Ore and PSI80 over time on separate subplots to show trends.
+
+CHART QUALITY RULES (CRITICAL):
+- Use `sns.set_theme(style='whitegrid', font_scale=1.2)` at the start
+- Figure sizes: distributions (10,6), SPC charts (14,5), heatmap (12,10), time series (14,8)
+- All axes MUST have labels with units: 'Ore Feed Rate (t/h)', 'PSI80 (μm)', etc.
+- All charts MUST have descriptive titles: 'Mill 8 — Ore Feed Rate Distribution'
+- SPC charts: green dashed center line, red dashed UCL/LCL, red scatter for OOC points
+- Heatmap: use annot=True, fmt='.2f', cmap='RdBu_r', center=0
+- Histograms: use bins=50, add vertical lines for mean (green) and ±3σ (red dashed)
+- Save ALL charts: plt.savefig(os.path.join(OUTPUT_DIR, 'filename.png'), dpi=150, bbox_inches='tight')
+- ALWAYS call plt.close() after each savefig
+- Use descriptive filenames: 'mill_8_ore_distribution.png', 'mill_8_psi80_spc.png', etc.
+
+OUTPUT RULES:
+- Print descriptive stats table for Ore, PSI80, DensityHC, MotorAmp
+- Print SPC results: mean, std, UCL, LCL, number of OOC points for each variable
+- Print anomaly counts and top 5 anomaly timestamps for each variable
+- Print downtime summary: number of events, total hours, mean duration, max duration
+- Print top 5 strongest correlations (excluding self-correlations)"""
 
 CODE_REVIEWER_PROMPT = f"""{DOMAIN_CONTEXT}
 
-You are the Code Reviewer. Check the analysis results.
+You are the Code Reviewer. Validate the analysis outputs.
 
 1. Call list_output_files to see what charts were generated
-2. Review the stdout output from the analyst
-3. If charts are missing or there were errors, call execute_python with corrective code
-4. If everything looks good, write a short validation summary
+2. Review the stdout output from the analyst for errors or missing analyses
+3. Check that ALL required charts exist:
+   - 4 distribution plots (Ore, PSI80, DensityHC, MotorAmp)
+   - 2 SPC control charts (PSI80, Ore)
+   - 1 correlation heatmap
+   - 1 time series overview (if requested)
+4. If any charts are MISSING, call execute_python with code to generate ONLY the missing ones
+5. If everything is complete, write a validation summary listing all generated files
 
-Be concise. Focus only on whether the analysis produced correct outputs."""
+Do NOT regenerate charts that already exist. Only fill gaps."""
 
 REPORTER_PROMPT = f"""{DOMAIN_CONTEXT}
 
-You are the Reporter. Write a professional Markdown analysis report.
+You are the Reporter. Write a COMPREHENSIVE professional Markdown analysis report.
 
 1. First call list_output_files to get the exact chart filenames
-2. Then call write_markdown_report with a complete report
+2. Then call write_markdown_report with the full report content
 
-Report structure:
-# Mill [N] Analysis Report
+The report MUST follow this structure and be DETAILED (at least 2000 words):
 
-## Executive Summary
-2-3 sentences on overall mill health and key findings.
+# Mill [N] Comprehensive Analysis Report
 
-## Data Overview
-Rows, date range, key variables.
+## 1. Executive Summary
+3-4 sentences covering: overall mill health assessment, most critical finding,
+key risk identified, and primary recommendation.
 
-## Key Findings
-### Process Performance
-Ore and PSI80 trends with chart references: ![title](filename.png)
+## 2. Data Overview
+- Dataset: number of rows, time period (start — end), sampling frequency
+- Variables analyzed: list all 13 process variables with brief descriptions
+- Data quality: any NaN counts, gaps in time series
 
-### Statistical Process Control
-Control chart results, out-of-control points.
+## 3. Exploratory Data Analysis
+### 3.1 Ore Feed Rate
+- Statistical summary (mean, std, min, max, quartiles) with actual numbers
+- Distribution shape description (normal, skewed, bimodal?)
+- ![Ore Distribution](exact_filename.png)
 
-### Correlations
-Key relationships found in the heatmap.
+### 3.2 Grinding Quality (PSI80)
+- Same statistical detail as above
+- ![PSI80 Distribution](exact_filename.png)
 
-### Anomalies & Downtime
-Z-score anomaly counts, downtime periods and total hours.
+### 3.3 Hydrocyclone Density (DensityHC)
+- Statistical summary and distribution analysis
+- ![DensityHC Distribution](exact_filename.png)
 
-## Recommendations
-3-5 actionable items for plant managers.
+### 3.4 Motor Current (MotorAmp)
+- Statistical summary and distribution analysis
+- ![MotorAmp Distribution](exact_filename.png)
 
-IMPORTANT: Use EXACT filenames from list_output_files. Only reference charts that actually exist."""
+## 4. Statistical Process Control
+### 4.1 Ore Feed Rate Control Chart
+- Center line (mean), UCL, LCL values
+- Number and percentage of out-of-control points
+- Interpretation: is the process in statistical control?
+- ![Ore SPC](exact_filename.png)
+
+### 4.2 PSI80 Control Chart
+- Same detail as above
+- ![PSI80 SPC](exact_filename.png)
+
+## 5. Correlation Analysis
+- Top 5 strongest positive correlations with values
+- Top 5 strongest negative correlations with values
+- Key insights for operators (which variables are linked)
+- ![Correlation Heatmap](exact_filename.png)
+
+## 6. Anomaly Detection
+- Method: Z-score with threshold = 3
+- PSI80: number of anomalies, percentage of total data, notable timestamps
+- Ore: number of anomalies, percentage of total data, notable timestamps
+- Pattern analysis: are anomalies clustered or random?
+
+## 7. Downtime Analysis
+- Definition: periods where Ore < 10 t/h
+- Number of downtime events
+- Total downtime hours and percentage of total time
+- Longest single downtime event (duration and timestamp)
+- Average downtime duration
+
+## 8. Conclusions & Recommendations
+1. [Specific actionable recommendation with justification]
+2. [Specific actionable recommendation with justification]
+3. [Specific actionable recommendation with justification]
+4. [Specific actionable recommendation with justification]
+5. [Specific actionable recommendation with justification]
+
+---
+*Report generated by Agentic Analysis System*
+
+CRITICAL RULES:
+- Use EXACT filenames from list_output_files — only reference charts that actually exist
+- Include ACTUAL numbers from the analysis (means, stds, counts, etc.)
+- Do NOT use placeholder text like 'X anomalies were detected' — use real numbers
+- Every section must have substantive content, not just headers"""
+
+MANAGER_REVIEW_PROMPT = f"""{DOMAIN_CONTEXT}
+
+You are the Quality Manager reviewing the output of a specialist agent.
+Your job is to decide if the work is ACCEPTABLE or needs REWORK.
+
+Evaluate the last specialist's output for:
+- Completeness: did they do everything asked?
+- Quality: are charts well-formatted? Is the report detailed with actual numbers?
+- Correctness: are there errors or unreasonable values?
+
+Respond with EXACTLY one of:
+- ACCEPT: [brief reason] — if the work is good enough to proceed
+- REWORK: [specific instructions on what to fix] — if improvements are needed
+
+Be concise. One line is enough."""
 
 
 # ── Graph builder ────────────────────────────────────────────────────────────
@@ -157,6 +248,23 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
                 compressed.append(msg)
         return compressed
 
+    def strip_tool_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
+        """Remove ToolMessages and tool_calls for the manager (no tools bound)."""
+        clean = []
+        for msg in messages:
+            if isinstance(msg, ToolMessage):
+                content = msg.content if isinstance(msg.content, str) else str(msg.content)
+                clean.append(AIMessage(
+                    content=f"[Tool result from {msg.name}]: {content[:800]}",
+                    name=msg.name,
+                ))
+            elif isinstance(msg, AIMessage) and msg.tool_calls:
+                text = msg.content or f"[{getattr(msg, 'name', 'agent')} requested tools]"
+                clean.append(AIMessage(content=text, name=getattr(msg, "name", None)))
+            else:
+                clean.append(msg)
+        return clean
+
     # ── Specialist node factory ──────────────────────────────────────
     PROMPTS = {
         "data_loader": DATA_LOADER_PROMPT,
@@ -173,7 +281,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
             print(f"\n  [{name}] iteration {iteration}/{MAX_SPECIALIST_ITERS} — processing...")
 
             if iteration > MAX_SPECIALIST_ITERS:
-                print(f"  [{name}] Iteration cap reached, advancing to next stage.")
+                print(f"  [{name}] Iteration cap reached, advancing.")
                 return {
                     "messages": [AIMessage(
                         content=f"[{name}] Done (iteration cap). Moving on.",
@@ -207,6 +315,51 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
 
         return specialist_node
 
+    # ── Manager review node ──────────────────────────────────────────
+    def manager_review_node(state: AnalysisState) -> dict:
+        current = state.get("current_stage", "data_loader")
+        attempts = state.get("stage_attempts", {})
+        attempt_count = attempts.get(current, 0)
+
+        print(f"\n  [manager] Reviewing {current} output (attempt {attempt_count + 1})...")
+
+        # Skip review for data_loader (just load and move on)
+        if current == "data_loader":
+            print(f"  [manager] Data loaded — advancing.")
+            return {
+                "messages": [AIMessage(content="ACCEPT: Data loaded successfully.", name="manager")],
+                "stage_attempts": {**attempts, current: attempt_count + 1},
+            }
+
+        # If already reworked max times, force accept
+        if attempt_count >= MAX_REWORKS_PER_STAGE:
+            print(f"  [manager] Max reworks reached for {current} — accepting.")
+            return {
+                "messages": [AIMessage(content=f"ACCEPT: Max reworks reached for {current}.", name="manager")],
+                "stage_attempts": {**attempts, current: attempt_count + 1},
+            }
+
+        compressed = compress_messages(state["messages"])
+        messages = [SystemMessage(content=MANAGER_REVIEW_PROMPT)] + strip_tool_messages(compressed)
+
+        try:
+            response = llm.invoke(messages)
+        except Exception as e:
+            print(f"  [manager] Review error: {str(e)[:150]}")
+            return {
+                "messages": [AIMessage(content="ACCEPT: Review skipped due to error.", name="manager")],
+                "stage_attempts": {**attempts, current: attempt_count + 1},
+            }
+
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        decision = "ACCEPT" if "ACCEPT" in content.upper() else "REWORK"
+        print(f"  [manager] Decision: {decision} — {content[:150]}")
+
+        return {
+            "messages": [AIMessage(content=content, name="manager")],
+            "stage_attempts": {**attempts, current: attempt_count + 1},
+        }
+
     # ── Tool execution node ──────────────────────────────────────────
     tools_by_name = {t.name: t for t in tools}
 
@@ -234,33 +387,41 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         return {"messages": results}
 
     # ── Routing logic ────────────────────────────────────────────────
-    def needs_tools(state: AnalysisState) -> str:
-        """If the specialist requested tools, go to tools. Otherwise advance."""
+    def specialist_router(state: AnalysisState) -> str:
+        """After specialist: go to tools if tool_calls, else to manager review."""
         last = state["messages"][-1]
         if hasattr(last, "tool_calls") and last.tool_calls:
             return "tools"
-        return "next_stage"
+        return "manager_review"
 
     def after_tools(state: AnalysisState) -> str:
         """After tool execution, return to the specialist that called them."""
         for msg in reversed(state["messages"]):
             if hasattr(msg, "tool_calls") and msg.tool_calls and getattr(msg, "name", None):
                 return msg.name
-        return "data_loader"  # fallback
+        return "data_loader"
 
-    def advance_stage(state: AnalysisState) -> str:
-        """Move to the next stage in the pipeline, or END if done."""
+    def manager_router(state: AnalysisState) -> str:
+        """After manager review: advance to next stage or rework current."""
+        last = state["messages"][-1]
+        content = last.content if isinstance(last.content, str) else str(last.content)
         current = state.get("current_stage", "data_loader")
+
+        # If REWORK, send back to current specialist
+        if "REWORK" in content.upper():
+            print(f"  [manager] Sending {current} back for rework.")
+            return f"{current}_entry"
+
+        # ACCEPT — advance to next stage
         idx = STAGES.index(current) if current in STAGES else 0
         if idx + 1 < len(STAGES):
             next_stage = STAGES[idx + 1]
             print(f"\n  ──→ Advancing: {current} → {next_stage}")
-            return next_stage
+            return f"{next_stage}_entry"
         print(f"\n  ──→ Pipeline complete!")
         return "end"
 
-    # ── Stage transition nodes ───────────────────────────────────────
-    # Each stage sets current_stage before calling the specialist
+    # ── Stage entry nodes ────────────────────────────────────────────
     def make_stage_entry(stage_name: str):
         def entry_node(state: AnalysisState) -> dict:
             return {"current_stage": stage_name}
@@ -269,44 +430,43 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
     # ── Graph assembly ───────────────────────────────────────────────
     graph = StateGraph(AnalysisState)
 
-    # Add specialist nodes + entry nodes
+    # Specialist + entry nodes
     for stage in STAGES:
         graph.add_node(f"{stage}_entry", make_stage_entry(stage))
         graph.add_node(stage, make_specialist_node(stage))
 
     graph.add_node("tools", tool_node)
+    graph.add_node("manager_review", manager_review_node)
 
-    # Entry point → first stage entry
+    # Entry point
     graph.set_entry_point("data_loader_entry")
 
     # Wire: entry → specialist
     for stage in STAGES:
         graph.add_edge(f"{stage}_entry", stage)
 
-    # Wire: specialist → tools or next_stage
-    next_stage_map = {}
-    for i, stage in enumerate(STAGES):
-        if i + 1 < len(STAGES):
-            next_stage_map[stage] = f"{STAGES[i + 1]}_entry"
-        else:
-            next_stage_map[stage] = None  # last stage → END
-
+    # Wire: specialist → tools or manager_review
     for stage in STAGES:
-        target = next_stage_map[stage] or END
         graph.add_conditional_edges(
             stage,
-            needs_tools,
-            {
-                "tools": "tools",
-                "next_stage": target if target != END else END,
-            },
+            specialist_router,
+            {"tools": "tools", "manager_review": "manager_review"},
         )
 
-    # Wire: tools → back to the specialist
+    # Wire: tools → back to specialist
     graph.add_conditional_edges(
         "tools",
         after_tools,
         {stage: stage for stage in STAGES},
+    )
+
+    # Wire: manager_review → next stage or rework or END
+    manager_targets = {f"{stage}_entry": f"{stage}_entry" for stage in STAGES}
+    manager_targets["end"] = END
+    graph.add_conditional_edges(
+        "manager_review",
+        manager_router,
+        manager_targets,
     )
 
     return graph.compile()
