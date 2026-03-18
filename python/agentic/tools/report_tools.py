@@ -10,10 +10,7 @@ import json
 import os
 
 from mcp import types
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+from tools.output_dir import get_output_dir
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -44,15 +41,16 @@ list_output_files_tool = types.Tool(
 
 async def list_output_files(arguments: dict) -> list[types.TextContent]:
     ext_filter = arguments.get("extension_filter", "").strip().lower()
+    output_dir = get_output_dir()
 
-    if not os.path.exists(OUTPUT_DIR):
+    if not os.path.exists(output_dir):
         return [types.TextContent(type="text", text=json.dumps({"files": [], "count": 0}))]
 
     files = []
-    for f in sorted(os.listdir(OUTPUT_DIR)):
+    for f in sorted(os.listdir(output_dir)):
         if ext_filter and not f.lower().endswith(f".{ext_filter}"):
             continue
-        full_path = os.path.join(OUTPUT_DIR, f)
+        full_path = os.path.join(output_dir, f)
         if os.path.isfile(full_path):
             files.append({
                 "name": f,
@@ -113,7 +111,8 @@ async def write_markdown_report(arguments: dict) -> list[types.TextContent]:
     if not filename.endswith(".md"):
         filename += ".md"
 
-    file_path = os.path.join(OUTPUT_DIR, filename)
+    output_dir = get_output_dir()
+    file_path = os.path.join(output_dir, filename)
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
 

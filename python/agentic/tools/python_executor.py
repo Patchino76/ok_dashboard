@@ -33,10 +33,7 @@ from scipy import stats as scipy_stats
 from mcp import types
 
 from tools.db_tools import get_dataframe, list_dataframes
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+from tools.output_dir import get_output_dir
 
 
 # ── execute_python ───────────────────────────────────────────────────────────
@@ -84,8 +81,11 @@ async def execute_python(arguments: dict) -> list[types.TextContent]:
     if not code:
         raise ValueError("code is required")
 
+    # Resolve the current per-analysis output directory
+    output_dir = get_output_dir()
+
     # Track which files exist before execution
-    existing_files = set(os.listdir(OUTPUT_DIR)) if os.path.exists(OUTPUT_DIR) else set()
+    existing_files = set(os.listdir(output_dir)) if os.path.exists(output_dir) else set()
 
     # Build execution namespace with analysis-friendly tools
     namespace = {
@@ -101,8 +101,8 @@ async def execute_python(arguments: dict) -> list[types.TextContent]:
         "scipy_stats": scipy_stats,
         "os": os,
         "json": json,
-        # Paths
-        "OUTPUT_DIR": OUTPUT_DIR,
+        # Paths — points to the per-analysis subfolder
+        "OUTPUT_DIR": output_dir,
         # Builtins
         "__builtins__": __builtins__,
     }
@@ -131,7 +131,7 @@ async def execute_python(arguments: dict) -> list[types.TextContent]:
     stdout_output = captured_stdout.getvalue()
 
     # Detect newly created files
-    current_files = set(os.listdir(OUTPUT_DIR)) if os.path.exists(OUTPUT_DIR) else set()
+    current_files = set(os.listdir(output_dir)) if os.path.exists(output_dir) else set()
     new_files = sorted(current_files - existing_files)
 
     result: dict = {

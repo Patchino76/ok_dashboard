@@ -127,15 +127,21 @@ function CollapsibleImage({ src, alt }: { src: string; alt: string }) {
 function FileDownloads({
   reportFiles,
   chartFiles,
+  analysisId,
 }: {
   reportFiles: string[];
   chartFiles: string[];
+  analysisId?: string;
 }) {
   const allFiles = [
     ...reportFiles.map((f) => ({ name: f, type: "report" as const })),
     ...chartFiles.map((f) => ({ name: f, type: "chart" as const })),
   ];
   if (allFiles.length === 0) return null;
+
+  const baseUrl = analysisId
+    ? `/api/v1/agentic/reports/${encodeURIComponent(analysisId)}`
+    : `/api/v1/agentic/reports`;
 
   return (
     <div className="mt-3 pt-3 border-t border-gray-100">
@@ -147,7 +153,7 @@ function FileDownloads({
         {allFiles.map(({ name, type }) => (
           <a
             key={name}
-            href={`/api/v1/agentic/reports/${encodeURIComponent(name)}`}
+            href={`${baseUrl}/${encodeURIComponent(name)}`}
             target="_blank"
             rel="noopener noreferrer"
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ${
@@ -181,36 +187,52 @@ function TypingIndicator() {
 }
 
 // ── Custom markdown components (rewrite image src to API, make collapsible) ─
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const markdownComponents: Record<string, any> = {
-  // Unwrap <p> tags that contain only an image to avoid <div> inside <p> hydration error
-  p: ({ node, children, ...rest }: any) => {
-    const childArray = React.Children.toArray(children);
-    if (
-      childArray.length === 1 &&
-      typeof childArray[0] === "object" &&
-      (childArray[0] as any)?.type === CollapsibleImage
-    ) {
-      return <>{children}</>;
-    }
-    return <p {...rest}>{children}</p>;
-  },
-  img: ({ node, src, alt, ...rest }: any) => {
-    const rawSrc = String(src || "");
-    const resolvedSrc =
-      rawSrc && !rawSrc.startsWith("http") && !rawSrc.startsWith("/")
-        ? `/api/v1/agentic/reports/${encodeURIComponent(rawSrc)}`
-        : rawSrc;
-    return <CollapsibleImage src={resolvedSrc} alt={String(alt || "")} />;
-  },
-};
+// Factory: returns components that resolve image paths with the correct analysisId
+function makeMarkdownComponents(analysisId?: string): Record<string, any> {
+  const baseUrl = analysisId
+    ? `/api/v1/agentic/reports/${encodeURIComponent(analysisId)}`
+    : `/api/v1/agentic/reports`;
+
+  return {
+    // Unwrap <p> tags that contain only an image to avoid <div> inside <p> hydration error
+    p: ({ node, children, ...rest }: any) => {
+      const childArray = React.Children.toArray(children);
+      if (
+        childArray.length === 1 &&
+        typeof childArray[0] === "object" &&
+        (childArray[0] as any)?.type === CollapsibleImage
+      ) {
+        return <>{children}</>;
+      }
+      return <p {...rest}>{children}</p>;
+    },
+    img: ({ node, src, alt, ...rest }: any) => {
+      const rawSrc = String(src || "");
+      const resolvedSrc =
+        rawSrc && !rawSrc.startsWith("http") && !rawSrc.startsWith("/")
+          ? `${baseUrl}/${encodeURIComponent(rawSrc)}`
+          : rawSrc;
+      return <CollapsibleImage src={resolvedSrc} alt={String(alt || "")} />;
+    },
+  };
+}
 
 // ── Single message bubble ──────────────────────────────────────────────────
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({
+  message,
+  analysisId,
+}: {
+  message: ChatMessage;
+  analysisId?: string;
+}) {
   const isUser = message.role === "user";
 
   // Determine the content to render: prefer reportMarkdown over plain content
   const displayContent = message.reportMarkdown || message.content;
+  const mdComponents = React.useMemo(
+    () => makeMarkdownComponents(analysisId),
+    [analysisId],
+  );
 
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
@@ -247,7 +269,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               {message.status && <StatusBadge status={message.status} />}
               {displayContent && (
                 <div className="mt-2">
-                  <ReactMarkdown components={markdownComponents}>
+                  <ReactMarkdown components={mdComponents}>
                     {displayContent}
                   </ReactMarkdown>
                 </div>
@@ -257,6 +279,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
                 <FileDownloads
                   reportFiles={message.reportFiles || []}
                   chartFiles={message.chartFiles || []}
+                  analysisId={analysisId}
                 />
               )}
             </div>
@@ -517,7 +540,13 @@ export default function AiChatPage() {
               </div>
             </div>
           ) : (
-            messages.map((msg) => <MessageBubble key={msg.id} message={msg} />)
+            messages.map((msg) => (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                analysisId={conv?.analysisId}
+              />
+            ))
           )}
           <div ref={bottomRef} />
         </div>

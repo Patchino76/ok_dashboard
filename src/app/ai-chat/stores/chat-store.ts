@@ -21,6 +21,7 @@ export interface Conversation {
   createdAt: string;
   messages: ChatMessage[];
   status: "idle" | "running" | "completed" | "failed";
+  analysisId?: string;
 }
 
 interface ChatState {
@@ -123,8 +124,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   deleteConversation: (id) => {
-    const { stopPolling, activeConversationId } = get();
+    const { stopPolling, activeConversationId, conversations } = get();
     stopPolling();
+
+    // Find the conversation to get its analysisId for backend cleanup
+    const conv = conversations.find((c) => c.id === id);
+    if (conv?.analysisId) {
+      fetch(`/api/v1/agentic/analysis/${conv.analysisId}`, {
+        method: "DELETE",
+      }).catch((e) => console.warn("Failed to delete analysis files:", e));
+    }
+
     set((s) => {
       const updated = s.conversations.filter((c) => c.id !== id);
       saveConversations(updated);
@@ -141,7 +151,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   clearAllConversations: () => {
-    get().stopPolling();
+    const { stopPolling, conversations } = get();
+    stopPolling();
+
+    // Delete all analysis output folders on the backend
+    for (const conv of conversations) {
+      if (conv.analysisId) {
+        fetch(`/api/v1/agentic/analysis/${conv.analysisId}`, {
+          method: "DELETE",
+        }).catch((e) => console.warn("Failed to delete analysis files:", e));
+      }
+    }
+
     saveConversations([]);
     set({
       conversations: [],
@@ -231,6 +252,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const data = await res.json();
       const analysisId = data.analysis_id;
 
+      // Store analysisId on the conversation for URL building & cleanup
+      set((s) => {
+        const updated = s.conversations.map((c) =>
+          c.id === convId ? { ...c, analysisId } : c,
+        );
+        saveConversations(updated);
+        return { conversations: updated };
+      });
+
       updateMessage(assistantMsg.id, {
         analysisId,
         status: "running",
@@ -277,7 +307,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (reportFiles.length > 0) {
             try {
               const mdRes = await fetch(
-                `/api/v1/agentic/reports/${encodeURIComponent(reportFiles[0])}`,
+                `/api/v1/agentic/reports/${encodeURIComponent(analysisId)}/${encodeURIComponent(reportFiles[0])}`,
               );
               if (mdRes.ok) {
                 reportMarkdown = await mdRes.text();

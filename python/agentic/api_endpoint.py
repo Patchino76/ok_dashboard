@@ -12,6 +12,7 @@ The MCP server must be running on port 8003 for this to work.
 
 import asyncio
 import os
+import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -87,14 +88,6 @@ async def start_analysis(request: AnalysisRequest):
 
     full_prompt = " ".join(prompt_parts)
 
-    # Snapshot files + their mtimes BEFORE this analysis so we can diff later
-    pre_existing_files: dict[str, float] = {}
-    if os.path.exists(OUTPUT_DIR):
-        for fname in os.listdir(OUTPUT_DIR):
-            fpath = os.path.join(OUTPUT_DIR, fname)
-            if os.path.isfile(fpath):
-                pre_existing_files[fname] = os.path.getmtime(fpath)
-
     _analyses[analysis_id] = {
         "status": "running",
         "question": full_prompt,
@@ -102,7 +95,6 @@ async def start_analysis(request: AnalysisRequest):
         "final_answer": None,
         "error": None,
         "completed_at": None,
-        "pre_existing_files": pre_existing_files,
     }
 
     # Run analysis in background
@@ -124,17 +116,13 @@ async def get_analysis_status(analysis_id: str):
 
     entry = _analyses[analysis_id]
 
-    # List only files created or modified BY THIS analysis
-    pre_existing: dict = entry.get("pre_existing_files", {})
+    # List files from this analysis's subfolder: output/{analysis_id}/
+    analysis_dir = os.path.join(OUTPUT_DIR, analysis_id)
     report_files = []
     chart_files = []
-    if os.path.exists(OUTPUT_DIR):
-        for f in sorted(os.listdir(OUTPUT_DIR)):
-            fpath = os.path.join(OUTPUT_DIR, f)
-            if not os.path.isfile(fpath):
-                continue
-            # Include if: new file OR existing file that was modified after analysis started
-            if f in pre_existing and os.path.getmtime(fpath) <= pre_existing[f]:
+    if os.path.exists(analysis_dir):
+        for f in sorted(os.listdir(analysis_dir)):
+            if not os.path.isfile(os.path.join(analysis_dir, f)):
                 continue
             if f.endswith(".md"):
                 report_files.append(f)
@@ -156,30 +144,53 @@ async def get_analysis_status(analysis_id: str):
 
 @router.get("/reports")
 async def list_reports():
-    """List all generated reports and charts in the output directory."""
+    """List all generated reports and charts across all analyses."""
     if not os.path.exists(OUTPUT_DIR):
         return {"files": [], "count": 0}
 
     files = []
-    for f in sorted(os.listdir(OUTPUT_DIR)):
-        full_path = os.path.join(OUTPUT_DIR, f)
-        if os.path.isfile(full_path) and not f.startswith("."):
-            files.append({
-                "name": f,
-                "size_kb": round(os.path.getsize(full_path) / 1024, 1),
-                "type": "report" if f.endswith(".md") else "chart" if f.endswith(".png") else "other",
-            })
+    for subdir in sorted(os.listdir(OUTPUT_DIR)):
+        sub_path = os.path.join(OUTPUT_DIR, subdir)
+        if not os.path.isdir(sub_path):
+            continue
+        for f in sorted(os.listdir(sub_path)):
+            full_path = os.path.join(sub_path, f)
+            if os.path.isfile(full_path) and not f.startswith("."):
+                files.append({
+                    "name": f,
+                    "analysis_id": subdir,
+                    "size_kb": round(os.path.getsize(full_path) / 1024, 1),
+                    "type": "report" if f.endswith(".md") else "chart" if f.endswith(".png") else "other",
+                })
 
     return {"count": len(files), "files": files}
 
 
-@router.get("/reports/{filename}")
-async def get_report_file(filename: str):
-    """Download a specific report or chart file."""
-    file_path = os.path.join(OUTPUT_DIR, filename)
+@router.get("/reports/{analysis_id}/{filename}")
+async def get_report_file(analysis_id: str, filename: str):
+    """Download a specific report or chart file from an analysis subfolder."""
+    file_path = os.path.join(OUTPUT_DIR, analysis_id, filename)
     if not os.path.exists(file_path):
+        # Fallback: try flat output dir for backward compat with old files
+        fallback = os.path.join(OUTPUT_DIR, filename)
+        if os.path.exists(fallback):
+            return FileResponse(fallback)
         raise HTTPException(status_code=404, detail=f"File {filename} not found")
     return FileResponse(file_path)
+
+
+@router.delete("/analysis/{analysis_id}")
+async def delete_analysis(analysis_id: str):
+    """Delete an analysis and its output files."""
+    # Remove output subfolder
+    analysis_dir = os.path.join(OUTPUT_DIR, analysis_id)
+    if os.path.exists(analysis_dir):
+        shutil.rmtree(analysis_dir)
+
+    # Remove from in-memory tracking
+    _analyses.pop(analysis_id, None)
+
+    return {"status": "deleted", "analysis_id": analysis_id}
 
 
 # ── Background analysis runner ───────────────────────────────────────────────
@@ -194,6 +205,13 @@ async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
         async with streamable_http_client(SERVER_URL) as (read, write, _):
             async with ClientSession(read, write) as session:
                 await session.initialize()
+
+                # Configure per-analysis output subfolder on the MCP server
+                await session.call_tool(
+                    "set_output_directory",
+                    {"analysis_id": analysis_id},
+                )
+
                 langchain_tools = await get_mcp_tools(session)
                 graph = build_graph(langchain_tools, api_key)
 
