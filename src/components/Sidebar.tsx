@@ -18,6 +18,7 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 
 type MenuItem = {
@@ -127,6 +128,11 @@ export default function Sidebar() {
           href: "/mills-ai/optimization-cascade",
           label: "Оптимизация на смилане",
           icon: <Zap className="w-5 h-5" />,
+        },
+        {
+          href: "/ai-chat",
+          label: "AI Анализатор",
+          icon: <MessageSquare className="w-5 h-5" />,
         },
       ],
     },

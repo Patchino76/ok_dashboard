@@ -25,7 +25,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from client import get_mcp_tools
-from graph import build_graph
+from graph_v2 import build_graph
 
 router = APIRouter(prefix="/api/v1/agentic", tags=["agentic"])
 
@@ -166,9 +166,9 @@ async def get_report_file(filename: str):
 async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
     """Run the multi-agent analysis pipeline in the background."""
     try:
-        api_key = os.getenv("GROQ_API_KEY")
+        api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
-            raise ValueError("GROQ_API_KEY not configured")
+            raise ValueError("GOOGLE_API_KEY not configured")
 
         async with streamable_http_client(SERVER_URL) as (read, write, _):
             async with ClientSession(read, write) as session:

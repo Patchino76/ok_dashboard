@@ -468,6 +468,19 @@ app.include_router(multi_output_router, tags=["Multi-Output Optimization"])
 MULTI_OUTPUT_AVAILABLE = True
 logger.info("Successfully loaded Multi-Output Optimization router with mock implementation")
 
+# ----------------------------- Agentic Analysis Endpoints ---------------------------------
+try:
+    agentic_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'agentic')
+    if agentic_path not in sys.path:
+        sys.path.insert(0, agentic_path)
+    from api_endpoint import router as agentic_router
+    app.include_router(agentic_router, tags=["Agentic Analysis"])
+    AGENTIC_SYSTEM_AVAILABLE = True
+    logger.info(f"Successfully loaded Agentic Analysis router with {len(agentic_router.routes)} routes")
+except Exception as e:
+    logger.warning(f"Agentic Analysis system not available: {e}")
+    AGENTIC_SYSTEM_AVAILABLE = False
+
 # ----------------------------- Cascade Optimization Endpoints -----------------------------
 
 # Cascade endpoints are now integrated through mills_ml_router at /api/v1/ml/cascade/*
@@ -529,6 +542,10 @@ async def health_check():
             "available": CASCADE_SYSTEM_AVAILABLE,
             "endpoints_count": 9 if CASCADE_SYSTEM_AVAILABLE else 0,  # 9 cascade endpoints in mills_ml_router
             "base_url": "/api/v1/ml/cascade" if CASCADE_SYSTEM_AVAILABLE else None
+        },
+        "agentic_system": {
+            "available": AGENTIC_SYSTEM_AVAILABLE if 'AGENTIC_SYSTEM_AVAILABLE' in dir() else False,
+            "base_url": "/api/v1/agentic" if AGENTIC_SYSTEM_AVAILABLE else None
         }
     }
 
