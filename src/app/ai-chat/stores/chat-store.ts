@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+// ── Types ────────────────────────────────────────────────────────────────────
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -9,34 +11,146 @@ export interface ChatMessage {
   status?: "pending" | "running" | "completed" | "failed";
   reportFiles?: string[];
   chartFiles?: string[];
+  reportMarkdown?: string;
   error?: string;
 }
 
-interface ChatState {
+export interface Conversation {
+  id: string;
+  title: string;
+  createdAt: string;
   messages: ChatMessage[];
+  status: "idle" | "running" | "completed" | "failed";
+}
+
+interface ChatState {
+  conversations: Conversation[];
+  activeConversationId: string | null;
   isLoading: boolean;
-  activeAnalysisId: string | null;
   pollingInterval: ReturnType<typeof setInterval> | null;
 
-  addMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => void;
-  updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
-  setLoading: (loading: boolean) => void;
-  setActiveAnalysisId: (id: string | null) => void;
-  setPollingInterval: (interval: ReturnType<typeof setInterval> | null) => void;
-  clearChat: () => void;
+  // Derived helpers
+  activeConversation: () => Conversation | undefined;
 
+  // Conversation management
+  createConversation: (title?: string) => string;
+  selectConversation: (id: string) => void;
+  deleteConversation: (id: string) => void;
+  clearAllConversations: () => void;
+
+  // Message management (operates on active conversation)
+  addMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => ChatMessage;
+  updateMessage: (msgId: string, updates: Partial<ChatMessage>) => void;
+
+  // Analysis flow
   sendAnalysis: (question: string) => Promise<void>;
-  pollStatus: (analysisId: string, messageId: string) => void;
+  pollStatus: (analysisId: string, messageId: string, convId: string) => void;
   stopPolling: () => void;
+}
+
+// ── localStorage helpers ─────────────────────────────────────────────────────
+
+const STORAGE_KEY = "ai-chat-conversations";
+
+function loadConversations(): Conversation[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: Conversation[] = JSON.parse(raw);
+    // Reset any stuck "running" conversations to "failed" on reload
+    return parsed.map((c) =>
+      c.status === "running" ? { ...c, status: "failed" as const } : c,
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveConversations(conversations: Conversation[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+  } catch (e) {
+    console.warn("Failed to save conversations:", e);
+  }
+}
+
+// ── Utility ──────────────────────────────────────────────────────────────────
+
+function truncate(s: string, max = 50) {
+  return s.length > max ? s.slice(0, max) + "…" : s;
 }
 
 const POLL_INTERVAL_MS = 4000;
 
+// ── Store ────────────────────────────────────────────────────────────────────
+
 export const useChatStore = create<ChatState>((set, get) => ({
-  messages: [],
+  conversations: loadConversations(),
+  activeConversationId: loadConversations()[0]?.id ?? null,
   isLoading: false,
-  activeAnalysisId: null,
   pollingInterval: null,
+
+  // ── Derived ──────────────────────────────────────────────────────────────
+
+  activeConversation: () => {
+    const { conversations, activeConversationId } = get();
+    return conversations.find((c) => c.id === activeConversationId);
+  },
+
+  // ── Conversation management ──────────────────────────────────────────────
+
+  createConversation: (title?: string) => {
+    const id = crypto.randomUUID();
+    const conv: Conversation = {
+      id,
+      title: title || "Нов анализ",
+      createdAt: new Date().toISOString(),
+      messages: [],
+      status: "idle",
+    };
+    set((s) => {
+      const updated = [conv, ...s.conversations];
+      saveConversations(updated);
+      return { conversations: updated, activeConversationId: id };
+    });
+    return id;
+  },
+
+  selectConversation: (id) => {
+    set({ activeConversationId: id });
+  },
+
+  deleteConversation: (id) => {
+    const { stopPolling, activeConversationId } = get();
+    stopPolling();
+    set((s) => {
+      const updated = s.conversations.filter((c) => c.id !== id);
+      saveConversations(updated);
+      const newActive =
+        activeConversationId === id
+          ? (updated[0]?.id ?? null)
+          : activeConversationId;
+      return {
+        conversations: updated,
+        activeConversationId: newActive,
+        isLoading: false,
+      };
+    });
+  },
+
+  clearAllConversations: () => {
+    get().stopPolling();
+    saveConversations([]);
+    set({
+      conversations: [],
+      activeConversationId: null,
+      isLoading: false,
+    });
+  },
+
+  // ── Message management ───────────────────────────────────────────────────
 
   addMessage: (msg) => {
     const newMsg: ChatMessage = {
@@ -44,51 +158,64 @@ export const useChatStore = create<ChatState>((set, get) => ({
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
     };
-    set((s) => ({ messages: [...s.messages, newMsg] }));
+    set((s) => {
+      const updated = s.conversations.map((c) =>
+        c.id === s.activeConversationId
+          ? { ...c, messages: [...c.messages, newMsg] }
+          : c,
+      );
+      saveConversations(updated);
+      return { conversations: updated };
+    });
     return newMsg;
   },
 
-  updateMessage: (id, updates) => {
-    set((s) => ({
-      messages: s.messages.map((m) => (m.id === id ? { ...m, ...updates } : m)),
-    }));
+  updateMessage: (msgId, updates) => {
+    set((s) => {
+      const updated = s.conversations.map((c) => {
+        const hasMsg = c.messages.some((m) => m.id === msgId);
+        if (!hasMsg) return c;
+        return {
+          ...c,
+          messages: c.messages.map((m) =>
+            m.id === msgId ? { ...m, ...updates } : m,
+          ),
+        };
+      });
+      saveConversations(updated);
+      return { conversations: updated };
+    });
   },
 
-  setLoading: (loading) => set({ isLoading: loading }),
-  setActiveAnalysisId: (id) => set({ activeAnalysisId: id }),
-  setPollingInterval: (interval) => set({ pollingInterval: interval }),
-
-  clearChat: () => {
-    get().stopPolling();
-    set({ messages: [], isLoading: false, activeAnalysisId: null });
-  },
+  // ── Analysis flow ────────────────────────────────────────────────────────
 
   sendAnalysis: async (question: string) => {
-    const { addMessage, setLoading, setActiveAnalysisId, pollStatus, updateMessage } = get();
+    const { createConversation, addMessage, updateMessage, pollStatus } = get();
+
+    // Create a new conversation for this analysis
+    const convId = createConversation(truncate(question));
 
     // Add user message
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: question,
-      timestamp: new Date().toISOString(),
-    };
-    set((s) => ({ messages: [...s.messages, userMsg] }));
+    addMessage({ role: "user", content: question });
 
     // Add placeholder assistant message
-    const assistantMsg: ChatMessage = {
-      id: crypto.randomUUID(),
+    const assistantMsg = addMessage({
       role: "assistant",
       content: "",
-      timestamp: new Date().toISOString(),
       status: "pending",
-    };
-    set((s) => ({ messages: [...s.messages, assistantMsg] }));
+    });
 
-    setLoading(true);
+    // Mark conversation as running
+    set((s) => {
+      const updated = s.conversations.map((c) =>
+        c.id === convId ? { ...c, status: "running" as const } : c,
+      );
+      saveConversations(updated);
+      return { conversations: updated, isLoading: true };
+    });
 
     try {
-      const res = await fetch("/api/agentic/analyze", {
+      const res = await fetch("/api/v1/agentic/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
@@ -96,21 +223,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || errData.error || `HTTP ${res.status}`);
+        throw new Error(
+          errData.detail || errData.error || `HTTP ${res.status}`,
+        );
       }
 
       const data = await res.json();
       const analysisId = data.analysis_id;
 
-      setActiveAnalysisId(analysisId);
       updateMessage(assistantMsg.id, {
         analysisId,
         status: "running",
         content: "Анализът е стартиран. Агентите работят...",
       });
 
-      // Start polling
-      pollStatus(analysisId, assistantMsg.id);
+      pollStatus(analysisId, assistantMsg.id, convId);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
       updateMessage(assistantMsg.id, {
@@ -118,44 +245,80 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: `Грешка при стартиране на анализа: ${errorMsg}`,
         error: errorMsg,
       });
-      setLoading(false);
+      set((s) => {
+        const updated = s.conversations.map((c) =>
+          c.id === convId ? { ...c, status: "failed" as const } : c,
+        );
+        saveConversations(updated);
+        return { conversations: updated, isLoading: false };
+      });
     }
   },
 
-  pollStatus: (analysisId: string, messageId: string) => {
-    const { updateMessage, setLoading, setActiveAnalysisId, stopPolling } = get();
+  // ── Polling ──────────────────────────────────────────────────────────────
 
-    // Clear any existing interval
+  pollStatus: (analysisId: string, messageId: string, convId: string) => {
+    const { stopPolling } = get();
     stopPolling();
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/agentic/status/${analysisId}`);
+        const res = await fetch(`/api/v1/agentic/status/${analysisId}`);
         if (!res.ok) return;
 
         const data = await res.json();
+        const { updateMessage, stopPolling: stop } = get();
 
         if (data.status === "completed") {
+          const reportFiles: string[] = data.report_files || [];
+          const chartFiles: string[] = data.chart_files || [];
+
+          let reportMarkdown: string | undefined;
+          if (reportFiles.length > 0) {
+            try {
+              const mdRes = await fetch(
+                `/api/v1/agentic/reports/${encodeURIComponent(reportFiles[0])}`,
+              );
+              if (mdRes.ok) {
+                reportMarkdown = await mdRes.text();
+              }
+            } catch (e) {
+              console.warn("Failed to fetch report MD:", e);
+            }
+          }
+
           updateMessage(messageId, {
             status: "completed",
             content: data.final_answer || "Анализът е завършен.",
-            reportFiles: data.report_files || [],
-            chartFiles: data.chart_files || [],
+            reportFiles,
+            chartFiles,
+            reportMarkdown,
           });
-          setLoading(false);
-          setActiveAnalysisId(null);
-          stopPolling();
+
+          set((s) => {
+            const updated = s.conversations.map((c) =>
+              c.id === convId ? { ...c, status: "completed" as const } : c,
+            );
+            saveConversations(updated);
+            return { conversations: updated, isLoading: false };
+          });
+          stop();
         } else if (data.status === "failed") {
           updateMessage(messageId, {
             status: "failed",
             content: `Анализът е неуспешен: ${data.error || "Неизвестна грешка"}`,
             error: data.error,
           });
-          setLoading(false);
-          setActiveAnalysisId(null);
-          stopPolling();
+
+          set((s) => {
+            const updated = s.conversations.map((c) =>
+              c.id === convId ? { ...c, status: "failed" as const } : c,
+            );
+            saveConversations(updated);
+            return { conversations: updated, isLoading: false };
+          });
+          stop();
         }
-        // If still "running", keep polling
       } catch (err) {
         console.error("Polling error:", err);
       }

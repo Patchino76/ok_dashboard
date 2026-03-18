@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -26,6 +27,10 @@ from mcp.client.streamable_http import streamable_http_client
 
 from client import get_mcp_tools
 from graph_v2 import build_graph
+
+# Load .env from the agentic directory
+_env_path = Path(__file__).parent / ".env"
+load_dotenv(_env_path)
 
 router = APIRouter(prefix="/api/v1/agentic", tags=["agentic"])
 
@@ -82,6 +87,14 @@ async def start_analysis(request: AnalysisRequest):
 
     full_prompt = " ".join(prompt_parts)
 
+    # Snapshot files + their mtimes BEFORE this analysis so we can diff later
+    pre_existing_files: dict[str, float] = {}
+    if os.path.exists(OUTPUT_DIR):
+        for fname in os.listdir(OUTPUT_DIR):
+            fpath = os.path.join(OUTPUT_DIR, fname)
+            if os.path.isfile(fpath):
+                pre_existing_files[fname] = os.path.getmtime(fpath)
+
     _analyses[analysis_id] = {
         "status": "running",
         "question": full_prompt,
@@ -89,6 +102,7 @@ async def start_analysis(request: AnalysisRequest):
         "final_answer": None,
         "error": None,
         "completed_at": None,
+        "pre_existing_files": pre_existing_files,
     }
 
     # Run analysis in background
@@ -110,11 +124,18 @@ async def get_analysis_status(analysis_id: str):
 
     entry = _analyses[analysis_id]
 
-    # List output files
+    # List only files created or modified BY THIS analysis
+    pre_existing: dict = entry.get("pre_existing_files", {})
     report_files = []
     chart_files = []
     if os.path.exists(OUTPUT_DIR):
         for f in sorted(os.listdir(OUTPUT_DIR)):
+            fpath = os.path.join(OUTPUT_DIR, f)
+            if not os.path.isfile(fpath):
+                continue
+            # Include if: new file OR existing file that was modified after analysis started
+            if f in pre_existing and os.path.getmtime(fpath) <= pre_existing[f]:
+                continue
             if f.endswith(".md"):
                 report_files.append(f)
             elif f.endswith(".png"):
