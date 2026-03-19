@@ -1,0 +1,353 @@
+.main {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.container {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+/* ── Header ── */
+.header {
+  text-align: center;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-bottom: 0.4rem;
+}
+
+.logoIcon {
+  font-size: 1.4rem;
+  color: var(--accent);
+  filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+.logoText {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: 0.2em;
+  color: var(--text);
+}
+
+.tagline {
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.testBtn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.3rem 0.8rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.05em;
+  margin-top: 0.5rem;
+}
+
+.testBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--surface);
+}
+
+/* ── Language Toggle ── */
+.langToggle {
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.langBtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.langBtn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--surface2);
+}
+
+.langBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.langActive {
+  background: var(--surface2) !important;
+  color: var(--text) !important;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.langDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+
+.langFlag {
+  font-size: 1.1rem;
+}
+
+/* ── Mic Area ── */
+.micArea {
+  position: relative;
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rippleWrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ripple {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: var(--recording-glow);
+  animation: ripple 2s ease-out infinite;
+}
+
+.ripple2 { animation-delay: 0.6s; }
+.ripple3 { animation-delay: 1.2s; }
+
+@keyframes ripple {
+  0% { transform: scale(0.7); opacity: 0.6; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+.micBtn {
+  position: relative;
+  z-index: 1;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  outline: none;
+  background: var(--surface2);
+  color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 8px 32px rgba(0,0,0,0.4),
+    0 0 24px var(--accent-glow);
+}
+
+.micBtn:hover:not(:disabled) {
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 8px 40px rgba(0,0,0,0.5),
+    0 0 40px var(--accent-glow);
+}
+
+.micBtn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.micBtn_recording {
+  background: var(--recording) !important;
+  color: #fff !important;
+  box-shadow:
+    0 0 0 2px var(--recording),
+    0 8px 32px rgba(0,0,0,0.4),
+    0 0 32px var(--recording-glow) !important;
+}
+
+.micBtn_processing {
+  background: var(--surface2);
+  color: var(--accent);
+  cursor: not-allowed;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.micBtn_done {
+  background: rgba(68, 255, 170, 0.1);
+  color: var(--success);
+  box-shadow:
+    0 0 0 1px rgba(68, 255, 170, 0.3),
+    0 8px 32px rgba(0,0,0,0.4),
+    0 0 24px rgba(68, 255, 170, 0.2) !important;
+}
+
+.micBtn_error {
+  background: rgba(255, 68, 102, 0.15);
+  color: var(--recording);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  animation: spin 1s linear infinite;
+}
+
+.spinner circle {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: 80;
+  stroke-dashoffset: 60;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Status ── */
+.statusText {
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+.status_recording { color: var(--recording); }
+.status_processing { color: var(--accent); }
+.status_done { color: var(--success); }
+.status_error { color: var(--recording); }
+
+/* ── Transcript ── */
+.transcriptWrapper {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.transcriptHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.transcriptLabel {
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.copyBtn {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.05em;
+}
+
+.copyBtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.transcriptArea {
+  width: 100%;
+  min-height: 180px;
+  padding: 1.25rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  resize: vertical;
+  outline: none;
+  font-weight: 300;
+}
+
+.transcriptArea::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.transcriptArea[data-error="true"] {
+  color: var(--recording);
+}
+
+.resetBtn {
+  width: 100%;
+  padding: 0.85rem;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  letter-spacing: 0.08em;
+}
+
+.resetBtn:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+/* ── Hint ── */
+.hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  text-align: center;
+  min-height: 1.2em;
+}
