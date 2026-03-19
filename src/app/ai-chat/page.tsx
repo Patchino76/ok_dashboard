@@ -195,15 +195,21 @@ function makeMarkdownComponents(analysisId?: string): Record<string, any> {
     : `/api/v1/agentic/reports`;
 
   return {
-    // Unwrap <p> tags that contain only an image to avoid <div> inside <p> hydration error
+    // Avoid <div> inside <p> hydration error: if any child is a block-level
+    // component (CollapsibleImage), render as <div> instead of <p>
     p: ({ node, children, ...rest }: any) => {
       const childArray = React.Children.toArray(children);
-      if (
-        childArray.length === 1 &&
-        typeof childArray[0] === "object" &&
-        (childArray[0] as any)?.type === CollapsibleImage
-      ) {
-        return <>{children}</>;
+      const hasBlock = childArray.some(
+        (child) =>
+          typeof child === "object" &&
+          (child as any)?.type === CollapsibleImage,
+      );
+      if (hasBlock) {
+        return (
+          <div className="my-1" {...rest}>
+            {children}
+          </div>
+        );
       }
       return <p {...rest}>{children}</p>;
     },
@@ -449,18 +455,37 @@ export default function AiChatPage() {
     activeConversation,
     isLoading,
     sendAnalysis,
+    hydrateFromStorage,
   } = useChatStore();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Hydrate conversations from localStorage after first client render to avoid SSR mismatch
+  useEffect(() => {
+    hydrateFromStorage();
+  }, [hydrateFromStorage]);
+
   const conv = activeConversation();
   const messages = conv?.messages ?? [];
 
-  // Auto-scroll to bottom on new messages
+  // Scroll to top when switching conversations, auto-scroll to bottom only for new messages
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const prevConvIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (
+      prevConvIdRef.current !== undefined &&
+      prevConvIdRef.current !== activeConversationId
+    ) {
+      // Conversation changed — scroll to top
+      scrollContainerRef.current?.scrollTo({ top: 0 });
+    } else {
+      // Same conversation, new message — scroll to bottom
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    prevConvIdRef.current = activeConversationId;
+  }, [messages, activeConversationId]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -543,7 +568,10 @@ export default function AiChatPage() {
         </div>
 
         {/* ── Messages / empty state ───────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-4 py-6 space-y-6"
+        >
           {showEmptyState ? (
             <div className="flex flex-col items-center justify-center h-full gap-8 text-center">
               <div>

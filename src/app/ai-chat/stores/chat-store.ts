@@ -47,6 +47,9 @@ interface ChatState {
   sendAnalysis: (question: string) => Promise<void>;
   pollStatus: (analysisId: string, messageId: string, convId: string) => void;
   stopPolling: () => void;
+
+  // Hydration
+  hydrateFromStorage: () => void;
 }
 
 // ── localStorage helpers ─────────────────────────────────────────────────────
@@ -88,8 +91,8 @@ const POLL_INTERVAL_MS = 4000;
 // ── Store ────────────────────────────────────────────────────────────────────
 
 export const useChatStore = create<ChatState>((set, get) => ({
-  conversations: loadConversations(),
-  activeConversationId: loadConversations()[0]?.id ?? null,
+  conversations: [],
+  activeConversationId: null,
   isLoading: false,
   pollingInterval: null,
 
@@ -363,5 +366,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clearInterval(pollingInterval);
       set({ pollingInterval: null });
     }
+  },
+
+  hydrateFromStorage: () => {
+    const loaded = loadConversations();
+    set({
+      conversations: loaded,
+      activeConversationId: loaded[0]?.id ?? null,
+    });
   },
 }));
