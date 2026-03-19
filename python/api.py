@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import math
 import numpy as np
 from balls_router import router as balls_router
+from prompts_router import router as prompts_router
 from sqlalchemy import text as sql_text
 
 # Import the DatabaseManager and configuration first before path modifications
@@ -497,6 +498,7 @@ class TagValue(BaseModel):
 
 
 app.include_router(balls_router)
+app.include_router(prompts_router, tags=["User Prompts"])
 
 class TagValueBatch(RootModel):
     """Model for batch tag values response"""
