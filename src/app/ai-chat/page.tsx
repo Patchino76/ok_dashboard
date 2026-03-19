@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, KeyboardEvent } from "react";
 import { useChatStore, ChatMessage, Conversation } from "./stores/chat-store";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Send,
   Loader2,
@@ -269,7 +270,10 @@ function MessageBubble({
               {message.status && <StatusBadge status={message.status} />}
               {displayContent && (
                 <div className="mt-2">
-                  <ReactMarkdown components={mdComponents}>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={mdComponents}
+                  >
                     {displayContent}
                   </ReactMarkdown>
                 </div>
@@ -322,6 +326,17 @@ function HistorySidebar() {
     clearAllConversations,
   } = useChatStore();
 
+  const [tooltip, setTooltip] = React.useState<{
+    text: string;
+    top: number;
+    left: number;
+  } | null>(null);
+
+  const showTooltip = (e: React.MouseEvent, text: string) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setTooltip({ text, top: rect.top, left: rect.right + 8 });
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -330,6 +345,21 @@ function HistorySidebar() {
           История
         </h2>
       </div>
+
+      {/* Tooltip — fixed position to escape all overflow clipping */}
+      {tooltip && (
+        <div
+          className="pointer-events-none fixed z-[9999] w-72"
+          style={{ top: tooltip.top, left: tooltip.left }}
+        >
+          <div className="rounded-lg bg-gray-900/80 backdrop-blur-md text-white text-xs leading-relaxed px-3 py-2.5 shadow-xl border border-gray-700/40">
+            <p className="font-medium text-gray-400 mb-1 text-[10px] uppercase tracking-wide">
+              Пълен въпрос
+            </p>
+            <p className="whitespace-pre-wrap break-words">{tooltip.text}</p>
+          </div>
+        </div>
+      )}
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto">
@@ -340,50 +370,57 @@ function HistorySidebar() {
           </div>
         ) : (
           <div className="py-1">
-            {conversations.map((conv) => (
-              <div
-                key={conv.id}
-                className={`group flex items-start gap-2 px-3 py-2.5 cursor-pointer transition-colors ${
-                  conv.id === activeConversationId
-                    ? "bg-blue-50 border-r-2 border-blue-500"
-                    : "hover:bg-gray-50"
-                }`}
-                onClick={() => selectConversation(conv.id)}
-              >
-                <div className="flex-shrink-0 mt-0.5">
-                  <ConvStatusIcon status={conv.status} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={`text-xs font-medium truncate ${
-                      conv.id === activeConversationId
-                        ? "text-blue-700"
-                        : "text-gray-700"
-                    }`}
-                  >
-                    {conv.title}
-                  </p>
-                  <p className="text-[10px] text-gray-400 mt-0.5">
-                    {new Date(conv.createdAt).toLocaleString("bg-BG", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteConversation(conv.id);
-                  }}
-                  className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 transition-all"
-                  title="Изтрий"
+            {conversations.map((conv) => {
+              const fullPrompt =
+                conv.messages.find((m) => m.role === "user")?.content ||
+                conv.title;
+              return (
+                <div
+                  key={conv.id}
+                  className={`group/item flex items-start gap-2 px-3 py-2.5 cursor-pointer transition-colors ${
+                    conv.id === activeConversationId
+                      ? "bg-blue-50 border-r-2 border-blue-500"
+                      : "hover:bg-gray-50"
+                  }`}
+                  onClick={() => selectConversation(conv.id)}
+                  onMouseEnter={(e) => showTooltip(e, fullPrompt)}
+                  onMouseLeave={() => setTooltip(null)}
                 >
-                  <X className="w-3 h-3 text-gray-400 hover:text-red-500" />
-                </button>
-              </div>
-            ))}
+                  <div className="flex-shrink-0 mt-0.5">
+                    <ConvStatusIcon status={conv.status} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-xs font-medium truncate ${
+                        conv.id === activeConversationId
+                          ? "text-blue-700"
+                          : "text-gray-700"
+                      }`}
+                    >
+                      {conv.title}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {new Date(conv.createdAt).toLocaleString("bg-BG", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteConversation(conv.id);
+                    }}
+                    className="flex-shrink-0 opacity-0 group-hover/item:opacity-100 p-0.5 rounded hover:bg-red-100 transition-all"
+                    title="Изтрий"
+                  >
+                    <X className="w-3 h-3 text-gray-400 hover:text-red-500" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

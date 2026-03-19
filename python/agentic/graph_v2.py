@@ -190,7 +190,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         """Gemini sometimes returns list of dicts instead of str."""
         if isinstance(content, list):
             texts = [item.get("text", "") if isinstance(item, dict) else str(item) for item in content]
-            return " ".join(texts).strip()
+            return "\n".join(texts).strip()
         return str(content) if content else ""
 
     def compress_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
@@ -415,7 +415,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         if isinstance(raw, list):
             # Gemini sometimes returns [{"type": "text", "text": "..."}]
             texts = [item.get("text", "") if isinstance(item, dict) else str(item) for item in raw]
-            content = " ".join(texts).strip()
+            content = "\n".join(texts).strip()
         else:
             content = str(raw).strip()
 
