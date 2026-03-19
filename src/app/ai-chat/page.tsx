@@ -35,6 +35,8 @@ import {
   Star,
   Mic,
   Square,
+  Copy,
+  ClipboardCheck,
 } from "lucide-react";
 import { useUserPrompts, UserPrompt } from "./hooks/useUserPrompts";
 
@@ -427,6 +429,35 @@ const PrintableReport = React.forwardRef<
   );
 });
 
+// ── Copy text button ─────────────────────────────────────────────────────
+function CopyTextButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      console.error("[Copy] Failed to copy text");
+    }
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+      title={copied ? "Копирано!" : "Копирай текста"}
+    >
+      {copied ? (
+        <ClipboardCheck className="w-3.5 h-3.5 text-green-500" />
+      ) : (
+        <Copy className="w-3.5 h-3.5" />
+      )}
+    </button>
+  );
+}
+
 // ── Export PDF button ────────────────────────────────────────────────────
 function ExportPdfButton({
   markdown,
@@ -514,22 +545,37 @@ function MessageBubble({
           }`}
         >
           {isUser ? (
-            <CollapsibleUserMessage content={message.content} />
+            <div className="relative group">
+              <CollapsibleUserMessage content={message.content} />
+              <button
+                onClick={() => navigator.clipboard.writeText(message.content)}
+                className="absolute top-0 right-0 p-1.5 rounded-lg bg-white/20 hover:bg-white/40 transition-all"
+                title="Копирай"
+              >
+                <Copy className="w-4 h-4 text-white" />
+              </button>
+            </div>
           ) : message.status === "running" && !message.content ? (
             <TypingIndicator />
           ) : (
             <div className="text-sm md-content relative">
               <div className="flex items-center justify-between">
                 {message.status && <StatusBadge status={message.status} />}
-                {message.status === "completed" && displayContent && (
-                  <ExportPdfButton
-                    markdown={displayContent}
-                    title={
-                      message.reportFiles?.[0]?.replace(/\.md$/, "") || "Report"
-                    }
-                    analysisId={analysisId}
-                  />
-                )}
+                <div className="flex items-center gap-1">
+                  {message.status === "completed" && displayContent && (
+                    <CopyTextButton text={displayContent} />
+                  )}
+                  {message.status === "completed" && displayContent && (
+                    <ExportPdfButton
+                      markdown={displayContent}
+                      title={
+                        message.reportFiles?.[0]?.replace(/\.md$/, "") ||
+                        "Report"
+                      }
+                      analysisId={analysisId}
+                    />
+                  )}
+                </div>
               </div>
               {displayContent && (
                 <div className="mt-2">
