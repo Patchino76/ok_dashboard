@@ -33,6 +33,8 @@ import {
   Bookmark,
   Edit3,
   Star,
+  Mic,
+  Square,
 } from "lucide-react";
 import { useUserPrompts, UserPrompt } from "./hooks/useUserPrompts";
 
@@ -821,6 +823,91 @@ export default function AiChatPage() {
     }
   }, [input]);
 
+  // ── Audio recording for Whisper transcription ──────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const toggleRecording = useCallback(async () => {
+    if (isRecording) {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state === "recording") {
+        recorder.requestData();
+        recorder.stop();
+      }
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          channelCount: 1,
+        },
+      });
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+          ? "audio/webm"
+          : "audio/ogg";
+
+      console.log("[Mic] Using MIME type:", mimeType);
+      const recorder = new MediaRecorder(stream, { mimeType });
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        console.log("[Mic] Chunk received, size:", e.data.size);
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        setIsRecording(false);
+
+        console.log(
+          "[Mic] Recording stopped, chunks:",
+          audioChunksRef.current.length,
+        );
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        console.log("[Mic] Blob size:", blob.size, "bytes");
+        if (blob.size === 0) {
+          console.warn("[Mic] Empty recording, skipping transcription");
+          return;
+        }
+
+        setIsTranscribing(true);
+        try {
+          const fd = new FormData();
+          fd.append("audio", blob, "recording.webm");
+          const res = await fetch("/api/transcribe", {
+            method: "POST",
+            body: fd,
+          });
+          const data = await res.json();
+          if (res.ok && data.text) {
+            setInput((prev) => (prev ? prev + " " + data.text : data.text));
+          } else {
+            console.error("[Transcribe]", data.error || "Unknown error");
+          }
+        } catch (err) {
+          console.error("[Transcribe] Failed:", err);
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      recorder.start(250);
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      console.log("[Mic] Recording started");
+    } catch (err) {
+      console.error("[Mic] Access denied:", err);
+    }
+  }, [isRecording]);
+
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
@@ -1014,6 +1101,32 @@ export default function AiChatPage() {
               disabled={isLoading}
               className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none py-1.5 max-h-40 disabled:opacity-50"
             />
+            <button
+              onClick={toggleRecording}
+              disabled={isLoading || isTranscribing}
+              className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+                isRecording
+                  ? "bg-red-500 text-white hover:bg-red-600 animate-pulse"
+                  : isTranscribing
+                    ? "bg-amber-500 text-white cursor-wait"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
+              title={
+                isRecording
+                  ? "Спри записа"
+                  : isTranscribing
+                    ? "Транскрибиране..."
+                    : "Запис с микрофон"
+              }
+            >
+              {isTranscribing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : isRecording ? (
+                <Square className="w-3.5 h-3.5" />
+              ) : (
+                <Mic className="w-4 h-4" />
+              )}
+            </button>
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
