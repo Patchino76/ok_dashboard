@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useRef, useEffect, useState, KeyboardEvent } from "react";
+import React, {
+  useRef,
+  useEffect,
+  useState,
+  KeyboardEvent,
+  useCallback,
+} from "react";
 import { useChatStore, ChatMessage, Conversation } from "./stores/chat-store";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useReactToPrint } from "react-to-print";
 import {
   Send,
   Loader2,
@@ -21,6 +28,7 @@ import {
   Plus,
   MessageSquare,
   X,
+  Printer,
 } from "lucide-react";
 
 // ── Suggested prompts ──────────────────────────────────────────────────────
@@ -195,16 +203,15 @@ function makeMarkdownComponents(analysisId?: string): Record<string, any> {
     : `/api/v1/agentic/reports`;
 
   return {
-    // Avoid <div> inside <p> hydration error: if any child is a block-level
-    // component (CollapsibleImage), render as <div> instead of <p>
+    // Avoid <div> inside <p> hydration error: detect images via the AST node
+    // (the img component returns a <div>, which can't be inside <p>)
     p: ({ node, children, ...rest }: any) => {
-      const childArray = React.Children.toArray(children);
-      const hasBlock = childArray.some(
-        (child) =>
-          typeof child === "object" &&
-          (child as any)?.type === CollapsibleImage,
+      const hasImage = node?.children?.some(
+        (child: any) =>
+          child.tagName === "img" ||
+          (child.type === "element" && child.tagName === "img"),
       );
-      if (hasBlock) {
+      if (hasImage) {
         return (
           <div className="my-1" {...rest}>
             {children}
@@ -222,6 +229,108 @@ function makeMarkdownComponents(analysisId?: string): Record<string, any> {
       return <CollapsibleImage src={resolvedSrc} alt={String(alt || "")} />;
     },
   };
+}
+
+// ── Print-optimized markdown components (images always expanded, no collapsible) ─
+function makePrintMarkdownComponents(analysisId?: string): Record<string, any> {
+  const baseUrl = analysisId
+    ? `/api/v1/agentic/reports/${encodeURIComponent(analysisId)}`
+    : `/api/v1/agentic/reports`;
+
+  return {
+    img: ({ node, src, alt, ...rest }: any) => {
+      const rawSrc = String(src || "");
+      const resolvedSrc =
+        rawSrc && !rawSrc.startsWith("http") && !rawSrc.startsWith("/")
+          ? `${baseUrl}/${encodeURIComponent(rawSrc)}`
+          : rawSrc;
+      return (
+        <img
+          src={resolvedSrc}
+          alt={String(alt || "")}
+          style={{ maxWidth: "100%", height: "auto", margin: "0.5rem 0" }}
+        />
+      );
+    },
+  };
+}
+
+// ── Printable report (hidden off-screen, used by react-to-print) ────────
+const PrintableReport = React.forwardRef<
+  HTMLDivElement,
+  { markdown: string; title: string; analysisId?: string }
+>(function PrintableReport({ markdown, title, analysisId }, ref) {
+  const printMdComponents = React.useMemo(
+    () => makePrintMarkdownComponents(analysisId),
+    [analysisId],
+  );
+
+  return (
+    <div style={{ overflow: "hidden", height: 0, width: 0 }}>
+      <div
+        ref={ref}
+        className="print-report"
+        style={{
+          width: "210mm",
+          padding: "2rem",
+          fontSize: "11pt",
+          lineHeight: 1.6,
+          color: "#1a1a1a",
+          background: "white",
+        }}
+      >
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={printMdComponents}
+        >
+          {markdown}
+        </ReactMarkdown>
+      </div>
+    </div>
+  );
+});
+
+// ── Export PDF button ────────────────────────────────────────────────────
+function ExportPdfButton({
+  markdown,
+  title,
+  analysisId,
+}: {
+  markdown: string;
+  title: string;
+  analysisId?: string;
+}) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const handlePrint = useReactToPrint({
+    contentRef,
+    documentTitle: title.replace(/\s+/g, "_"),
+    pageStyle: `
+      @page {
+        size: A4;
+        margin: 15mm;
+      }
+    `,
+  });
+
+  return (
+    <>
+      <PrintableReport
+        ref={contentRef}
+        markdown={markdown}
+        title={title}
+        analysisId={analysisId}
+      />
+      <button
+        onClick={() => handlePrint()}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100"
+        title="Експорт като PDF"
+      >
+        <Printer className="w-3 h-3" />
+        Експорт PDF
+      </button>
+    </>
+  );
 }
 
 // ── Single message bubble ──────────────────────────────────────────────────
@@ -272,8 +381,19 @@ function MessageBubble({
           ) : message.status === "running" && !message.content ? (
             <TypingIndicator />
           ) : (
-            <div className="text-sm md-content">
-              {message.status && <StatusBadge status={message.status} />}
+            <div className="text-sm md-content relative">
+              <div className="flex items-center justify-between">
+                {message.status && <StatusBadge status={message.status} />}
+                {message.status === "completed" && displayContent && (
+                  <ExportPdfButton
+                    markdown={displayContent}
+                    title={
+                      message.reportFiles?.[0]?.replace(/\.md$/, "") || "Report"
+                    }
+                    analysisId={analysisId}
+                  />
+                )}
+              </div>
               {displayContent && (
                 <div className="mt-2">
                   <ReactMarkdown
