@@ -27,7 +27,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from client import get_mcp_tools
-from graph_v2 import build_graph
+from graph_v3 import build_graph
 
 # Load .env from the agentic directory
 _env_path = Path(__file__).parent / ".env"
@@ -219,7 +219,7 @@ async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
                     {"messages": [HumanMessage(content=prompt)]},
                     config={
                         "configurable": {"thread_id": analysis_id},
-                        "recursion_limit": 50,
+                        "recursion_limit": 150,
                     },
                 )
 

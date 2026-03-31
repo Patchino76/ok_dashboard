@@ -3,13 +3,20 @@ tools/python_executor.py — MCP tool for executing Python code
 ===============================================================
 One tool:
   - execute_python : Run Python code with access to loaded DataFrames,
-                     pandas, numpy, scipy, seaborn, matplotlib.
+                     pandas, numpy, scipy, seaborn, matplotlib, and
+                     advanced scientific libraries (Prophet, statsmodels,
+                     sklearn, shap, etc.)
 
 The code runs in a namespace that pre-injects:
   - df             : the 'default' loaded dataframe (convenience alias)
   - get_df(name)   : function to get any named dataframe from the store
   - list_dfs()     : function to list all loaded dataframes
-  - pd, np, plt, sns, scipy.stats
+  - pd, np, plt, sns, scipy_stats (scipy.stats)
+  - Prophet        : Facebook Prophet for time series forecasting
+  - sm, tsa        : statsmodels API and time series API
+  - pmdarima       : auto_arima for automatic ARIMA order selection
+  - IsolationForest, DBSCAN, StandardScaler : sklearn anomaly/clustering
+  - shap           : SHAP explainability
   - OUTPUT_DIR     : path to the output/ folder for saving charts
 
 Returns stdout, any saved figure paths, and errors.
@@ -32,6 +39,60 @@ import seaborn as sns
 from scipy import stats as scipy_stats
 from mcp import types
 
+# ── Advanced scientific libraries (graceful fallback if not installed) ────────
+
+_ADVANCED_LIBS = {}  # populated at import time, injected into exec namespace
+
+# Time series forecasting
+try:
+    from prophet import Prophet
+    _ADVANCED_LIBS["Prophet"] = Prophet
+except ImportError:
+    pass
+
+try:
+    import statsmodels.api as _sm
+    import statsmodels.tsa.api as _tsa
+    _ADVANCED_LIBS["sm"] = _sm
+    _ADVANCED_LIBS["tsa"] = _tsa
+except ImportError:
+    pass
+
+try:
+    import pmdarima as _pmdarima
+    _ADVANCED_LIBS["pmdarima"] = _pmdarima
+except ImportError:
+    pass
+
+# Anomaly detection & clustering
+try:
+    from sklearn.ensemble import IsolationForest as _IF
+    from sklearn.cluster import DBSCAN as _DBSCAN
+    from sklearn.preprocessing import StandardScaler as _SS
+    from sklearn.linear_model import LinearRegression as _LR
+    _ADVANCED_LIBS["IsolationForest"] = _IF
+    _ADVANCED_LIBS["DBSCAN"] = _DBSCAN
+    _ADVANCED_LIBS["StandardScaler"] = _SS
+    _ADVANCED_LIBS["LinearRegression"] = _LR
+except ImportError:
+    pass
+
+# SHAP explainability
+try:
+    import shap as _shap
+    _ADVANCED_LIBS["shap"] = _shap
+except ImportError:
+    pass
+
+# Hidden Markov Models
+try:
+    import hmmlearn.hmm as _hmm
+    _ADVANCED_LIBS["hmm"] = _hmm
+except ImportError:
+    pass
+
+print(f"[python_executor] Advanced libs available: {list(_ADVANCED_LIBS.keys())}")
+
 from tools.db_tools import get_dataframe, list_dataframes
 from tools.output_dir import get_output_dir
 
@@ -49,6 +110,12 @@ execute_python_input_schema = {
                 "  - get_df(name): get any named DataFrame from the store (e.g. get_df('mill_8_jan'))\n"
                 "  - list_dfs(): list all loaded DataFrames with shapes\n"
                 "  - pd, np, plt, sns, scipy_stats (scipy.stats)\n"
+                "  - Prophet: Facebook Prophet for time series forecasting\n"
+                "  - sm (statsmodels.api), tsa (statsmodels.tsa.api): ARIMA, decomposition\n"
+                "  - pmdarima: auto_arima for automatic order selection\n"
+                "  - IsolationForest, DBSCAN, StandardScaler, LinearRegression: sklearn\n"
+                "  - shap: SHAP explainability for feature importance\n"
+                "  - hmm (hmmlearn.hmm): Hidden Markov Models for regime detection\n"
                 "  - OUTPUT_DIR: path to save charts\n\n"
                 "To save charts:\n"
                 "  plt.savefig(os.path.join(OUTPUT_DIR, 'chart_name.png'), dpi=150, bbox_inches='tight')\n"
@@ -67,8 +134,11 @@ execute_python_tool = types.Tool(
         "The code runs with access to: df (default DataFrame), get_df(name) for named DataFrames, "
         "list_dfs() to see all loaded data, plus pandas (pd), numpy (np), seaborn (sns), "
         "matplotlib.pyplot (plt), scipy.stats, and OUTPUT_DIR for saving charts. "
-        "Use this for EDA, SPC charts, correlation analysis, anomaly detection, "
-        "statistical tests, and any pandas/numpy computation. "
+        "Advanced libraries also available: Prophet (forecasting), statsmodels (sm, tsa), "
+        "pmdarima (auto_arima), sklearn (IsolationForest, DBSCAN, StandardScaler, LinearRegression), "
+        "shap (explainability), hmmlearn (hmm). "
+        "Use this for EDA, SPC, time series forecasting, anomaly detection, Bayesian analysis, "
+        "process optimization, and any scientific computation. "
         "Print results to stdout. Save charts to OUTPUT_DIR. "
         "Returns stdout output, list of saved chart files, and any errors."
     ),
@@ -106,6 +176,9 @@ async def execute_python(arguments: dict) -> list[types.TextContent]:
         # Builtins
         "__builtins__": __builtins__,
     }
+
+    # Inject all available advanced libraries into the namespace
+    namespace.update(_ADVANCED_LIBS)
 
     # If no default df, try to get the first available one
     if namespace["df"] is None:

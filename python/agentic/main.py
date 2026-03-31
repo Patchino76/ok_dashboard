@@ -33,7 +33,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from client import get_mcp_tools
-from graph_v2 import build_graph
+from graph_v3 import build_graph
 
 script_dir = Path(__file__).parent
 env_path = script_dir / ".env"
@@ -79,7 +79,7 @@ async def run_analysis(graph, label: str, user_input: str) -> None:
         {"messages": [HumanMessage(content=user_input)]},
         config={
             "configurable": {"thread_id": label},
-            "recursion_limit": 100,
+            "recursion_limit": 150,
         },
     )
 

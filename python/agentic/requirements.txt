@@ -8,16 +8,30 @@ langgraph>=0.2.0
 langchain-core>=0.3.0
 langchain-groq>=0.2.0
 
-# LLM Provider
+# LLM Providers
 python-dotenv
+langchain-google-genai>=2.0.0
 
-# Data Analysis
+# Data Analysis (core)
 pandas>=2.0.0
 numpy>=1.24.0
 matplotlib>=3.7.0
 seaborn>=0.12.0
 scipy>=1.10.0
 scikit-learn>=1.3.0
+
+# Time Series Forecasting
+prophet>=1.1.0
+statsmodels>=0.14.0
+pmdarima>=2.0.0
+
+# Explainability & Anomaly Detection
+shap>=0.42.0
+hmmlearn>=0.3.0
+
+# Optimization
+optuna>=3.0.0
+scikit-optimize>=0.9.0
 
 # Database
 sqlalchemy>=2.0.0
