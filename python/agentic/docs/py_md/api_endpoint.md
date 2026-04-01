@@ -70,7 +70,7 @@ Think of it as a **reception desk**: it takes your request, hands it to the AI t
 │            ┌──────────────────┼──────────────────┐                  │
 │            ▼                  ▼                   ▼                  │
 │   ┌──────────────┐  ┌──────────────┐  ┌────────────────┐           │
-│   │  client.py   │  │  graph_v2.py │  │  output/       │           │
+│   │  client.py   │  │  graph_v3.py │  │  output/       │           │
 │   │ (MCP bridge) │  │ (LangGraph)  │  │  {id}/         │           │
 │   └──────┬───────┘  └──────────────┘  │  ├─ chart.png  │           │
 │          │                             │  └─ report.md  │           │
@@ -122,14 +122,16 @@ Think of it as a **reception desk**: it takes your request, hands it to the AI t
  │ "running"    │   │  1. Connect to MCP Server (port 8003)        │
  │              │   │  2. Set output dir → output/{analysis_id}/   │
  │              │   │  3. Fetch MCP tools → wrap as LangChain tools│
- │              │   │  4. Build LangGraph (4 specialist agents)     │
+ │              │   │  4. Build LangGraph (planner + 6 specialists) │
  │              │   │  5. Run graph with user's question            │
- │              │   │     ┌─────────────────────────────────┐      │
- │              │   │     │ data_loader → manager_review    │      │
- │              │   │     │ analyst     → manager_review    │      │
- │              │   │     │ code_reviewer → manager_review  │      │
- │              │   │     │ reporter    → END               │      │
- │              │   │     └─────────────────────────────────┘      │
+ │              │   │     ┌──────────────────────────────────────┐ │
+ │              │   │     │ data_loader → planner                │ │
+ │              │   │     │ planner selects 1-4 specialists from:│ │
+ │              │   │     │   analyst, forecaster, anomaly_det,  │ │
+ │              │   │     │   bayesian, optimizer, shift_reporter │ │
+ │              │   │     │ each specialist → manager_review      │ │
+ │              │   │     │ code_reviewer → reporter → END        │ │
+ │              │   │     └──────────────────────────────────────┘ │
  │              │   │  6. Save final answer + update status         │
  │              │   └──────────────────────────────────────────────┘
  │              │
@@ -205,7 +207,7 @@ await session.call_tool("set_output_directory", {"analysis_id": "a3f7b2c1"})
 
 ```python
 langchain_tools = await get_mcp_tools(session)  # 7 tools from MCP server
-graph = build_graph(langchain_tools, api_key)    # LangGraph with 4 agents
+graph = build_graph(langchain_tools, api_key)    # LangGraph with planner + 6 specialist pool
 ```
 
 ### Step 7: Run the multi-agent pipeline
@@ -213,18 +215,23 @@ graph = build_graph(langchain_tools, api_key)    # LangGraph with 4 agents
 ```python
 final_state = await graph.ainvoke(
     {"messages": [HumanMessage(content=prompt)]},
-    config={"configurable": {"thread_id": "a3f7b2c1"}, "recursion_limit": 50},
+    config={"configurable": {"thread_id": "a3f7b2c1"}, "recursion_limit": 150},
 )
 ```
 
-The graph executes this pipeline:
+The graph executes a **dynamic pipeline** (graph_v3 planner-driven architecture):
 
 ```
 data_loader → [loads SQL data] → manager_review → ✓
-    analyst → [runs Python analysis, creates charts] → manager_review → ✓
-    code_reviewer → [validates outputs] → manager_review → ✓
+    planner → [selects specialists] → manager_review → ✓
+    specialist₁ → [e.g. analyst: EDA, SPC, charts] → manager_review → ✓
+    specialist₂ → [e.g. forecaster: Prophet, ARIMA] → manager_review → ✓
+    ...up to 4 specialists chosen by planner...
+    code_reviewer → [validates all outputs] → manager_review → ✓
     reporter → [writes markdown report] → END
 ```
+
+The planner dynamically selects from: `analyst`, `forecaster`, `anomaly_detective`, `bayesian_analyst`, `optimizer`, `shift_reporter`.
 
 ### Step 8: Store results
 
@@ -251,7 +258,7 @@ GET /api/v1/agentic/reports/a3f7b2c1/ore_comparison.png
 
 ```python
 from client import get_mcp_tools       # Fetches tools from MCP server → LangChain wrappers
-from graph_v2 import build_graph       # Builds the multi-agent LangGraph pipeline
+from graph_v3 import build_graph       # Builds the planner-driven multi-agent LangGraph pipeline
 
 router = APIRouter(prefix="/api/v1/agentic", tags=["agentic"])
 
@@ -421,17 +428,23 @@ _run_analysis_background("a3f7b2c1", "Compare ore rates...")
     │         ├─ write_markdown_report→ write final report
     │         └─ set_output_directory → configure output path
     │
-    ├─ 6. Build LangGraph with 4 specialist agents
+    ├─ 6. Build LangGraph with planner + 6 specialist pool
     │     └─ graph = build_graph(langchain_tools, api_key)
-    │         ├─ data_loader    → uses: query_mill_data, query_combined_data, get_db_schema
-    │         ├─ analyst        → uses: execute_python, list_output_files
-    │         ├─ code_reviewer  → uses: execute_python, list_output_files
-    │         └─ reporter       → uses: list_output_files, write_markdown_report
+    │         ├─ data_loader       → uses: query_mill_data, query_combined_data, get_db_schema
+    │         ├─ planner           → no tools (text-only, selects specialists)
+    │         ├─ analyst           → uses: execute_python, list_output_files
+    │         ├─ forecaster        → uses: execute_python, list_output_files
+    │         ├─ anomaly_detective → uses: execute_python, list_output_files
+    │         ├─ bayesian_analyst  → uses: execute_python, list_output_files
+    │         ├─ optimizer         → uses: execute_python, list_output_files
+    │         ├─ shift_reporter    → uses: execute_python, list_output_files
+    │         ├─ code_reviewer     → uses: execute_python, list_output_files
+    │         └─ reporter          → uses: list_output_files, write_markdown_report
     │
     ├─ 7. Run the graph
     │     └─ final_state = await graph.ainvoke(...)
     │         ├─ Thread ID = analysis_id (for state isolation)
-    │         └─ Recursion limit = 50 (max LangGraph steps)
+    │         └─ Recursion limit = 150 (max LangGraph steps, increased for dynamic pipeline)
     │
     ├─ 8. On SUCCESS:
     │     ├─ _analyses[id]["status"] = "completed"
@@ -461,12 +474,13 @@ api_endpoint.py
     │               │  - Wraps each as LangChain StructuredTool
     │               │  - JSON Schema → Pydantic model conversion
     │               │
-    │── imports ──► graph_v2.py
+    │── imports ──► graph_v3.py
     │               │
     │               │  build_graph(tools, api_key)
-    │               │  - Creates 4 specialist agents with system prompts
+    │               │  - Creates planner + 6-specialist-pool architecture
+    │               │  - Planner dynamically selects 1-4 specialists per request
     │               │  - Binds specific tools to each agent
-    │               │  - Wires up the LangGraph state machine
+    │               │  - Wires up the LangGraph state machine with manager review gates
     │               │  - Returns compiled graph ready for .ainvoke()
     │               │
     │── mounted by ── api.py
@@ -490,18 +504,18 @@ api_endpoint.py
 
 ### File-by-File Relationship
 
-| File                           | Role                   | How `api_endpoint.py` Uses It                             |
-| :----------------------------- | :--------------------- | :-------------------------------------------------------- |
-| **`api.py`**                   | Main FastAPI app       | Mounts `api_endpoint.py`'s router at startup              |
-| **`client.py`**                | MCP → LangChain bridge | `get_mcp_tools()` converts MCP tools to LangChain tools   |
-| **`graph_v2.py`**              | Multi-agent pipeline   | `build_graph()` creates the 4-agent LangGraph             |
-| **`server.py`**                | MCP Server (port 8003) | Hosts the tools that agents call during analysis          |
-| **`tools/__init__.py`**        | Tool registry          | Defines the 7 available MCP tools                         |
-| **`tools/db_tools.py`**        | Database access        | `query_mill_data`, `query_combined_data`, `get_db_schema` |
-| **`tools/python_executor.py`** | Code execution         | `execute_python` — runs pandas/matplotlib code            |
-| **`tools/report_tools.py`**    | File management        | `list_output_files`, `write_markdown_report`              |
-| **`tools/session_tools.py`**   | Session config         | `set_output_directory` — per-analysis isolation           |
-| **`tools/output_dir.py`**      | Shared state           | Manages the current output directory path                 |
+| File                           | Role                   | How `api_endpoint.py` Uses It                                 |
+| :----------------------------- | :--------------------- | :------------------------------------------------------------ |
+| **`api.py`**                   | Main FastAPI app       | Mounts `api_endpoint.py`'s router at startup                  |
+| **`client.py`**                | MCP → LangChain bridge | `get_mcp_tools()` converts MCP tools to LangChain tools       |
+| **`graph_v3.py`**              | Multi-agent pipeline   | `build_graph()` creates planner-driven 6-specialist LangGraph |
+| **`server.py`**                | MCP Server (port 8003) | Hosts the tools that agents call during analysis              |
+| **`tools/__init__.py`**        | Tool registry          | Defines the 7 available MCP tools                             |
+| **`tools/db_tools.py`**        | Database access        | `query_mill_data`, `query_combined_data`, `get_db_schema`     |
+| **`tools/python_executor.py`** | Code execution         | `execute_python` — runs pandas/matplotlib code                |
+| **`tools/report_tools.py`**    | File management        | `list_output_files`, `write_markdown_report`                  |
+| **`tools/session_tools.py`**   | Session config         | `set_output_directory` — per-analysis isolation               |
+| **`tools/output_dir.py`**      | Shared state           | Manages the current output directory path                     |
 
 ---
 
@@ -657,26 +671,45 @@ Any failure in the pipeline — missing API key, MCP server down, LLM error, too
 **LangGraph** is a framework for building stateful, multi-agent AI workflows as directed graphs.
 
 ```
-  graph_v2.py builds this:
+  graph_v3.py builds this (planner-driven dynamic pipeline):
 
   ┌───────────────┐     ┌────────┐
-  │  data_loader  │◄───►│ tools  │  (query_mill_data, get_db_schema)
+  │  data_loader  │◄───►│ tools  │  (query_mill_data, query_combined_data, get_db_schema)
   └───────┬───────┘     └────────┘
           ▼
   ┌─────────────────┐
-  │ manager_review  │──── REWORK? ──► back to data_loader
+  │ manager_review  │  (auto-ACCEPT for data_loader)
   └───────┬─────────┘
-          │ ACCEPT
           ▼
-  ┌───────────────┐     ┌────────┐
-  │   analyst     │◄───►│ tools  │  (execute_python, list_output_files)
-  └───────┬───────┘     └────────┘
+  ┌───────────────┐
+  │    planner    │  (no tools — selects 1-4 specialists from pool of 6)
+  └───────┬───────┘
           ▼
   ┌─────────────────┐
-  │ manager_review  │──── REWORK? ──► back to analyst
+  │ manager_review  │  (auto-ACCEPT for planner)
+  └───────┬─────────┘
+          │
+          ▼ (dynamic: 1-4 specialists chosen by planner)
+  ┌───────────────────┐     ┌────────┐
+  │  specialist₁      │◄───►│ tools  │  (execute_python, list_output_files)
+  │  (e.g. analyst)   │     └────────┘
+  └───────┬───────────┘
+          ▼
+  ┌─────────────────┐
+  │ manager_review  │──── REWORK? ──► back to specialist (max 1 rework)
   └───────┬─────────┘
           │ ACCEPT
           ▼
+  ┌───────────────────┐     ┌────────┐
+  │  specialist₂      │◄───►│ tools  │  (execute_python, list_output_files)
+  │  (e.g. forecaster)│     └────────┘
+  └───────┬───────────┘
+          ▼
+  ┌─────────────────┐
+  │ manager_review  │──── REWORK? ──► back to specialist
+  └───────┬─────────┘
+          │ ACCEPT
+          ▼  ...more specialists if selected...
   ┌───────────────┐     ┌────────┐
   │ code_reviewer │◄───►│ tools  │  (execute_python, list_output_files)
   └───────┬───────┘     └────────┘
@@ -690,7 +723,12 @@ Any failure in the pipeline — missing API key, MCP server down, LLM error, too
   │   reporter    │◄───►│ tools  │  (list_output_files, write_markdown_report)
   └───────┬───────┘     └────────┘
           ▼
-        [END]
+  ┌─────────────────┐
+  │ manager_review  │  ACCEPT → END
+  └─────────────────┘
+
+  Specialist pool: analyst, forecaster, anomaly_detective,
+                   bayesian_analyst, optimizer, shift_reporter
 ```
 
 ### Why `asyncio.create_task()`?

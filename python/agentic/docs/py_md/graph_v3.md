@@ -86,15 +86,15 @@ The key innovation vs graph_v2: **dynamic routing**. Instead of always running t
 
 ## 3. How graph_v3 Differs from graph_v2
 
-| Aspect | graph_v2 | graph_v3 |
-|:---|:---|:---|
-| **Agents** | 4 fixed (data_loader, analyst, code_reviewer, reporter) | 6 specialist pool + planner + manager + fixed stages |
-| **Routing** | Fixed linear pipeline | Dynamic — planner selects 1-4 specialists per request |
-| **Specialist depth** | Single generic analyst | Deep domain specialists (forecasting, anomaly, Bayesian, optimization, shifts) |
-| **Manager review** | After each stage | After each stage, with rework capability |
-| **Context management** | Basic | Advanced: focused context builder, compression, token budgets |
-| **Libraries** | Basic (pandas, matplotlib, seaborn) | Extended: Prophet, statsmodels, pmdarima, sklearn, SHAP, hmmlearn |
-| **Recursion limit** | 50 | 150 (needed for more complex pipelines) |
+| Aspect                 | graph_v2                                                | graph_v3                                                                       |
+| :--------------------- | :------------------------------------------------------ | :----------------------------------------------------------------------------- |
+| **Agents**             | 4 fixed (data_loader, analyst, code_reviewer, reporter) | 6 specialist pool + planner + manager + fixed stages                           |
+| **Routing**            | Fixed linear pipeline                                   | Dynamic — planner selects 1-4 specialists per request                          |
+| **Specialist depth**   | Single generic analyst                                  | Deep domain specialists (forecasting, anomaly, Bayesian, optimization, shifts) |
+| **Manager review**     | After each stage                                        | After each stage, with rework capability                                       |
+| **Context management** | Basic                                                   | Advanced: focused context builder, compression, token budgets                  |
+| **Libraries**          | Basic (pandas, matplotlib, seaborn)                     | Extended: Prophet, statsmodels, pmdarima, sklearn, SHAP, hmmlearn              |
+| **Recursion limit**    | 50                                                      | 150 (needed for more complex pipelines)                                        |
 
 ---
 
@@ -315,12 +315,12 @@ class AnalysisState(MessagesState):
     stage_attempts: dict      # {stage_name: attempt_count} for rework tracking
 ```
 
-| Field | Set By | Used By |
-|:---|:---|:---|
-| `messages` | All nodes (append-only) | All nodes — the conversation history |
-| `current_stage` | `make_stage_entry()` nodes | `manager_router()` — knows which stage just finished |
-| `stages_to_run` | `planner_node()` | `manager_router()` — determines next stage |
-| `stage_attempts` | `manager_review_node()` | `manager_review_node()` — enforces rework limits |
+| Field            | Set By                     | Used By                                              |
+| :--------------- | :------------------------- | :--------------------------------------------------- |
+| `messages`       | All nodes (append-only)    | All nodes — the conversation history                 |
+| `current_stage`  | `make_stage_entry()` nodes | `manager_router()` — knows which stage just finished |
+| `stages_to_run`  | `planner_node()`           | `manager_router()` — determines next stage           |
+| `stage_attempts` | `manager_review_node()`    | `manager_review_node()` — enforces rework limits     |
 
 ### State Flow Example
 
@@ -359,23 +359,23 @@ Step 8: forecaster_entry → forecaster → tools (loop) → manager_review
 
 ### Fixed Stages (Always Run)
 
-| Stage | Position | Purpose |
-|:---|:---|:---|
-| `data_loader` | First | Load data from PostgreSQL into in-memory DataFrames |
-| `planner` | Second | Analyze request, choose specialists |
-| `code_reviewer` | Second-to-last | Validate all outputs, fix errors |
-| `reporter` | Last | Write final Markdown report |
+| Stage           | Position       | Purpose                                             |
+| :-------------- | :------------- | :-------------------------------------------------- |
+| `data_loader`   | First          | Load data from PostgreSQL into in-memory DataFrames |
+| `planner`       | Second         | Analyze request, choose specialists                 |
+| `code_reviewer` | Second-to-last | Validate all outputs, fix errors                    |
+| `reporter`      | Last           | Write final Markdown report                         |
 
 ### Dynamic Specialists (Selected by Planner)
 
-| Specialist | Trigger Keywords | Analysis Capabilities |
-|:---|:---|:---|
-| **analyst** | "analyze", "statistics", "overview", general/vague requests | Descriptive stats, distributions, SPC (Xbar, UCL/LCL), correlation heatmaps, Cp/Cpk, missing data, rolling means |
-| **forecaster** | "predict", "forecast", "trend", "future", "seasonality" | Prophet forecasting, ARIMA/SARIMAX, seasonal decomposition, changepoint detection, shift-level patterns |
-| **anomaly_detective** | "anomaly", "unusual", "root cause", "equipment problems" | Isolation Forest, DBSCAN clustering, SHAP root cause, rolling anomaly scores, operating regime detection |
-| **bayesian_analyst** | "uncertainty", "confidence", "how sure", "compare regimes" | Bootstrap posteriors, credible intervals, Bayesian A/B testing, probabilistic Cpk, effect size estimation |
-| **optimizer** | "optimize", "best settings", "setpoints", "tradeoffs" | Pareto frontiers, what-if simulation, optimal windows per ore type, sensitivity tornado charts, Monte Carlo risk |
-| **shift_reporter** | "shift", "KPI", "energy", "benchmarking", "handover" | Per-shift KPIs, Mann-Whitney tests, mill ranking, energy kWh/ton, downtime analysis, handover reports |
+| Specialist            | Trigger Keywords                                            | Analysis Capabilities                                                                                            |
+| :-------------------- | :---------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- |
+| **analyst**           | "analyze", "statistics", "overview", general/vague requests | Descriptive stats, distributions, SPC (Xbar, UCL/LCL), correlation heatmaps, Cp/Cpk, missing data, rolling means |
+| **forecaster**        | "predict", "forecast", "trend", "future", "seasonality"     | Prophet forecasting, ARIMA/SARIMAX, seasonal decomposition, changepoint detection, shift-level patterns          |
+| **anomaly_detective** | "anomaly", "unusual", "root cause", "equipment problems"    | Isolation Forest, DBSCAN clustering, SHAP root cause, rolling anomaly scores, operating regime detection         |
+| **bayesian_analyst**  | "uncertainty", "confidence", "how sure", "compare regimes"  | Bootstrap posteriors, credible intervals, Bayesian A/B testing, probabilistic Cpk, effect size estimation        |
+| **optimizer**         | "optimize", "best settings", "setpoints", "tradeoffs"       | Pareto frontiers, what-if simulation, optimal windows per ore type, sensitivity tornado charts, Monte Carlo risk |
+| **shift_reporter**    | "shift", "KPI", "energy", "benchmarking", "handover"        | Per-shift KPIs, Mann-Whitney tests, mill ranking, energy kWh/ton, downtime analysis, handover reports            |
 
 ### Planner Decision Rules
 
@@ -837,15 +837,15 @@ graph_v3.py
 
 ### Tool Registry (7 tools)
 
-| # | Tool Name | File | Purpose | Used By |
-|:-:|:---|:---|:---|:---|
-| 1 | `get_db_schema` | db_tools.py | Inspect PostgreSQL table/column metadata | data_loader |
-| 2 | `query_mill_data` | db_tools.py | Load MILL_XX sensor data → in-memory DataFrame | data_loader |
-| 3 | `query_combined_data` | db_tools.py | Load mill + ore_quality joined data | data_loader |
-| 4 | `execute_python` | python_executor.py | Run Python code with scientific libraries | All 6 specialists + code_reviewer |
-| 5 | `list_output_files` | report_tools.py | List generated files in output directory | All 6 specialists + code_reviewer + reporter |
-| 6 | `write_markdown_report` | report_tools.py | Write final Markdown report to output dir | reporter |
-| 7 | `set_output_directory` | session_tools.py | Set per-analysis output subfolder | Called by api_endpoint.py before graph runs |
+|  #  | Tool Name               | File               | Purpose                                        | Used By                                      |
+| :-: | :---------------------- | :----------------- | :--------------------------------------------- | :------------------------------------------- |
+|  1  | `get_db_schema`         | db_tools.py        | Inspect PostgreSQL table/column metadata       | data_loader                                  |
+|  2  | `query_mill_data`       | db_tools.py        | Load MILL_XX sensor data → in-memory DataFrame | data_loader                                  |
+|  3  | `query_combined_data`   | db_tools.py        | Load mill + ore_quality joined data            | data_loader                                  |
+|  4  | `execute_python`        | python_executor.py | Run Python code with scientific libraries      | All 6 specialists + code_reviewer            |
+|  5  | `list_output_files`     | report_tools.py    | List generated files in output directory       | All 6 specialists + code_reviewer + reporter |
+|  6  | `write_markdown_report` | report_tools.py    | Write final Markdown report to output dir      | reporter                                     |
+|  7  | `set_output_directory`  | session_tools.py   | Set per-analysis output subfolder              | Called by api_endpoint.py before graph runs  |
 
 ### execute_python Namespace
 
@@ -1008,10 +1008,10 @@ GOOGLE_API_KEY = from .env                     # Gemini API key
 
 ## Quick Reference: Entry Points
 
-| Entry Point | File | Purpose |
-|:---|:---|:---|
-| **CLI** | `main.py` | Run demo analyses from command line |
-| **REST API** | `api_endpoint.py` | `POST /api/v1/agentic/analyze` → background graph execution |
-| **Frontend** | `/ai-chat/page.tsx` | User-facing chat UI → polls API for results |
+| Entry Point  | File                | Purpose                                                     |
+| :----------- | :------------------ | :---------------------------------------------------------- |
+| **CLI**      | `main.py`           | Run demo analyses from command line                         |
+| **REST API** | `api_endpoint.py`   | `POST /api/v1/agentic/analyze` → background graph execution |
+| **Frontend** | `/ai-chat/page.tsx` | User-facing chat UI → polls API for results                 |
 
 All three call `build_graph(tools, api_key)` from `graph_v3.py` and then `graph.ainvoke()`.
