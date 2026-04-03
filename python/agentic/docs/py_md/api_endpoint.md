@@ -15,7 +15,8 @@
    - [Imports & Setup](#51-imports--setup)
    - [Data Models](#52-data-models-pydantic)
    - [Endpoints](#53-endpoints)
-   - [Background Runner](#54-background-runner-_run_analysis_background)
+   - [Progress Callback System](#54-progress-callback-system)
+   - [Background Runner](#55-background-runner-_run_analysis_background)
 6. [How It Connects to Other Files](#6-how-it-connects-to-other-files)
 7. [Output Isolation — Per-Analysis Subfolders](#7-output-isolation--per-analysis-subfolders)
 8. [Polling Protocol — Frontend ↔ Backend](#8-polling-protocol--frontend--backend)
@@ -177,6 +178,7 @@ _analyses["a3f7b2c1"] = {
     "final_answer": None,
     "error": None,
     "completed_at": None,
+    "progress": [],  # ◄── NEW: real-time progress messages from agents
 }
 ```
 
@@ -277,7 +279,7 @@ _analyses: dict[str, dict] = {}  # In-memory tracking for running/completed anal
 
 ### 5.2 Data Models (Pydantic)
 
-Three Pydantic models define the API contract:
+Four Pydantic models define the API contract:
 
 ```
 ┌─────────────────────────┐
@@ -301,6 +303,15 @@ Three Pydantic models define the API contract:
 └─────────────────────────┘
 
 ┌─────────────────────────┐
+│   ProgressMessage       │  ◄── NEW: Real-time progress from agents
+│  ┌────────────────────┐ │
+│  │ timestamp: str     │ │  ISO timestamp of the progress event
+│  │ stage: str         │ │  "data_loader", "analyst", "system", etc.
+│  │ message: str       │ │  "Analyst working (step 2/5)..."
+│  └────────────────────┘ │
+└─────────────────────────┘
+
+┌─────────────────────────┐
 │   AnalysisResult        │  ◄── Full result from GET /status
 │  ┌────────────────────┐ │
 │  │ analysis_id: str   │ │
@@ -309,6 +320,7 @@ Three Pydantic models define the API contract:
 │  │ final_answer?: str │ │  The AI's complete answer
 │  │ report_files: []   │ │  ["mill_analysis.md"]
 │  │ chart_files: []    │ │  ["ore_comparison.png", "spc_chart.png"]
+│  │ progress: []       │ │  ◄── NEW: list of ProgressMessage objects
 │  │ started_at: str    │ │
 │  │ completed_at?: str │ │
 │  │ error?: str        │ │  Error message if failed
@@ -393,7 +405,72 @@ Called by the frontend when a user deletes a conversation.
 
 ---
 
-### 5.4 Background Runner: `_run_analysis_background`
+### 5.4 Progress Callback System
+
+The progress callback system enables **real-time visibility** into what the agents are doing. The frontend polls `/status/{id}` and receives incremental progress messages that are displayed in the chat UI.
+
+#### `_make_progress_callback(analysis_id)`
+
+Creates a closure that captures the `analysis_id` and appends progress messages to the tracking dictionary:
+
+```python
+def _make_progress_callback(analysis_id: str) -> Callable[[str, str], None]:
+    def on_progress(stage: str, message: str) -> None:
+        entry = _analyses.get(analysis_id)
+        if entry is not None:
+            entry["progress"].append({
+                "timestamp": datetime.now().isoformat(),
+                "stage": stage,
+                "message": message,
+            })
+    return on_progress
+```
+
+#### How Progress Flows Through the System
+
+```
+graph_v3.py (agent nodes)                  api_endpoint.py                    Frontend
+         │                                        │                              │
+         │  on_progress("analyst",                │                              │
+         │    "Analyst working (step 2/5)...")     │                              │
+         │────────────────────────────────────────►│                              │
+         │                                        │  _analyses[id]["progress"]    │
+         │                                        │  .append({                    │
+         │                                        │    timestamp: "...",          │
+         │                                        │    stage: "analyst",          │
+         │                                        │    message: "Analyst..."      │
+         │                                        │  })                           │
+         │                                        │                              │
+         │                                        │◄─────────────────────────────│
+         │                                        │  GET /status/{id}            │
+         │                                        │──────────────────────────────►│
+         │                                        │  { progress: [               │
+         │                                        │    {stage:"system",           │
+         │                                        │     message:"Connecting..."},│
+         │                                        │    {stage:"analyst",          │
+         │                                        │     message:"Analyst..."}    │
+         │                                        │  ] }                         │
+         │                                        │                              │
+         │                                        │              UI renders new   │
+         │                                        │              messages in feed │
+```
+
+#### Progress Message Examples
+
+| Stage         | Example Messages                                                                                                     |
+| :------------ | :------------------------------------------------------------------------------------------------------------------- |
+| `system`      | "Connecting to MCP server...", "Building agent pipeline...", "Advancing: Analyst → Forecaster", "Analysis complete." |
+| `data_loader` | "Data Loader working (step 1/5)...", "Data Loader calling tools: query_mill_data", "Data Loader completed."          |
+| `planner`     | "Planning analysis — selecting specialists...", "Pipeline: Analyst → Anomaly Detective → Shift Reporter"             |
+| `analyst`     | "Analyst working (step 2/5)...", "Analyst calling tools: execute_python", "Analyst completed."                       |
+| `manager`     | "Reviewing Analyst output...", "Analyst — accepted.", "Forecaster — rework requested."                               |
+| `tools`       | "Executing tool: execute_python", "Executing tool: query_mill_data"                                                  |
+
+The callback is passed to `build_graph()` which distributes it to every node in the graph. See [graph_v3.md](graph_v3.md) for details on how each node calls the callback.
+
+---
+
+### 5.5 Background Runner: `_run_analysis_background`
 
 This is the **heart** of the file — the function that actually runs the AI pipeline:
 
@@ -406,19 +483,26 @@ Here's the detailed flow:
 ```
 _run_analysis_background("a3f7b2c1", "Compare ore rates...")
     │
-    ├─ 1. Get GOOGLE_API_KEY from environment
+    ├─ 1. Create progress callback
+    │     └─ on_progress = _make_progress_callback(analysis_id)
     │
-    ├─ 2. Open MCP connection to server.py (port 8003)
+    ├─ 2. Get GOOGLE_API_KEY from environment
+    │
+    ├─ 3. Report progress: "Connecting to MCP server..."
+    │
+    ├─ 4. Open MCP connection to server.py (port 8003)
     │     └─ streamable_http_client("http://localhost:8003/mcp")
     │
-    ├─ 3. Initialize MCP session
+    ├─ 5. Initialize MCP session
     │     └─ session.initialize()
     │
-    ├─ 4. Set output directory for this analysis
+    ├─ 6. Set output directory for this analysis
     │     └─ session.call_tool("set_output_directory", {"analysis_id": "a3f7b2c1"})
     │     └─ All files now go to: output/a3f7b2c1/
     │
-    ├─ 5. Fetch all 7 MCP tools and wrap as LangChain tools
+    ├─ 7. Report progress: "Building agent pipeline..."
+    │
+    ├─ 8. Fetch all 7 MCP tools and wrap as LangChain tools
     │     └─ langchain_tools = await get_mcp_tools(session)
     │         ├─ get_db_schema        → inspect database tables
     │         ├─ query_mill_data      → load mill sensor data
@@ -428,8 +512,8 @@ _run_analysis_background("a3f7b2c1", "Compare ore rates...")
     │         ├─ write_markdown_report→ write final report
     │         └─ set_output_directory → configure output path
     │
-    ├─ 6. Build LangGraph with planner + 6 specialist pool
-    │     └─ graph = build_graph(langchain_tools, api_key)
+    ├─ 9. Build LangGraph with progress callback
+    │     └─ graph = build_graph(langchain_tools, api_key, on_progress=on_progress)
     │         ├─ data_loader       → uses: query_mill_data, query_combined_data, get_db_schema
     │         ├─ planner           → no tools (text-only, selects specialists)
     │         ├─ analyst           → uses: execute_python, list_output_files
@@ -440,21 +524,24 @@ _run_analysis_background("a3f7b2c1", "Compare ore rates...")
     │         ├─ shift_reporter    → uses: execute_python, list_output_files
     │         ├─ code_reviewer     → uses: execute_python, list_output_files
     │         └─ reporter          → uses: list_output_files, write_markdown_report
+    │         (on_progress callback wired into every node)
     │
-    ├─ 7. Run the graph
+    ├─ 10. Run the graph
     │     └─ final_state = await graph.ainvoke(...)
     │         ├─ Thread ID = analysis_id (for state isolation)
     │         └─ Recursion limit = 150 (max LangGraph steps, increased for dynamic pipeline)
     │
-    ├─ 8. On SUCCESS:
+    ├─ 11. On SUCCESS:
     │     ├─ _analyses[id]["status"] = "completed"
     │     ├─ _analyses[id]["final_answer"] = last message content
-    │     └─ _analyses[id]["completed_at"] = timestamp
+    │     ├─ _analyses[id]["completed_at"] = timestamp
+    │     └─ on_progress("system", "Analysis complete.")
     │
-    └─ 9. On FAILURE:
+    └─ 12. On FAILURE:
           ├─ _analyses[id]["status"] = "failed"
           ├─ _analyses[id]["error"] = error message
-          └─ _analyses[id]["completed_at"] = timestamp
+          ├─ _analyses[id]["completed_at"] = timestamp
+          └─ on_progress("system", "Analysis failed: {error}")
 ```
 
 ---
@@ -576,7 +663,7 @@ Frontend (chat-store.ts)                    Backend (api_endpoint.py)
   t=0s   │  POST /analyze                            │
          │  { question: "..." }                      │
          │──────────────────────────────────────────►│
-         │                                           │ Creates task
+         │                                           │ Creates task + progress callback
          │◄──────────────────────────────────────────│
          │  { analysis_id: "a3f7b2c1",              │
          │    status: "running" }                     │
@@ -584,21 +671,39 @@ Frontend (chat-store.ts)                    Backend (api_endpoint.py)
   t=4s   │  GET /status/a3f7b2c1                     │
          │──────────────────────────────────────────►│
          │◄──────────────────────────────────────────│
-         │  { status: "running", chart_files: [] }   │
+         │  { status: "running",                     │
+         │    progress: [                            │ ◄── NEW: progress messages
+         │      {stage:"system",                     │
+         │       message:"Connecting to MCP..."},    │
+         │      {stage:"data_loader",                │
+         │       message:"Data Loader working..."}   │
+         │    ],                                     │
+         │    chart_files: [] }                      │
          │                                           │
   t=8s   │  GET /status/a3f7b2c1                     │
          │──────────────────────────────────────────►│
          │◄──────────────────────────────────────────│
          │  { status: "running",                     │
+         │    progress: [                            │ ◄── Progress grows over time
+         │      ...previous messages...,             │
+         │      {stage:"planner",                    │
+         │       message:"Pipeline: Analyst → ..."},│
+         │      {stage:"analyst",                    │
+         │       message:"Analyst working (1/5)..."}│
+         │    ],                                     │
          │    chart_files: ["ore_comp.png"] }         │ ◄── Chart created!
          │                                           │
   ...    │  (continues polling every 4s)             │
+         │                                           │  Frontend shows new progress
+         │                                           │  messages incrementally in
+         │                                           │  the ProgressFeed component
          │                                           │
   t=180s │  GET /status/a3f7b2c1                     │
          │──────────────────────────────────────────►│
          │◄──────────────────────────────────────────│
          │  { status: "completed",                   │
          │    final_answer: "## Analysis Report...", │
+         │    progress: [...all messages...],        │
          │    chart_files: ["ore_comp.png", ...],    │
          │    report_files: ["report.md"] }           │
          │                                           │
@@ -779,8 +884,9 @@ For production, this could be replaced with Redis or a database table.
 
 1. **Receives** user questions via POST
 2. **Orchestrates** a multi-agent LangGraph pipeline in the background
-3. **Tracks** analysis progress in memory
-4. **Serves** generated charts and reports to the frontend
-5. **Cleans up** when analyses are deleted
+3. **Tracks** analysis progress in memory with real-time `ProgressMessage` updates from every agent node
+4. **Streams progress** to the frontend via polling — the UI displays a live feed of agent activity
+5. **Serves** generated charts and reports to the frontend
+6. **Cleans up** when analyses are deleted
 
 It doesn't analyze data itself — it coordinates between the frontend, the LangGraph agents, and the MCP tools that do the actual work.

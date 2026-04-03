@@ -18,14 +18,15 @@
 7. [The Specialist Pool](#7-the-specialist-pool)
 8. [System Prompts — Deep Dive](#8-system-prompts--deep-dive)
 9. [Graph Builder — `build_graph()`](#9-graph-builder--build_graph)
-10. [Routing Logic — How Decisions Are Made](#10-routing-logic--how-decisions-are-made)
-11. [Tool Binding — Per-Specialist Tools](#11-tool-binding--per-specialist-tools)
-12. [Context Management — Token Budget](#12-context-management--token-budget)
-13. [Manager Review & Rework Loop](#13-manager-review--rework-loop)
-14. [File Dependencies Map](#14-file-dependencies-map)
-15. [MCP Tools Reference](#15-mcp-tools-reference)
-16. [Execution Examples](#16-execution-examples)
-17. [Configuration Constants](#17-configuration-constants)
+10. [Progress Reporting System](#10-progress-reporting-system)
+11. [Routing Logic — How Decisions Are Made](#11-routing-logic--how-decisions-are-made)
+12. [Tool Binding — Per-Specialist Tools](#12-tool-binding--per-specialist-tools)
+13. [Context Management — Token Budget](#13-context-management--token-budget)
+14. [Manager Review & Rework Loop](#14-manager-review--rework-loop)
+15. [File Dependencies Map](#15-file-dependencies-map)
+16. [MCP Tools Reference](#16-mcp-tools-reference)
+17. [Execution Examples](#17-execution-examples)
+18. [Configuration Constants](#18-configuration-constants)
 
 ---
 
@@ -511,24 +512,32 @@ Every agent receives `DOMAIN_CONTEXT` — a shared knowledge base about the fact
 ### Function Signature
 
 ```python
-def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
+def build_graph(
+    tools: list[BaseTool],
+    api_key: str,
+    on_progress: Optional[Callable[[str, str], None]] = None,
+) -> StateGraph:
 ```
 
-- **Input**: LangChain tools (from MCP server via `client.py`) + Google API key
+- **Input**: LangChain tools (from MCP server via `client.py`) + Google API key + optional progress callback
 - **Output**: Compiled LangGraph state machine ready for `.ainvoke()`
+- **`on_progress`**: When provided, every node calls `on_progress(stage, message)` to report real-time progress. If `None`, a no-op lambda is used instead. See [Section 10: Progress Reporting System](#10-progress-reporting-system).
 
 ### Build Process (Step by Step)
 
 ```
-build_graph(tools, api_key)
+build_graph(tools, api_key, on_progress=callback)
     │
-    ├── 1. Create LLM instance
+    ├── 1. Initialize progress callback
+    │      _progress = on_progress or (lambda stage, msg: None)  # no-op fallback
+    │
+    ├── 2. Create LLM instance
     │      llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite-preview")
     │
-    ├── 2. Organize tools by name
+    ├── 3. Organize tools by name
     │      tools_by_name = {t.name: t for t in tools}
     │
-    ├── 3. Define tool sets per specialist
+    ├── 4. Define tool sets per specialist
     │      TOOL_SETS = {
     │        "data_loader":       ["query_mill_data", "query_combined_data", "get_db_schema"],
     │        "analyst":           ["execute_python", "list_output_files"],
@@ -541,24 +550,28 @@ build_graph(tools, api_key)
     │        "reporter":          ["list_output_files", "write_markdown_report"],
     │      }
     │
-    ├── 4. Bind tools to LLM per specialist
+    ├── 5. Bind tools to LLM per specialist
     │      specialist_llms[name] = llm.bind_tools(stage_tools)
     │
-    ├── 5. Create helper functions
+    ├── 6. Create helper functions
     │      ├── truncate()           — trim text to character limit
     │      ├── normalize_content()  — handle list/string content
     │      ├── compress_messages()  — sliding window + truncation
     │      ├── strip_tool_messages()— convert ToolMessage → AIMessage
     │      └── build_focused_context() — specialist-specific context
     │
-    ├── 6. Create node functions
+    ├── 7. Create node functions (all nodes use _progress callback)
     │      ├── make_specialist_node(name) — factory for specialist nodes
+    │      │     calls _progress on: start, tool calls, completion
     │      ├── planner_node()             — parses SPECIALISTS response
+    │      │     calls _progress on: start, pipeline selection
     │      ├── manager_review_node()      — ACCEPT/REWORK decision
+    │      │     calls _progress on: review start, accept/rework decision
     │      ├── tool_node()                — executes MCP tool calls
+    │      │     calls _progress on: each tool execution
     │      └── make_stage_entry(name)     — sets current_stage
     │
-    ├── 7. Assemble the graph
+    ├── 8. Assemble the graph
     │      graph = StateGraph(AnalysisState)
     │      │
     │      ├── Register ALL entry + specialist nodes (9 stages × 2)
@@ -574,12 +587,157 @@ build_graph(tools, api_key)
     │      ├── Wire: tools → back to calling specialist
     │      └── Wire: manager_review → next stage OR rework OR END
     │
-    └── 8. Return graph.compile()
+    └── 9. Return graph.compile()
 ```
 
 ---
 
-## 10. Routing Logic — How Decisions Are Made
+## 10. Progress Reporting System
+
+`build_graph()` accepts an optional `on_progress` callback that enables **real-time visibility** into what the agents are doing. When the graph is invoked from `api_endpoint.py`, this callback appends `ProgressMessage` entries to the in-memory tracking dictionary, which the frontend picks up on each poll.
+
+### Stage Labels
+
+Human-readable labels are defined in `_STAGE_LABELS` and used in all progress messages:
+
+```python
+_STAGE_LABELS: dict[str, str] = {
+    "data_loader":       "Data Loader",
+    "planner":           "Planner",
+    "analyst":           "Analyst",
+    "forecaster":        "Forecaster",
+    "anomaly_detective": "Anomaly Detective",
+    "bayesian_analyst":  "Bayesian Analyst",
+    "optimizer":         "Optimizer",
+    "shift_reporter":    "Shift Reporter",
+    "code_reviewer":     "Code Reviewer",
+    "reporter":          "Reporter",
+    "manager":           "Manager",
+}
+```
+
+The helper `_label(stage)` returns the human-readable name for a stage key.
+
+### Progress Messages by Node Type
+
+Every node in the graph calls `_progress(stage, message)`. Here's exactly what each node reports:
+
+#### Specialist Nodes (`make_specialist_node`)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  specialist_node(state)                                          │
+│                                                                  │
+│  Entry:                                                          │
+│    _progress("analyst", "Analyst working (step 2/5)...")         │
+│                                                                  │
+│  If iteration cap reached:                                       │
+│    _progress("analyst", "Analyst finished (iteration cap).")     │
+│                                                                  │
+│  If tool calls in response:                                      │
+│    _progress("analyst", "Analyst calling tools: execute_python") │
+│                                                                  │
+│  If no tool calls (done):                                        │
+│    _progress("analyst", "Analyst completed.")                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Planner Node
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  planner_node(state)                                             │
+│                                                                  │
+│  Entry:                                                          │
+│    _progress("planner", "Planning analysis — selecting           │
+│               specialists...")                                    │
+│                                                                  │
+│  After selection:                                                │
+│    _progress("planner", "Pipeline: Analyst → Forecaster →        │
+│               Shift Reporter")                                   │
+│    (uses human-readable labels from _STAGE_LABELS)               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Manager Review Node
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  manager_review_node(state)                                      │
+│                                                                  │
+│  Entry:                                                          │
+│    _progress("manager", "Reviewing Analyst output...")            │
+│                                                                  │
+│  ACCEPT decision:                                                │
+│    _progress("manager", "Analyst — accepted.")                   │
+│                                                                  │
+│  REWORK decision:                                                │
+│    _progress("manager", "Analyst — rework requested.")           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Tool Node
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  tool_node(state)                                                │
+│                                                                  │
+│  For each tool call:                                             │
+│    _progress("tools", "Executing tool: execute_python")          │
+│    _progress("tools", "Executing tool: query_mill_data")         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+#### Manager Router (Stage Transitions)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  manager_router(state)                                           │
+│                                                                  │
+│  On ACCEPT → advance:                                            │
+│    _progress("system", "Advancing: Analyst → Forecaster")        │
+│    (uses human-readable labels from _STAGE_LABELS)               │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Progress Timeline Example
+
+For a request like _"Analyze Mill 8 for the last 7 days"_ with planner selecting `analyst` + `shift_reporter`:
+
+```
+t=0s    [system]       "Connecting to MCP server..."
+t=1s    [system]       "Building agent pipeline..."
+t=2s    [data_loader]  "Data Loader working (step 1/5)..."
+t=3s    [data_loader]  "Data Loader calling tools: query_mill_data"
+t=5s    [tools]        "Executing tool: query_mill_data"
+t=8s    [data_loader]  "Data Loader completed."
+t=9s    [manager]      "Reviewing Data Loader output..."
+t=9s    [manager]      "Data Loader — accepted."
+t=10s   [system]       "Advancing: Data Loader → Planner"
+t=11s   [planner]      "Planning analysis — selecting specialists..."
+t=13s   [planner]      "Pipeline: Analyst → Shift Reporter"
+t=14s   [manager]      "Reviewing Planner output..."
+t=14s   [manager]      "Planner — accepted."
+t=15s   [system]       "Advancing: Planner → Analyst"
+t=16s   [analyst]      "Analyst working (step 1/5)..."
+t=17s   [analyst]      "Analyst calling tools: execute_python"
+t=18s   [tools]        "Executing tool: execute_python"
+t=25s   [analyst]      "Analyst working (step 2/5)..."
+t=26s   [analyst]      "Analyst calling tools: execute_python"
+t=27s   [tools]        "Executing tool: execute_python"
+t=35s   [analyst]      "Analyst completed."
+t=36s   [manager]      "Reviewing Analyst output..."
+t=38s   [manager]      "Analyst — accepted."
+t=39s   [system]       "Advancing: Analyst → Shift Reporter"
+...     (shift_reporter, code_reviewer, reporter follow)
+t=180s  [system]       "Analysis complete."
+```
+
+The frontend displays these messages in a `ProgressFeed` component as a scrollable list with stage icons and timestamps. See [api_endpoint.md](api_endpoint.md) for details on how the callback is created and wired.
+
+---
+
+## 11. Routing Logic — How Decisions Are Made
 
 ### Three Router Functions
 
@@ -646,7 +804,7 @@ build_graph(tools, api_key)
 
 ---
 
-## 11. Tool Binding — Per-Specialist Tools
+## 12. Tool Binding — Per-Specialist Tools
 
 ```
 ┌────────────────────┬─────────────────────────────────────────────────┐
@@ -678,7 +836,7 @@ build_graph(tools, api_key)
 
 ---
 
-## 12. Context Management — Token Budget
+## 13. Context Management — Token Budget
 
 ### Constants
 
@@ -737,7 +895,7 @@ Without it, by the time the 4th specialist runs, the message history could be **
 
 ---
 
-## 13. Manager Review & Rework Loop
+## 14. Manager Review & Rework Loop
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -776,12 +934,14 @@ Without it, by the time the 4th specialist runs, the message history could be **
 
 ---
 
-## 14. File Dependencies Map
+## 15. File Dependencies Map
 
 ```
 graph_v3.py
     │
     │── imports from ──────────────────────────────────────────────────────
+    │   ├── datetime (datetime)
+    │   ├── typing (Callable, Optional)
     │   ├── langchain_core.messages (SystemMessage, HumanMessage, AIMessage,
     │   │                            ToolMessage, BaseMessage)
     │   ├── langchain_core.tools (BaseTool)
@@ -790,12 +950,14 @@ graph_v3.py
     │
     │── called by ─────────────────────────────────────────────────────────
     │   ├── api_endpoint.py
-    │   │     _run_analysis_background() → build_graph(tools, api_key)
+    │   │     _run_analysis_background() →
+    │   │       build_graph(tools, api_key, on_progress=callback)
     │   │     Then: graph.ainvoke({"messages": [HumanMessage(prompt)]})
+    │   │     (on_progress callback created by _make_progress_callback)
     │   │
     │   └── main.py
     │         main() → build_graph(tools, api_key)
-    │         Demo CLI entry point for testing
+    │         Demo CLI entry point for testing (no progress callback)
     │
     │── receives tools from ───────────────────────────────────────────────
     │   └── client.py
@@ -833,7 +995,7 @@ graph_v3.py
 
 ---
 
-## 15. MCP Tools Reference
+## 16. MCP Tools Reference
 
 ### Tool Registry (7 tools)
 
@@ -897,7 +1059,7 @@ The Python execution environment pre-loads these into the `exec()` namespace:
 
 ---
 
-## 16. Execution Examples
+## 17. Execution Examples
 
 ### Example 1: "Analyze Mill 8 for the last 7 days"
 
@@ -976,7 +1138,7 @@ Pipeline: data_loader → planner → anomaly_detective → code_reviewer → re
 
 ---
 
-## 17. Configuration Constants
+## 18. Configuration Constants
 
 ```python
 # LLM Model
