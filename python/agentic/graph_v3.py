@@ -758,21 +758,37 @@ Be concise. One line is enough."""
 
 # ── Human-readable stage labels for progress messages ────────────────────
 _STAGE_LABELS: dict[str, str] = {
-    "data_loader":       "Data Loader",
-    "planner":           "Planner",
-    "analyst":           "Analyst",
-    "forecaster":        "Forecaster",
-    "anomaly_detective": "Anomaly Detective",
-    "bayesian_analyst":  "Bayesian Analyst",
-    "optimizer":         "Optimizer",
-    "shift_reporter":    "Shift Reporter",
-    "code_reviewer":     "Code Reviewer",
-    "reporter":          "Reporter",
-    "manager":           "Manager",
+    "data_loader":       "Зареждане на данни",
+    "planner":           "Планиране",
+    "analyst":           "Анализатор",
+    "forecaster":        "Прогнозиране",
+    "anomaly_detective": "Детектор на аномалии",
+    "bayesian_analyst":  "Байесов анализ",
+    "optimizer":         "Оптимизатор",
+    "shift_reporter":    "Сменен отчет",
+    "code_reviewer":     "Проверка на резултати",
+    "reporter":          "Генериране на отчет",
+    "manager":           "Мениджър",
+}
+
+# Friendly activity descriptions shown to the end user
+_STAGE_DESCRIPTIONS: dict[str, str] = {
+    "data_loader":       "Зареждане на данни от базата...",
+    "analyst":           "Статистически анализ, разпределения и SPC диаграми...",
+    "forecaster":        "Прогнозиране на трендове и сезонност...",
+    "anomaly_detective": "Търсене на аномалии и причини...",
+    "bayesian_analyst":  "Байесов анализ и доверителни интервали...",
+    "optimizer":         "Оптимизация на настройки и препоръки...",
+    "shift_reporter":    "Анализ по смени и KPI показатели...",
+    "code_reviewer":     "Проверка на диаграми и резултати...",
+    "reporter":          "Писане на краен отчет...",
 }
 
 def _label(stage: str) -> str:
     return _STAGE_LABELS.get(stage, stage)
+
+def _desc(stage: str) -> str:
+    return _STAGE_DESCRIPTIONS.get(stage, "")
 
 
 def build_graph(
@@ -945,11 +961,13 @@ def build_graph(
         def specialist_node(state: AnalysisState) -> dict:
             iteration = sum(1 for m in state["messages"] if getattr(m, "name", None) == name) + 1
             print(f"\n  [{name}] iteration {iteration}/{MAX_SPECIALIST_ITERS} — processing...")
-            _progress(name, f"{_label(name)} working (step {iteration}/{MAX_SPECIALIST_ITERS})...")
+            # Only show user-facing progress on first iteration (with description)
+            if iteration == 1:
+                desc = _desc(name)
+                _progress(name, f"{_label(name)}: {desc}" if desc else f"{_label(name)}...")
 
             if iteration > MAX_SPECIALIST_ITERS:
                 print(f"  [{name}] Iteration cap reached, advancing.")
-                _progress(name, f"{_label(name)} finished (iteration cap).")
                 return {
                     "messages": [AIMessage(
                         content=f"[{name}] Done (iteration cap). Moving on.",
@@ -980,11 +998,10 @@ def build_graph(
             if response.tool_calls:
                 tool_names = [tc["name"] for tc in response.tool_calls]
                 print(f"  [{name}] Calling tools: {tool_names}")
-                _progress(name, f"{_label(name)} calling tools: {', '.join(tool_names)}")
             else:
                 preview = (response.content[:120] + "...") if response.content and len(response.content) > 120 else response.content
                 print(f"  [{name}] Done: \"{preview}\"")
-                _progress(name, f"{_label(name)} completed.")
+                _progress(name, f"✓ {_label(name)} завърши.")
 
             response.name = name
             return {"messages": [response]}
@@ -994,7 +1011,7 @@ def build_graph(
     # ── Planner node ──────────────────────────────────────────────────
     def planner_node(state: AnalysisState) -> dict:
         print("\n  [planner] Analyzing request to determine specialists needed...")
-        _progress("planner", "Planning analysis — selecting specialists...")
+        _progress("planner", "Планиране: Избор на подходящи специалисти...")
 
         compressed = compress_messages(state["messages"])
         messages = [SystemMessage(content=PLANNER_PROMPT)] + strip_tool_messages(compressed)
@@ -1031,7 +1048,7 @@ def build_graph(
         stages = FIXED_PREFIX + selected + FIXED_SUFFIX
         print(f"  [planner] Pipeline: {' → '.join(stages)}")
         readable = ' → '.join(_label(s) for s in selected)
-        _progress("planner", f"Pipeline: {readable}")
+        _progress("planner", f"Избрани специалисти: {readable}")
 
         return {
             "messages": [AIMessage(content=content, name="planner")],
@@ -1046,7 +1063,6 @@ def build_graph(
         attempt_count = attempts.get(current, 0)
 
         print(f"\n  [manager] Reviewing {current} output (attempt {attempt_count + 1})...")
-        _progress("manager", f"Reviewing {_label(current)} output...")
 
         # Auto-accept data_loader and planner
         if current in ("data_loader", "planner"):
@@ -1087,9 +1103,7 @@ def build_graph(
 
         print(f"  [manager] Decision: {decision} — {content[:150]}")
         if decision == "REWORK":
-            _progress("manager", f"{_label(current)} — rework requested.")
-        else:
-            _progress("manager", f"{_label(current)} — accepted.")
+            _progress("manager", f"⟳ {_label(current)}: Необходима е корекция, повторен опит...")
 
         return {
             "messages": [AIMessage(content=stamped, name="manager")],
@@ -1110,7 +1124,6 @@ def build_graph(
                 continue
             try:
                 print(f"    [tool] Executing {tc['name']}...")
-                _progress("tools", f"Executing tool: {tc['name']}")
                 output = await tool.ainvoke(tc["args"])
                 results.append(ToolMessage(
                     content=str(output), tool_call_id=tc["id"], name=tc["name"],
@@ -1153,7 +1166,6 @@ def build_graph(
             if idx + 1 < len(stages):
                 next_stage = stages[idx + 1]
                 print(f"\n  ──→ Advancing: {current} → {next_stage}")
-                _progress("system", f"Advancing: {_label(current)} → {_label(next_stage)}")
                 return f"{next_stage}_entry"
 
         print(f"\n  ──→ Pipeline complete!")

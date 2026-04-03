@@ -1,3 +1,7 @@
+```
+
+```
+
 # Architecture Overview
 
 ## System Purpose

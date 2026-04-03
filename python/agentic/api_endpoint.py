@@ -225,7 +225,7 @@ async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
         if not api_key:
             raise ValueError("GOOGLE_API_KEY not configured")
 
-        on_progress("system", "Connecting to MCP server...")
+        on_progress("system", "Подготовка на анализа...")
 
         async with streamable_http_client(SERVER_URL) as (read, write, _):
             async with ClientSession(read, write) as session:
@@ -237,7 +237,7 @@ async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
                     {"analysis_id": analysis_id},
                 )
 
-                on_progress("system", "Building agent pipeline...")
+                on_progress("system", "Стартиране на AI специалисти...")
 
                 langchain_tools = await get_mcp_tools(session)
                 graph = build_graph(langchain_tools, api_key, on_progress=on_progress)
@@ -254,10 +254,10 @@ async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
                 _analyses[analysis_id]["status"] = "completed"
                 _analyses[analysis_id]["final_answer"] = final_answer
                 _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
-                on_progress("system", "Analysis complete.")
+                on_progress("system", "✓ Анализът е завършен.")
 
     except Exception as e:
         _analyses[analysis_id]["status"] = "failed"
         _analyses[analysis_id]["error"] = str(e)
         _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
-        on_progress("system", f"Analysis failed: {str(e)[:200]}")
+        on_progress("system", f"✗ Грешка при анализа: {str(e)[:200]}")
