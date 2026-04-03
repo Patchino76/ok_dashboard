@@ -7,7 +7,12 @@ import React, {
   KeyboardEvent,
   useCallback,
 } from "react";
-import { useChatStore, ChatMessage, Conversation } from "./stores/chat-store";
+import {
+  useChatStore,
+  ChatMessage,
+  Conversation,
+  ProgressMessage,
+} from "./stores/chat-store";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useReactToPrint } from "react-to-print";
@@ -501,6 +506,58 @@ function ExportPdfButton({
   );
 }
 
+// ── Progress feed (live agent messages) ────────────────────────────────────
+
+const STAGE_ICONS: Record<string, string> = {
+  system: "⚙️",
+  planner: "📋",
+  data_loader: "📂",
+  analyst: "📊",
+  forecaster: "📈",
+  anomaly_detective: "🔍",
+  bayesian_analyst: "🎲",
+  optimizer: "⚡",
+  shift_reporter: "📝",
+  code_reviewer: "✅",
+  reporter: "📄",
+  manager: "👔",
+  tools: "🔧",
+};
+
+function ProgressFeed({ messages }: { messages: ProgressMessage[] }) {
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  if (!messages || messages.length === 0) return null;
+
+  return (
+    <div className="mt-2 max-h-48 overflow-y-auto rounded-lg bg-slate-50 border border-slate-200 p-2 space-y-1 text-xs">
+      {messages.map((pm, i) => {
+        const icon = STAGE_ICONS[pm.stage] || "•";
+        const isLast = i === messages.length - 1;
+        return (
+          <div
+            key={i}
+            className={`flex items-start gap-1.5 ${
+              isLast ? "text-blue-700 font-medium" : "text-gray-500"
+            }`}
+          >
+            <span className="flex-shrink-0 w-4 text-center">{icon}</span>
+            <span className="flex-1 leading-tight">{pm.message}</span>
+            {isLast && (
+              <Loader2 className="w-3 h-3 animate-spin flex-shrink-0 mt-0.5 text-blue-500" />
+            )}
+          </div>
+        );
+      })}
+      <div ref={endRef} />
+    </div>
+  );
+}
+
 // ── Single message bubble ──────────────────────────────────────────────────
 function MessageBubble({
   message,
@@ -556,7 +613,13 @@ function MessageBubble({
               </button>
             </div>
           ) : message.status === "running" && !message.content ? (
-            <TypingIndicator />
+            <div>
+              <TypingIndicator />
+              {message.progressMessages &&
+                message.progressMessages.length > 0 && (
+                  <ProgressFeed messages={message.progressMessages} />
+                )}
+            </div>
           ) : (
             <div className="text-sm md-content relative">
               <div className="flex items-center justify-between">
@@ -577,6 +640,11 @@ function MessageBubble({
                   )}
                 </div>
               </div>
+              {message.status === "running" &&
+                message.progressMessages &&
+                message.progressMessages.length > 0 && (
+                  <ProgressFeed messages={message.progressMessages} />
+                )}
               {displayContent && (
                 <div className="mt-2">
                   <ReactMarkdown

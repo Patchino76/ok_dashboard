@@ -2,6 +2,12 @@ import { create } from "zustand";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
+export interface ProgressMessage {
+  timestamp: string;
+  stage: string;
+  message: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "system";
@@ -12,6 +18,7 @@ export interface ChatMessage {
   reportFiles?: string[];
   chartFiles?: string[];
   reportMarkdown?: string;
+  progressMessages?: ProgressMessage[];
   error?: string;
 }
 
@@ -301,6 +308,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         const data = await res.json();
         const { updateMessage, stopPolling: stop } = get();
+
+        // Always push new progress messages while running
+        const progress: ProgressMessage[] = data.progress || [];
+        if (progress.length > 0) {
+          updateMessage(messageId, { progressMessages: progress });
+        }
 
         if (data.status === "completed") {
           const reportFiles: string[] = data.report_files || [];

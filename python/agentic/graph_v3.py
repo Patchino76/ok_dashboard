@@ -25,6 +25,7 @@ Specialist Pool:
 """
 
 from datetime import datetime
+from typing import Callable, Optional
 
 from langchain_core.messages import (
     SystemMessage, HumanMessage, AIMessage, ToolMessage, BaseMessage,
@@ -755,7 +756,33 @@ Be concise. One line is enough."""
 # Graph Builder
 # ══════════════════════════════════════════════════════════════════════════════
 
-def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
+# ── Human-readable stage labels for progress messages ────────────────────
+_STAGE_LABELS: dict[str, str] = {
+    "data_loader":       "Data Loader",
+    "planner":           "Planner",
+    "analyst":           "Analyst",
+    "forecaster":        "Forecaster",
+    "anomaly_detective": "Anomaly Detective",
+    "bayesian_analyst":  "Bayesian Analyst",
+    "optimizer":         "Optimizer",
+    "shift_reporter":    "Shift Reporter",
+    "code_reviewer":     "Code Reviewer",
+    "reporter":          "Reporter",
+    "manager":           "Manager",
+}
+
+def _label(stage: str) -> str:
+    return _STAGE_LABELS.get(stage, stage)
+
+
+def build_graph(
+    tools: list[BaseTool],
+    api_key: str,
+    on_progress: Optional[Callable[[str, str], None]] = None,
+) -> StateGraph:
+    # No-op fallback if caller doesn't supply a callback
+    _progress = on_progress or (lambda stage, msg: None)
+
     llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL, google_api_key=api_key)
 
     # ── Per-specialist tool binding ─────────────────────────────────────
@@ -918,9 +945,11 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         def specialist_node(state: AnalysisState) -> dict:
             iteration = sum(1 for m in state["messages"] if getattr(m, "name", None) == name) + 1
             print(f"\n  [{name}] iteration {iteration}/{MAX_SPECIALIST_ITERS} — processing...")
+            _progress(name, f"{_label(name)} working (step {iteration}/{MAX_SPECIALIST_ITERS})...")
 
             if iteration > MAX_SPECIALIST_ITERS:
                 print(f"  [{name}] Iteration cap reached, advancing.")
+                _progress(name, f"{_label(name)} finished (iteration cap).")
                 return {
                     "messages": [AIMessage(
                         content=f"[{name}] Done (iteration cap). Moving on.",
@@ -951,9 +980,11 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
             if response.tool_calls:
                 tool_names = [tc["name"] for tc in response.tool_calls]
                 print(f"  [{name}] Calling tools: {tool_names}")
+                _progress(name, f"{_label(name)} calling tools: {', '.join(tool_names)}")
             else:
                 preview = (response.content[:120] + "...") if response.content and len(response.content) > 120 else response.content
                 print(f"  [{name}] Done: \"{preview}\"")
+                _progress(name, f"{_label(name)} completed.")
 
             response.name = name
             return {"messages": [response]}
@@ -963,6 +994,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
     # ── Planner node ──────────────────────────────────────────────────
     def planner_node(state: AnalysisState) -> dict:
         print("\n  [planner] Analyzing request to determine specialists needed...")
+        _progress("planner", "Planning analysis — selecting specialists...")
 
         compressed = compress_messages(state["messages"])
         messages = [SystemMessage(content=PLANNER_PROMPT)] + strip_tool_messages(compressed)
@@ -998,6 +1030,8 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         # Build full stage list
         stages = FIXED_PREFIX + selected + FIXED_SUFFIX
         print(f"  [planner] Pipeline: {' → '.join(stages)}")
+        readable = ' → '.join(_label(s) for s in selected)
+        _progress("planner", f"Pipeline: {readable}")
 
         return {
             "messages": [AIMessage(content=content, name="planner")],
@@ -1012,6 +1046,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
         attempt_count = attempts.get(current, 0)
 
         print(f"\n  [manager] Reviewing {current} output (attempt {attempt_count + 1})...")
+        _progress("manager", f"Reviewing {_label(current)} output...")
 
         # Auto-accept data_loader and planner
         if current in ("data_loader", "planner"):
@@ -1051,6 +1086,10 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
             stamped = f"ACCEPT: {content}"
 
         print(f"  [manager] Decision: {decision} — {content[:150]}")
+        if decision == "REWORK":
+            _progress("manager", f"{_label(current)} — rework requested.")
+        else:
+            _progress("manager", f"{_label(current)} — accepted.")
 
         return {
             "messages": [AIMessage(content=stamped, name="manager")],
@@ -1071,6 +1110,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
                 continue
             try:
                 print(f"    [tool] Executing {tc['name']}...")
+                _progress("tools", f"Executing tool: {tc['name']}")
                 output = await tool.ainvoke(tc["args"])
                 results.append(ToolMessage(
                     content=str(output), tool_call_id=tc["id"], name=tc["name"],
@@ -1113,6 +1153,7 @@ def build_graph(tools: list[BaseTool], api_key: str) -> StateGraph:
             if idx + 1 < len(stages):
                 next_stage = stages[idx + 1]
                 print(f"\n  ──→ Advancing: {current} → {next_stage}")
+                _progress("system", f"Advancing: {_label(current)} → {_label(next_stage)}")
                 return f"{next_stage}_entry"
 
         print(f"\n  ──→ Pipeline complete!")
