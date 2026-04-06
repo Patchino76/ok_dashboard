@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const apiUrl = process.env.API_INTERNAL_URL || "http://127.0.0.1:8000";
+
 const nextConfig: NextConfig = {
   async rewrites() {
     return {
@@ -15,7 +17,7 @@ const nextConfig: NextConfig = {
         // Everything else proxied to FastAPI
         {
           source: "/api/:path*",
-          destination: "http://127.0.0.1:8000/api/:path*",
+          destination: `${apiUrl}/api/:path*`,
         },
       ],
     };

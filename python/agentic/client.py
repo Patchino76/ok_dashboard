@@ -9,6 +9,7 @@ Same pattern as mcp_example/client.py:
 """
 
 import json
+import os
 from typing import Any, Optional, Type
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -18,7 +19,7 @@ import mcp.types as mcp_types
 from pydantic import BaseModel, create_model
 
 
-SERVER_URL = "http://localhost:8003/mcp"
+SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8003/mcp")
 
 
 # ── MCP → LangChain tool conversion ─────────────────────────────────────────

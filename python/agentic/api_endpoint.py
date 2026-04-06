@@ -29,14 +29,14 @@ from mcp.client.streamable_http import streamable_http_client
 from client import get_mcp_tools
 from graph_v3 import build_graph
 
-# Load .env from the agentic directory
-_env_path = Path(__file__).parent / ".env"
+# Load .env from project root (two levels up: agentic → python → project root)
+_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(_env_path)
 
 router = APIRouter(prefix="/api/v1/agentic", tags=["agentic"])
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
-SERVER_URL = "http://localhost:8003/mcp"
+SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8003/mcp")
 
 # ── In-flight analysis tracking ──────────────────────────────────────────────
 _analyses: dict[str, dict] = {}

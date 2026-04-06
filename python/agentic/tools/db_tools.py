@@ -56,7 +56,8 @@ def list_dataframes() -> dict[str, tuple[int, int]]:
 def _get_db_connector() -> MillsDataConnector:
     """Create a MillsDataConnector using environment variables or defaults."""
     from dotenv import load_dotenv
-    load_dotenv(os.path.join(AGENTIC_DIR, ".env"))
+    _project_root = os.path.dirname(os.path.dirname(AGENTIC_DIR))
+    load_dotenv(os.path.join(_project_root, ".env"))
 
     host = os.getenv("DB_HOST", "em-m-db4.ellatzite-med.com")
     port = int(os.getenv("DB_PORT", "5432"))
@@ -70,7 +71,8 @@ def _get_db_connector() -> MillsDataConnector:
 def _get_engine():
     """Create a raw SQLAlchemy engine for schema introspection."""
     from dotenv import load_dotenv
-    load_dotenv(os.path.join(AGENTIC_DIR, ".env"))
+    _project_root = os.path.dirname(os.path.dirname(AGENTIC_DIR))
+    load_dotenv(os.path.join(_project_root, ".env"))
 
     host = os.getenv("DB_HOST", "em-m-db4.ellatzite-med.com")
     port = int(os.getenv("DB_PORT", "5432"))

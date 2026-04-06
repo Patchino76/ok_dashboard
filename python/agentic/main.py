@@ -35,11 +35,11 @@ from mcp.client.streamable_http import streamable_http_client
 from client import get_mcp_tools
 from graph_v3 import build_graph
 
-script_dir = Path(__file__).parent
-env_path = script_dir / ".env"
-load_dotenv(env_path)
+# Load .env from project root (two levels up: agentic → python → project root)
+_project_root = Path(__file__).resolve().parent.parent.parent
+load_dotenv(_project_root / ".env")
 
-SERVER_URL = "http://localhost:8003/mcp"
+SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8003/mcp")
 
 # ── Demo analysis requests ───────────────────────────────────────────────────
 # Each request triggers the full multi-agent pipeline.

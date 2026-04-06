@@ -70,7 +70,7 @@ session_manager = StreamableHTTPSessionManager(server)
 @asynccontextmanager
 async def app_lifespan(app: Starlette):
     async with session_manager.run():
-        print("🚀 Server is running on http://localhost:8003/mcp")
+        print("🚀 MCP Server is running on port 8003 (/mcp)")
         yield
 
 

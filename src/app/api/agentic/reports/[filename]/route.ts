@@ -1,26 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.API_INTERNAL_URL || "http://127.0.0.1:8000";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ filename: string }> }
+  { params }: { params: Promise<{ filename: string }> },
 ) {
   try {
     const { filename } = await params;
     const response = await fetch(
       `${API_URL}/api/v1/agentic/reports/${encodeURIComponent(filename)}`,
-      { cache: "no-store" }
+      { cache: "no-store" },
     );
 
     if (!response.ok) {
       return NextResponse.json(
         { error: `File not found: ${filename}` },
-        { status: response.status }
+        { status: response.status },
       );
     }
 
-    const contentType = response.headers.get("content-type") || "application/octet-stream";
+    const contentType =
+      response.headers.get("content-type") || "application/octet-stream";
 
     // For images, stream the binary data through
     if (contentType.startsWith("image/")) {
@@ -43,6 +44,9 @@ export async function GET(
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error("Agentic reports proxy error:", msg);
-    return NextResponse.json({ error: "Proxy error", details: msg }, { status: 500 });
+    return NextResponse.json(
+      { error: "Proxy error", details: msg },
+      { status: 500 },
+    );
   }
 }
