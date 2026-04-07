@@ -546,7 +546,7 @@ async def health_check():
             "base_url": "/api/v1/ml/cascade" if CASCADE_SYSTEM_AVAILABLE else None
         },
         "agentic_system": {
-            "available": AGENTIC_SYSTEM_AVAILABLE if 'AGENTIC_SYSTEM_AVAILABLE' in dir() else False,
+            "available": AGENTIC_SYSTEM_AVAILABLE,
             "base_url": "/api/v1/agentic" if AGENTIC_SYSTEM_AVAILABLE else None
         }
     }

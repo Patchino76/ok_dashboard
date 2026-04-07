@@ -4,12 +4,12 @@ const API_URL = process.env.API_INTERNAL_URL || "http://127.0.0.1:8000";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ filename: string }> },
+  { params }: { params: Promise<{ analysisId: string; filename: string }> },
 ) {
   try {
-    const { filename } = await params;
+    const { analysisId, filename } = await params;
     const response = await fetch(
-      `${API_URL}/api/v1/agentic/reports/${encodeURIComponent(filename)}`,
+      `${API_URL}/api/v1/agentic/reports/${encodeURIComponent(analysisId)}/${encodeURIComponent(filename)}`,
       { cache: "no-store" },
     );
 

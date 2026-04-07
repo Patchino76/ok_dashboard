@@ -301,11 +301,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { stopPolling } = get();
     stopPolling();
 
+    let consecutiveFailures = 0;
+    const MAX_FAILURES = 3;
+
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`/api/v1/agentic/status/${analysisId}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= MAX_FAILURES) {
+            console.warn(
+              `Polling stopped: ${consecutiveFailures} consecutive failures for ${analysisId}`,
+            );
+            const { stopPolling: stop, updateMessage: update } = get();
+            update(messageId, {
+              status: "failed",
+              content:
+                "Анализът не е намерен. Сървърът може да е бил рестартиран.",
+            });
+            set((s) => {
+              const updated = s.conversations.map((c) =>
+                c.id === convId ? { ...c, status: "failed" as const } : c,
+              );
+              saveConversations(updated);
+              return { conversations: updated, isLoading: false };
+            });
+            stop();
+          }
+          return;
+        }
 
+        consecutiveFailures = 0;
         const data = await res.json();
         const { updateMessage, stopPolling: stop } = get();
 
@@ -367,6 +393,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       } catch (err) {
         console.error("Polling error:", err);
+        consecutiveFailures++;
+        if (consecutiveFailures >= MAX_FAILURES) {
+          const { stopPolling: stop } = get();
+          stop();
+        }
       }
     }, POLL_INTERVAL_MS);
 
