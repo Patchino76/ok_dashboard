@@ -95,6 +95,16 @@ print(f"[python_executor] Advanced libs available: {list(_ADVANCED_LIBS.keys())}
 
 from tools.db_tools import get_dataframe, list_dataframes
 from tools.output_dir import get_output_dir
+from tools.domain_knowledge import PLANT_VARIABLES, SHIFTS, MILL_NAMES, get_spec_limits
+
+# Import skills library for agent use
+try:
+    import skills as _skills_module
+    _ADVANCED_LIBS["skills"] = _skills_module
+    print(f"[python_executor] Skills library loaded: {_skills_module.__all__}")
+except ImportError as e:
+    print(f"[python_executor] Skills library not available: {e}")
+    _skills_module = None
 
 
 # ── execute_python ───────────────────────────────────────────────────────────
@@ -116,6 +126,9 @@ execute_python_input_schema = {
                 "  - IsolationForest, DBSCAN, StandardScaler, LinearRegression: sklearn\n"
                 "  - shap: SHAP explainability for feature importance\n"
                 "  - hmm (hmmlearn.hmm): Hidden Markov Models for regime detection\n"
+                "  - PLANT_SPECS: dict of all plant variables with min/max/unit/varType\n"
+                "  - get_spec_limits(var): get spec limits for SPC analysis\n"
+                "  - skills: skill library with tested functions (skills.eda, skills.spc, etc.)\n"
                 "  - OUTPUT_DIR: path to save charts\n\n"
                 "To save charts:\n"
                 "  plt.savefig(os.path.join(OUTPUT_DIR, 'chart_name.png'), dpi=150, bbox_inches='tight')\n"
@@ -137,6 +150,10 @@ execute_python_tool = types.Tool(
         "Advanced libraries also available: Prophet (forecasting), statsmodels (sm, tsa), "
         "pmdarima (auto_arima), sklearn (IsolationForest, DBSCAN, StandardScaler, LinearRegression), "
         "shap (explainability), hmmlearn (hmm). "
+        "Domain knowledge: PLANT_SPECS (dict of all variables with min/max/unit/varType), "
+        "SHIFTS (shift schedule), MILL_NAMES (list of 12 mills), get_spec_limits(var). "
+        "Skill library: import skills — then use skills.eda, skills.spc, skills.anomaly, "
+        "skills.forecasting, skills.shift_kpi, skills.optimization for tested analysis functions. "
         "Use this for EDA, SPC, time series forecasting, anomaly detection, Bayesian analysis, "
         "process optimization, and any scientific computation. "
         "Print results to stdout. Save charts to OUTPUT_DIR. "
@@ -173,6 +190,11 @@ async def execute_python(arguments: dict) -> list[types.TextContent]:
         "json": json,
         # Paths — points to the per-analysis subfolder
         "OUTPUT_DIR": output_dir,
+        # Domain knowledge
+        "PLANT_SPECS": PLANT_VARIABLES,
+        "SHIFTS": SHIFTS,
+        "MILL_NAMES": MILL_NAMES,
+        "get_spec_limits": get_spec_limits,
         # Builtins
         "__builtins__": __builtins__,
     }

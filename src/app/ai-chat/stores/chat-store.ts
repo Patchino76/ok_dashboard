@@ -51,7 +51,7 @@ interface ChatState {
   updateMessage: (msgId: string, updates: Partial<ChatMessage>) => void;
 
   // Analysis flow
-  sendAnalysis: (question: string) => Promise<void>;
+  sendAnalysis: (question: string, templateId?: string) => Promise<void>;
   pollStatus: (analysisId: string, messageId: string, convId: string) => void;
   stopPolling: () => void;
 
@@ -220,7 +220,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // ── Analysis flow ────────────────────────────────────────────────────────
 
-  sendAnalysis: async (question: string) => {
+  sendAnalysis: async (question: string, templateId?: string) => {
     const { createConversation, addMessage, updateMessage, pollStatus } = get();
 
     // Create a new conversation for this analysis
@@ -246,10 +246,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
+      // Dynamically import settings to avoid circular deps
+      const { useSettingsStore } = await import("./settings-store");
+      const settings = useSettingsStore.getState().getSettings();
+
       const res = await fetch("/api/v1/agentic/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({
+          question,
+          settings,
+          ...(templateId ? { template_id: templateId } : {}),
+        }),
       });
 
       if (!res.ok) {
@@ -302,14 +310,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     stopPolling();
 
     let consecutiveFailures = 0;
-    const MAX_FAILURES = 3;
+    let everSucceeded = false;
+    const MAX_FAILURES_COLD = 15; // never got a 200 — analysis may not exist
+    const MAX_POLL_DURATION_MS = 600000; // 10-minute safety timeout
+    const startTime = Date.now();
 
     const interval = setInterval(async () => {
+      // Safety timeout — stop after 10 minutes regardless
+      if (Date.now() - startTime > MAX_POLL_DURATION_MS) {
+        console.warn(`Polling timeout for ${analysisId}`);
+        const { stopPolling: stop } = get();
+        stop();
+        return;
+      }
+
       try {
         const res = await fetch(`/api/v1/agentic/status/${analysisId}`);
         if (!res.ok) {
           consecutiveFailures++;
-          if (consecutiveFailures >= MAX_FAILURES) {
+          // If we previously got a 200, the analysis exists — just skip this 404
+          if (everSucceeded) return;
+          // Never got a 200 — give up after many attempts
+          if (consecutiveFailures >= MAX_FAILURES_COLD) {
             console.warn(
               `Polling stopped: ${consecutiveFailures} consecutive failures for ${analysisId}`,
             );
@@ -332,6 +354,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         consecutiveFailures = 0;
+        everSucceeded = true;
         const data = await res.json();
         const { updateMessage, stopPolling: stop } = get();
 
@@ -393,10 +416,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       } catch (err) {
         console.error("Polling error:", err);
-        consecutiveFailures++;
-        if (consecutiveFailures >= MAX_FAILURES) {
-          const { stopPolling: stop } = get();
-          stop();
+        if (!everSucceeded) {
+          consecutiveFailures++;
+          if (consecutiveFailures >= MAX_FAILURES_COLD) {
+            const { stopPolling: stop } = get();
+            stop();
+          }
         }
       }
     }, POLL_INTERVAL_MS);

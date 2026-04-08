@@ -21,6 +21,9 @@ from tools.report_tools import (
 from tools.session_tools import (
     set_output_directory_tool, set_output_directory,
 )
+from tools.domain_knowledge import (
+    get_domain_knowledge_tool, get_domain_knowledge,
+)
 
 # Registry mapping tool name -> {"tool": types.Tool, "handler": callable}
 tools = {
@@ -31,4 +34,5 @@ tools = {
     list_output_files_tool.name:        {"tool": list_output_files_tool,        "handler": list_output_files},
     write_markdown_report_tool.name:    {"tool": write_markdown_report_tool,    "handler": write_markdown_report},
     set_output_directory_tool.name:     {"tool": set_output_directory_tool,     "handler": set_output_directory},
+    get_domain_knowledge_tool.name:     {"tool": get_domain_knowledge_tool,     "handler": get_domain_knowledge},
 }

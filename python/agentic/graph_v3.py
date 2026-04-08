@@ -795,9 +795,21 @@ def build_graph(
     tools: list[BaseTool],
     api_key: str,
     on_progress: Optional[Callable[[str, str], None]] = None,
+    settings: dict | None = None,
+    template_id: str | None = None,
 ) -> StateGraph:
     # No-op fallback if caller doesn't supply a callback
     _progress = on_progress or (lambda stage, msg: None)
+
+    # Apply settings overrides (from UI) or use module-level defaults
+    _settings = settings or {}
+    _MAX_TOOL_OUTPUT_CHARS = _settings.get("maxToolOutputChars", MAX_TOOL_OUTPUT_CHARS)
+    _MAX_AI_MSG_CHARS = _settings.get("maxAiMessageChars", MAX_AI_MSG_CHARS)
+    _MAX_MESSAGES_WINDOW = _settings.get("maxMessagesWindow", MAX_MESSAGES_WINDOW)
+    _MAX_SPECIALIST_ITERS = _settings.get("maxSpecialistIterations", MAX_SPECIALIST_ITERS)
+
+    # Template override (imported lazily to avoid circular imports)
+    _template_id = template_id
 
     llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL, google_api_key=api_key)
 
@@ -837,22 +849,22 @@ def build_graph(
         return str(content) if content else ""
 
     def compress_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
-        if len(messages) > MAX_MESSAGES_WINDOW + 1:
-            messages = [messages[0]] + messages[-(MAX_MESSAGES_WINDOW):]
+        if len(messages) > _MAX_MESSAGES_WINDOW + 1:
+            messages = [messages[0]] + messages[-(_MAX_MESSAGES_WINDOW):]
 
         compressed = []
         for msg in messages:
             if isinstance(msg, ToolMessage):
                 content = normalize_content(msg.content)
                 compressed.append(ToolMessage(
-                    content=truncate(content, MAX_TOOL_OUTPUT_CHARS),
+                    content=truncate(content, _MAX_TOOL_OUTPUT_CHARS),
                     tool_call_id=msg.tool_call_id, name=msg.name,
                 ))
             elif isinstance(msg, AIMessage):
                 content = normalize_content(msg.content)
-                if len(content) > MAX_AI_MSG_CHARS:
+                if len(content) > _MAX_AI_MSG_CHARS:
                     compressed.append(AIMessage(
-                        content=truncate(content, MAX_AI_MSG_CHARS),
+                        content=truncate(content, _MAX_AI_MSG_CHARS),
                         name=getattr(msg, "name", None),
                         tool_calls=msg.tool_calls if msg.tool_calls else [],
                     ))
@@ -877,6 +889,26 @@ def build_graph(
             else:
                 clean.append(msg)
         return clean
+
+    # ── Structured output extraction (2C) ──────────────────────────────
+    def _extract_structured_output(content: str) -> str | None:
+        """Extract STRUCTURED_OUTPUT:JSON lines from execute_python stdout.
+        Returns the JSON string if found, else None."""
+        import json as _json
+        lines = content.split("\n")
+        structured_parts = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("STRUCTURED_OUTPUT:"):
+                json_str = stripped[len("STRUCTURED_OUTPUT:"):].strip()
+                try:
+                    parsed = _json.loads(json_str)
+                    structured_parts.append(_json.dumps(parsed, ensure_ascii=False))
+                except _json.JSONDecodeError:
+                    pass
+        if structured_parts:
+            return " | ".join(structured_parts)
+        return None
 
     # ── Focused context builder ─────────────────────────────────────────
     def build_focused_context(all_msgs: list[BaseMessage], stage_name: str) -> list[BaseMessage]:
@@ -904,7 +936,7 @@ def build_graph(
             if isinstance(msg, ToolMessage) and msg.tool_call_id in my_tool_call_ids:
                 content = normalize_content(msg.content)
                 current_stage_msgs.append(ToolMessage(
-                    content=truncate(content, MAX_TOOL_OUTPUT_CHARS),
+                    content=truncate(content, _MAX_TOOL_OUTPUT_CHARS),
                     tool_call_id=msg.tool_call_id, name=msg.name,
                 ))
                 continue
@@ -916,7 +948,12 @@ def build_graph(
                     prior_summary_parts.append(truncate(content, 200))
             elif isinstance(msg, ToolMessage) and msg.name == "execute_python":
                 content = normalize_content(msg.content)
-                prior_summary_parts.append(f"[python output]: {truncate(content, 1200)}")
+                # Extract STRUCTURED_OUTPUT blocks for structured data flow (2C)
+                structured = _extract_structured_output(content)
+                if structured:
+                    prior_summary_parts.append(f"[structured data]: {structured}")
+                else:
+                    prior_summary_parts.append(f"[python output]: {truncate(content, 1200)}")
             elif isinstance(msg, AIMessage) and msg_name and msg_name not in ("manager", "planner") and not msg.tool_calls:
                 content = normalize_content(msg.content)
                 if content:
@@ -960,13 +997,13 @@ def build_graph(
 
         def specialist_node(state: AnalysisState) -> dict:
             iteration = sum(1 for m in state["messages"] if getattr(m, "name", None) == name) + 1
-            print(f"\n  [{name}] iteration {iteration}/{MAX_SPECIALIST_ITERS} — processing...")
+            print(f"\n  [{name}] iteration {iteration}/{_MAX_SPECIALIST_ITERS} — processing...")
             # Only show user-facing progress on first iteration (with description)
             if iteration == 1:
                 desc = _desc(name)
                 _progress(name, f"{_label(name)}: {desc}" if desc else f"{_label(name)}...")
 
-            if iteration > MAX_SPECIALIST_ITERS:
+            if iteration > _MAX_SPECIALIST_ITERS:
                 print(f"  [{name}] Iteration cap reached, advancing.")
                 return {
                     "messages": [AIMessage(
@@ -1012,6 +1049,23 @@ def build_graph(
     def planner_node(state: AnalysisState) -> dict:
         print("\n  [planner] Analyzing request to determine specialists needed...")
         _progress("planner", "Планиране: Избор на подходящи специалисти...")
+
+        # Template override: skip LLM planning if a template was selected
+        if _template_id:
+            from analysis_templates import get_template_specialists
+            tpl_specialists = get_template_specialists(_template_id)
+            if tpl_specialists:
+                selected = [s for s in tpl_specialists if s in SPECIALIST_POOL]
+                if selected:
+                    stages = FIXED_PREFIX + selected + FIXED_SUFFIX
+                    readable = ' → '.join(_label(s) for s in selected)
+                    print(f"  [planner] Using template '{_template_id}': {' → '.join(stages)}")
+                    _progress("planner", f"Шаблон: {readable}")
+                    return {
+                        "messages": [AIMessage(content=f"Using template '{_template_id}'. SPECIALISTS: {', '.join(selected)}", name="planner")],
+                        "stages_to_run": stages,
+                        "current_stage": "planner",
+                    }
 
         compressed = compress_messages(state["messages"])
         messages = [SystemMessage(content=PLANNER_PROMPT)] + strip_tool_messages(compressed)

@@ -42,8 +42,11 @@ import {
   Square,
   Copy,
   ClipboardCheck,
+  LayoutTemplate,
 } from "lucide-react";
 import { useUserPrompts, UserPrompt } from "./hooks/useUserPrompts";
+import SettingsPanel from "./components/settings-panel";
+import { useSettingsStore } from "./stores/settings-store";
 
 // ── Suggested prompts ──────────────────────────────────────────────────────
 const SUGGESTIONS = [
@@ -1036,10 +1039,10 @@ export default function AiChatPage() {
     }
   };
 
-  const handleSuggestion = (prompt: string) => {
+  const handleSuggestion = (prompt: string, templateId?: string) => {
     if (isLoading) return;
     setInput("");
-    sendAnalysis(prompt);
+    sendAnalysis(prompt, templateId);
   };
 
   // ── User prompts ──────────────────────────────────────────
@@ -1141,6 +1144,75 @@ export default function AiChatPage() {
                 </div>
               </div>
 
+              {/* Analysis templates (2D) */}
+              <div className="w-full max-w-2xl">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  <LayoutTemplate className="w-3 h-3 inline mr-1 -mt-0.5" />
+                  Шаблони за анализ
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {[
+                    {
+                      id: "comprehensive",
+                      label: "Пълен анализ",
+                      desc: "EDA + аномалии + сменен отчет",
+                      cls: "border-indigo-200 bg-indigo-50/50 hover:border-indigo-400",
+                    },
+                    {
+                      id: "forecast",
+                      label: "Прогноза",
+                      desc: "EDA + прогнозиране на трендове",
+                      cls: "border-violet-200 bg-violet-50/50 hover:border-violet-400",
+                    },
+                    {
+                      id: "quality",
+                      label: "Качество",
+                      desc: "PSI анализ + SPC + оптимизация",
+                      cls: "border-emerald-200 bg-emerald-50/50 hover:border-emerald-400",
+                    },
+                    {
+                      id: "shift_comparison",
+                      label: "Смени",
+                      desc: "KPI по смени и сравнение",
+                      cls: "border-amber-200 bg-amber-50/50 hover:border-amber-400",
+                    },
+                    {
+                      id: "anomaly_investigation",
+                      label: "Аномалии",
+                      desc: "Детекция + Bayesian причини",
+                      cls: "border-rose-200 bg-rose-50/50 hover:border-rose-400",
+                    },
+                    {
+                      id: "optimization",
+                      label: "Оптимизация",
+                      desc: "Pareto + чувствителност",
+                      cls: "border-cyan-200 bg-cyan-50/50 hover:border-cyan-400",
+                    },
+                  ].map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => {
+                        const prompt = window.prompt(
+                          `Шаблон: ${tpl.label}\n\nВъведете въпрос (напр. "Анализирай Мелница 8 за последните 7 дни"):`,
+                          "",
+                        );
+                        if (prompt?.trim())
+                          handleSuggestion(prompt.trim(), tpl.id);
+                      }}
+                      disabled={isLoading}
+                      className={`text-left px-3 py-2.5 rounded-lg border ${tpl.cls} hover:shadow-md transition-all group disabled:opacity-50`}
+                    >
+                      <span className="text-xs font-semibold text-gray-700 group-hover:text-gray-900">
+                        {tpl.label}
+                      </span>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {tpl.desc}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* User-saved prompts */}
               <div className="w-full max-w-2xl">
                 <div className="flex items-center justify-between mb-2">
@@ -1204,6 +1276,7 @@ export default function AiChatPage() {
 
         {/* ── Input area ───────────────────────────────────── */}
         <div className="flex-shrink-0 px-4 pb-4 pt-2 bg-gray-50">
+          <SettingsPanel />
           <div className="flex items-end gap-2 bg-white border border-gray-300 rounded-2xl px-4 py-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all max-w-4xl mx-auto">
             <textarea
               ref={textareaRef}

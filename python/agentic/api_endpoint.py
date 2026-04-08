@@ -44,11 +44,20 @@ _analyses: dict[str, dict] = {}
 
 # ── Request / Response models ────────────────────────────────────────────────
 
+class AnalysisSettings(BaseModel):
+    maxToolOutputChars: int = Field(4000, description="Max chars from tool output")
+    maxAiMessageChars: int = Field(4000, description="Max chars per AI message in history")
+    maxMessagesWindow: int = Field(20, description="Max messages in context window")
+    maxSpecialistIterations: int = Field(5, description="Max iterations per specialist")
+
+
 class AnalysisRequest(BaseModel):
     question: str = Field(..., description="Analysis question or request for the agents")
     mill_number: Optional[int] = Field(None, description="Specific mill number (1-12) if relevant")
     start_date: Optional[str] = Field(None, description="Start date ISO format")
     end_date: Optional[str] = Field(None, description="End date ISO format")
+    settings: Optional[AnalysisSettings] = Field(None, description="Analysis context budget settings")
+    template_id: Optional[str] = Field(None, description="Pre-defined analysis template ID")
 
 
 class AnalysisResponse(BaseModel):
@@ -105,8 +114,17 @@ async def start_analysis(request: AnalysisRequest):
         "progress": [],
     }
 
+    # Prepare settings dict for graph builder
+    settings_dict = None
+    if request.settings:
+        settings_dict = request.settings.model_dump()
+
     # Run analysis in background
-    asyncio.create_task(_run_analysis_background(analysis_id, full_prompt))
+    asyncio.create_task(_run_analysis_background(
+        analysis_id, full_prompt,
+        settings=settings_dict,
+        template_id=request.template_id,
+    ))
 
     return AnalysisResponse(
         analysis_id=analysis_id,
@@ -188,6 +206,13 @@ async def get_report_file(analysis_id: str, filename: str):
     return FileResponse(file_path)
 
 
+@router.get("/templates")
+async def get_templates():
+    """List all available analysis templates."""
+    from analysis_templates import list_templates
+    return {"templates": list_templates()}
+
+
 @router.delete("/analysis/{analysis_id}")
 async def delete_analysis(analysis_id: str):
     """Delete an analysis and its output files."""
@@ -217,7 +242,12 @@ def _make_progress_callback(analysis_id: str) -> Callable[[str, str], None]:
     return on_progress
 
 
-async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
+async def _run_analysis_background(
+    analysis_id: str,
+    prompt: str,
+    settings: dict | None = None,
+    template_id: str | None = None,
+) -> None:
     """Run the multi-agent analysis pipeline in the background."""
     on_progress = _make_progress_callback(analysis_id)
     try:
@@ -240,7 +270,12 @@ async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
                 on_progress("system", "Стартиране на AI специалисти...")
 
                 langchain_tools = await get_mcp_tools(session)
-                graph = build_graph(langchain_tools, api_key, on_progress=on_progress)
+                graph = build_graph(
+                    langchain_tools, api_key,
+                    on_progress=on_progress,
+                    settings=settings,
+                    template_id=template_id,
+                )
 
                 final_state = await graph.ainvoke(
                     {"messages": [HumanMessage(content=prompt)]},
