@@ -1,6 +1,6 @@
 # `api_endpoint.py` — The REST Gateway to the Agentic AI Analysis System
 
-> **File:** `python/agentic/api_endpoint.py`
+> **File:** `python/agentic/api_endpoint.py`  
 > **Role:** FastAPI router that exposes the multi-agent LangGraph pipeline as a REST API for the frontend UI.
 
 ---
@@ -8,21 +8,24 @@
 ## Table of Contents
 
 1. [What Does This File Do?](#1-what-does-this-file-do)
-2. [Where Does It Sit in the Architecture?](#2-where-does-it-sit-in-the-architecture)
-3. [High-Level System Flow](#3-high-level-system-flow)
-4. [The Request Lifecycle — Step by Step](#4-the-request-lifecycle--step-by-step)
-5. [Code Walkthrough](#5-code-walkthrough)
-   - [Imports & Setup](#51-imports--setup)
-   - [Data Models](#52-data-models-pydantic)
-   - [Endpoints](#53-endpoints)
-   - [Progress Callback System](#54-progress-callback-system)
-   - [Background Runner](#55-background-runner-_run_analysis_background)
-6. [How It Connects to Other Files](#6-how-it-connects-to-other-files)
-7. [Output Isolation — Per-Analysis Subfolders](#7-output-isolation--per-analysis-subfolders)
-8. [Polling Protocol — Frontend ↔ Backend](#8-polling-protocol--frontend--backend)
-9. [Error Handling](#9-error-handling)
-10. [Key Concepts Explained](#10-key-concepts-explained)
-11. [Quick Reference: All Endpoints](#11-quick-reference-all-endpoints)
+2. [Learner's Mental Model — Think of a Restaurant](#2-learners-mental-model--think-of-a-restaurant)
+3. [Where Does It Sit in the Architecture?](#3-where-does-it-sit-in-the-architecture)
+4. [High-Level System Flow](#4-high-level-system-flow)
+5. [The Request Lifecycle — Step by Step](#5-the-request-lifecycle--step-by-step)
+6. [Code Walkthrough](#6-code-walkthrough)
+   - [Imports & Setup](#61-imports--setup)
+   - [Data Models](#62-data-models-pydantic)
+   - [Endpoints](#63-endpoints)
+   - [Progress Callback System](#64-progress-callback-system)
+   - [Background Runner](#65-background-runner-_run_analysis_background)
+7. [Analysis Settings — Configurable Context Budget](#7-analysis-settings--configurable-context-budget)
+8. [Analysis Templates — Pre-defined Pipelines](#8-analysis-templates--pre-defined-pipelines)
+9. [How It Connects to Other Files](#9-how-it-connects-to-other-files)
+10. [Output Isolation — Per-Analysis Subfolders](#10-output-isolation--per-analysis-subfolders)
+11. [Polling Protocol — Frontend ↔ Backend](#11-polling-protocol--frontend--backend)
+12. [Error Handling](#12-error-handling)
+13. [Key Concepts Explained](#13-key-concepts-explained)
+14. [Quick Reference: All Endpoints](#14-quick-reference-all-endpoints)
 
 ---
 
@@ -31,16 +34,54 @@
 `api_endpoint.py` is the **bridge between the web UI and the AI analysis engine**. It:
 
 - Accepts analysis questions from the frontend (e.g., _"Compare ore feed rates across all mills for the last 72 hours"_)
+- Accepts optional **settings** (context budget) and **template IDs** (pre-defined pipelines) from the UI
 - Kicks off a **background** multi-agent pipeline (LangGraph + MCP tools)
 - Lets the frontend **poll** for progress and results
 - Serves generated **charts** (.png) and **reports** (.md) back to the UI
+- Lists available **analysis templates** for the UI to display
 - Manages **cleanup** when users delete conversations
 
 Think of it as a **reception desk**: it takes your request, hands it to the AI team working in the back room, and lets you check on progress or pick up results.
 
 ---
 
-## 2. Where Does It Sit in the Architecture?
+## 2. Learner's Mental Model — Think of a Restaurant
+
+> **Why this analogy?** API endpoints can feel abstract. Mapping them to a real-world restaurant makes each piece intuitive.
+
+If this system were a restaurant, here's how the pieces map:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                     THE RESTAURANT ANALOGY                           │
+│                                                                     │
+│  YOU (customer)            = Frontend user typing a question         │
+│  MENU (templates)          = Pre-defined analysis types to pick from│
+│  WAITER (api_endpoint)     = Takes your order, brings updates & food│
+│  ORDER TICKET (analysis_id)= Your tracking number                   │
+│  KITCHEN (graph_v3)        = The AI agents doing the actual work    │
+│  HEAD CHEF (planner)       = Decides which cooks handle your order  │
+│  LINE COOKS (specialists)  = Analyst, Forecaster, Anomaly Detective │
+│  INGREDIENTS (MCP tools)   = Database queries, Python code, charts  │
+│  PLATE (output/)           = Charts (.png) and reports (.md)        │
+│  KITCHEN SETTINGS (settings)= How much context/memory agents get    │
+│                                                                     │
+│  Flow:                                                              │
+│  1. You tell the waiter what you want (POST /analyze)               │
+│  2. You can pick from the menu OR order custom (template_id)        │
+│  3. You can specify how you want it cooked (settings)               │
+│  4. Waiter gives you a ticket number (analysis_id)                  │
+│  5. You keep asking "is it ready?" (GET /status — polling)          │
+│  6. Waiter brings updates: "chef is plating..." (progress messages) │
+│  7. When done, you get your plate (charts + report + final_answer)  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+> **Key insight:** The waiter (`api_endpoint.py`) doesn't cook anything. It **coordinates** between you and the kitchen.
+
+---
+
+## 3. Where Does It Sit in the Architecture?
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -208,8 +249,13 @@ await session.call_tool("set_output_directory", {"analysis_id": "a3f7b2c1"})
 ### Step 6: Fetch tools and build the agent graph
 
 ```python
-langchain_tools = await get_mcp_tools(session)  # 7 tools from MCP server
-graph = build_graph(langchain_tools, api_key)    # LangGraph with planner + 6 specialist pool
+langchain_tools = await get_mcp_tools(session)  # 8 tools from MCP server
+graph = build_graph(                              # LangGraph with planner + 6 specialist pool
+    langchain_tools, api_key,
+    on_progress=on_progress,                      # Real-time progress callback
+    settings=settings_dict,                       # UI context budget overrides (or None)
+    template_id=template_id,                      # Pre-defined pipeline (or None)
+)
 ```
 
 ### Step 7: Run the multi-agent pipeline
@@ -282,15 +328,27 @@ _analyses: dict[str, dict] = {}  # In-memory tracking for running/completed anal
 Four Pydantic models define the API contract:
 
 ```
-┌─────────────────────────┐
-│   AnalysisRequest       │  ◄── What the frontend sends
-│  ┌────────────────────┐ │
-│  │ question: str      │ │  "Compare ore rates for all mills"
-│  │ mill_number?: int  │ │  Optional: focus on specific mill
-│  │ start_date?: str   │ │  Optional: ISO date range start
-│  │ end_date?: str     │ │  Optional: ISO date range end
-│  └────────────────────┘ │
-└─────────────────────────┘
+┌──────────────────────────────┐
+│   AnalysisSettings           │  ◄── NEW: UI-configurable context budget
+│  ┌─────────────────────────┐ │
+│  │ maxToolOutputChars: int │ │  Default: 4000 — how much tool output agents see
+│  │ maxAiMessageChars: int  │ │  Default: 4000 — max AI message in history
+│  │ maxMessagesWindow: int  │ │  Default: 20   — sliding window of messages
+│  │ maxSpecialistIterations │ │  Default: 5    — max tool-call loops per specialist
+│  └─────────────────────────┘ │
+└──────────────────────────────┘
+
+┌──────────────────────────────┐
+│   AnalysisRequest            │  ◄── What the frontend sends
+│  ┌─────────────────────────┐ │
+│  │ question: str           │ │  "Compare ore rates for all mills"
+│  │ mill_number?: int       │ │  Optional: focus on specific mill
+│  │ start_date?: str        │ │  Optional: ISO date range start
+│  │ end_date?: str          │ │  Optional: ISO date range end
+│  │ settings?: Settings     │ │  NEW: context budget overrides from UI
+│  │ template_id?: str       │ │  NEW: "comprehensive", "forecast", etc.
+│  └─────────────────────────┘ │
+└──────────────────────────────┘
 
 ┌─────────────────────────┐
 │   AnalysisResponse      │  ◄── Immediate response after POST
@@ -475,13 +533,18 @@ The callback is passed to `build_graph()` which distributes it to every node in 
 This is the **heart** of the file — the function that actually runs the AI pipeline:
 
 ```python
-async def _run_analysis_background(analysis_id: str, prompt: str) -> None:
+async def _run_analysis_background(
+    analysis_id: str,
+    prompt: str,
+    settings: dict | None = None,      # NEW: UI context budget overrides
+    template_id: str | None = None,    # NEW: pre-defined pipeline template
+) -> None:
 ```
 
 Here's the detailed flow:
 
 ```
-_run_analysis_background("a3f7b2c1", "Compare ore rates...")
+_run_analysis_background("a3f7b2c1", "Compare ore rates...", settings={...}, template_id="forecast")
     │
     ├─ 1. Create progress callback
     │     └─ on_progress = _make_progress_callback(analysis_id)
@@ -502,18 +565,22 @@ _run_analysis_background("a3f7b2c1", "Compare ore rates...")
     │
     ├─ 7. Report progress: "Building agent pipeline..."
     │
-    ├─ 8. Fetch all 7 MCP tools and wrap as LangChain tools
+    ├─ 8. Fetch all 8 MCP tools and wrap as LangChain tools
     │     └─ langchain_tools = await get_mcp_tools(session)
-    │         ├─ get_db_schema        → inspect database tables
-    │         ├─ query_mill_data      → load mill sensor data
-    │         ├─ query_combined_data  → load mill + ore quality data
-    │         ├─ execute_python       → run analysis code (pandas, matplotlib)
-    │         ├─ list_output_files    → check generated charts
-    │         ├─ write_markdown_report→ write final report
-    │         └─ set_output_directory → configure output path
+    │         ├─ get_db_schema          → inspect database tables
+    │         ├─ query_mill_data        → load mill sensor data
+    │         ├─ query_combined_data    → load mill + ore quality data
+    │         ├─ execute_python         → run analysis code (pandas, matplotlib)
+    │         ├─ list_output_files      → check generated charts
+    │         ├─ write_markdown_report  → write final report
+    │         ├─ set_output_directory   → configure output path
+    │         └─ get_domain_knowledge   → plant specs, variable limits (NEW)
     │
-    ├─ 9. Build LangGraph with progress callback
-    │     └─ graph = build_graph(langchain_tools, api_key, on_progress=on_progress)
+    ├─ 9. Build LangGraph with progress callback + settings + template
+    │     └─ graph = build_graph(langchain_tools, api_key,
+    │                           on_progress=on_progress,
+    │                           settings=settings_dict,
+    │                           template_id=template_id)
     │         ├─ data_loader       → uses: query_mill_data, query_combined_data, get_db_schema
     │         ├─ planner           → no tools (text-only, selects specialists)
     │         ├─ analyst           → uses: execute_python, list_output_files
@@ -591,18 +658,21 @@ api_endpoint.py
 
 ### File-by-File Relationship
 
-| File                           | Role                   | How `api_endpoint.py` Uses It                                 |
-| :----------------------------- | :--------------------- | :------------------------------------------------------------ |
-| **`api.py`**                   | Main FastAPI app       | Mounts `api_endpoint.py`'s router at startup                  |
-| **`client.py`**                | MCP → LangChain bridge | `get_mcp_tools()` converts MCP tools to LangChain tools       |
-| **`graph_v3.py`**              | Multi-agent pipeline   | `build_graph()` creates planner-driven 6-specialist LangGraph |
-| **`server.py`**                | MCP Server (port 8003) | Hosts the tools that agents call during analysis              |
-| **`tools/__init__.py`**        | Tool registry          | Defines the 7 available MCP tools                             |
-| **`tools/db_tools.py`**        | Database access        | `query_mill_data`, `query_combined_data`, `get_db_schema`     |
-| **`tools/python_executor.py`** | Code execution         | `execute_python` — runs pandas/matplotlib code                |
-| **`tools/report_tools.py`**    | File management        | `list_output_files`, `write_markdown_report`                  |
-| **`tools/session_tools.py`**   | Session config         | `set_output_directory` — per-analysis isolation               |
-| **`tools/output_dir.py`**      | Shared state           | Manages the current output directory path                     |
+| File                            | Role                     | How `api_endpoint.py` Uses It                                 |
+| :------------------------------ | :----------------------- | :------------------------------------------------------------ |
+| **`api.py`**                    | Main FastAPI app         | Mounts `api_endpoint.py`'s router at startup                  |
+| **`client.py`**                 | MCP → LangChain bridge   | `get_mcp_tools()` converts MCP tools to LangChain tools       |
+| **`graph_v3.py`**               | Multi-agent pipeline     | `build_graph()` creates planner-driven 6-specialist LangGraph |
+| **`server.py`**                 | MCP Server (port 8003)   | Hosts the tools that agents call during analysis              |
+| **`tools/__init__.py`**         | Tool registry            | Defines the 8 available MCP tools                             |
+| **`tools/db_tools.py`**         | Database access          | `query_mill_data`, `query_combined_data`, `get_db_schema`     |
+| **`tools/python_executor.py`**  | Code execution           | `execute_python` — runs pandas/matplotlib code                |
+| **`tools/report_tools.py`**     | File management          | `list_output_files`, `write_markdown_report`                  |
+| **`tools/session_tools.py`**    | Session config           | `set_output_directory` — per-analysis isolation               |
+| **`tools/output_dir.py`**       | Shared state             | Manages the current output directory path                     |
+| **`tools/domain_knowledge.py`** | Domain specs             | `get_domain_knowledge` — plant variable limits & specs        |
+| **`analysis_templates.py`**     | Pipeline templates       | 6 pre-defined specialist sequences for common analysis types  |
+| **`skills/`**                   | Reusable analysis skills | EDA, SPC, anomaly, forecasting, shift_kpi, optimization       |
 
 ---
 
@@ -650,6 +720,103 @@ api_endpoint.py                           server.py (MCP)
 ```
 
 When the user deletes a conversation, `DELETE /analysis/{id}` removes the entire subfolder.
+
+---
+
+## 7A. Analysis Settings — Configurable Context Budget
+
+> **What is a "context budget"?** LLMs (like Gemini) can only read a limited amount of text at once — their "context window." If we send too much history, they get confused or slow. If we send too little, they miss important information. The **context budget** controls this tradeoff.
+
+The user can adjust 4 settings from the UI (collapsible panel above the chat input):
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                  SETTINGS FLOW (Frontend → Backend)                  │
+│                                                                     │
+│  ┌──────────────────┐   Zustand store persists to localStorage      │
+│  │  Settings Panel  │──► settings-store.ts                          │
+│  │  (UI dropdowns)  │   { maxToolOutputChars: 4000,                 │
+│  └──────────────────┘     maxAiMessageChars: 4000,                  │
+│          │                maxMessagesWindow: 20,                     │
+│          │                maxSpecialistIterations: 5 }               │
+│          ▼                                                          │
+│  ┌──────────────────┐                                               │
+│  │  chat-store.ts   │   Reads settings, includes in POST body       │
+│  │  sendAnalysis()  │──► { question: "...", settings: {...} }       │
+│  └──────────────────┘                                               │
+│          │                                                          │
+│          ▼  HTTP POST /api/v1/agentic/analyze                       │
+│  ┌──────────────────┐                                               │
+│  │  api_endpoint.py │   Extracts settings → passes to build_graph() │
+│  │  start_analysis()│──► settings_dict = request.settings.model_dump│
+│  └──────────────────┘                                               │
+│          │                                                          │
+│          ▼                                                          │
+│  ┌──────────────────┐                                               │
+│  │  graph_v3.py     │   Uses _MAX_* local vars instead of globals   │
+│  │  build_graph()   │   _MAX_TOOL_OUTPUT_CHARS = settings or default│
+│  └──────────────────┘                                               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| Setting                   | What it Controls                                | Low Value Effect       | High Value Effect         |
+| :------------------------ | :---------------------------------------------- | :--------------------- | :------------------------ |
+| `maxToolOutputChars`      | How much of each tool result agents see         | Faster, less context   | Slower, richer context    |
+| `maxAiMessageChars`       | Max size of each AI message kept in history     | Less memory usage      | Better cross-agent memory |
+| `maxMessagesWindow`       | How many recent messages stay in context        | Lean context           | Deeper history            |
+| `maxSpecialistIterations` | How many tool-call loops each specialist can do | Quicker, less thorough | More thorough analysis    |
+
+> **Tip for learners:** Start with defaults. Only increase settings if you feel the agents are "forgetting" important context or producing shallow analysis.
+
+---
+
+## 7B. Analysis Templates — Pre-defined Pipelines
+
+> **What are templates?** Instead of the AI planner deciding which specialists to use, you can pick a **pre-defined recipe** — like ordering a set meal instead of à la carte.
+
+Templates are defined in `analysis_templates.py` and exposed via `GET /templates`:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    TEMPLATE FLOW                                     │
+│                                                                     │
+│  ┌──────────────────┐                                               │
+│  │  Template Buttons│   User clicks a template card in the UI       │
+│  │  (page.tsx)      │──► window.prompt("Enter your question...")    │
+│  └──────────────────┘                                               │
+│          │                                                          │
+│          ▼                                                          │
+│  ┌──────────────────┐                                               │
+│  │  chat-store.ts   │   sendAnalysis(question, templateId)          │
+│  │  sendAnalysis()  │──► { question, settings, template_id }       │
+│  └──────────────────┘                                               │
+│          │                                                          │
+│          ▼  HTTP POST /api/v1/agentic/analyze                       │
+│  ┌──────────────────┐                                               │
+│  │  api_endpoint.py │   Forwards template_id to build_graph()       │
+│  └──────────────────┘                                               │
+│          │                                                          │
+│          ▼                                                          │
+│  ┌──────────────────┐                                               │
+│  │  graph_v3.py     │   planner_node checks _template_id:          │
+│  │  planner_node()  │   IF template → skip LLM, use template specs │
+│  │                  │   ELSE → normal LLM planning                  │
+│  └──────────────────┘                                               │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Available Templates (6)
+
+| Template ID             | Label (BG)   | Specialists Used                                   |
+| :---------------------- | :----------- | :------------------------------------------------- |
+| `comprehensive`         | Пълен анализ | `analyst` → `anomaly_detective` → `shift_reporter` |
+| `forecast`              | Прогноза     | `analyst` → `forecaster`                           |
+| `quality`               | Качество     | `analyst` → `optimizer`                            |
+| `shift_comparison`      | Смени        | `shift_reporter`                                   |
+| `anomaly_investigation` | Аномалии     | `anomaly_detective` → `bayesian_analyst`           |
+| `optimization`          | Оптимизация  | `analyst` → `optimizer`                            |
+
+> **When to use templates?** When you know exactly what kind of analysis you want. Templates are faster because they skip the LLM planning step.
 
 ---
 
@@ -872,6 +1039,7 @@ For production, this could be replaced with Redis or a database table.
 | :------- | :------------------------------------ | :---------------------- | :------------------------------------ |
 | `POST`   | `/api/v1/agentic/analyze`             | Start a new analysis    | `AnalysisResponse` with `analysis_id` |
 | `GET`    | `/api/v1/agentic/status/{id}`         | Poll analysis progress  | `AnalysisResult` with status + files  |
+| `GET`    | `/api/v1/agentic/templates`           | List analysis templates | `{ templates: [...] }` **(NEW)**      |
 | `GET`    | `/api/v1/agentic/reports`             | List all report files   | `{ count, files[] }`                  |
 | `GET`    | `/api/v1/agentic/reports/{id}/{file}` | Download chart/report   | File binary (PNG/MD)                  |
 | `DELETE` | `/api/v1/agentic/analysis/{id}`       | Delete analysis + files | `{ status: "deleted" }`               |

@@ -44,6 +44,43 @@ The key innovation vs graph_v2: **dynamic routing**. Instead of always running t
 
 ---
 
+## 1B. Learner's Mental Model — Think of a Hospital
+
+> **Why this analogy?** Multi-agent AI systems with dynamic routing can feel abstract. A hospital visit makes the pattern concrete.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                       THE HOSPITAL ANALOGY                           │
+│                                                                     │
+│  PATIENT (user question)    = "I have chest pain and blurry vision" │
+│  RECEPTION (data_loader)    = Collects vitals, loads your records   │
+│  TRIAGE DOCTOR (planner)    = Decides which specialists you need    │
+│  CARDIOLOGIST (analyst)     = Examines the heart issue              │
+│  OPHTHALMOLOGIST (forecaster)= Examines the vision issue            │
+│  RADIOLOGIST (anomaly_det)  = Finds unusual patterns in scans      │
+│  HEAD NURSE (manager)       = Checks if each specialist did enough  │
+│  LAB TECH (code_reviewer)   = Verifies all test results are valid   │
+│  DISCHARGE DOC (reporter)   = Writes final report and prescription  │
+│                                                                     │
+│  What DOESN'T happen: every specialist examines you (wasteful!)     │
+│  What DOES happen: triage picks only the relevant specialists       │
+│                                                                     │
+│  TEMPLATE = "Annual check-up" (pre-defined set of specialists)     │
+│  SETTINGS = How thorough each exam should be                        │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key takeaways for learners:**
+
+1. **Dynamic routing** = The triage doctor (planner) picks 1-4 specialists based on your symptoms
+2. **Manager review** = The head nurse checks each specialist's work — can request a redo
+3. **Context budget** = How much of the patient's chart each doctor gets to read
+4. **Templates** = Pre-defined exam packages (skip triage, go straight to the right specialists)
+5. **Skills library** = Standard test procedures (blood pressure, ECG) — same tested method every time
+6. **Domain knowledge** = The hospital's reference manual (normal ranges for each vital sign)
+
+---
+
 ## 2. Architecture Overview
 
 ```
@@ -516,20 +553,34 @@ def build_graph(
     tools: list[BaseTool],
     api_key: str,
     on_progress: Optional[Callable[[str, str], None]] = None,
+    settings: dict | None = None,       # NEW: UI context budget overrides
+    template_id: str | None = None,     # NEW: pre-defined pipeline template
 ) -> StateGraph:
 ```
 
-- **Input**: LangChain tools (from MCP server via `client.py`) + Google API key + optional progress callback
+- **Input**: LangChain tools (from MCP server via `client.py`) + Google API key + optional progress callback + optional settings + optional template
 - **Output**: Compiled LangGraph state machine ready for `.ainvoke()`
 - **`on_progress`**: When provided, every node calls `on_progress(stage, message)` to report real-time progress. If `None`, a no-op lambda is used instead. See [Section 10: Progress Reporting System](#10-progress-reporting-system).
+- **`settings`**: Dict with keys `maxToolOutputChars`, `maxAiMessageChars`, `maxMessagesWindow`, `maxSpecialistIterations`. If `None`, module-level defaults are used. These override the token-budget constants at runtime, allowing the UI to control agent memory/context.
+- **`template_id`**: If set (e.g., `"forecast"`), the planner node **skips LLM planning** and uses the pre-defined specialist list from `analysis_templates.py`.
 
 ### Build Process (Step by Step)
 
 ```
-build_graph(tools, api_key, on_progress=callback)
+build_graph(tools, api_key, on_progress=callback, settings={...}, template_id="forecast")
     │
     ├── 1. Initialize progress callback
     │      _progress = on_progress or (lambda stage, msg: None)  # no-op fallback
+    │
+    ├── 1b. Apply settings overrides (NEW)
+    │      _MAX_TOOL_OUTPUT_CHARS = settings.get("maxToolOutputChars", 2000)
+    │      _MAX_AI_MSG_CHARS = settings.get("maxAiMessageChars", 3000)
+    │      _MAX_MESSAGES_WINDOW = settings.get("maxMessagesWindow", 14)
+    │      _MAX_SPECIALIST_ITERS = settings.get("maxSpecialistIterations", 5)
+    │      (These local vars replace module-level constants in all inner functions)
+    │
+    ├── 1c. Store template_id for planner override (NEW)
+    │      _template_id = template_id  (checked in planner_node)
     │
     ├── 2. Create LLM instance
     │      llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite-preview")
@@ -838,13 +889,45 @@ The frontend displays these messages in a `ProgressFeed` component as a scrollab
 
 ## 13. Context Management — Token Budget
 
-### Constants
+> **What is a "token budget"?** Think of it like a backpack: the LLM can only carry so much information at once. The token budget decides how much of the conversation history, tool outputs, and messages fit in the backpack. Too little = the agent forgets important context. Too much = the agent gets overwhelmed and slow.
+
+### Default Constants (Module-Level)
+
+These are the **fallback defaults** defined at the top of `graph_v3.py`. They are used when no UI settings override is provided:
 
 ```python
 MAX_TOOL_OUTPUT_CHARS = 2000   # Truncate tool outputs to 2KB
 MAX_AI_MSG_CHARS     = 3000   # Truncate AI messages to 3KB
 MAX_MESSAGES_WINDOW  = 14     # Keep last 14 messages in context
 MAX_SPECIALIST_ITERS = 5      # Max iterations per specialist
+```
+
+### Configurable via UI Settings (NEW)
+
+When the user adjusts settings in the chat UI, `build_graph()` receives a `settings` dict and creates **local overrides** that shadow the module-level constants:
+
+```python
+# Inside build_graph():
+_MAX_TOOL_OUTPUT_CHARS = settings.get("maxToolOutputChars", MAX_TOOL_OUTPUT_CHARS)
+_MAX_AI_MSG_CHARS      = settings.get("maxAiMessageChars", MAX_AI_MSG_CHARS)
+_MAX_MESSAGES_WINDOW   = settings.get("maxMessagesWindow", MAX_MESSAGES_WINDOW)
+_MAX_SPECIALIST_ITERS  = settings.get("maxSpecialistIterations", MAX_SPECIALIST_ITERS)
+```
+
+All inner functions (`compress_messages`, `build_focused_context`, `specialist_node`) use the `_MAX_*` local variables instead of the module-level constants. This means **each analysis run can have its own context budget** based on the UI settings at the time of submission.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  HOW SETTINGS OVERRIDE WORKS                                 │
+│                                                             │
+│  Module defaults:  MAX_TOOL_OUTPUT_CHARS = 2000  (fallback) │
+│                                    │                        │
+│  UI sends:         settings = { maxToolOutputChars: 6000 }  │
+│                                    │                        │
+│  build_graph():    _MAX_TOOL_OUTPUT_CHARS = 6000  (used)    │
+│                                    │                        │
+│  compress_messages() uses 6000 instead of 2000              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Context Building Strategy
@@ -997,17 +1080,18 @@ graph_v3.py
 
 ## 16. MCP Tools Reference
 
-### Tool Registry (7 tools)
+### Tool Registry (8 tools)
 
-|  #  | Tool Name               | File               | Purpose                                        | Used By                                      |
-| :-: | :---------------------- | :----------------- | :--------------------------------------------- | :------------------------------------------- |
-|  1  | `get_db_schema`         | db_tools.py        | Inspect PostgreSQL table/column metadata       | data_loader                                  |
-|  2  | `query_mill_data`       | db_tools.py        | Load MILL_XX sensor data → in-memory DataFrame | data_loader                                  |
-|  3  | `query_combined_data`   | db_tools.py        | Load mill + ore_quality joined data            | data_loader                                  |
-|  4  | `execute_python`        | python_executor.py | Run Python code with scientific libraries      | All 6 specialists + code_reviewer            |
-|  5  | `list_output_files`     | report_tools.py    | List generated files in output directory       | All 6 specialists + code_reviewer + reporter |
-|  6  | `write_markdown_report` | report_tools.py    | Write final Markdown report to output dir      | reporter                                     |
-|  7  | `set_output_directory`  | session_tools.py   | Set per-analysis output subfolder              | Called by api_endpoint.py before graph runs  |
+|  #  | Tool Name               | File                | Purpose                                        | Used By                                      |
+| :-: | :---------------------- | :------------------ | :--------------------------------------------- | :------------------------------------------- |
+|  1  | `get_db_schema`         | db_tools.py         | Inspect PostgreSQL table/column metadata       | data_loader                                  |
+|  2  | `query_mill_data`       | db_tools.py         | Load MILL_XX sensor data → in-memory DataFrame | data_loader                                  |
+|  3  | `query_combined_data`   | db_tools.py         | Load mill + ore_quality joined data            | data_loader                                  |
+|  4  | `execute_python`        | python_executor.py  | Run Python code with scientific libraries      | All 6 specialists + code_reviewer            |
+|  5  | `list_output_files`     | report_tools.py     | List generated files in output directory       | All 6 specialists + code_reviewer + reporter |
+|  6  | `write_markdown_report` | report_tools.py     | Write final Markdown report to output dir      | reporter                                     |
+|  7  | `set_output_directory`  | session_tools.py    | Set per-analysis output subfolder              | Called by api_endpoint.py before graph runs  |
+|  8  | `get_domain_knowledge`  | domain_knowledge.py | Plant variable specs, limits, shifts **(NEW)** | Any agent (via MCP call)                     |
 
 ### execute_python Namespace
 
@@ -1024,6 +1108,30 @@ The Python execution environment pre-loads these into the `exec()` namespace:
 │    pd, np, plt, sns, scipy_stats, os, json                       │
 │    OUTPUT_DIR   — per-analysis output path                       │
 │                                                                  │
+│  Domain Knowledge (NEW — from domain_knowledge.py):              │
+│    PLANT_SPECS      — dict of all 18 process variables with      │
+│                       min/max/unit/varType/description            │
+│    SHIFTS           — shift definitions (S1, S2, S3 with hours)  │
+│    MILL_NAMES       — list of mill table names (MILL_01..MILL_12)│
+│    get_spec_limits  — get_spec_limits("Ore") → (140, 220)       │
+│                       Returns (min, max) for SPC analysis        │
+│                                                                  │
+│  Skills Library (NEW — from skills/ package):                    │
+│    skills           — module with tested analysis functions:     │
+│      skills.eda     — descriptive_stats, distribution_plots,     │
+│                       correlation_heatmap, time_series_overview   │
+│      skills.spc     — control_limits, xbar_chart,                │
+│                       process_capability                          │
+│      skills.anomaly — isolation_forest_analysis,                 │
+│                       anomaly_timeline, regime_detection          │
+│      skills.forecasting — prophet_forecast,                      │
+│                           seasonal_decomposition                  │
+│      skills.shift_kpi — assign_shifts, shift_kpis,               │
+│                         shift_comparison_chart, downtime_analysis │
+│      skills.optimization — pareto_frontier,                      │
+│                            sensitivity_analysis, optimal_windows  │
+│    All skill functions return: {figures, stats, summary}         │
+│                                                                  │
 │  Advanced (graceful fallback if not installed):                   │
 │    Prophet         — Facebook Prophet (time series)              │
 │    sm              — statsmodels.api                              │
@@ -1037,6 +1145,8 @@ The Python execution environment pre-loads these into the `exec()` namespace:
 │    hmm             — hmmlearn.hmm (Hidden Markov Models)          │
 └──────────────────────────────────────────────────────────────────┘
 ```
+
+> **Why a Skills Library?** Instead of each agent writing analysis code from scratch every time, skills provide **tested, reusable functions**. An agent can call `skills.eda.descriptive_stats(df)` and get back a standardized dict with figures, statistics, and a text summary. This makes agents faster, more consistent, and less error-prone.
 
 ### In-Memory DataFrame Store
 
@@ -1144,11 +1254,13 @@ Pipeline: data_loader → planner → anomaly_detective → code_reviewer → re
 # LLM Model
 GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
-# Token-budget controls
+# Token-budget controls (MODULE-LEVEL DEFAULTS — overridable via UI settings)
 MAX_TOOL_OUTPUT_CHARS = 2000   # Max characters per tool output in context
 MAX_AI_MSG_CHARS      = 3000   # Max characters per AI message in context
 MAX_MESSAGES_WINDOW   = 14     # Sliding window size for message compression
 MAX_SPECIALIST_ITERS  = 5      # Max tool-call iterations per specialist
+# NOTE: These are overridden at runtime if build_graph() receives a settings dict.
+# See Section 13 for details on how settings flow from the UI.
 
 # Pipeline structure
 FIXED_PREFIX = ["data_loader", "planner"]          # Always first
@@ -1168,6 +1280,155 @@ GOOGLE_API_KEY = from .env                     # Gemini API key
 
 ---
 
+## 19. Structured Output Protocol (NEW)
+
+> **What is structured output?** When a specialist runs Python code, it usually prints text. But sometimes we want **machine-readable data** (JSON) to flow between agents — not just free-form text. The structured output protocol lets agents emit JSON that downstream agents can parse reliably.
+
+### How It Works
+
+When `execute_python` code prints a line starting with `STRUCTURED_OUTPUT:`, the system extracts and preserves the JSON:
+
+```python
+# In an agent's execute_python code:
+import json
+result = {"mean_psi80": 72.5, "cpk": 1.23, "anomaly_count": 3}
+print(f"STRUCTURED_OUTPUT:{json.dumps(result)}")
+```
+
+### Extraction in `build_focused_context()`
+
+The `_extract_structured_output()` function inside `build_graph()` scans tool output for these lines:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  _extract_structured_output(content)                             │
+│                                                                  │
+│  Input:  "Mean PSI80: 72.5\n                                    │
+│           STRUCTURED_OUTPUT:{"mean_psi80":72.5,"cpk":1.23}\n    │
+│           Analysis complete."                                    │
+│                                                                  │
+│  Output: '{"mean_psi80": 72.5, "cpk": 1.23}'                   │
+│                                                                  │
+│  This JSON is injected into prior_summary_parts as:             │
+│    "[structured data]: {\"mean_psi80\": 72.5, ...}"             │
+│  instead of the raw truncated text output.                       │
+│                                                                  │
+│  Downstream agents (reporter, optimizer) see clean structured    │
+│  data instead of messy stdout fragments.                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 20. Template Override in Planner (NEW)
+
+> **What are templates?** Pre-defined specialist sequences that skip the LLM planning step. Like choosing a set menu at a restaurant instead of asking the chef to decide.
+
+When `build_graph()` receives a `template_id`, the planner node checks for it **before** calling the LLM:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  planner_node(state)                                             │
+│                                                                  │
+│  IF _template_id is set:                                         │
+│    1. Import get_template_specialists from analysis_templates.py │
+│    2. Look up template → get specialist list                     │
+│    3. Build stages = FIXED_PREFIX + specialists + FIXED_SUFFIX   │
+│    4. Return immediately (NO LLM call)                           │
+│                                                                  │
+│  ELSE:                                                           │
+│    Normal LLM planning (as before)                               │
+│                                                                  │
+│  Example:                                                        │
+│    template_id = "forecast"                                      │
+│    → specialists = ["analyst", "forecaster"]                     │
+│    → stages = [data_loader, planner, analyst, forecaster,        │
+│                code_reviewer, reporter]                           │
+│    → Skips LLM call, instant pipeline selection                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Available Templates
+
+| Template ID             | Specialists                                  |
+| :---------------------- | :------------------------------------------- |
+| `comprehensive`         | analyst → anomaly_detective → shift_reporter |
+| `forecast`              | analyst → forecaster                         |
+| `quality`               | analyst → optimizer                          |
+| `shift_comparison`      | shift_reporter                               |
+| `anomaly_investigation` | anomaly_detective → bayesian_analyst         |
+| `optimization`          | analyst → optimizer                          |
+
+Templates are defined in `analysis_templates.py` and listed via `GET /api/v1/agentic/templates`.
+
+---
+
+## 21. Domain Knowledge & Skills Library (NEW)
+
+> **Why does this matter?** Without domain knowledge, agents have to guess variable ranges and units. Without skills, they write analysis code from scratch every time — risking bugs and inconsistency.
+
+### Domain Knowledge (`tools/domain_knowledge.py`)
+
+Provides structured information about the plant that agents can use in their Python code:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  PLANT_SPECS (dict)          — 18 process variables             │
+│    "Ore":  {min:140, max:220, unit:"t/h", varType:"MV"}       │
+│    "PSI80":{min:40,  max:60,  unit:"%",   varType:"TARGET"}   │
+│    ...etc for all 18 variables                                  │
+│                                                                 │
+│  SHIFTS (list)               — 3 shift definitions              │
+│    [{name:"S1", start:6, end:14}, {name:"S2",...}, ...]        │
+│                                                                 │
+│  MILL_NAMES (list)           — ["MILL_01", ..., "MILL_12"]     │
+│                                                                 │
+│  get_spec_limits("Ore")      — returns (140, 220)              │
+│    Used for SPC control charts: LSL/USL from plant specs       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Skills Library (`skills/` package)
+
+Pre-built, tested analysis functions that return standardized `{figures, stats, summary}` dicts:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  skills.eda                                                      │
+│    descriptive_stats(df)          → stats dict + summary        │
+│    distribution_plots(df, cols)   → histogram figures           │
+│    correlation_heatmap(df)        → heatmap figure              │
+│    time_series_overview(df, cols) → time series figure          │
+│                                                                  │
+│  skills.spc                                                      │
+│    control_limits(series)         → UCL, LCL, mean              │
+│    xbar_chart(df, col)            → X-bar chart figure          │
+│    process_capability(series, lsl, usl) → Cp, Cpk              │
+│                                                                  │
+│  skills.anomaly                                                  │
+│    isolation_forest_analysis(df)  → anomaly labels + scores     │
+│    anomaly_timeline(df, labels)   → timeline figure             │
+│    regime_detection(df)           → regime labels (DBSCAN)      │
+│                                                                  │
+│  skills.forecasting                                              │
+│    prophet_forecast(df, col, h)   → forecast + figure           │
+│    seasonal_decomposition(df,col) → trend/seasonal/resid        │
+│                                                                  │
+│  skills.shift_kpi                                                │
+│    assign_shifts(df)              → df with shift column        │
+│    shift_kpis(df)                 → KPI table per shift         │
+│    shift_comparison_chart(df)     → comparison bar chart        │
+│    downtime_analysis(df)          → downtime stats              │
+│                                                                  │
+│  skills.optimization                                             │
+│    pareto_frontier(df, obj1, obj2)→ Pareto figure + points      │
+│    sensitivity_analysis(df, target) → tornado chart             │
+│    optimal_windows(df, target)    → best operating windows      │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Quick Reference: Entry Points
 
 | Entry Point  | File                | Purpose                                                     |
@@ -1176,4 +1437,4 @@ GOOGLE_API_KEY = from .env                     # Gemini API key
 | **REST API** | `api_endpoint.py`   | `POST /api/v1/agentic/analyze` → background graph execution |
 | **Frontend** | `/ai-chat/page.tsx` | User-facing chat UI → polls API for results                 |
 
-All three call `build_graph(tools, api_key)` from `graph_v3.py` and then `graph.ainvoke()`.
+All three call `build_graph(tools, api_key, settings=..., template_id=...)` from `graph_v3.py` and then `graph.ainvoke()`.
