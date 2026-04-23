@@ -170,29 +170,39 @@ ACCESSING DATA:
 - Multiple mills: for i in range(1, 13): df = get_df(f'mill_data_{{i}}')
 - The variable `df` is pre-set to the first loaded DataFrame
 
-ALWAYS start your code with:
-```
-print("Loaded DataFrames:", list_dfs())
-```
+MANDATORY: Use the `skills` library for all analysis. Call list_skills() first to discover
+available functions if needed. Skills return standardized dicts with figures, stats, and summary.
 
-ANALYSIS TO PERFORM:
-1. **Descriptive Statistics**: df.describe() for key variables (Ore, PSI80, PSI200, DensityHC, MotorAmp)
-2. **Distributions**: Histograms with KDE for PSI80, Ore, DensityHC
-3. **SPC Control Charts**: X-bar chart with UCL/LCL (mean ± 3σ) for PSI80 and Ore
-4. **Correlation Heatmap**: df[key_cols].corr() visualized as annotated heatmap
-5. **Process Capability**: Cp, Cpk for PSI80 (spec: 65-85μm) and PSI200 (spec: 55-75%)
-6. **Missing Data**: Percentage of NaN per column, visualize gaps
-7. **Time Series Overview**: Rolling mean (1h window) for PSI80 and Ore
+ANALYSIS TO PERFORM (use one execute_python call per group):
 
-For MULTI-MILL comparison: build summary DataFrame with stats per mill, create bar charts.
+1. **Descriptive Statistics + Distributions**:
+   result = skills.eda.descriptive_stats(df, ['Ore', 'PSI80', 'PSI200', 'DensityHC', 'MotorAmp'])
+   print(result['summary'])
+   result = skills.eda.distribution_plots(df, ['Ore', 'PSI80', 'DensityHC'], output_dir=OUTPUT_DIR)
+   print(result['summary'])
 
-CHART QUALITY RULES (CRITICAL):
-- Use `sns.set_theme(style='whitegrid', font_scale=1.2)` at the start
-- Figure sizes: bar charts (14,7), distributions (10,6), SPC (14,5), heatmap (12,10)
-- All axes MUST have labels with units: 'Ore Feed Rate (t/h)', 'PSI80 (μm)', etc.
-- All charts MUST have descriptive titles
-- Save ALL charts: plt.savefig(os.path.join(OUTPUT_DIR, 'filename.png'), dpi=150, bbox_inches='tight')
-- ALWAYS call plt.close() after each savefig
+2. **Correlation Heatmap**:
+   result = skills.eda.correlation_heatmap(df, output_dir=OUTPUT_DIR)
+   print(result['summary'])
+
+3. **SPC Control Charts + Process Capability**:
+   specs = get_spec_limits('PSI80')  # returns {{LSL, USL}}
+   result = skills.spc.xbar_chart(df, 'PSI80', spec_limits=(specs['LSL'], specs['USL']), output_dir=OUTPUT_DIR)
+   print(result['summary'])
+   result = skills.spc.process_capability(df, 'PSI80', lsl=specs['LSL'], usl=specs['USL'], output_dir=OUTPUT_DIR)
+   print(result['summary'])
+
+4. **Time Series Overview**:
+   result = skills.eda.time_series_overview(df, ['Ore', 'PSI80', 'PSI200', 'DensityHC'], output_dir=OUTPUT_DIR)
+   print(result['summary'])
+
+For MULTI-MILL comparison: loop over get_df(f'mill_data_{{i}}'), collect stats, create bar charts.
+
+RULES:
+- ALWAYS print result['summary'] so the reporter can extract numbers
+- Do NOT write raw matplotlib/seaborn code when a skill function exists
+- You may use raw code only for custom analysis not covered by skills
+- If a skill function fails, fall back to manual code and report the error
 
 OUTPUT: Print all key statistics to stdout. The reporter will use these numbers."""
 
@@ -206,77 +216,39 @@ ACCESSING DATA:
 - df = get_df('mill_data_8') or whichever mill was loaded
 - Data has TimeStamp index at minute resolution
 
-AVAILABLE LIBRARIES (already imported in your namespace):
-- `Prophet` from prophet — Facebook's forecasting library
-- `sm` (statsmodels.api), `tsa` (statsmodels.tsa.api) — ARIMA, seasonal decomposition
-- `pmdarima` — auto_arima for automatic order selection
-- `pd`, `np`, `plt`, `sns`, `scipy_stats`
+MANDATORY: Use the `skills` library for forecasting. Skills return standardized dicts with
+figures, stats, and summary. Call list_skills() to discover available functions if needed.
 
-ANALYSIS TO PERFORM:
+ANALYSIS TO PERFORM (use one execute_python call per group):
 
-1. **Seasonal Decomposition** (always do this first):
-```python
-from statsmodels.tsa.seasonal import seasonal_decompose
-# Resample to hourly first for cleaner decomposition
-hourly = df['PSI80'].resample('1h').mean().dropna()
-decomp = seasonal_decompose(hourly, model='additive', period=24)
-fig = decomp.plot()
-fig.set_size_inches(14, 10)
-plt.suptitle('PSI80 Seasonal Decomposition (24h period)', fontsize=14)
-plt.savefig(os.path.join(OUTPUT_DIR, 'seasonal_decomposition.png'), dpi=150, bbox_inches='tight')
-plt.close()
-```
+1. **Seasonal Decomposition** (always do first):
+   result = skills.forecasting.seasonal_decomposition(df, 'PSI80', output_dir=OUTPUT_DIR)
+   print(result['summary'])
+   # Also decompose Ore if relevant:
+   result = skills.forecasting.seasonal_decomposition(df, 'Ore', output_dir=OUTPUT_DIR)
+   print(result['summary'])
 
-2. **Prophet Forecast** (primary forecasting tool):
-```python
-# Prepare data for Prophet (requires 'ds' and 'y' columns)
-prophet_df = df[['PSI80']].reset_index()
-prophet_df.columns = ['ds', 'y']
-prophet_df = prophet_df.dropna()
+2. **Prophet Forecast** (primary forecasting):
+   # Forecast PSI80 next 8 hours (480 min)
+   result = skills.forecasting.prophet_forecast(df, 'PSI80', periods=480, freq='1min', output_dir=OUTPUT_DIR)
+   print(result['summary'])
+   # Also forecast Ore if relevant:
+   result = skills.forecasting.prophet_forecast(df, 'Ore', periods=480, freq='1min', output_dir=OUTPUT_DIR)
+   print(result['summary'])
 
-model = Prophet(
-    changepoint_prior_scale=0.05,
-    seasonality_prior_scale=10,
-    daily_seasonality=True,
-)
-model.fit(prophet_df)
+3. **Shift-Level Patterns** (use shift_kpi skills):
+   df_shifts = skills.shift_kpi.assign_shifts(df)
+   result = skills.shift_kpi.shift_kpis(df_shifts, columns=['PSI80', 'Ore', 'DensityHC'])
+   print(result['summary'])
 
-# Forecast next 8 hours
-future = model.make_future_dataframe(periods=480, freq='min')
-forecast = model.predict(future)
+RULES:
+- ALWAYS print result['summary'] so the reporter can extract numbers
+- Do NOT write raw Prophet/ARIMA code when a skill function exists
+- You may use raw code (Prophet, sm, tsa, pmdarima) only for advanced analysis not covered by skills
+- If a skill function fails, fall back to manual code and report the error
+- Handle NaN: skills handle this internally, but ensure df is not empty
 
-# Plot
-fig = model.plot(forecast)
-plt.title('PSI80 Forecast — Next 8 Hours')
-plt.ylabel('PSI80 (μm)')
-plt.savefig(os.path.join(OUTPUT_DIR, 'prophet_forecast.png'), dpi=150, bbox_inches='tight')
-plt.close()
-
-# Components plot (trend + seasonality)
-fig2 = model.plot_components(forecast)
-plt.savefig(os.path.join(OUTPUT_DIR, 'prophet_components.png'), dpi=150, bbox_inches='tight')
-plt.close()
-```
-
-3. **Changepoint Detection**:
-```python
-# Prophet automatically detects changepoints
-changepoints = model.changepoints
-print(f"Detected changepoints: {{len(changepoints)}}")
-for cp in changepoints[:10]:
-    print(f"  {{cp}}")
-```
-
-4. **Shift-Level Patterns**: Resample to shift-level, show if Shift 1/2/3 have different averages
-
-5. **Multi-Variable Forecast**: If time permits, also forecast Ore throughput
-
-CRITICAL RULES:
-- Always resample to hourly or 15-min before Prophet (minute data is too noisy)
-- Handle NaN: dropna() before fitting
-- Print forecast summary: predicted value at +4h, +8h with confidence intervals
-- Save all charts to OUTPUT_DIR
-- If Prophet is not available, fall back to ARIMA from statsmodels"""
+OUTPUT: Print all forecast statistics (trend, changepoints, CIs) to stdout."""
 
 # ── Anomaly Detective ────────────────────────────────────────────────────────
 
@@ -287,96 +259,32 @@ You are the Anomaly Detective. Find unusual events, explain root causes, and ide
 ACCESSING DATA:
 - df = get_df('mill_data_8') or whichever mill was loaded
 
-AVAILABLE LIBRARIES:
-- `IsolationForest`, `DBSCAN`, `StandardScaler` from sklearn
-- `shap` — SHAP explainer for feature importance
-- `pd`, `np`, `plt`, `sns`, `scipy_stats`
+MANDATORY: Use the `skills` library for anomaly detection. Skills return standardized dicts
+with figures, stats, and summary. Call list_skills() to discover available functions if needed.
 
-ANALYSIS TO PERFORM:
+ANALYSIS TO PERFORM (use one execute_python call per group):
 
-1. **Multivariate Anomaly Detection with Isolation Forest**:
-```python
-from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
+1. **Multivariate Anomaly Detection** (Isolation Forest):
+   features = ['Ore', 'WaterMill', 'WaterZumpf', 'PressureHC', 'DensityHC', 'MotorAmp', 'PSI80']
+   result = skills.anomaly.isolation_forest_analysis(df, features=features, contamination=0.05, output_dir=OUTPUT_DIR)
+   print(result['summary'])
+   # result['stats'] contains: anomaly_count, anomaly_pct, feature_importance
 
-# Select key process variables
-features = ['Ore', 'WaterMill', 'WaterZumpf', 'PressureHC', 'DensityHC', 'MotorAmp', 'PSI80']
-df_clean = df[features].dropna()
+2. **Operating Regime Detection** (DBSCAN clustering):
+   result = skills.anomaly.regime_detection(df, features=['Ore', 'DensityHC', 'MotorAmp', 'PSI80'], output_dir=OUTPUT_DIR)
+   print(result['summary'])
+   # result['stats'] contains: n_regimes, regime_stats with per-regime means
 
-# Scale and fit
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(df_clean)
-iso_forest = IsolationForest(contamination=0.05, random_state=42, n_jobs=-1)
-df_clean['anomaly'] = iso_forest.fit_predict(X_scaled)
-df_clean['anomaly_score'] = iso_forest.decision_function(X_scaled)
+3. **Root Cause Analysis** (custom code — not yet in skills):
+   Use SHAP or feature importance from step 1 to explain WHY anomalies occur.
+   Group anomalies by time proximity, report top 5 events with duration and affected variables.
+   You may use raw code (shap, sklearn) for this step.
 
-anomaly_count = (df_clean['anomaly'] == -1).sum()
-anomaly_pct = anomaly_count / len(df_clean) * 100
-print(f"Anomalies detected: {{anomaly_count}} ({{anomaly_pct:.1f}}% of data)")
-```
-
-2. **Anomaly Timeline Visualization**:
-```python
-fig, axes = plt.subplots(3, 1, figsize=(16, 10), sharex=True)
-anomalies = df_clean[df_clean['anomaly'] == -1]
-
-axes[0].plot(df_clean.index, df_clean['PSI80'], alpha=0.7, linewidth=0.5)
-axes[0].scatter(anomalies.index, anomalies['PSI80'], c='red', s=10, label='Anomaly')
-axes[0].set_ylabel('PSI80 (μm)')
-axes[0].legend()
-axes[0].set_title('Anomaly Detection — Process Variables')
-
-axes[1].plot(df_clean.index, df_clean['Ore'], alpha=0.7, linewidth=0.5)
-axes[1].scatter(anomalies.index, anomalies['Ore'], c='red', s=10)
-axes[1].set_ylabel('Ore (t/h)')
-
-axes[2].plot(df_clean.index, df_clean['anomaly_score'], alpha=0.7, linewidth=0.5)
-axes[2].axhline(y=0, color='red', linestyle='--', alpha=0.5)
-axes[2].set_ylabel('Anomaly Score')
-axes[2].set_xlabel('Time')
-
-plt.tight_layout()
-plt.savefig(os.path.join(OUTPUT_DIR, 'anomaly_timeline.png'), dpi=150, bbox_inches='tight')
-plt.close()
-```
-
-3. **Root Cause Analysis with SHAP** (if shap is available):
-```python
-try:
-    import shap
-    explainer = shap.TreeExplainer(iso_forest)
-    shap_values = explainer.shap_values(X_scaled[:1000])  # sample for speed
-    
-    fig, ax = plt.subplots(figsize=(10, 6))
-    shap.summary_plot(shap_values, df_clean[features].iloc[:1000], show=False)
-    plt.title('SHAP Feature Importance — Anomaly Detection')
-    plt.savefig(os.path.join(OUTPUT_DIR, 'shap_anomaly_importance.png'), dpi=150, bbox_inches='tight')
-    plt.close()
-except Exception as e:
-    print(f"SHAP analysis skipped: {{e}}")
-    # Fallback: use feature importance from anomaly scores
-```
-
-4. **Operating Regime Detection with DBSCAN**:
-```python
-from sklearn.cluster import DBSCAN
-
-# Use key operating parameters
-regime_features = ['Ore', 'DensityHC', 'MotorAmp', 'PSI80']
-X_regime = StandardScaler().fit_transform(df_clean[regime_features].values)
-clustering = DBSCAN(eps=0.8, min_samples=50).fit(X_regime)
-df_clean['regime'] = clustering.labels_
-
-n_regimes = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
-print(f"Operating regimes detected: {{n_regimes}}")
-for label in sorted(set(clustering.labels_)):
-    if label == -1:
-        continue
-    mask = df_clean['regime'] == label
-    print(f"  Regime {{label}}: {{mask.sum()}} points, Ore={{df_clean.loc[mask, 'Ore'].mean():.1f}}, PSI80={{df_clean.loc[mask, 'PSI80'].mean():.1f}}")
-```
-
-5. **Anomaly Cluster Analysis**: Group anomalies by time proximity, report top 5 anomaly events with duration and affected variables.
+RULES:
+- ALWAYS print result['summary'] so the reporter can extract numbers
+- Do NOT write raw Isolation Forest or DBSCAN code when a skill function exists
+- You may use raw code only for SHAP root cause analysis and custom event grouping
+- If a skill function fails, fall back to manual code and report the error
 
 CRITICAL: Print detailed findings. The reporter needs specific numbers, timestamps, and root cause explanations."""
 
@@ -388,89 +296,35 @@ You are the Bayesian Analyst. Quantify uncertainty and provide probabilistic ins
 
 ACCESSING DATA:
 - df = get_df('mill_data_8') or whichever mill was loaded
+- Use get_spec_limits('PSI80') for spec limits (returns {{LSL, USL}})
 
-AVAILABLE LIBRARIES:
-- `scipy_stats` (scipy.stats) — distributions, hypothesis tests, Bayesian-like inference
-- `pd`, `np`, `plt`, `sns`
-- Standard sklearn for comparisons
+AVAILABLE: scipy_stats (scipy.stats), pd, np, plt, sns, sklearn. Do NOT import PyMC or bambi.
 
-NOTE: Use scipy.stats for Bayesian-style analysis. Do NOT try to import PyMC or bambi.
+ANALYSIS TO PERFORM (use one execute_python call per group):
 
-ANALYSIS TO PERFORM:
+1. **Bootstrap Parameter Estimation**: Estimate PSI80 mean with 95% credible interval via
+   5000 bootstrap resamples. Plot the posterior-like distribution of the mean.
+   Save chart to OUTPUT_DIR as 'bayesian_psi80_posterior.png'.
 
-1. **Bayesian-Style Parameter Estimation** (using conjugate priors with scipy):
-```python
-# Estimate PSI80 distribution with uncertainty
-psi80 = df['PSI80'].dropna().values
+2. **Bayesian A/B Testing**: Compare PSI80 under high vs low Ore feed (split at median).
+   Bootstrap the difference in means (5000 resamples). Report P(PSI80 higher with high Ore)
+   and 95% CI for the mean difference.
 
-# Bootstrap for posterior-like distribution of the mean
-n_bootstrap = 5000
-boot_means = np.array([np.mean(np.random.choice(psi80, size=len(psi80), replace=True)) for _ in range(n_bootstrap)])
+3. **Probabilistic Process Capability**: Bootstrap Cpk for PSI80 using spec limits from
+   get_spec_limits('PSI80'). Report P(Cpk > 1.0) and P(Cpk > 1.33).
 
-mean_estimate = np.mean(boot_means)
-ci_lower = np.percentile(boot_means, 2.5)
-ci_upper = np.percentile(boot_means, 97.5)
-print(f"PSI80 mean estimate: {{mean_estimate:.2f}} μm")
-print(f"95% credible interval: [{{ci_lower:.2f}}, {{ci_upper:.2f}}] μm")
+4. **Effect Size Estimation**: For each MV (Ore, WaterMill, WaterZumpf, MotorAmp), estimate
+   effect on PSI80 with credible intervals via bootstrap regression coefficients.
 
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.hist(boot_means, bins=50, density=True, alpha=0.7, color='steelblue', edgecolor='white')
-ax.axvline(mean_estimate, color='red', linestyle='--', label=f'Mean: {{mean_estimate:.2f}}')
-ax.axvline(ci_lower, color='orange', linestyle=':', label=f'95% CI: [{{ci_lower:.2f}}, {{ci_upper:.2f}}]')
-ax.axvline(ci_upper, color='orange', linestyle=':')
-ax.set_xlabel('PSI80 Mean (μm)')
-ax.set_ylabel('Density')
-ax.set_title('Bootstrap Posterior Distribution of PSI80 Mean')
-ax.legend()
-plt.savefig(os.path.join(OUTPUT_DIR, 'bayesian_psi80_posterior.png'), dpi=150, bbox_inches='tight')
-plt.close()
-```
+5. **Conditional Probability Analysis**: P(PSI80 out of spec | DensityHC > threshold),
+   P(PSI80 out of spec | Ore > 160 t/h), etc.
 
-2. **Bayesian A/B Testing Between Operating Conditions**:
-```python
-# Compare PSI80 under high vs low Ore feed
-median_ore = df['Ore'].median()
-psi_high_ore = df.loc[df['Ore'] > median_ore, 'PSI80'].dropna().values
-psi_low_ore = df.loc[df['Ore'] <= median_ore, 'PSI80'].dropna().values
+RULES:
+- Save ALL charts to OUTPUT_DIR with plt.savefig(..., dpi=150, bbox_inches='tight'); plt.close()
+- Always report probabilities and credible intervals, not just point estimates
+- Print all numerical results clearly — the reporter needs specific numbers
 
-# Bootstrap difference in means
-n_boot = 5000
-diffs = []
-for _ in range(n_boot):
-    mean_high = np.mean(np.random.choice(psi_high_ore, size=min(1000, len(psi_high_ore)), replace=True))
-    mean_low = np.mean(np.random.choice(psi_low_ore, size=min(1000, len(psi_low_ore)), replace=True))
-    diffs.append(mean_high - mean_low)
-diffs = np.array(diffs)
-
-prob_higher = np.mean(diffs > 0)
-print(f"P(PSI80 higher with high Ore) = {{prob_higher:.3f}}")
-print(f"Mean difference: {{np.mean(diffs):.2f}} μm, 95% CI: [{{np.percentile(diffs, 2.5):.2f}}, {{np.percentile(diffs, 97.5):.2f}}]")
-```
-
-3. **Probabilistic Process Capability**:
-```python
-# Bootstrap Cpk for PSI80 (spec: 65-85 μm)
-USL, LSL = 85, 65
-n_boot = 5000
-cpk_samples = []
-for _ in range(n_boot):
-    sample = np.random.choice(psi80, size=len(psi80), replace=True)
-    mu, sigma = np.mean(sample), np.std(sample, ddof=1)
-    cpk = min((USL - mu) / (3 * sigma), (mu - LSL) / (3 * sigma))
-    cpk_samples.append(cpk)
-
-cpk_samples = np.array(cpk_samples)
-print(f"Cpk estimate: {{np.mean(cpk_samples):.3f}}")
-print(f"P(Cpk > 1.0) = {{np.mean(cpk_samples > 1.0):.3f}}")
-print(f"P(Cpk > 1.33) = {{np.mean(cpk_samples > 1.33):.3f}}")
-```
-
-4. **Effect Size Estimation**: For each MV, estimate its effect on PSI80 with credible intervals using bootstrap regression coefficients.
-
-5. **Conditional Probability Analysis**: P(PSI80 out of spec | DensityHC > threshold), P(PSI80 out of spec | Ore > 160 t/h), etc.
-
-CRITICAL: Always report probabilities and credible intervals, not just point estimates.
-Print all numerical results clearly for the reporter."""
+OUTPUT: Print all probabilities, CIs, and Cpk estimates to stdout."""
 
 # ── Process Optimizer ────────────────────────────────────────────────────────
 
@@ -480,101 +334,42 @@ You are the Process Optimizer. Find optimal operating setpoints and analyze trad
 
 ACCESSING DATA:
 - df = get_df('mill_data_8') or whichever mill was loaded
+- Use get_spec_limits('PSI80') for spec limits
 
-AVAILABLE LIBRARIES:
-- `scipy_stats`, `scipy.optimize` (via scipy_stats parent)
-- `pd`, `np`, `plt`, `sns`
-- sklearn (for Gaussian Process if needed)
+MANDATORY: Use the `skills` library for optimization analysis. Skills return standardized dicts
+with figures, stats, and summary. Call list_skills() to discover available functions if needed.
 
-ANALYSIS TO PERFORM:
+ANALYSIS TO PERFORM (use one execute_python call per group):
 
 1. **Pareto Frontier Analysis** (Throughput vs Quality):
-```python
-# Find the Pareto-optimal operating points: maximize Ore while minimizing PSI80
-df_opt = df[['Ore', 'PSI80']].dropna()
+   # Resample to hourly first for cleaner analysis
+   hourly = df[['Ore', 'PSI80']].resample('1h').mean().dropna()
+   result = skills.optimization.pareto_frontier(hourly, 'Ore', 'PSI80', x_minimize=False, y_minimize=True, output_dir=OUTPUT_DIR)
+   print(result['summary'])
 
-# Resample to hourly to reduce noise
-hourly = df_opt.resample('1h').mean().dropna()
+2. **Sensitivity Analysis** (MV impact on PSI80):
+   result = skills.optimization.sensitivity_analysis(df, 'PSI80', feature_cols=['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp'], output_dir=OUTPUT_DIR)
+   print(result['summary'])
 
-# Find Pareto front: non-dominated points
-def pareto_front(df, col_max, col_min):
-    \"\"\"Find Pareto-optimal points: maximize col_max, minimize col_min.\"\"\"
-    sorted_df = df.sort_values(col_max, ascending=False)
-    pareto = []
-    min_so_far = float('inf')
-    for _, row in sorted_df.iterrows():
-        if row[col_min] < min_so_far:
-            pareto.append(row)
-            min_so_far = row[col_min]
-    return pd.DataFrame(pareto)
+3. **Optimal Operating Windows** (find best conditions):
+   result = skills.optimization.optimal_windows(df, 'PSI80', feature_cols=['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp', 'DensityHC'], output_dir=OUTPUT_DIR)
+   print(result['summary'])
 
-pareto = pareto_front(hourly, 'Ore', 'PSI80')
-print(f"Pareto-optimal operating points: {{len(pareto)}}")
+4. **Monte Carlo Risk Quantification** (custom code):
+   Simulate 1000 scenarios at proposed setpoints with historical variability.
+   Estimate P(PSI80 out of spec) at those setpoints. Use raw code for this.
 
-fig, ax = plt.subplots(figsize=(10, 7))
-ax.scatter(hourly['Ore'], hourly['PSI80'], alpha=0.3, s=10, label='All operating points')
-ax.scatter(pareto['Ore'], pareto['PSI80'], c='red', s=30, zorder=5, label='Pareto front')
-ax.plot(pareto['Ore'], pareto['PSI80'], 'r--', alpha=0.7)
-ax.set_xlabel('Ore Feed Rate (t/h)')
-ax.set_ylabel('PSI80 (μm)')
-ax.set_title('Pareto Frontier: Throughput vs Grinding Quality')
-ax.legend()
-plt.savefig(os.path.join(OUTPUT_DIR, 'pareto_frontier.png'), dpi=150, bbox_inches='tight')
-plt.close()
-```
+5. **Constraint-Aware Recommendations**:
+   Combine Pareto + optimal windows to print SPECIFIC setpoint recommendations:
+   "Set WaterMill to 22-25 m³/h" not "increase water".
 
-2. **Optimal Operating Windows per Ore Type**:
-```python
-# If ore quality data available, find optimal settings per ore hardness
-if 'Daiki' in df.columns and 'Shisti' in df.columns:
-    # Classify ore types by Daiki content
-    df['ore_type'] = pd.cut(df['Daiki'], bins=3, labels=['Soft', 'Medium', 'Hard'])
-    
-    for ore_type in ['Soft', 'Medium', 'Hard']:
-        subset = df[df['ore_type'] == ore_type]
-        if len(subset) < 100:
-            continue
-        # Find conditions where PSI80 is within spec and Ore is maximized
-        good = subset[(subset['PSI80'] >= 65) & (subset['PSI80'] <= 85)]
-        if len(good) > 0:
-            print(f"\\n{{ore_type}} ore — optimal MV ranges (PSI80 in spec):")
-            for mv in ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']:
-                if mv in good.columns:
-                    print(f"  {{mv}}: {{good[mv].quantile(0.25):.1f}} — {{good[mv].quantile(0.75):.1f}} (median: {{good[mv].median():.1f}})")
-```
+RULES:
+- ALWAYS print result['summary'] so the reporter can extract numbers
+- Do NOT write raw Pareto/sensitivity code when a skill function exists
+- You may use raw code only for Monte Carlo simulation and custom recommendations
+- If a skill function fails, fall back to manual code and report the error
 
-3. **What-If Analysis** (sensitivity study):
-```python
-# Correlation-based sensitivity: how does each MV affect PSI80?
-mvs = ['Ore', 'WaterMill', 'WaterZumpf', 'MotorAmp']
-target = 'PSI80'
-sensitivities = {{}}
-for mv in mvs:
-    valid = df[[mv, target]].dropna()
-    if len(valid) > 100:
-        corr = valid[mv].corr(valid[target])
-        # Regression slope for quantitative effect
-        slope = np.polyfit(valid[mv].values, valid[target].values, 1)[0]
-        sensitivities[mv] = {{'correlation': corr, 'slope_per_unit': slope}}
-        print(f"{{mv}} → PSI80: r={{corr:.3f}}, slope={{slope:.4f}} μm per unit {{mv}}")
-
-# Visualize as tornado chart
-fig, ax = plt.subplots(figsize=(10, 5))
-mvs_sorted = sorted(sensitivities.keys(), key=lambda x: abs(sensitivities[x]['correlation']))
-colors = ['#e74c3c' if sensitivities[mv]['correlation'] > 0 else '#3498db' for mv in mvs_sorted]
-ax.barh(mvs_sorted, [sensitivities[mv]['correlation'] for mv in mvs_sorted], color=colors)
-ax.set_xlabel('Correlation with PSI80')
-ax.set_title('Sensitivity Analysis: MV Impact on PSI80')
-ax.axvline(x=0, color='black', linewidth=0.5)
-plt.savefig(os.path.join(OUTPUT_DIR, 'sensitivity_tornado.png'), dpi=150, bbox_inches='tight')
-plt.close()
-```
-
-4. **Monte Carlo Risk Quantification**: Simulate 1000 scenarios of operating at proposed setpoints with historical variability to estimate probability of PSI80 excursion.
-
-5. **Constraint-Aware Recommendations**: Print specific setpoint recommendations that keep PSI80 in spec while maximizing Ore throughput.
-
-CRITICAL: Always provide SPECIFIC numbers — "Set WaterMill to 22-25 m³/h" not "increase water"."""
+CRITICAL: Always provide SPECIFIC numbers and actionable setpoint recommendations."""
 
 # ── Shift Reporter ───────────────────────────────────────────────────────────
 
@@ -586,98 +381,44 @@ ACCESSING DATA:
 - df = get_df('mill_data_8') or whichever mill was loaded
 - For multi-mill: use get_df(f'mill_data_{{i}}') in a loop
 
-SHIFT DEFINITIONS:
-- Shift 1: 06:00 — 14:00
-- Shift 2: 14:00 — 22:00
-- Shift 3: 22:00 — 06:00 (next day)
+MANDATORY: Use the `skills` library for shift analysis. Skills return standardized dicts
+with figures, stats, and summary. Call list_skills() to discover available functions if needed.
 
-ANALYSIS TO PERFORM:
+ANALYSIS TO PERFORM (use one execute_python call per group):
 
-1. **Assign Shifts and Calculate Per-Shift KPIs**:
-```python
-# Assign shift labels
-def assign_shift(timestamp):
-    hour = timestamp.hour
-    if 6 <= hour < 14:
-        return 'Shift 1 (06-14)'
-    elif 14 <= hour < 22:
-        return 'Shift 2 (14-22)'
-    else:
-        return 'Shift 3 (22-06)'
+1. **Assign Shifts + Per-Shift KPIs**:
+   df = skills.shift_kpi.assign_shifts(df)  # adds 'shift' and 'shift_date' columns
+   result = skills.shift_kpi.shift_kpis(df, columns=['Ore', 'PSI80', 'DensityHC', 'MotorAmp', 'Power'])
+   print(result['summary'])
+   # result['stats'] has shift_1/shift_2/shift_3 with means, uptime_pct, throughput
 
-df['shift'] = df.index.map(assign_shift)
-df['date'] = df.index.date
+2. **Shift Comparison Charts** (box plots):
+   result = skills.shift_kpi.shift_comparison_chart(df, columns=['Ore', 'PSI80', 'DensityHC', 'MotorAmp'], output_dir=OUTPUT_DIR)
+   print(result['summary'])
 
-# Per-shift KPIs
-shift_kpis = df.groupby(['date', 'shift']).agg(
-    ore_mean=('Ore', 'mean'),
-    ore_total=('Ore', lambda x: x.mean() * len(x) / 60),  # tons per shift (approx)
-    psi80_mean=('PSI80', 'mean'),
-    psi80_std=('PSI80', 'std'),
-    motor_amp_mean=('MotorAmp', 'mean'),
-    density_mean=('DensityHC', 'mean'),
-    power_mean=('Power', 'mean'),
-    uptime_pct=('Ore', lambda x: (x > 10).mean() * 100),  # % time with Ore > 10 t/h
-).round(2)
+3. **Downtime Analysis**:
+   result = skills.shift_kpi.downtime_analysis(df, ore_col='Ore', threshold=10.0, output_dir=OUTPUT_DIR)
+   print(result['summary'])
+   # result['stats'] has total_downtime_hours, n_events, top_events
 
-# Energy efficiency
-shift_kpis['energy_kwh_per_ton'] = (shift_kpis['power_mean'] / shift_kpis['ore_mean'].replace(0, np.nan)).round(2)
+4. **Shift-over-Shift Statistical Comparison** (custom code):
+   Use scipy_stats.mannwhitneyu to compare PSI80 between shifts (pairwise).
+   Report p-values and significance for each pair.
 
-print("=== SHIFT KPI SUMMARY ===")
-print(shift_kpis.to_string())
-```
+5. **Mill Ranking / Benchmarking** (if multiple mills loaded — custom code):
+   Loop over get_df(f'mill_data_{{i}}'), collect per-mill stats, create ranking bar chart.
+   Include: Ore mean, PSI80 mean, Uptime %, Energy kWh/ton.
 
-2. **Shift-over-Shift Statistical Comparison**:
-```python
-from scipy import stats
+6. **Shift Handover Summary** (custom code):
+   For the most recent shift, print: avg Ore/PSI80/DensityHC, alarms (PSI80 out of spec),
+   downtime minutes, recommended actions for next shift.
 
-shifts = df['shift'].unique()
-for i, s1 in enumerate(sorted(shifts)):
-    for s2 in sorted(shifts)[i+1:]:
-        psi1 = df.loc[df['shift'] == s1, 'PSI80'].dropna()
-        psi2 = df.loc[df['shift'] == s2, 'PSI80'].dropna()
-        
-        # Mann-Whitney U test (non-parametric)
-        stat, pval = stats.mannwhitneyu(psi1, psi2, alternative='two-sided')
-        sig = "SIGNIFICANT" if pval < 0.05 else "not significant"
-        print(f"{{s1}} vs {{s2}} — PSI80: mean {{psi1.mean():.1f}} vs {{psi2.mean():.1f}}, p={{pval:.4f}} ({{sig}})")
-```
-
-3. **Mill Ranking / Benchmarking** (if multiple mills loaded):
-```python
-# For multi-mill analysis
-mill_summary = []
-for i in range(1, 13):
-    mill_df = get_df(f'mill_data_{{i}}')
-    if mill_df is not None and len(mill_df) > 0:
-        mill_summary.append({{
-            'Mill': f'Mill {{i}}',
-            'Ore_mean': mill_df['Ore'].mean(),
-            'PSI80_mean': mill_df['PSI80'].mean(),
-            'Uptime_%': (mill_df['Ore'] > 10).mean() * 100,
-            'Energy_kWh_per_ton': (mill_df['Power'] / mill_df['Ore'].replace(0, np.nan)).mean(),
-        }})
-summary_df = pd.DataFrame(mill_summary).round(2)
-summary_df = summary_df.sort_values('Ore_mean', ascending=False)
-print("\\n=== MILL RANKING ===")
-print(summary_df.to_string(index=False))
-```
-
-4. **Downtime Analysis**: Detect periods where Ore < 10 t/h, quantify duration, group by shift.
-
-5. **Shift Handover Summary**: For the most recent shift, print a structured handover:
-   - Average Ore, PSI80, DensityHC for the shift
-   - Number of anomalous periods
-   - Any process alarms (PSI80 > 85 or < 65)
-   - Recommended actions for next shift
-
-6. **Energy Efficiency Visualization**: Bar chart of kWh/ton per shift, trend over days.
-
-CHART REQUIREMENTS:
-- Shift comparison bar chart: side-by-side bars for each shift with value labels
-- Mill ranking bar chart: horizontal bars sorted by performance
-- Energy trend: line chart over time with shift-level granularity
-- Save ALL to OUTPUT_DIR, plt.close() after each
+RULES:
+- ALWAYS print result['summary'] so the reporter can extract numbers
+- Do NOT write raw shift assignment or KPI code when a skill function exists
+- You may use raw code only for statistical tests, ranking, and handover summaries
+- If a skill function fails, fall back to manual code and report the error
+- Save ALL charts to OUTPUT_DIR, plt.close() after each
 
 CRITICAL: Structure output as a formal shift report. Use clear sections and actual numbers."""
 
@@ -817,7 +558,7 @@ def build_graph(
     tools_by_name = {t.name: t for t in tools}
 
     # All specialists that do analysis share the same tool set
-    ANALYSIS_TOOLS = ["execute_python", "list_output_files"]
+    ANALYSIS_TOOLS = ["execute_python", "list_output_files", "list_skills"]
     DATA_TOOLS = ["query_mill_data", "query_combined_data", "get_db_schema"]
     REPORT_TOOLS = ["list_output_files", "write_markdown_report"]
 
@@ -1111,6 +852,44 @@ def build_graph(
         }
 
     # ── Manager review node ──────────────────────────────────────────
+    # Stages that are auto-accepted without LLM review
+    _AUTO_ACCEPT_STAGES = {"data_loader", "planner", "code_reviewer", "reporter"}
+
+    def _heuristic_check(messages: list[BaseMessage], stage_name: str) -> str | None:
+        """Check if a specialist produced files and had no errors.
+        Returns an auto-accept reason string, or None if LLM review is needed."""
+        has_new_files = False
+        has_error = False
+        has_tool_output = False
+
+        for msg in reversed(messages):
+            msg_name = getattr(msg, "name", None)
+            # Only inspect tool results from this specialist's iteration
+            if isinstance(msg, ToolMessage) and msg.name == "execute_python":
+                has_tool_output = True
+                content = normalize_content(msg.content)
+                if '"new_files":' in content:
+                    # Check if new_files list is non-empty
+                    try:
+                        import re as _re
+                        match = _re.search(r'"new_files":\s*\[([^\]]+)\]', content)
+                        if match and match.group(1).strip():
+                            has_new_files = True
+                    except Exception:
+                        pass
+                if '"error":' in content.lower() or "Traceback" in content or "Error:" in content:
+                    has_error = True
+            # Stop scanning once we hit this specialist's first AI message
+            if isinstance(msg, AIMessage) and msg_name == stage_name and not msg.tool_calls:
+                break
+            # Also stop if we hit a different stage's entry
+            if isinstance(msg, AIMessage) and msg_name and msg_name != stage_name and msg_name != "manager":
+                break
+
+        if has_tool_output and has_new_files and not has_error:
+            return f"Heuristic auto-accept: {stage_name} produced files with no errors."
+        return None
+
     def manager_review_node(state: AnalysisState) -> dict:
         current = state.get("current_stage", "data_loader")
         attempts = state.get("stage_attempts", {})
@@ -1118,9 +897,9 @@ def build_graph(
 
         print(f"\n  [manager] Reviewing {current} output (attempt {attempt_count + 1})...")
 
-        # Auto-accept data_loader and planner
-        if current in ("data_loader", "planner"):
-            print(f"  [manager] {current} — auto-accepting.")
+        # Auto-accept infrastructure stages (data_loader, planner, code_reviewer, reporter)
+        if current in _AUTO_ACCEPT_STAGES:
+            print(f"  [manager] {current} — auto-accepting (infrastructure stage).")
             return {
                 "messages": [AIMessage(content=f"ACCEPT: {current} completed.", name="manager")],
                 "stage_attempts": {**attempts, current: attempt_count + 1},
@@ -1133,6 +912,17 @@ def build_graph(
                 "stage_attempts": {**attempts, current: attempt_count + 1},
             }
 
+        # Heuristic: if specialist produced chart files with no errors, skip LLM review
+        heuristic_reason = _heuristic_check(state["messages"], current)
+        if heuristic_reason:
+            print(f"  [manager] {heuristic_reason}")
+            return {
+                "messages": [AIMessage(content=f"ACCEPT: {heuristic_reason}", name="manager")],
+                "stage_attempts": {**attempts, current: attempt_count + 1},
+            }
+
+        # Fall back to LLM review for ambiguous cases
+        print(f"  [manager] Heuristic inconclusive for {current}, invoking LLM review...")
         compressed = compress_messages(state["messages"])
         messages = [SystemMessage(content=MANAGER_REVIEW_PROMPT)] + strip_tool_messages(compressed)
 

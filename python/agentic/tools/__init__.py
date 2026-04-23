@@ -24,6 +24,9 @@ from tools.session_tools import (
 from tools.domain_knowledge import (
     get_domain_knowledge_tool, get_domain_knowledge,
 )
+from tools.skill_registry import (
+    list_skills_tool, list_skills,
+)
 
 # Registry mapping tool name -> {"tool": types.Tool, "handler": callable}
 tools = {
@@ -35,4 +38,5 @@ tools = {
     write_markdown_report_tool.name:    {"tool": write_markdown_report_tool,    "handler": write_markdown_report},
     set_output_directory_tool.name:     {"tool": set_output_directory_tool,     "handler": set_output_directory},
     get_domain_knowledge_tool.name:     {"tool": get_domain_knowledge_tool,     "handler": get_domain_knowledge},
+    list_skills_tool.name:              {"tool": list_skills_tool,              "handler": list_skills},
 }

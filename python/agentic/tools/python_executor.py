@@ -96,6 +96,7 @@ print(f"[python_executor] Advanced libs available: {list(_ADVANCED_LIBS.keys())}
 from tools.db_tools import get_dataframe, list_dataframes
 from tools.output_dir import get_output_dir
 from tools.domain_knowledge import PLANT_VARIABLES, SHIFTS, MILL_NAMES, get_spec_limits
+from tools.skill_registry import _format_catalog as _skill_catalog_formatter
 
 # Import skills library for agent use
 try:
@@ -195,6 +196,8 @@ async def execute_python(arguments: dict) -> list[types.TextContent]:
         "SHIFTS": SHIFTS,
         "MILL_NAMES": MILL_NAMES,
         "get_spec_limits": get_spec_limits,
+        # Skill discovery — call list_skills() or list_skills('spc') in code
+        "list_skills": lambda module=None: print(_skill_catalog_formatter(module)),
         # Builtins
         "__builtins__": __builtins__,
     }
