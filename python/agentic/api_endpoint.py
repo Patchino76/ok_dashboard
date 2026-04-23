@@ -2,12 +2,17 @@
 api_endpoint.py — FastAPI endpoint for UI integration
 =======================================================
 Exposes the agentic analysis system as a REST API:
-  - POST /api/v1/agentic/analyze  : Submit an analysis request
-  - GET  /api/v1/agentic/reports  : List generated reports and charts
+  - POST /api/v1/agentic/analyze        : Submit an analysis request
+  - POST /api/v1/agentic/followup/{id}  : Send a follow-up question
+  - GET  /api/v1/agentic/status/{id}    : Check analysis status
+  - GET  /api/v1/agentic/reports        : List generated reports and charts
   - GET  /api/v1/agentic/reports/{filename} : Download a specific file
 
 This is designed to be mounted into the main api.py later.
 The MCP server must be running on port 8003 for this to work.
+
+Uses SqliteSaver for LangGraph checkpointing so follow-up conversations
+can resume from any completed analysis.
 """
 
 import asyncio
@@ -25,9 +30,10 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from client import get_mcp_tools
-from graph_v3 import build_graph
+from graph_v3 import build_graph, build_followup_graph
 
 # Load .env from project root (two levels up: agentic → python → project root)
 _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
@@ -37,6 +43,7 @@ router = APIRouter(prefix="/api/v1/agentic", tags=["agentic"])
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8003/mcp")
+CHECKPOINTS_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints.db")
 
 # ── In-flight analysis tracking ──────────────────────────────────────────────
 _analyses: dict[str, dict] = {}
@@ -58,6 +65,10 @@ class AnalysisRequest(BaseModel):
     end_date: Optional[str] = Field(None, description="End date ISO format")
     settings: Optional[AnalysisSettings] = Field(None, description="Analysis context budget settings")
     template_id: Optional[str] = Field(None, description="Pre-defined analysis template ID")
+
+
+class FollowUpRequest(BaseModel):
+    question: str = Field(..., description="Follow-up question or instruction")
 
 
 class AnalysisResponse(BaseModel):
@@ -142,8 +153,9 @@ async def get_analysis_status(analysis_id: str):
 
     entry = _analyses[analysis_id]
 
-    # List files from this analysis's subfolder: output/{analysis_id}/
-    analysis_dir = os.path.join(OUTPUT_DIR, analysis_id)
+    # Resolve output folder — follow-ups use the parent analysis's folder
+    parent_id = entry.get("parent_analysis_id", analysis_id)
+    analysis_dir = os.path.join(OUTPUT_DIR, parent_id)
     report_files = []
     chart_files = []
     if os.path.exists(analysis_dir):
@@ -204,6 +216,41 @@ async def get_report_file(analysis_id: str, filename: str):
             return FileResponse(fallback)
         raise HTTPException(status_code=404, detail=f"File {filename} not found")
     return FileResponse(file_path)
+
+
+@router.post("/followup/{analysis_id}", response_model=AnalysisResponse)
+async def send_followup(analysis_id: str, request: FollowUpRequest):
+    """Send a follow-up question to refine or extend an existing analysis."""
+    # Verify the original analysis exists and is completed
+    original = _analyses.get(analysis_id)
+    if not original:
+        raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+    if original["status"] not in ("completed", "failed"):
+        raise HTTPException(status_code=400, detail=f"Analysis {analysis_id} is still {original['status']}")
+
+    followup_id = f"{analysis_id}-f{str(uuid.uuid4())[:4]}"
+
+    _analyses[followup_id] = {
+        "status": "running",
+        "question": request.question,
+        "parent_analysis_id": analysis_id,
+        "started_at": datetime.now().isoformat(),
+        "final_answer": None,
+        "error": None,
+        "completed_at": None,
+        "progress": [],
+    }
+
+    asyncio.create_task(_run_followup_background(
+        analysis_id, followup_id, request.question,
+    ))
+
+    return AnalysisResponse(
+        analysis_id=followup_id,
+        status="running",
+        message="Follow-up started. Use GET /api/v1/agentic/status/{followup_id} to check progress.",
+        started_at=_analyses[followup_id]["started_at"],
+    )
 
 
 @router.get("/templates")
@@ -270,20 +317,23 @@ async def _run_analysis_background(
                 on_progress("system", "Стартиране на AI специалисти...")
 
                 langchain_tools = await get_mcp_tools(session)
-                graph = build_graph(
-                    langchain_tools, api_key,
-                    on_progress=on_progress,
-                    settings=settings,
-                    template_id=template_id,
-                )
 
-                final_state = await graph.ainvoke(
-                    {"messages": [HumanMessage(content=prompt)]},
-                    config={
-                        "configurable": {"thread_id": analysis_id},
-                        "recursion_limit": 150,
-                    },
-                )
+                async with AsyncSqliteSaver.from_conn_string(CHECKPOINTS_DB) as checkpointer:
+                    graph = build_graph(
+                        langchain_tools, api_key,
+                        on_progress=on_progress,
+                        settings=settings,
+                        template_id=template_id,
+                        checkpointer=checkpointer,
+                    )
+
+                    final_state = await graph.ainvoke(
+                        {"messages": [HumanMessage(content=prompt)]},
+                        config={
+                            "configurable": {"thread_id": analysis_id},
+                            "recursion_limit": 150,
+                        },
+                    )
 
                 final_answer = final_state["messages"][-1].content
                 _analyses[analysis_id]["status"] = "completed"
@@ -296,3 +346,64 @@ async def _run_analysis_background(
         _analyses[analysis_id]["error"] = str(e)
         _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
         on_progress("system", f"✗ Грешка при анализа: {str(e)[:200]}")
+
+
+async def _run_followup_background(
+    analysis_id: str,
+    followup_id: str,
+    question: str,
+) -> None:
+    """Run a follow-up question against an existing analysis session."""
+    on_progress = _make_progress_callback(followup_id)
+    try:
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise ValueError("GOOGLE_API_KEY not configured")
+
+        on_progress("followup", "Обработка на допълнителен въпрос...")
+
+        async with streamable_http_client(SERVER_URL) as (read, write, _):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+
+                # Ensure output directory matches the original analysis
+                await session.call_tool(
+                    "set_output_directory",
+                    {"analysis_id": analysis_id},
+                )
+
+                langchain_tools = await get_mcp_tools(session)
+
+                async with AsyncSqliteSaver.from_conn_string(CHECKPOINTS_DB) as checkpointer:
+                    graph = build_followup_graph(
+                        langchain_tools, api_key,
+                        on_progress=on_progress,
+                        checkpointer=checkpointer,
+                    )
+
+                    # The follow-up graph uses the same thread_id as the original
+                    # analysis, but with a different graph structure. We pass the
+                    # user's follow-up question as a new HumanMessage.
+                    # Use a follow-up-specific thread to avoid corrupting the
+                    # original graph's checkpoint (different state schemas).
+                    followup_thread_id = f"{analysis_id}_followup"
+
+                    final_state = await graph.ainvoke(
+                        {"messages": [HumanMessage(content=question)]},
+                        config={
+                            "configurable": {"thread_id": followup_thread_id},
+                            "recursion_limit": 50,
+                        },
+                    )
+
+                final_answer = final_state["messages"][-1].content
+                _analyses[followup_id]["status"] = "completed"
+                _analyses[followup_id]["final_answer"] = final_answer
+                _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
+                on_progress("followup", "✓ Допълнителният анализ е завършен.")
+
+    except Exception as e:
+        _analyses[followup_id]["status"] = "failed"
+        _analyses[followup_id]["error"] = str(e)
+        _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
+        on_progress("followup", f"✗ Грешка: {str(e)[:200]}")

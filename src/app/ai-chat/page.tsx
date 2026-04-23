@@ -899,6 +899,7 @@ export default function AiChatPage() {
     activeConversation,
     isLoading,
     sendAnalysis,
+    sendFollowUp,
     hydrateFromStorage,
   } = useChatStore();
   const [input, setInput] = useState("");
@@ -1029,7 +1030,13 @@ export default function AiChatPage() {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
     setInput("");
-    sendAnalysis(trimmed);
+
+    // If there's an active completed conversation with an analysisId, send as follow-up
+    if (conv && conv.analysisId && conv.status === "completed") {
+      sendFollowUp(trimmed);
+    } else {
+      sendAnalysis(trimmed);
+    }
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1283,7 +1290,11 @@ export default function AiChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Задайте въпрос за мелничните данни..."
+              placeholder={
+                conv && conv.analysisId && conv.status === "completed"
+                  ? "Задайте допълнителен въпрос за доклада..."
+                  : "Задайте въпрос за мелничните данни..."
+              }
               rows={1}
               disabled={isLoading}
               className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none py-1.5 max-h-40 disabled:opacity-50"
@@ -1327,8 +1338,9 @@ export default function AiChatPage() {
             </button>
           </div>
           <p className="text-center text-[10px] text-gray-400 mt-2">
-            Анализът може да отнеме 2-5 минути. Агентите зареждат данни,
-            анализират и генерират доклад.
+            {conv && conv.analysisId && conv.status === "completed"
+              ? "Можете да зададете допълнителен въпрос за уточнение или разширяване на доклада."
+              : "Анализът може да отнеме 2-5 минути. Агентите зареждат данни, анализират и генерират доклад."}
           </p>
         </div>
       </div>

@@ -538,6 +538,7 @@ def build_graph(
     on_progress: Optional[Callable[[str, str], None]] = None,
     settings: dict | None = None,
     template_id: str | None = None,
+    checkpointer=None,
 ) -> StateGraph:
     # No-op fallback if caller doesn't supply a callback
     _progress = on_progress or (lambda stage, msg: None)
@@ -1072,4 +1073,207 @@ def build_graph(
         manager_targets,
     )
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Follow-Up Graph Builder
+# ══════════════════════════════════════════════════════════════════════════════
+
+FOLLOWUP_ROUTER_PROMPT = f"""{DOMAIN_CONTEXT}
+
+You are the Follow-Up Router. A user has already received an analysis report and is now
+asking a follow-up question. You must decide how to handle it.
+
+Given the conversation history (previous analysis + user's new question), choose ONE action:
+
+1. **SPECIALIST:<name>** — Re-run a specific specialist to perform additional analysis.
+   Available specialists: analyst, forecaster, anomaly_detective, bayesian_analyst, optimizer, shift_reporter
+   Use this when the user asks for NEW analysis not in the original report.
+
+2. **REFINE_REPORT** — Modify/expand the existing report based on feedback.
+   Use this when the user wants more explanation, restructuring, or additions to the report.
+
+3. **ANSWER** — Answer directly using execute_python on the already-loaded data.
+   Use this for quick questions like "what is the mean of X?" or "show me column Y".
+
+RESPOND with EXACTLY one line:
+ACTION: SPECIALIST:analyst
+or
+ACTION: REFINE_REPORT
+or
+ACTION: ANSWER
+
+Then on the next line:
+INSTRUCTION: <one sentence describing what to do>
+"""
+
+FOLLOWUP_SPECIALIST_PROMPT = f"""{DOMAIN_CONTEXT}
+
+You are a Follow-Up Specialist. The user has already received an analysis report and is asking
+a follow-up question. The data is already loaded — use get_df() and list_dfs() to access it.
+
+MANDATORY: Use the `skills` library for analysis. Call list_skills() to discover available functions.
+Skills return standardized dicts with figures, stats, and summary.
+
+Your task is given in the conversation. Execute the analysis, print results, and save charts to OUTPUT_DIR.
+ALWAYS print result['summary'] for any skill function you call.
+If the user asks to update the report, call write_markdown_report with the updated content.
+"""
+
+
+class FollowUpState(MessagesState):
+    action: str        # SPECIALIST:<name>, REFINE_REPORT, or ANSWER
+    instruction: str   # What to do
+
+
+def build_followup_graph(
+    tools: list[BaseTool],
+    api_key: str,
+    on_progress: Optional[Callable[[str, str], None]] = None,
+    checkpointer=None,
+) -> StateGraph:
+    """Build a lightweight follow-up graph for conversational refinement."""
+    _progress = on_progress or (lambda stage, msg: None)
+
+    llm = ChatGoogleGenerativeAI(model=GEMINI_MODEL, google_api_key=api_key)
+
+    tools_by_name = {t.name: t for t in tools}
+    FOLLOWUP_TOOLS = ["execute_python", "list_output_files", "write_markdown_report", "list_skills"]
+    followup_tool_objects = [tools_by_name[n] for n in FOLLOWUP_TOOLS if n in tools_by_name]
+    followup_llm = llm.bind_tools(followup_tool_objects)
+
+    # ── Router node ─────────────────────────────────────────────────
+    def followup_router_node(state: FollowUpState) -> dict:
+        _progress("followup", "Анализиране на допълнителния въпрос...")
+        messages = [SystemMessage(content=FOLLOWUP_ROUTER_PROMPT)] + state["messages"][-20:]
+
+        try:
+            response = llm.invoke(messages)
+        except Exception as e:
+            print(f"  [followup_router] Error: {str(e)[:150]}")
+            return {
+                "messages": [AIMessage(content="ACTION: ANSWER\nINSTRUCTION: Answer the user's question directly.", name="followup_router")],
+                "action": "ANSWER",
+                "instruction": "Answer the user's question directly.",
+            }
+
+        content = normalize_content(response.content).strip()
+        print(f"  [followup_router] Response: {content[:200]}")
+
+        # Parse action
+        action = "ANSWER"
+        instruction = "Answer the user's question."
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.upper().startswith("ACTION:"):
+                action = line.split(":", 1)[1].strip()
+            elif line.upper().startswith("INSTRUCTION:"):
+                instruction = line.split(":", 1)[1].strip()
+
+        _progress("followup", f"Действие: {action}")
+        return {
+            "messages": [AIMessage(content=content, name="followup_router")],
+            "action": action,
+            "instruction": instruction,
+        }
+
+    # ── Executor node (handles all three action types) ──────────────
+    def followup_executor_node(state: FollowUpState) -> dict:
+        action = state.get("action", "ANSWER")
+        instruction = state.get("instruction", "")
+        _progress("followup", "Изпълнение на допълнителен анализ...")
+
+        # Build a focused system prompt based on the action
+        if action.upper().startswith("SPECIALIST:"):
+            specialist_name = action.split(":", 1)[1].strip().lower()
+            system = f"{FOLLOWUP_SPECIALIST_PROMPT}\n\nYou are acting as the {specialist_name} specialist.\nTask: {instruction}"
+            _progress("followup", f"Стартиране на {_label(specialist_name) if specialist_name in _STAGE_LABELS else specialist_name}...")
+        elif action.upper() == "REFINE_REPORT":
+            system = (
+                f"{FOLLOWUP_SPECIALIST_PROMPT}\n\n"
+                f"Task: Refine/update the existing report. {instruction}\n"
+                "Call list_output_files to see existing files, then call write_markdown_report "
+                "with the updated content. Keep all existing analysis but add/modify as requested."
+            )
+            _progress("followup", "Актуализиране на доклада...")
+        else:
+            system = (
+                f"{FOLLOWUP_SPECIALIST_PROMPT}\n\n"
+                f"Task: {instruction}\n"
+                "Answer the user's question using the loaded data. "
+                "Use execute_python to compute answers. Print results clearly."
+            )
+            _progress("followup", "Отговор на въпрос...")
+
+        # Use last 30 messages for context (includes original analysis)
+        focused = state["messages"][-30:]
+        messages = [SystemMessage(content=system)] + focused
+
+        try:
+            response = followup_llm.invoke(messages)
+        except Exception as e:
+            print(f"  [followup_executor] Error: {str(e)[:150]}")
+            return {
+                "messages": [AIMessage(content=f"Error during follow-up: {str(e)[:200]}", name="followup_executor")],
+            }
+
+        response.name = "followup_executor"
+        if response.tool_calls:
+            tool_names = [tc["name"] for tc in response.tool_calls]
+            print(f"  [followup_executor] Calling tools: {tool_names}")
+        else:
+            preview = (response.content[:120] + "...") if response.content and len(response.content) > 120 else response.content
+            print(f"  [followup_executor] Done: \"{preview}\"")
+            _progress("followup", "✓ Допълнителният анализ е завършен.")
+
+        return {"messages": [response]}
+
+    # ── Tool node ──────────────────────────────────────────────────
+    async def followup_tool_node(state: FollowUpState) -> dict:
+        last_message = state["messages"][-1]
+        results = []
+        for tc in last_message.tool_calls:
+            tool = tools_by_name.get(tc["name"])
+            if tool is None:
+                results.append(ToolMessage(
+                    content=f"Error: unknown tool '{tc['name']}'",
+                    tool_call_id=tc["id"], name=tc["name"],
+                ))
+                continue
+            try:
+                print(f"    [followup_tool] Executing {tc['name']}...")
+                output = await tool.ainvoke(tc["args"])
+                results.append(ToolMessage(
+                    content=str(output), tool_call_id=tc["id"], name=tc["name"],
+                ))
+            except Exception as e:
+                results.append(ToolMessage(
+                    content=f"Error: {e}", tool_call_id=tc["id"], name=tc["name"],
+                ))
+        return {"messages": results}
+
+    # ── Routing ────────────────────────────────────────────────────
+    def executor_router(state: FollowUpState) -> str:
+        last = state["messages"][-1]
+        if hasattr(last, "tool_calls") and last.tool_calls:
+            return "followup_tools"
+        return "end"
+
+    # ── Graph assembly ─────────────────────────────────────────────
+    graph = StateGraph(FollowUpState)
+
+    graph.add_node("followup_router", followup_router_node)
+    graph.add_node("followup_executor", followup_executor_node)
+    graph.add_node("followup_tools", followup_tool_node)
+
+    graph.set_entry_point("followup_router")
+    graph.add_edge("followup_router", "followup_executor")
+    graph.add_conditional_edges(
+        "followup_executor",
+        executor_router,
+        {"followup_tools": "followup_tools", "end": END},
+    )
+    graph.add_edge("followup_tools", "followup_executor")
+
+    return graph.compile(checkpointer=checkpointer)

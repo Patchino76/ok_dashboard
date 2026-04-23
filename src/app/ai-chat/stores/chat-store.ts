@@ -52,7 +52,13 @@ interface ChatState {
 
   // Analysis flow
   sendAnalysis: (question: string, templateId?: string) => Promise<void>;
-  pollStatus: (analysisId: string, messageId: string, convId: string) => void;
+  sendFollowUp: (question: string) => Promise<void>;
+  pollStatus: (
+    analysisId: string,
+    messageId: string,
+    convId: string,
+    reportAnalysisId?: string,
+  ) => void;
   stopPolling: () => void;
 
   // Hydration
@@ -303,11 +309,96 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
+  // ── Follow-up ────────────────────────────────────────────────────────────
+
+  sendFollowUp: async (question: string) => {
+    const { addMessage, updateMessage, pollStatus, activeConversationId } =
+      get();
+    const conv = get().activeConversation();
+
+    if (!conv || !conv.analysisId) {
+      console.error("No active conversation or analysisId for follow-up");
+      return;
+    }
+
+    const convId = conv.id;
+    const parentAnalysisId = conv.analysisId;
+
+    // Add user message
+    addMessage({ role: "user", content: question });
+
+    // Add placeholder assistant message
+    const assistantMsg = addMessage({
+      role: "assistant",
+      content: "",
+      status: "pending",
+    });
+
+    // Mark conversation as running
+    set((s) => {
+      const updated = s.conversations.map((c) =>
+        c.id === convId ? { ...c, status: "running" as const } : c,
+      );
+      saveConversations(updated);
+      return { conversations: updated, isLoading: true };
+    });
+
+    try {
+      const res = await fetch(
+        `/api/v1/agentic/followup/${encodeURIComponent(parentAnalysisId)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+        },
+      );
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(
+          errData.detail || errData.error || `HTTP ${res.status}`,
+        );
+      }
+
+      const data = await res.json();
+      const followupId = data.analysis_id;
+
+      updateMessage(assistantMsg.id, {
+        analysisId: followupId,
+        status: "running",
+        content: "Обработка на допълнителен въпрос...",
+      });
+
+      pollStatus(followupId, assistantMsg.id, convId, parentAnalysisId);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Unknown error";
+      updateMessage(assistantMsg.id, {
+        status: "failed",
+        content: `Грешка при допълнителния въпрос: ${errorMsg}`,
+        error: errorMsg,
+      });
+      set((s) => {
+        const updated = s.conversations.map((c) =>
+          c.id === convId ? { ...c, status: "failed" as const } : c,
+        );
+        saveConversations(updated);
+        return { conversations: updated, isLoading: false };
+      });
+    }
+  },
+
   // ── Polling ──────────────────────────────────────────────────────────────
 
-  pollStatus: (analysisId: string, messageId: string, convId: string) => {
+  pollStatus: (
+    analysisId: string,
+    messageId: string,
+    convId: string,
+    reportAnalysisId?: string,
+  ) => {
     const { stopPolling } = get();
     stopPolling();
+    // For follow-ups, report files live under the parent analysis ID
+    const fileAnalysisId = reportAnalysisId || analysisId;
 
     let consecutiveFailures = 0;
     let everSucceeded = false;
@@ -372,7 +463,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           if (reportFiles.length > 0) {
             try {
               const mdRes = await fetch(
-                `/api/v1/agentic/reports/${encodeURIComponent(analysisId)}/${encodeURIComponent(reportFiles[0])}`,
+                `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(reportFiles[0])}`,
               );
               if (mdRes.ok) {
                 reportMarkdown = await mdRes.text();
