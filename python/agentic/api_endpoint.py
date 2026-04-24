@@ -222,36 +222,51 @@ async def get_report_file(analysis_id: str, filename: str):
 @router.post("/followup/{analysis_id}", response_model=AnalysisResponse)
 async def send_followup(analysis_id: str, request: FollowUpRequest):
     """Send a follow-up question to refine or extend an existing analysis."""
-    # Verify the original analysis exists and is completed
-    original = _analyses.get(analysis_id)
-    if not original:
-        raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
-    if original["status"] not in ("completed", "failed"):
-        raise HTTPException(status_code=400, detail=f"Analysis {analysis_id} is still {original['status']}")
+    print(f"\n[send_followup] received analysis_id={analysis_id!r} "
+          f"question_len={len(request.question or '')} "
+          f"known_ids={len(_analyses)}")
+    try:
+        # Verify the original analysis exists and is completed
+        original = _analyses.get(analysis_id)
+        if not original:
+            print(f"[send_followup] 404 — id not in _analyses (have: "
+                  f"{list(_analyses.keys())[:5]}...)")
+            raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+        if original["status"] not in ("completed", "failed"):
+            print(f"[send_followup] 400 — status={original['status']!r}")
+            raise HTTPException(status_code=400, detail=f"Analysis {analysis_id} is still {original['status']}")
 
-    followup_id = f"{analysis_id}-f{str(uuid.uuid4())[:4]}"
+        followup_id = f"{analysis_id}-f{str(uuid.uuid4())[:4]}"
 
-    _analyses[followup_id] = {
-        "status": "running",
-        "question": request.question,
-        "parent_analysis_id": analysis_id,
-        "started_at": datetime.now().isoformat(),
-        "final_answer": None,
-        "error": None,
-        "completed_at": None,
-        "progress": [],
-    }
+        _analyses[followup_id] = {
+            "status": "running",
+            "question": request.question,
+            "parent_analysis_id": analysis_id,
+            "started_at": datetime.now().isoformat(),
+            "final_answer": None,
+            "error": None,
+            "completed_at": None,
+            "progress": [],
+        }
 
-    asyncio.create_task(_run_followup_background(
-        analysis_id, followup_id, request.question,
-    ))
+        asyncio.create_task(_run_followup_background(
+            analysis_id, followup_id, request.question,
+        ))
 
-    return AnalysisResponse(
-        analysis_id=followup_id,
-        status="running",
-        message="Follow-up started. Use GET /api/v1/agentic/status/{followup_id} to check progress.",
-        started_at=_analyses[followup_id]["started_at"],
-    )
+        print(f"[send_followup] ✓ accepted, followup_id={followup_id}")
+        return AnalysisResponse(
+            analysis_id=followup_id,
+            status="running",
+            message="Follow-up started. Use GET /api/v1/agentic/status/{followup_id} to check progress.",
+            started_at=_analyses[followup_id]["started_at"],
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"\n========== SEND_FOLLOWUP CRASH ==========\n{tb}\n==========================================\n")
+        raise HTTPException(status_code=500, detail=f"Follow-up endpoint failed: {e}")
 
 
 @router.get("/templates")
