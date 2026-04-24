@@ -30,8 +30,6 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-
 from client import get_mcp_tools
 from graph_v3 import build_graph, build_followup_graph
 
@@ -43,7 +41,6 @@ router = APIRouter(prefix="/api/v1/agentic", tags=["agentic"])
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8003/mcp")
-CHECKPOINTS_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints.db")
 
 # ── In-flight analysis tracking ──────────────────────────────────────────────
 _analyses: dict[str, dict] = {}
@@ -167,11 +164,15 @@ async def get_analysis_status(analysis_id: str):
             elif f.endswith(".png"):
                 chart_files.append(f)
 
+    fa = entry.get("final_answer")
+    if fa is not None and not isinstance(fa, str):
+        fa = _content_to_str(fa)
+
     return AnalysisResult(
         analysis_id=analysis_id,
         status=entry["status"],
         question=entry["question"],
-        final_answer=entry.get("final_answer"),
+        final_answer=fa,
         report_files=report_files,
         chart_files=chart_files,
         progress=entry.get("progress", []),
@@ -289,6 +290,51 @@ def _make_progress_callback(analysis_id: str) -> Callable[[str, str], None]:
     return on_progress
 
 
+def _content_to_str(content) -> str:
+    """Flatten LangChain message content to a plain string.
+
+    Gemini sometimes returns content as a list of dicts like
+    [{'type': 'text', 'text': '...'}]. Pydantic's str-typed fields reject that.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict):
+                parts.append(item.get("text", "") or item.get("content", "") or "")
+            else:
+                parts.append(str(item))
+        return "\n".join(p for p in parts if p).strip()
+    return str(content) if content is not None else ""
+
+
+def _serialize_messages(messages) -> list[dict]:
+    """Serialize LangChain messages to dicts for follow-up context.
+
+    Strips ToolMessages and AIMessages with tool_calls to avoid orphaned
+    tool-call references that would break LLM validation on follow-up.
+    Keeps only clean HumanMessage and AIMessage content.
+    """
+    serialized = []
+    for msg in messages:
+        msg_type = type(msg).__name__
+        # Skip tool messages (they require tool_call_id that we don't serialize)
+        if msg_type == "ToolMessage":
+            continue
+        # Skip AIMessages that only contain tool calls (no useful content)
+        if msg_type == "AIMessage" and getattr(msg, "tool_calls", None):
+            continue
+        content = _content_to_str(msg.content)
+        if not content or not content.strip():
+            continue
+        entry = {"type": msg_type, "content": content}
+        if hasattr(msg, "name") and msg.name:
+            entry["name"] = msg.name
+        serialized.append(entry)
+    return serialized
+
+
 async def _run_analysis_background(
     analysis_id: str,
     prompt: str,
@@ -317,35 +363,70 @@ async def _run_analysis_background(
                 on_progress("system", "Стартиране на AI специалисти...")
 
                 langchain_tools = await get_mcp_tools(session)
+                graph = build_graph(
+                    langchain_tools, api_key,
+                    on_progress=on_progress,
+                    settings=settings,
+                    template_id=template_id,
+                )
 
-                async with AsyncSqliteSaver.from_conn_string(CHECKPOINTS_DB) as checkpointer:
-                    graph = build_graph(
-                        langchain_tools, api_key,
-                        on_progress=on_progress,
-                        settings=settings,
-                        template_id=template_id,
-                        checkpointer=checkpointer,
-                    )
+                final_state = await graph.ainvoke(
+                    {"messages": [HumanMessage(content=prompt)]},
+                    config={
+                        "configurable": {"thread_id": analysis_id},
+                        "recursion_limit": 150,
+                    },
+                )
 
-                    final_state = await graph.ainvoke(
-                        {"messages": [HumanMessage(content=prompt)]},
-                        config={
-                            "configurable": {"thread_id": analysis_id},
-                            "recursion_limit": 150,
-                        },
-                    )
-
-                final_answer = final_state["messages"][-1].content
+                final_answer = _content_to_str(final_state["messages"][-1].content)
+                # Store serialized messages for follow-up conversations
+                _analyses[analysis_id]["conversation_history"] = _serialize_messages(
+                    final_state["messages"]
+                )
                 _analyses[analysis_id]["status"] = "completed"
                 _analyses[analysis_id]["final_answer"] = final_answer
                 _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
                 on_progress("system", "✓ Анализът е завършен.")
 
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"\n========== ANALYSIS FAILED ({analysis_id}) ==========")
+        print(tb)
+        print("=====================================================\n")
         _analyses[analysis_id]["status"] = "failed"
         _analyses[analysis_id]["error"] = str(e)
+        _analyses[analysis_id]["traceback"] = tb
         _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
         on_progress("system", f"✗ Грешка при анализа: {str(e)[:200]}")
+
+
+def _rebuild_messages(history: list[dict]) -> list:
+    """Rebuild LangChain message objects from serialized conversation history.
+
+    Defensively skips ToolMessage entries and entries with empty content so
+    that old histories (serialized before the filter was added) still work.
+    """
+    from langchain_core.messages import AIMessage, SystemMessage
+    _type_map = {
+        "HumanMessage": HumanMessage,
+        "AIMessage": AIMessage,
+        "SystemMessage": SystemMessage,
+    }
+    messages = []
+    for entry in history:
+        # Skip tool messages — they'd have orphaned tool_call_ids
+        if entry.get("type") == "ToolMessage":
+            continue
+        content = entry.get("content", "")
+        if not content or not content.strip():
+            continue
+        cls = _type_map.get(entry["type"], HumanMessage)
+        try:
+            messages.append(cls(content=content))
+        except Exception:
+            messages.append(HumanMessage(content=content))
+    return messages
 
 
 async def _run_followup_background(
@@ -360,6 +441,20 @@ async def _run_followup_background(
         if not api_key:
             raise ValueError("GOOGLE_API_KEY not configured")
 
+        # Retrieve conversation history from the original analysis
+        original = _analyses.get(analysis_id, {})
+        history = original.get("conversation_history", [])
+        if not history:
+            raise ValueError(f"No conversation history found for analysis {analysis_id}")
+
+        # Rebuild message objects and keep only the last N for context
+        prior_messages = _rebuild_messages(history)[-30:]
+
+        print(f"\n[followup] analysis_id={analysis_id} followup_id={followup_id}")
+        print(f"[followup] history entries: {len(history)} | rebuilt: {len(prior_messages)}")
+        print(f"[followup] rebuilt types: {[type(m).__name__ for m in prior_messages]}")
+        print(f"[followup] question: {question[:120]}")
+
         on_progress("followup", "Обработка на допълнителен въпрос...")
 
         async with streamable_http_client(SERVER_URL) as (read, write, _):
@@ -373,37 +468,46 @@ async def _run_followup_background(
                 )
 
                 langchain_tools = await get_mcp_tools(session)
+                graph = build_followup_graph(
+                    langchain_tools, api_key,
+                    on_progress=on_progress,
+                )
 
-                async with AsyncSqliteSaver.from_conn_string(CHECKPOINTS_DB) as checkpointer:
-                    graph = build_followup_graph(
-                        langchain_tools, api_key,
-                        on_progress=on_progress,
-                        checkpointer=checkpointer,
-                    )
+                # Pass prior conversation + new question as initial messages
+                initial_messages = prior_messages + [HumanMessage(content=question)]
 
-                    # The follow-up graph uses the same thread_id as the original
-                    # analysis, but with a different graph structure. We pass the
-                    # user's follow-up question as a new HumanMessage.
-                    # Use a follow-up-specific thread to avoid corrupting the
-                    # original graph's checkpoint (different state schemas).
-                    followup_thread_id = f"{analysis_id}_followup"
+                final_state = await graph.ainvoke(
+                    {"messages": initial_messages},
+                    config={
+                        "configurable": {"thread_id": followup_id},
+                        "recursion_limit": 50,
+                    },
+                )
 
-                    final_state = await graph.ainvoke(
-                        {"messages": [HumanMessage(content=question)]},
-                        config={
-                            "configurable": {"thread_id": followup_thread_id},
-                            "recursion_limit": 50,
-                        },
-                    )
-
-                final_answer = final_state["messages"][-1].content
+                final_answer = _content_to_str(final_state["messages"][-1].content)
+                # Update conversation history with follow-up messages
+                _analyses[analysis_id]["conversation_history"] = _serialize_messages(
+                    final_state["messages"]
+                )
                 _analyses[followup_id]["status"] = "completed"
                 _analyses[followup_id]["final_answer"] = final_answer
                 _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
                 on_progress("followup", "✓ Допълнителният анализ е завършен.")
 
-    except Exception as e:
+    except BaseException as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"\n========== FOLLOWUP FAILED ({followup_id}) ==========")
+        print(f"Exception type: {type(e).__name__}")
+        print(tb)
+        # If it's an ExceptionGroup, drill into sub-exceptions
+        if hasattr(e, "exceptions"):
+            for i, sub in enumerate(e.exceptions):
+                print(f"--- Sub-exception {i}: {type(sub).__name__} ---")
+                print("".join(traceback.format_exception(type(sub), sub, sub.__traceback__)))
+        print("=====================================================\n")
         _analyses[followup_id]["status"] = "failed"
         _analyses[followup_id]["error"] = str(e)
+        _analyses[followup_id]["traceback"] = tb
         _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
         on_progress("followup", f"✗ Грешка: {str(e)[:200]}")

@@ -1158,7 +1158,14 @@ def build_followup_graph(
                 "instruction": "Answer the user's question directly.",
             }
 
-        content = normalize_content(response.content).strip()
+        raw = response.content
+        if isinstance(raw, list):
+            content = "\n".join(
+                item.get("text", "") if isinstance(item, dict) else str(item)
+                for item in raw
+            ).strip()
+        else:
+            content = (str(raw) if raw else "").strip()
         print(f"  [followup_router] Response: {content[:200]}")
 
         # Parse action
