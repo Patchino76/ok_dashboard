@@ -58,6 +58,7 @@ interface ChatState {
     messageId: string,
     convId: string,
     reportAnalysisId?: string,
+    baselineReportFiles?: string[],
   ) => void;
   stopPolling: () => void;
 
@@ -324,6 +325,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const convId = conv.id;
     const parentAnalysisId = conv.analysisId;
 
+    // Capture the set of report files that already exist in the parent folder
+    // so pollStatus can tell whether this follow-up actually produced a NEW
+    // report. Without this, ANSWER-style follow-ups (which only return text)
+    // would re-display the parent's stale report.
+    const baselineReportFiles: string[] = [];
+    for (const m of conv.messages) {
+      if (m.role === "assistant" && m.reportFiles) {
+        for (const f of m.reportFiles) {
+          if (!baselineReportFiles.includes(f)) baselineReportFiles.push(f);
+        }
+      }
+    }
+
     // Add user message
     addMessage({ role: "user", content: question });
 
@@ -369,7 +383,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: "Обработка на допълнителен въпрос...",
       });
 
-      pollStatus(followupId, assistantMsg.id, convId, parentAnalysisId);
+      pollStatus(
+        followupId,
+        assistantMsg.id,
+        convId,
+        parentAnalysisId,
+        baselineReportFiles,
+      );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
       updateMessage(assistantMsg.id, {
@@ -394,11 +414,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     messageId: string,
     convId: string,
     reportAnalysisId?: string,
+    baselineReportFiles?: string[],
   ) => {
     const { stopPolling } = get();
     stopPolling();
     // For follow-ups, report files live under the parent analysis ID
     const fileAnalysisId = reportAnalysisId || analysisId;
+    // For follow-ups, baselineReportFiles holds the parent's pre-existing
+    // reports; we only attach reportMarkdown if a NEW report appeared.
+    const baseline = new Set(baselineReportFiles || []);
 
     let consecutiveFailures = 0;
     let everSucceeded = false;
@@ -459,11 +483,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
           const reportFiles: string[] = data.report_files || [];
           const chartFiles: string[] = data.chart_files || [];
 
+          // For follow-ups: only attach reportMarkdown if a NEW .md appeared
+          // (not already in the parent's baseline). For primary analyses the
+          // baseline is empty so every report is "new".
+          const newReportFiles = reportFiles.filter((f) => !baseline.has(f));
+          const mdToShow =
+            newReportFiles[0] ||
+            (baseline.size === 0 ? reportFiles[0] : undefined);
+
           let reportMarkdown: string | undefined;
-          if (reportFiles.length > 0) {
+          if (mdToShow) {
             try {
               const mdRes = await fetch(
-                `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(reportFiles[0])}`,
+                `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(mdToShow)}`,
               );
               if (mdRes.ok) {
                 reportMarkdown = await mdRes.text();
@@ -473,11 +505,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           }
 
+          // Only expose NEW files to the per-message download list so the
+          // follow-up bubble doesn't re-advertise the parent's artefacts.
+          const newChartFiles =
+            baseline.size === 0
+              ? chartFiles
+              : // no chart baseline is captured separately; heuristic: if no
+                // new report, assume no new charts either (ANSWER mode).
+                newReportFiles.length > 0
+                ? chartFiles
+                : [];
+
           updateMessage(messageId, {
             status: "completed",
             content: data.final_answer || "Анализът е завършен.",
-            reportFiles,
-            chartFiles,
+            reportFiles:
+              newReportFiles.length > 0
+                ? newReportFiles
+                : baseline.size === 0
+                  ? reportFiles
+                  : [],
+            chartFiles: newChartFiles,
             reportMarkdown,
           });
 
