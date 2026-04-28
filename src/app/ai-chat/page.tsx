@@ -605,15 +605,32 @@ function MessageBubble({
           }`}
         >
           {isUser ? (
-            <div className="relative group">
+            <div className="relative group pr-16">
               <CollapsibleUserMessage content={message.content} />
-              <button
-                onClick={() => navigator.clipboard.writeText(message.content)}
-                className="absolute top-0 right-0 p-1.5 rounded-lg bg-white/20 hover:bg-white/40 transition-all"
-                title="Копирай"
-              >
-                <Copy className="w-4 h-4 text-white" />
-              </button>
+              <div className="absolute top-0 right-0 flex items-center gap-1">
+                <button
+                  onClick={() => navigator.clipboard.writeText(message.content)}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/40 transition-all"
+                  title="Копирай"
+                >
+                  <Copy className="w-4 h-4 text-white" />
+                </button>
+                <button
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Изтрий този въпрос и свързания с него отговор?",
+                      )
+                    ) {
+                      useChatStore.getState().deleteExchange(message.id);
+                    }
+                  }}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-rose-500/80 transition-all"
+                  title="Изтрий този въпрос и отговора към него"
+                >
+                  <Trash2 className="w-4 h-4 text-white" />
+                </button>
+              </div>
             </div>
           ) : message.status === "running" && !message.content ? (
             <div>
@@ -900,6 +917,7 @@ export default function AiChatPage() {
     isLoading,
     sendAnalysis,
     sendFollowUp,
+    cancelCurrent,
     hydrateFromStorage,
   } = useChatStore();
   const [input, setInput] = useState("");
@@ -1050,6 +1068,10 @@ export default function AiChatPage() {
     if (isLoading) return;
     setInput("");
     sendAnalysis(prompt, templateId);
+  };
+
+  const handleCancel = async () => {
+    await cancelCurrent();
   };
 
   // ── User prompts ──────────────────────────────────────────
@@ -1284,7 +1306,7 @@ export default function AiChatPage() {
         {/* ── Input area ───────────────────────────────────── */}
         <div className="flex-shrink-0 px-4 pb-4 pt-2 bg-gray-50">
           <SettingsPanel />
-          <div className="flex items-end gap-2 bg-white border border-gray-300 rounded-2xl px-4 py-2 shadow-sm focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all max-w-4xl mx-auto">
+          <div className="flex items-end gap-2.5 bg-white border-2 border-gray-300 rounded-2xl px-5 py-3 shadow-md focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100 hover:border-gray-400 transition-all max-w-6xl mx-auto">
             <textarea
               ref={textareaRef}
               value={input}
@@ -1297,17 +1319,17 @@ export default function AiChatPage() {
               }
               rows={1}
               disabled={isLoading}
-              className="flex-1 resize-none bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none py-1.5 max-h-40 disabled:opacity-50"
+              className="flex-1 resize-none bg-transparent text-[15px] text-gray-900 placeholder:text-gray-500 outline-none py-1.5 max-h-40 disabled:opacity-50 leading-relaxed"
             />
             <button
               onClick={toggleRecording}
               disabled={isLoading || isTranscribing}
-              className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-colors ${
+              className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
                 isRecording
-                  ? "bg-red-500 text-white hover:bg-red-600 animate-pulse"
+                  ? "bg-red-500 text-white hover:bg-red-600 animate-pulse shadow"
                   : isTranscribing
-                    ? "bg-amber-500 text-white cursor-wait"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700"
+                    ? "bg-amber-500 text-white cursor-wait shadow"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800 border border-gray-200"
               } disabled:opacity-40 disabled:cursor-not-allowed`}
               title={
                 isRecording
@@ -1325,17 +1347,28 @@ export default function AiChatPage() {
                 <Mic className="w-4 h-4" />
               )}
             </button>
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
+            {/* Cancel running analysis / follow-up; otherwise Send */}
+            {isLoading ? (
+              <button
+                onClick={() => {
+                  setInput("");
+                  handleCancel();
+                }}
+                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-rose-600 text-white hover:bg-rose-700 shadow-md transition-colors"
+                title="Прекъсни изпълнението"
+              >
+                <Square className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed shadow-md disabled:shadow-none transition-colors"
+                title="Изпрати"
+              >
                 <Send className="w-4 h-4" />
-              )}
-            </button>
+              </button>
+            )}
           </div>
           <p className="text-center text-[10px] text-gray-400 mt-2">
             {conv && conv.analysisId && conv.status === "completed"

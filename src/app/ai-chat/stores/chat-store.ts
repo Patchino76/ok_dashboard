@@ -62,6 +62,15 @@ interface ChatState {
   ) => void;
   stopPolling: () => void;
 
+  // Cancel the currently running analysis/follow-up (if any) and stop polling.
+  // Keeps any partial artefacts already written to output/.
+  cancelCurrent: () => Promise<void>;
+  // Remove a specific user message (by id) and its paired assistant reply
+  // (the next assistant message after it, if any). For follow-up replies,
+  // also deletes any NEW files that the reply produced. Safe to call on any
+  // user message in the active conversation.
+  deleteExchange: (userMessageId: string) => Promise<void>;
+
   // Hydration
   hydrateFromStorage: () => void;
 }
@@ -574,6 +583,151 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clearInterval(pollingInterval);
       set({ pollingInterval: null });
     }
+  },
+
+  // ── Cancel current run ───────────────────────────────────────────────────
+
+  cancelCurrent: async () => {
+    const { stopPolling, activeConversation, updateMessage } = get();
+    const conv = activeConversation();
+    if (!conv) return;
+
+    // Find the in-flight assistant message (the last one still running/pending)
+    const running = [...conv.messages]
+      .reverse()
+      .find(
+        (m) =>
+          m.role === "assistant" &&
+          (m.status === "running" || m.status === "pending"),
+      );
+    const targetId = running?.analysisId;
+
+    stopPolling();
+
+    if (targetId) {
+      try {
+        await fetch(`/api/v1/agentic/cancel/${encodeURIComponent(targetId)}`, {
+          method: "POST",
+        });
+      } catch (e) {
+        console.warn("Cancel request failed:", e);
+      }
+    }
+
+    if (running) {
+      updateMessage(running.id, {
+        status: "failed",
+        content: "⛔ Анализът беше прекъснат от потребителя.",
+        error: "cancelled",
+      });
+    }
+
+    set((s) => {
+      const updated = s.conversations.map((c) =>
+        c.id === conv.id ? { ...c, status: "idle" as const } : c,
+      );
+      saveConversations(updated);
+      return { conversations: updated, isLoading: false };
+    });
+  },
+
+  // ── Delete a specific exchange ───────────────────────────────────────────
+
+  deleteExchange: async (userMessageId: string) => {
+    const conv = get().activeConversation();
+    if (!conv) return;
+
+    const msgs = conv.messages;
+    const userIdx = msgs.findIndex(
+      (m) => m.id === userMessageId && m.role === "user",
+    );
+    if (userIdx === -1) return;
+
+    // Find the immediately following assistant message (if any) — it is the
+    // paired reply for this user prompt.
+    let assistantIdx = -1;
+    for (let i = userIdx + 1; i < msgs.length; i++) {
+      if (msgs[i].role === "assistant") {
+        assistantIdx = i;
+        break;
+      }
+      if (msgs[i].role === "user") break; // hit the next prompt without a reply
+    }
+    const assistantMsg = assistantIdx !== -1 ? msgs[assistantIdx] : undefined;
+
+    // Determine whether this is a follow-up bubble. The primary analysis
+    // bubble owns the shared parent reports, so we never delete its files.
+    const fileAnalysisId = conv.analysisId;
+    const isFollowUpReply =
+      !!assistantMsg?.analysisId &&
+      !!fileAnalysisId &&
+      assistantMsg.analysisId !== fileAnalysisId;
+
+    if (isFollowUpReply && fileAnalysisId && assistantMsg) {
+      const filesToDelete: string[] = [
+        ...(assistantMsg.reportFiles || []),
+        ...(assistantMsg.chartFiles || []),
+      ];
+      if (filesToDelete.length > 0) {
+        await Promise.all(
+          filesToDelete.map((f) =>
+            fetch(
+              `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(f)}`,
+              { method: "DELETE" },
+            ).catch((e) => console.warn(`Failed to delete ${f}:`, e)),
+          ),
+        );
+      }
+    }
+
+    // If the assistant reply is still in flight, cancel it before discarding.
+    if (
+      assistantMsg &&
+      (assistantMsg.status === "running" || assistantMsg.status === "pending")
+    ) {
+      const targetId = assistantMsg.analysisId;
+      get().stopPolling();
+      if (targetId) {
+        try {
+          await fetch(
+            `/api/v1/agentic/cancel/${encodeURIComponent(targetId)}`,
+            { method: "POST" },
+          );
+        } catch (e) {
+          console.warn("Cancel before delete failed:", e);
+        }
+      }
+    }
+
+    const drop = new Set<number>([userIdx]);
+    if (assistantIdx !== -1) drop.add(assistantIdx);
+    const trimmed = msgs.filter((_, i) => !drop.has(i));
+    const wasInFlight =
+      assistantMsg?.status === "running" || assistantMsg?.status === "pending";
+
+    set((s) => {
+      const updated = s.conversations.map((c) =>
+        c.id === conv.id
+          ? {
+              ...c,
+              messages: trimmed,
+              // If no completed assistant reply remains, reset to idle so the
+              // next prompt is treated as a fresh analysis.
+              status: trimmed.some(
+                (m) => m.role === "assistant" && m.status === "completed",
+              )
+                ? c.status
+                : ("idle" as const),
+            }
+          : c,
+      );
+      saveConversations(updated);
+      return {
+        conversations: updated,
+        // If we cancelled an in-flight reply, also clear the global loading flag.
+        isLoading: wasInFlight ? false : s.isLoading,
+      };
+    });
   },
 
   hydrateFromStorage: () => {

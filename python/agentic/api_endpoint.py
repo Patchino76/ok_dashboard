@@ -127,12 +127,13 @@ async def start_analysis(request: AnalysisRequest):
     if request.settings:
         settings_dict = request.settings.model_dump()
 
-    # Run analysis in background
-    asyncio.create_task(_run_analysis_background(
+    # Run analysis in background and keep a handle so it can be cancelled
+    task = asyncio.create_task(_run_analysis_background(
         analysis_id, full_prompt,
         settings=settings_dict,
         template_id=request.template_id,
     ))
+    _analyses[analysis_id]["task"] = task
 
     return AnalysisResponse(
         analysis_id=analysis_id,
@@ -249,9 +250,10 @@ async def send_followup(analysis_id: str, request: FollowUpRequest):
             "progress": [],
         }
 
-        asyncio.create_task(_run_followup_background(
+        task = asyncio.create_task(_run_followup_background(
             analysis_id, followup_id, request.question,
         ))
+        _analyses[followup_id]["task"] = task
 
         print(f"[send_followup] ✓ accepted, followup_id={followup_id}")
         return AnalysisResponse(
@@ -288,6 +290,61 @@ async def delete_analysis(analysis_id: str):
     _analyses.pop(analysis_id, None)
 
     return {"status": "deleted", "analysis_id": analysis_id}
+
+
+@router.post("/cancel/{analysis_id}")
+async def cancel_analysis(analysis_id: str):
+    """Cancel a running analysis or follow-up.
+
+    Aborts the underlying asyncio task. Partial artefacts already written to
+    the per-analysis output folder are kept intact — the user explicitly
+    chose "abort + keep partial artefacts" semantics.
+    """
+    entry = _analyses.get(analysis_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+
+    if entry["status"] != "running":
+        return {
+            "status": entry["status"],
+            "analysis_id": analysis_id,
+            "message": f"Analysis already {entry['status']}, nothing to cancel.",
+        }
+
+    task = entry.get("task")
+    if task is not None and not task.done():
+        task.cancel()
+        print(f"[cancel] requested cancellation of {analysis_id}")
+    else:
+        # No task handle (shouldn't happen) — mark cancelled anyway so the UI
+        # stops polling.
+        entry["status"] = "cancelled"
+        entry["completed_at"] = datetime.now().isoformat()
+
+    return {"status": "cancelling", "analysis_id": analysis_id}
+
+
+@router.delete("/reports/{analysis_id}/{filename}")
+async def delete_report_file(analysis_id: str, filename: str):
+    """Delete a single file from an analysis's output folder.
+
+    Used by the UI's "delete last exchange" button to remove files produced
+    by a follow-up the user wants to retry.
+    """
+    # Basic path-traversal guard: reject anything with separators or ..
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    file_path = os.path.join(OUTPUT_DIR, analysis_id, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File {filename} not found")
+
+    try:
+        os.remove(file_path)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Could not delete: {e}")
+
+    return {"status": "deleted", "analysis_id": analysis_id, "filename": filename}
 
 
 # ── Background analysis runner ───────────────────────────────────────────────
@@ -403,6 +460,13 @@ async def _run_analysis_background(
                 _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
                 on_progress("system", "✓ Анализът е завършен.")
 
+    except asyncio.CancelledError:
+        print(f"\n[cancel] analysis {analysis_id} cancelled by user")
+        _analyses[analysis_id]["status"] = "cancelled"
+        _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
+        on_progress("system", "⛔ Анализът е прекъснат от потребителя.")
+        # Re-raise so the task is properly marked as cancelled
+        raise
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -509,6 +573,12 @@ async def _run_followup_background(
                 _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
                 on_progress("followup", "✓ Допълнителният анализ е завършен.")
 
+    except asyncio.CancelledError:
+        print(f"\n[cancel] follow-up {followup_id} cancelled by user")
+        _analyses[followup_id]["status"] = "cancelled"
+        _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
+        on_progress("followup", "⛔ Допълнителният въпрос е прекъснат от потребителя.")
+        raise
     except BaseException as e:
         import traceback
         tb = traceback.format_exc()
