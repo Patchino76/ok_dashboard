@@ -64,8 +64,9 @@ from skills import anomaly
 from skills import forecasting
 from skills import shift_kpi
 from skills import optimization
+from skills import oee
 
-__all__ = ["eda", "spc", "anomaly", "forecasting", "shift_kpi", "optimization"]
+__all__ = ["eda", "spc", "anomaly", "forecasting", "shift_kpi", "optimization", "oee"]
 
 # Apply structured output wrappers to all skill modules
 for _mod_name in __all__:

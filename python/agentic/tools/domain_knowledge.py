@@ -216,6 +216,23 @@ SHIFTS = {
     "shift_3": {"start": "22:00", "end": "06:00", "label": "Смяна 3 (22-06)"},
 }
 
+# ── OEE Configuration (plant-wide) ───────────────────────────────────────────
+# Used by skills.oee.shift_oee / multi_mill_oee and referenced in DOMAIN_CONTEXT.
+OEE_CONFIG = {
+    "speed_ref_tph": 180.0,           # Ore @ 100% performance
+    "speed_variable": "Ore",
+    "quality_variable": "PSI200",
+    "quality_floor_pct": 18.0,        # PSI200 ≤ 18% → 100% quality (zero scrap)
+    "quality_limit_pct": 30.0,        # PSI200 ≥ 30% → 0% quality (full scrap)
+    "downtime_threshold_tph": 50.0,   # Ore < 50 t/h → downtime
+    "formula": "OEE = Availability × Performance × Quality",
+    "availability": "running_minutes / total_minutes  (running := Ore ≥ 50 t/h)",
+    "performance":  "min(mean(Ore[running]) / 180, 1.0)",
+    "quality":      "clamp((30 - mean(PSI200[running])) / (30 - 18), 0, 1)",
+    "skill_single_mill": "skills.oee.shift_oee(df, output_dir=OUTPUT_DIR)",
+    "skill_multi_mill":  "skills.oee.multi_mill_oee({label: df, ...}, output_dir=OUTPUT_DIR)",
+}
+
 # ── Mill Names ───────────────────────────────────────────────────────────────
 
 MILL_NAMES = [f"Mill{str(i).zfill(2)}" for i in range(1, 13)]
@@ -256,6 +273,19 @@ def get_plant_summary() -> str:
     lines.append("Shifts: 06:00-14:00 / 14:00-22:00 / 22:00-06:00")
     lines.append(f"Mills: {', '.join(MILL_NAMES)}")
     lines.append("Downtime threshold: Ore < 10 t/h")
+    lines.append("")
+    lines.append("OEE Configuration (plant-wide):")
+    lines.append(f"  Formula: {OEE_CONFIG['formula']}")
+    lines.append(f"  Availability: {OEE_CONFIG['availability']}")
+    lines.append(f"  Performance:  {OEE_CONFIG['performance']}  (speed_ref = {OEE_CONFIG['speed_ref_tph']} t/h)")
+    lines.append(
+        f"  Quality:      {OEE_CONFIG['quality']}  "
+        f"(PSI200 floor = {OEE_CONFIG['quality_floor_pct']}% → Q=100%, "
+        f"limit = {OEE_CONFIG['quality_limit_pct']}% → Q=0%)"
+    )
+    lines.append(f"  Downtime threshold for OEE: Ore < {OEE_CONFIG['downtime_threshold_tph']} t/h")
+    lines.append(f"  Single mill: {OEE_CONFIG['skill_single_mill']}")
+    lines.append(f"  Multi-mill:  {OEE_CONFIG['skill_multi_mill']}")
     return "\n".join(lines)
 
 # ── MCP Tool Definition ─────────────────────────────────────────────────────
