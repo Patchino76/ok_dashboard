@@ -1047,14 +1047,21 @@ export default function AiChatPage() {
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
-    setInput("");
 
-    // If there's an active completed conversation with an analysisId, send as follow-up
-    if (conv && conv.analysisId && conv.status === "completed") {
+    // Routing rule: a conversation that already has an analysisId is locked
+    // to follow-ups only. Starting a fresh analysis is exclusively done via
+    // the "Нов анализ" button (which creates a conversation without an
+    // analysisId) or by clicking a suggestion / template card.
+    if (conv && conv.analysisId) {
+      setInput("");
       sendFollowUp(trimmed);
-    } else {
-      sendAnalysis(trimmed);
+      return;
     }
+
+    // No active conversation, or conversation without analysisId — start a
+    // fresh analysis. (createConversation is implicitly handled by sendAnalysis.)
+    setInput("");
+    sendAnalysis(trimmed);
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1313,7 +1320,7 @@ export default function AiChatPage() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                conv && conv.analysisId && conv.status === "completed"
+                conv && conv.analysisId
                   ? "Задайте допълнителен въпрос за доклада..."
                   : "Задайте въпрос за мелничните данни..."
               }
@@ -1371,8 +1378,8 @@ export default function AiChatPage() {
             )}
           </div>
           <p className="text-center text-[10px] text-gray-400 mt-2">
-            {conv && conv.analysisId && conv.status === "completed"
-              ? "Можете да зададете допълнителен въпрос за уточнение или разширяване на доклада."
+            {conv && conv.analysisId
+              ? 'Този разговор е заключен към избрания анализ — въпросите се изпращат като допълнителни. За нов анализ натиснете „Нов анализ".'
               : "Анализът може да отнеме 2-5 минути. Агентите зареждат данни, анализират и генерират доклад."}
           </p>
         </div>
