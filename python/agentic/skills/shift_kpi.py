@@ -37,9 +37,25 @@ def assign_shifts(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def shift_kpis(df: pd.DataFrame, columns: list = None,
-               ore_col: str = "Ore", downtime_threshold: float = 10.0) -> dict:
+               ore_col: str = "Ore", power_col: str = "Power",
+               downtime_threshold: float = 10.0) -> dict:
     """
-    Calculate KPIs per shift: mean, std, uptime, downtime, throughput.
+    Calculate KPIs per shift: mean, std, uptime, downtime, throughput,
+    and — crucially — specific energy (kWh/t) computed as
+    ratio-of-totals on running minutes.
+
+    For specific energy we use:
+        kwh_per_ton = sum(Power[running]) / sum(Ore[running])
+
+    This is the PHYSICALLY CORRECT way (total energy delivered / total tonnage).
+    The naïve `mean(Power/Ore)` (mean-of-ratios) is NOT used because:
+      • It explodes when Ore → 0 during startups, feeder changes, idling.
+      • Those minute-level spikes inflate the mean far above the true energy
+        intensity, and systematically penalise shifts that have more short
+        transitions — producing artefactual "efficiency" differences.
+      • Ratio-of-totals is invariant to downtime distribution and matches the
+        metric a utility bill or a mass/energy balance would report.
+    A robust median of per-minute kWh/t is also reported as a secondary check.
 
     Returns:
         {"figures": [], "stats": {shift_1: {...}, ...}, "summary": str}
@@ -70,12 +86,41 @@ def shift_kpis(df: pd.DataFrame, columns: list = None,
         # Uptime/downtime based on Ore
         if ore_col in shift_data.columns:
             ore = shift_data[ore_col].dropna()
-            running = (ore >= downtime_threshold).sum()
+            running_mask_ore = ore >= downtime_threshold
+            running = int(running_mask_ore.sum())
             total = len(ore)
             uptime_pct = round(running / total * 100, 1) if total > 0 else 0
             shift_stats["uptime_pct"] = uptime_pct
             shift_stats["downtime_pct"] = round(100 - uptime_pct, 1)
-            shift_stats["throughput_mean"] = round(float(ore[ore >= downtime_threshold].mean()), 1) if running > 0 else 0
+            shift_stats["throughput_mean"] = round(float(ore[running_mask_ore].mean()), 1) if running > 0 else 0
+
+        # Specific energy (kWh/t) — correct ratio-of-totals on running minutes.
+        # kW × (1 min / 60) gives kWh per minute; t/h × (1 min / 60) gives t per
+        # minute; the 1/60 factors cancel, so sum(Power)/sum(Ore) directly yields
+        # kWh/t as long as both series are sampled at the same cadence.
+        if ore_col in shift_data.columns and power_col in shift_data.columns:
+            pair = shift_data[[ore_col, power_col]].dropna()
+            running_pair = pair[pair[ore_col] >= downtime_threshold]
+            total_ore = float(running_pair[ore_col].sum())
+            total_power = float(running_pair[power_col].sum())
+            if total_ore > 0 and len(running_pair) > 0:
+                kwh_per_ton_totals = total_power / total_ore
+                # Robust secondary metric: median of per-minute Power/Ore on
+                # the same running subset. Immune to extreme spikes.
+                per_min_ratio = running_pair[power_col] / running_pair[ore_col]
+                kwh_per_ton_median = float(per_min_ratio.median())
+                # Diagnostic only: mean-of-ratios on the SAME running subset,
+                # so the LLM can see how much it inflates vs ratio-of-totals.
+                kwh_per_ton_mean_of_ratios = float(per_min_ratio.mean())
+                shift_stats["specific_energy"] = {
+                    "method": "ratio_of_totals",
+                    "kwh_per_ton": round(kwh_per_ton_totals, 3),
+                    "kwh_per_ton_median": round(kwh_per_ton_median, 3),
+                    "kwh_per_ton_mean_of_ratios_BIASED": round(kwh_per_ton_mean_of_ratios, 3),
+                    "running_minutes": int(len(running_pair)),
+                    "total_energy_kwh_per_min_units": round(total_power, 1),
+                    "total_ore_tph_min_units": round(total_ore, 1),
+                }
 
         stats["shift_%d" % shift_num] = shift_stats
 
@@ -83,7 +128,22 @@ def shift_kpis(df: pd.DataFrame, columns: list = None,
     for key, s in stats.items():
         lines.append("  %s: %d pts" % (s["label"], s["data_points"]))
         if "uptime_pct" in s:
-            lines.append("    Uptime: %.1f%%, Throughput: %s t/h" % (s["uptime_pct"], s.get("throughput_mean", "N/A")))
+            lines.append("    Uptime: %.1f%%, Throughput: %s t/h"
+                         % (s["uptime_pct"], s.get("throughput_mean", "N/A")))
+        se = s.get("specific_energy")
+        if se:
+            lines.append(
+                "    Specific energy (sum(Power)/sum(Ore), running only): %.2f kWh/t "
+                "| median per-min: %.2f | mean-of-ratios (BIASED, do not use): %.2f"
+                % (se["kwh_per_ton"], se["kwh_per_ton_median"],
+                   se["kwh_per_ton_mean_of_ratios_BIASED"])
+            )
+
+    lines.append("")
+    lines.append("NOTE: For specific energy always use 'kwh_per_ton' (ratio-of-totals).")
+    lines.append("The 'kwh_per_ton_mean_of_ratios_BIASED' field is included ONLY as a")
+    lines.append("diagnostic — it is inflated by minutes near the Ore threshold and must")
+    lines.append("NOT be reported as the shift's specific energy.")
 
     return {"figures": [], "stats": stats, "summary": "\n".join(lines)}
 

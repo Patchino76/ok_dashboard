@@ -98,7 +98,40 @@ OUTPUT LANGUAGE — MANDATORY:
   'DensityHC', 'kWh/t', file names, etc.).
 - Use the native Bulgarian names for the shifts: „първа смяна", „втора смяна",
   „трета смяна" (or "Смяна 1/2/3"). Refer to mills as „Мелница 1"…„Мелница 12"
-  in prose while keeping the raw identifier mill_data_N in code."""
+  in prose while keeping the raw identifier mill_data_N in code.
+
+STATISTICAL INTEGRITY — RATIO METRICS (CRITICAL):
+For ANY ratio-type metric (specific energy kWh/t, specific consumption, yield,
+kg/ton, recovery %, energy per ton, water/ton, etc.) you MUST use
+**ratio-of-totals** aggregation, NEVER the mean of per-minute ratios.
+
+  CORRECT   →  kwh_per_ton = sum(Power[running]) / sum(Ore[running])
+  WRONG     →  (df["Power"] / df["Ore"]).mean()      # mean-of-ratios
+  WRONG     →  df.groupby("shift")["SpecificEnergy"].mean()  # same artefact
+
+Why mean-of-ratios is forbidden:
+  • When the denominator (Ore, feed, tonnage) approaches zero during startups,
+    feeder changes, short idling, or sampling gaps, the per-minute ratio
+    explodes (one minute at Ore=5 t/h with Power=1500 kW gives 300 kWh/t).
+  • These spikes inflate the mean far above the true physical intensity and
+    systematically penalise shifts/mills with more short transitions,
+    producing ARTEFACTUAL efficiency differences that do not exist.
+  • Any correlation between the ratio and its own denominator (e.g. `Ore` vs
+    `SpecificEnergy`) is mechanically negative BY CONSTRUCTION and must NOT
+    be cited as evidence of efficiency gains.
+
+Required procedure whenever you compute a per-ton / per-unit metric:
+  1. Filter to running conditions first (e.g. `Ore >= 10` t/h).
+  2. Aggregate numerator and denominator separately (sums over the window).
+  3. Divide the totals exactly once, at the end.
+  4. Optionally report the median of per-minute ratios on the SAME running
+     subset as a robustness check. If ratio-of-totals and the median disagree
+     strongly, investigate instead of reporting a headline number.
+  5. Report `uptime_pct` / `downtime_pct` separately — do NOT conflate
+     "less downtime" with "better specific energy".
+
+The `skills.shift_kpi.shift_kpis(df, ore_col='Ore', power_col='Power')`
+function already implements this correctly; prefer it over ad-hoc code."""
 
 # ── Data Loader ──────────────────────────────────────────────────────────────
 
@@ -1225,10 +1258,22 @@ def build_followup_graph(
     followup_tool_objects = [tools_by_name[n] for n in FOLLOWUP_TOOLS if n in tools_by_name]
     followup_llm = llm.bind_tools(followup_tool_objects)
 
+    # Preserve any leading SystemMessage(s) in state (e.g. the report snapshot
+    # injected by the API layer) when we tail-slice the message window — they
+    # must always reach the LLM, regardless of window size.
+    def _split_leading_system(msgs: list[BaseMessage]) -> tuple[list[BaseMessage], list[BaseMessage]]:
+        leading: list[BaseMessage] = []
+        i = 0
+        while i < len(msgs) and isinstance(msgs[i], SystemMessage):
+            leading.append(msgs[i])
+            i += 1
+        return leading, msgs[i:]
+
     # ── Router node ─────────────────────────────────────────────────
     def followup_router_node(state: FollowUpState) -> dict:
         _progress("followup", "Анализиране на допълнителния въпрос...")
-        messages = [SystemMessage(content=FOLLOWUP_ROUTER_PROMPT)] + state["messages"][-20:]
+        leading_sys, rest = _split_leading_system(state["messages"])
+        messages = [SystemMessage(content=FOLLOWUP_ROUTER_PROMPT)] + leading_sys + rest[-20:]
 
         try:
             response = llm.invoke(messages)
@@ -1295,8 +1340,12 @@ def build_followup_graph(
             )
             _progress("followup", "Отговор на въпрос...")
 
-        # Use last 30 messages for context (includes original analysis)
-        focused = state["messages"][-30:]
+        # Use last 30 messages for context (includes original analysis), but
+        # always preserve any leading SystemMessage(s) — e.g. the injected
+        # snapshot of the current report — so the LLM never loses them to the
+        # tail-window truncation.
+        leading_sys, rest = _split_leading_system(state["messages"])
+        focused = leading_sys + rest[-30:]
         messages = [SystemMessage(content=system)] + focused
 
         try:

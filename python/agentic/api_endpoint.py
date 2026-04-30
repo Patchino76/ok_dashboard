@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from client import get_mcp_tools
@@ -381,6 +381,34 @@ def _content_to_str(content) -> str:
     return str(content) if content is not None else ""
 
 
+def _read_latest_report_markdown(analysis_id: str) -> Optional[str]:
+    """Read the most recently modified .md report file from the analysis output folder.
+
+    Returns None if the folder doesn't exist or contains no .md files.
+    The Reporter (and REFINE_REPORT follow-ups) write via write_markdown_report
+    into OUTPUT_DIR/<analysis_id>/. We pick the newest file by mtime so that
+    refined reports supersede the original.
+    """
+    folder = os.path.join(OUTPUT_DIR, analysis_id)
+    if not os.path.isdir(folder):
+        return None
+    try:
+        md_files = [
+            os.path.join(folder, f)
+            for f in os.listdir(folder)
+            if f.lower().endswith(".md") and os.path.isfile(os.path.join(folder, f))
+        ]
+        if not md_files:
+            return None
+        latest = max(md_files, key=os.path.getmtime)
+        with open(latest, "r", encoding="utf-8") as fh:
+            content = fh.read()
+        return content.strip() or None
+    except Exception as e:
+        print(f"[report_markdown] Failed to read report for {analysis_id}: {e}")
+        return None
+
+
 def _serialize_messages(messages) -> list[dict]:
     """Serialize LangChain messages to dicts for follow-up context.
 
@@ -455,6 +483,16 @@ async def _run_analysis_background(
                 _analyses[analysis_id]["conversation_history"] = _serialize_messages(
                     final_state["messages"]
                 )
+                # Snapshot the generated Markdown report so follow-ups can
+                # see it verbatim as a SystemMessage (avoids losing it to the
+                # tool_calls stripping in _serialize_messages).
+                report_md = _read_latest_report_markdown(analysis_id)
+                if report_md:
+                    _analyses[analysis_id]["report_markdown"] = report_md
+                    print(f"[report_markdown] Captured {len(report_md)} chars for {analysis_id}")
+                else:
+                    print(f"[report_markdown] No .md file found for {analysis_id}")
+
                 _analyses[analysis_id]["status"] = "completed"
                 _analyses[analysis_id]["final_answer"] = final_answer
                 _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
@@ -529,6 +567,32 @@ async def _run_followup_background(
         # Rebuild message objects and keep only the last N for context
         prior_messages = _rebuild_messages(history)[-30:]
 
+        # Pull the latest version of the generated report from disk so follow-ups
+        # see the actual Markdown body (not just the short specialist prose that
+        # survives serialization). Disk is the source of truth — if REFINE_REPORT
+        # rewrote the file previously, this picks it up.
+        report_md = _read_latest_report_markdown(analysis_id)
+        if not report_md:
+            report_md = original.get("report_markdown")
+
+        report_context: list = []
+        if report_md:
+            report_context.append(SystemMessage(content=(
+                "=== ТЕКУЩ ДОКЛАД (последна версия, източник на истина) ===\n"
+                "Това е Markdown съдържанието на последния запазен отчет за този анализ.\n"
+                "Използвай го като основа за отговори и обновявания. НЕ противоречи на "
+                "числата в него. Ако потребителят иска промяна — запази структурата, "
+                "терминологията и езика (български), обнови само поисканите части.\n"
+                "Когато викаш write_markdown_report — подай пълното ново съдържание "
+                "(не само промяната), запазвайки всичко останало от текущия доклад.\n"
+                "================================================================\n\n"
+                f"{report_md}\n\n"
+                "=== КРАЙ НА ТЕКУЩИЯ ДОКЛАД ==="
+            )))
+            print(f"[followup] injecting report markdown: {len(report_md)} chars")
+        else:
+            print(f"[followup] no prior report markdown available for {analysis_id}")
+
         print(f"\n[followup] analysis_id={analysis_id} followup_id={followup_id}")
         print(f"[followup] history entries: {len(history)} | rebuilt: {len(prior_messages)}")
         print(f"[followup] rebuilt types: {[type(m).__name__ for m in prior_messages]}")
@@ -552,8 +616,8 @@ async def _run_followup_background(
                     on_progress=on_progress,
                 )
 
-                # Pass prior conversation + new question as initial messages
-                initial_messages = prior_messages + [HumanMessage(content=question)]
+                # Pass report snapshot + prior conversation + new question as initial messages
+                initial_messages = report_context + prior_messages + [HumanMessage(content=question)]
 
                 final_state = await graph.ainvoke(
                     {"messages": initial_messages},
@@ -568,6 +632,14 @@ async def _run_followup_background(
                 _analyses[analysis_id]["conversation_history"] = _serialize_messages(
                     final_state["messages"]
                 )
+                # Refresh the cached report snapshot in case this follow-up
+                # rewrote it (REFINE_REPORT or a SPECIALIST that called
+                # write_markdown_report). Disk remains the source of truth.
+                refreshed_md = _read_latest_report_markdown(analysis_id)
+                if refreshed_md:
+                    _analyses[analysis_id]["report_markdown"] = refreshed_md
+                    print(f"[report_markdown] Refreshed {len(refreshed_md)} chars after follow-up {followup_id}")
+
                 _analyses[followup_id]["status"] = "completed"
                 _analyses[followup_id]["final_answer"] = final_answer
                 _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
