@@ -1,5 +1,42 @@
 # 03 — MCP Server and Client
 
+## What is MCP, in one paragraph?
+
+**Model Context Protocol** is just a contract for "this server exposes a set
+of named functions; this client can list them and call them." Think of it as
+RPC dressed up so any LLM client can discover and invoke your tools without
+extra glue. We use the **streamable-HTTP** transport: one long-lived HTTP
+connection carrying JSON-RPC frames in both directions.
+
+## The two halves
+
+```mermaid
+flowchart LR
+    subgraph SERVER["🖥️ MCP server (server.py, port 8003)"]
+        S1[Starlette app<br/>Mount /mcp]
+        S2[StreamableHTTPSessionManager]
+        S3[Server agentic-data-analysis-server]
+        S4[@list_tools → tools dict]
+        S5[@call_tool → handler]
+        S1 --> S2 --> S3
+        S3 --> S4
+        S3 --> S5
+    end
+
+    subgraph CLIENT["🤖 Client side (client.py inside FastAPI)"]
+        C1[streamable_http_client]
+        C2[ClientSession]
+        C3[get_mcp_tools session]
+        C4[StructuredTool list<br/>for LangGraph]
+        C1 --> C2 --> C3 --> C4
+    end
+
+    C2 -.JSON-RPC over HTTP.-> S2
+
+    style SERVER fill:#dcfce7,stroke:#16a34a
+    style CLIENT fill:#dbeafe,stroke:#1d4ed8
+```
+
 ## The server: `server.py`
 
 A minimal Starlette app that wraps a low-level `mcp.server.lowlevel.Server`
@@ -67,12 +104,12 @@ LangChain `StructuredTool`s.
 `_json_schema_to_pydantic` is a tiny converter. It handles the subset of
 JSON Schema that the tools actually use:
 
-| JSON type | Python type |
-|-----------|-------------|
-| `"integer"` | `int` |
-| `"number"` | `float` |
-| `"boolean"` | `bool` |
-| anything else | `str` |
+| JSON type     | Python type |
+| ------------- | ----------- |
+| `"integer"`   | `int`       |
+| `"number"`    | `float`     |
+| `"boolean"`   | `bool`      |
+| anything else | `str`       |
 
 Required fields become `(type, ...)`; optional ones become `(Optional[type], None)`.
 This Pydantic model is what LangGraph's LLM sees when it decides to call a tool.
@@ -110,11 +147,11 @@ the connection is closed when the analysis completes (success or failure).
 
 ## Why this split?
 
-| Concern | Handled in |
-|---------|-----------|
-| What tools exist and how they behave | `tools/*.py` |
-| How to expose them over the network | `server.py` |
-| How to consume them from LangGraph | `client.py` |
+| Concern                                    | Handled in           |
+| ------------------------------------------ | -------------------- |
+| What tools exist and how they behave       | `tools/*.py`         |
+| How to expose them over the network        | `server.py`          |
+| How to consume them from LangGraph         | `client.py`          |
 | Where in the pipeline each tool is allowed | `graph_v3.TOOL_SETS` |
 
 Each layer has one responsibility and can be swapped independently — e.g.

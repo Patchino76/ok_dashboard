@@ -4,32 +4,73 @@ All tools are registered in `tools/__init__.py` and exposed over MCP. Each tool
 has a `types.Tool` descriptor (name + description + input JSON Schema) and an
 async handler returning a list of `TextContent`.
 
+## Tool families
+
+```mermaid
+flowchart LR
+    subgraph DATA["📥 Data loading"]
+        T1[get_db_schema]
+        T2[query_mill_data]
+        T3[query_combined_data]
+    end
+
+    subgraph EXEC["🐍 Code execution"]
+        T4[execute_python<br/>full pandas/sklearn/Prophet]
+    end
+
+    subgraph IO["📁 Reports & output"]
+        T5[set_output_directory]
+        T6[list_output_files]
+        T7[write_markdown_report]
+    end
+
+    subgraph REF["📚 Reference"]
+        T8[get_domain_knowledge]
+        T9[list_skills]
+    end
+
+    DATA -->|"_dataframes['mill_data_8']"| EXEC
+    EXEC -->|saves chart.png<br/>STRUCTURED_OUTPUT| IO
+    REF -.consulted by.-> EXEC
+    REF -.consulted by.-> IO
+
+    style DATA fill:#dbeafe,stroke:#1d4ed8
+    style EXEC fill:#fef3c7,stroke:#d97706
+    style IO fill:#dcfce7,stroke:#16a34a
+    style REF fill:#fce7f3,stroke:#be185d
+```
+
+The colours match the role: blue = read from DB, yellow = compute, green =
+write to disk, pink = look up plant constants. Specialists pick from the
+yellow + green + pink groups; only `data_loader` touches blue.
+
 ## Registry at a glance
 
-| Tool | File | Purpose |
-|------|------|---------|
-| `get_db_schema` | `db_tools.py` | Inspect tables/columns in the `mills` schema. |
-| `query_mill_data` | `db_tools.py` | Load `mills.MILL_XX` time-series into memory. |
-| `query_combined_data` | `db_tools.py` | Load mill + `ore_quality` joined on TimeStamp. |
-| `execute_python` | `python_executor.py` | Run arbitrary Python against loaded DataFrames. |
-| `list_output_files` | `report_tools.py` | List files in the current output folder. |
-| `write_markdown_report` | `report_tools.py` | Save a `.md` report to the output folder. |
-| `set_output_directory` | `session_tools.py` | Point the output folder at `output/{analysis_id}/`. |
-| `get_domain_knowledge` | `domain_knowledge.py` | Return plant specs (vars, units, ranges). |
-| `list_skills` | `skill_registry.py` | Introspect the `skills/` library. |
+| Tool                    | File                  | Purpose                                             |
+| ----------------------- | --------------------- | --------------------------------------------------- |
+| `get_db_schema`         | `db_tools.py`         | Inspect tables/columns in the `mills` schema.       |
+| `query_mill_data`       | `db_tools.py`         | Load `mills.MILL_XX` time-series into memory.       |
+| `query_combined_data`   | `db_tools.py`         | Load mill + `ore_quality` joined on TimeStamp.      |
+| `execute_python`        | `python_executor.py`  | Run arbitrary Python against loaded DataFrames.     |
+| `list_output_files`     | `report_tools.py`     | List files in the current output folder.            |
+| `write_markdown_report` | `report_tools.py`     | Save a `.md` report to the output folder.           |
+| `set_output_directory`  | `session_tools.py`    | Point the output folder at `output/{analysis_id}/`. |
+| `get_domain_knowledge`  | `domain_knowledge.py` | Return plant specs (vars, units, ranges).           |
+| `list_skills`           | `skill_registry.py`   | Introspect the `skills/` library.                   |
 
 ## Data-loading tools
 
 ### `get_db_schema`
 
 ```json
-{ "schema_name": "mills"   // optional, default "mills"
+{
+  "schema_name": "mills" // optional, default "mills"
 }
 ```
 
 Returns the list of tables and, for one `MILL_XX` table plus `ore_quality`,
 their full column list. Other `MILL_XX` tables are reported as "same columns as
-MILL_01" to stay compact. `MOTIFS_*` tables are reported as "N columns (MOTIFS
+MILL*01" to stay compact. `MOTIFS*\*` tables are reported as "N columns (MOTIFS
 table, used for ML training)".
 
 The tool's description explicitly tells the agent **not to call it twice** — one
@@ -39,10 +80,10 @@ shot is enough to plan the rest of the analysis.
 
 ```json
 {
-  "mill_number": 8,                    // required, 1..12
-  "start_date":  "2025-03-01",         // optional ISO date
-  "end_date":    "2025-03-31",         // optional
-  "store_name":  "mill_data_8"         // optional, default = mill_data_{n}
+  "mill_number": 8, // required, 1..12
+  "start_date": "2025-03-01", // optional ISO date
+  "end_date": "2025-03-31", // optional
+  "store_name": "mill_data_8" // optional, default = mill_data_{n}
 }
 ```
 
@@ -106,7 +147,7 @@ internal users can reach port 8003.
 ### `set_output_directory`
 
 ```json
-{ "analysis_id": "ab12cd34" }   // required
+{ "analysis_id": "ab12cd34" } // required
 ```
 
 Mutates `tools/output_dir._current_output_dir` to
@@ -117,7 +158,7 @@ before building the graph.
 ### `list_output_files`
 
 ```json
-{ "extension_filter": "png" }   // optional, e.g. "png" or "md"
+{ "extension_filter": "png" } // optional, e.g. "png" or "md"
 ```
 
 Returns `{"count": N, "files": [{"name": "chart.png", "size_kb": 42.1}, …]}`.
@@ -127,8 +168,8 @@ Always scoped to the current output folder.
 
 ```json
 {
-  "filename": "mill_8_analysis.md",  // .md is auto-appended if missing
-  "content":  "# Title\n\n…"
+  "filename": "mill_8_analysis.md", // .md is auto-appended if missing
+  "content": "# Title\n\n…"
 }
 ```
 
@@ -142,7 +183,7 @@ charts; the API rewrites the URLs when serving the report.
 ### `get_domain_knowledge`
 
 ```json
-{ "variable": "PSI80" }   // optional
+{ "variable": "PSI80" } // optional
 ```
 
 - With a `variable`: returns that variable's full spec dict (min/max/unit/notes/
@@ -155,7 +196,7 @@ See **05 — Domain Knowledge** for the full variable catalogue.
 ### `list_skills`
 
 ```json
-{ "module": "spc" }   // optional: eda|spc|anomaly|forecasting|shift_kpi|optimization
+{ "module": "spc" } // optional: eda|spc|anomaly|forecasting|shift_kpi|optimization
 ```
 
 Introspects the `skills/` package at tool-import time (cached) and returns a
@@ -178,11 +219,11 @@ Not every specialist sees every tool. `graph_v3.build_graph` binds specialist-
 specific tool subsets to the LLM so it cannot even attempt an out-of-role
 action:
 
-| Specialist | Tools available |
-|------------|-----------------|
-| `data_loader` | `get_db_schema`, `query_mill_data`, `query_combined_data` |
-| `analyst`, `forecaster`, `anomaly_detective`, `bayesian_analyst`, `optimizer`, `shift_reporter`, `code_reviewer` | `execute_python`, `list_output_files`, `list_skills` |
-| `reporter` | `list_output_files`, `write_markdown_report` |
+| Specialist                                                                                                       | Tools available                                           |
+| ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `data_loader`                                                                                                    | `get_db_schema`, `query_mill_data`, `query_combined_data` |
+| `analyst`, `forecaster`, `anomaly_detective`, `bayesian_analyst`, `optimizer`, `shift_reporter`, `code_reviewer` | `execute_python`, `list_output_files`, `list_skills`      |
+| `reporter`                                                                                                       | `list_output_files`, `write_markdown_report`              |
 
 `set_output_directory` and `get_domain_knowledge` are called by the **framework**
 (via `session.call_tool`), not by the LLM, so they are never bound to any

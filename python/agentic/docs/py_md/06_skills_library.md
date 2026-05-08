@@ -1,8 +1,34 @@
 # 06 — Skills Library
 
-The `skills/` package is a set of tested, reusable analysis functions. The
-multi-agent system prefers them over raw matplotlib / sklearn code for three
-reasons:
+## Why a skills layer at all?
+
+Without skills, every specialist would re-invent the same code: "compute
+descriptive stats", "save a histogram with mean line", "fit Prophet, save the
+forecast plot, return change points". That is wasteful and inconsistent. The
+`skills/` package is a curated library of tested analysis functions; agents
+_compose_ them inside `execute_python` instead of writing matplotlib by hand.
+
+```mermaid
+flowchart LR
+    A[Specialist LLM<br/>writes Python code]
+    EX[execute_python<br/>tool]
+    NS[Python namespace<br/>pre-loaded with skills]
+    SK[skills.eda<br/>skills.spc<br/>skills.anomaly<br/>skills.forecasting<br/>skills.shift_kpi<br/>skills.optimization]
+    OUT[/output/{id}/<br/>chart.png/]
+    SO[STRUCTURED_OUTPUT:<br/>JSON line in stdout]
+
+    A -->|"result = skills.spc.xbar_chart(df, ...)"| EX
+    EX --> NS --> SK
+    SK -->|figures| OUT
+    SK -->|stats + summary| SO
+    SO -.consumed by.-> RP[Reporter and<br/>downstream specialists]
+
+    style SK fill:#fef3c7,stroke:#d97706
+    style SO fill:#dcfce7,stroke:#16a34a
+```
+
+The multi-agent system prefers skills over raw matplotlib / sklearn code for
+three reasons:
 
 1. **Consistency** — every function returns the same shape, so the downstream
    reporter knows how to consume results.
@@ -64,53 +90,53 @@ skills/
 
 ### `skills.eda`
 
-| Function | What it does |
-|----------|--------------|
-| `descriptive_stats(df, columns=None)` | count/mean/std/min/q25/q50/q75/max + missing % per column. No figure. |
-| `distribution_plots(df, columns=None, output_dir)` | Histogram grid with mean line per variable. → `distribution_plots.png` |
-| `correlation_heatmap(df, columns=None, output_dir)` | Lower-triangular annotated heatmap + top-10 `\|corr\|` pairs. → `correlation_heatmap.png` |
-| `time_series_overview(df, columns=None, output_dir)` | Stacked line plots with 1-hour rolling mean overlay. → `time_series_overview.png` |
+| Function                                             | What it does                                                                              |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `descriptive_stats(df, columns=None)`                | count/mean/std/min/q25/q50/q75/max + missing % per column. No figure.                     |
+| `distribution_plots(df, columns=None, output_dir)`   | Histogram grid with mean line per variable. → `distribution_plots.png`                    |
+| `correlation_heatmap(df, columns=None, output_dir)`  | Lower-triangular annotated heatmap + top-10 `\|corr\|` pairs. → `correlation_heatmap.png` |
+| `time_series_overview(df, columns=None, output_dir)` | Stacked line plots with 1-hour rolling mean overlay. → `time_series_overview.png`         |
 
 ### `skills.spc`
 
-| Function | What it does |
-|----------|--------------|
-| `control_limits(series, n_sigma=3)` | Returns `{CL, UCL, LCL, std}` — building block. |
+| Function                                                                  | What it does                                                                               |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `control_limits(series, n_sigma=3)`                                       | Returns `{CL, UCL, LCL, std}` — building block.                                            |
 | `xbar_chart(df, column, spec_limits, window='1h', n_sigma=3, output_dir)` | X-bar chart on rolling subgroup means; overlays UCL/LCL/LSL/USL; reports out-of-control %. |
-| `process_capability(df, column, lsl, usl, output_dir)` | Histogram vs spec; computes Cp, Cpk, Pp, Ppk, fraction out of spec. |
-| `control_limits_table(df, columns)` | Tabulated CL/UCL/LCL for many variables at once. |
+| `process_capability(df, column, lsl, usl, output_dir)`                    | Histogram vs spec; computes Cp, Cpk, Pp, Ppk, fraction out of spec.                        |
+| `control_limits_table(df, columns)`                                       | Tabulated CL/UCL/LCL for many variables at once.                                           |
 
 ### `skills.anomaly`
 
-| Function | What it does |
-|----------|--------------|
+| Function                                                                  | What it does                                                                |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `isolation_forest_analysis(df, features, contamination=0.05, output_dir)` | Fits IsolationForest, scatter of anomaly score, feature importance ranking. |
-| `anomaly_timeline(df, features, output_dir)` | Timeline plot marking anomalous windows. |
-| `regime_detection(df, features, output_dir)` | DBSCAN clustering on scaled features; per-regime means and counts. |
+| `anomaly_timeline(df, features, output_dir)`                              | Timeline plot marking anomalous windows.                                    |
+| `regime_detection(df, features, output_dir)`                              | DBSCAN clustering on scaled features; per-regime means and counts.          |
 
 ### `skills.forecasting`
 
-| Function | What it does |
-|----------|--------------|
-| `prophet_forecast(df, column, periods=480, freq='1min', output_dir)` | Fits Prophet, plots forecast + uncertainty, returns trend + changepoints. |
-| `seasonal_decomposition(df, column, output_dir)` | Additive STL decomposition (trend / seasonal / resid); saves the standard 3-panel chart. |
+| Function                                                             | What it does                                                                             |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `prophet_forecast(df, column, periods=480, freq='1min', output_dir)` | Fits Prophet, plots forecast + uncertainty, returns trend + changepoints.                |
+| `seasonal_decomposition(df, column, output_dir)`                     | Additive STL decomposition (trend / seasonal / resid); saves the standard 3-panel chart. |
 
 ### `skills.shift_kpi`
 
-| Function | What it does |
-|----------|--------------|
-| `assign_shifts(df)` | Adds `shift` and `shift_date` columns honouring the 22:00→06:00 wrap. |
-| `shift_kpis(df, columns)` | Per-shift mean/std/count and uptime-%, throughput. |
-| `shift_comparison_chart(df, columns, output_dir)` | Box plots per shift for each variable. |
-| `downtime_analysis(df, ore_col='Ore', threshold=10, output_dir)` | Total downtime hours, top events with timestamps and durations. |
+| Function                                                         | What it does                                                          |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `assign_shifts(df)`                                              | Adds `shift` and `shift_date` columns honouring the 22:00→06:00 wrap. |
+| `shift_kpis(df, columns)`                                        | Per-shift mean/std/count and uptime-%, throughput.                    |
+| `shift_comparison_chart(df, columns, output_dir)`                | Box plots per shift for each variable.                                |
+| `downtime_analysis(df, ore_col='Ore', threshold=10, output_dir)` | Total downtime hours, top events with timestamps and durations.       |
 
 ### `skills.optimization`
 
-| Function | What it does |
-|----------|--------------|
-| `pareto_frontier(df, x, y, x_minimize=False, y_minimize=True, output_dir)` | Identifies non-dominated points in (throughput, quality) space. |
-| `sensitivity_analysis(df, target, feature_cols, output_dir)` | Linear + tree importance ranking of features' effect on `target`. |
-| `optimal_windows(df, target, feature_cols, output_dir)` | Finds feature ranges where target is in its best quartile. |
+| Function                                                                   | What it does                                                      |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `pareto_frontier(df, x, y, x_minimize=False, y_minimize=True, output_dir)` | Identifies non-dominated points in (throughput, quality) space.   |
+| `sensitivity_analysis(df, target, feature_cols, output_dir)`               | Linear + tree importance ranking of features' effect on `target`. |
+| `optimal_windows(df, target, feature_cols, output_dir)`                    | Finds feature ranges where target is in its best quartile.        |
 
 ## How skills reach the executor namespace
 

@@ -9,27 +9,59 @@ system for the Ellatzite ore-dressing plant (12 ball mills). It combines:
 - **Pandas / scikit-learn / Prophet / statsmodels / SHAP** — the scientific stack
 - **FastAPI** — REST surface consumed by the Next.js `ai-chat` page
 
+## In one picture
+
+```mermaid
+flowchart LR
+    U[👤 Plant engineer<br/>asks a question in Bulgarian]
+    UI[Next.js<br/>/ai-chat page]
+    API[FastAPI router<br/>/api/v1/agentic/*]
+    LG[LangGraph pipeline<br/>multiple specialist agents]
+    MCP[MCP server<br/>port 8003]
+    DB[(PostgreSQL<br/>em_pulse_data)]
+    OUT[/output/{id}/<br/>charts + .md report/]
+
+    U -->|types prompt| UI
+    UI -->|HTTP JSON| API
+    API -->|spawns task| LG
+    LG -->|tool calls| MCP
+    MCP -->|SQL| DB
+    MCP -->|writes files| OUT
+    OUT -.served back.-> UI
+    UI -->|polls every 4s| API
+
+    style U fill:#fef3c7,stroke:#d97706
+    style OUT fill:#dcfce7,stroke:#16a34a
+```
+
+**In plain English:** the user types a question. The frontend hands it to a FastAPI
+endpoint, which spawns a LangGraph "team" of LLM agents. The agents call tools
+(SQL queries, Python code, report writers) over MCP. The MCP server reads the
+plant database, runs analyses, and writes charts + a Markdown report into a
+per-analysis folder. The frontend polls until the report is ready, then renders
+it inline in the chat bubble.
+
 ## Reading order
 
-| # | Document | What it covers |
-|---|----------|----------------|
-| 00 | `00_index.md` | This file. |
-| 01 | `01_overview.md` | What the system does, when to use it, the user-facing flow. |
-| 02 | `02_architecture.md` | High-level component diagram and data flow. |
-| 03 | `03_mcp_server_and_client.md` | `server.py` + `client.py`: how MCP tools become LangChain tools. |
-| 04 | `04_tools_reference.md` | Every MCP tool: inputs, outputs, examples. |
-| 05 | `05_domain_knowledge.md` | Plant variables, specs, shifts, mills. |
-| 06 | `06_skills_library.md` | The `skills/` package — tested pandas/sklearn functions. |
-| 07 | `07_langgraph_pipeline.md` | `graph_v3.py` state, nodes, routing. |
-| 08 | `08_specialists.md` | Each specialist agent and its prompt. |
-| 09 | `09_planner_and_manager.md` | Dynamic pipeline selection + quality review loop. |
-| 10 | `10_followup_conversations.md` | The follow-up graph and conversation persistence. |
-| 11 | `11_analysis_templates.md` | Pre-defined specialist pipelines (bypass the planner). |
-| 12 | `12_api_endpoint.md` | FastAPI routes consumed by the frontend. |
-| 13 | `13_output_management.md` | Per-analysis output folders, file serving, cleanup. |
-| 14 | `14_request_lifecycle.md` | End-to-end sequence of a single analysis. |
-| 15 | `15_configuration.md` | `.env`, context budgets, UI settings. |
-| 16 | `16_extending.md` | How to add a new tool / skill / specialist / template. |
+| #   | Document                       | What it covers                                                   |
+| --- | ------------------------------ | ---------------------------------------------------------------- |
+| 00  | `00_index.md`                  | This file.                                                       |
+| 01  | `01_overview.md`               | What the system does, when to use it, the user-facing flow.      |
+| 02  | `02_architecture.md`           | High-level component diagram and data flow.                      |
+| 03  | `03_mcp_server_and_client.md`  | `server.py` + `client.py`: how MCP tools become LangChain tools. |
+| 04  | `04_tools_reference.md`        | Every MCP tool: inputs, outputs, examples.                       |
+| 05  | `05_domain_knowledge.md`       | Plant variables, specs, shifts, mills.                           |
+| 06  | `06_skills_library.md`         | The `skills/` package — tested pandas/sklearn functions.         |
+| 07  | `07_langgraph_pipeline.md`     | `graph_v3.py` state, nodes, routing.                             |
+| 08  | `08_specialists.md`            | Each specialist agent and its prompt.                            |
+| 09  | `09_planner_and_manager.md`    | Dynamic pipeline selection + quality review loop.                |
+| 10  | `10_followup_conversations.md` | The follow-up graph and conversation persistence.                |
+| 11  | `11_analysis_templates.md`     | Pre-defined specialist pipelines (bypass the planner).           |
+| 12  | `12_api_endpoint.md`           | FastAPI routes consumed by the frontend.                         |
+| 13  | `13_output_management.md`      | Per-analysis output folders, file serving, cleanup.              |
+| 14  | `14_request_lifecycle.md`      | End-to-end sequence of a single analysis.                        |
+| 15  | `15_configuration.md`          | `.env`, context budgets, UI settings.                            |
+| 16  | `16_extending.md`              | How to add a new tool / skill / specialist / template.           |
 
 ## Quick start
 
@@ -59,19 +91,19 @@ The Next.js UI at `/ai-chat` will call `POST /api/v1/agentic/analyze` and poll
 
 ## File-to-doc map
 
-| Source file | Documented in |
-|-------------|---------------|
-| `server.py` | 03 |
-| `client.py` | 03 |
-| `tools/db_tools.py` | 04, 05 |
-| `tools/python_executor.py` | 04, 06 |
-| `tools/report_tools.py` | 04, 13 |
-| `tools/session_tools.py` + `output_dir.py` | 04, 13 |
-| `tools/domain_knowledge.py` | 04, 05 |
-| `tools/skill_registry.py` | 04, 06 |
-| `skills/*.py` | 06 |
-| `graph_v3.py` (main graph) | 07, 08, 09 |
-| `graph_v3.py` (follow-up graph) | 10 |
-| `analysis_templates.py` | 11 |
-| `api_endpoint.py` | 12, 13, 14 |
-| `main.py` | 14 (CLI variant) |
+| Source file                                | Documented in    |
+| ------------------------------------------ | ---------------- |
+| `server.py`                                | 03               |
+| `client.py`                                | 03               |
+| `tools/db_tools.py`                        | 04, 05           |
+| `tools/python_executor.py`                 | 04, 06           |
+| `tools/report_tools.py`                    | 04, 13           |
+| `tools/session_tools.py` + `output_dir.py` | 04, 13           |
+| `tools/domain_knowledge.py`                | 04, 05           |
+| `tools/skill_registry.py`                  | 04, 06           |
+| `skills/*.py`                              | 06               |
+| `graph_v3.py` (main graph)                 | 07, 08, 09       |
+| `graph_v3.py` (follow-up graph)            | 10               |
+| `analysis_templates.py`                    | 11               |
+| `api_endpoint.py`                          | 12, 13, 14       |
+| `main.py`                                  | 14 (CLI variant) |

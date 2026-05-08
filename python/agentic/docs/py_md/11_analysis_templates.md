@@ -5,6 +5,34 @@ call**. When a user picks a template from the UI ("Full analysis", "Forecast",
 "Shift comparison", …), the API forwards `template_id` and the planner node
 skips its Gemini call entirely.
 
+## Template vs free-form prompt
+
+```mermaid
+flowchart TD
+    Q[POST /analyze]
+    HAS{template_id<br/>in body?}
+    PL_LLM[planner_node<br/>asks Gemini<br/>SPECIALISTS: …]
+    PL_TPL[planner_node<br/>looks up TEMPLATES dict<br/>no LLM call]
+    SEQ[stages_to_run filled in]
+    RUN[pipeline runs]
+
+    Q --> HAS
+    HAS -->|yes — fast & deterministic| PL_TPL
+    HAS -->|no — flexible| PL_LLM
+    PL_TPL --> SEQ --> RUN
+    PL_LLM --> SEQ
+
+    style PL_TPL fill:#dcfce7,stroke:#16a34a
+    style PL_LLM fill:#fef3c7,stroke:#d97706
+```
+
+**When to use which:**
+
+- **Template** when the user picks a button on the empty state — saves one
+  Gemini call, guarantees the same shape of report each time.
+- **Free-form** when the user types a question — the planner reads it and
+  picks specialists dynamically.
+
 ## Why templates?
 
 - **Deterministic UX** — "Full analysis" always produces the same sections,
@@ -37,14 +65,14 @@ TEMPLATES = {
 
 ### Catalogue
 
-| ID | Label (bg / en) | Specialists |
-|----|------------------|-------------|
-| `comprehensive` | Пълен анализ / Comprehensive Analysis | analyst, anomaly_detective, shift_reporter |
-| `forecast` | Прогноза / Forecast Report | analyst, forecaster |
-| `quality` | Качество на смилане / Grinding Quality | analyst, optimizer |
-| `shift_comparison` | Сравнение на смени / Shift Comparison | shift_reporter |
-| `anomaly_investigation` | Разследване на аномалии / Anomaly Investigation | anomaly_detective, bayesian_analyst |
-| `optimization` | Оптимизация / Process Optimization | analyst, optimizer |
+| ID                      | Label (bg / en)                                 | Specialists                                |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------ |
+| `comprehensive`         | Пълен анализ / Comprehensive Analysis           | analyst, anomaly_detective, shift_reporter |
+| `forecast`              | Прогноза / Forecast Report                      | analyst, forecaster                        |
+| `quality`               | Качество на смилане / Grinding Quality          | analyst, optimizer                         |
+| `shift_comparison`      | Сравнение на смени / Shift Comparison           | shift_reporter                             |
+| `anomaly_investigation` | Разследване на аномалии / Anomaly Investigation | anomaly_detective, bayesian_analyst        |
+| `optimization`          | Оптимизация / Process Optimization              | analyst, optimizer                         |
 
 Each template produces a full pipeline
 `FIXED_PREFIX + specialists + FIXED_SUFFIX`:
@@ -133,7 +161,7 @@ Constraints:
   those are appended automatically.
 - Order matters: put foundational specialists (usually `analyst`) first.
 
-## When *not* to use templates
+## When _not_ to use templates
 
 - The user's question is specific and unusual — let the planner route it.
 - You want to experiment with a new specialist combo without freezing it yet.

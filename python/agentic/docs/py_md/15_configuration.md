@@ -9,6 +9,38 @@ one of three surfaces:
 3. **`AnalysisSettings` per request** — the UI's settings panel overrides
    the per-analysis context budgets.
 
+## How a value flows from .env → LLM call
+
+```mermaid
+flowchart LR
+    ENV[".env file<br/>at repo root"]
+    OS[os.environ]
+    DEF[Module constants<br/>graph_v3.py defaults]
+    UI[UI settings panel<br/>localStorage]
+    REQ[POST /analyze body<br/>settings: AnalysisSettings]
+    BG["_run_analysis_background<br/>(api_endpoint.py)"]
+    BUILD["build_graph(<br/>api_key, settings, …)"]
+    CLOSE[Closures inside<br/>compress_messages,<br/>build_focused_context]
+    LLM[LLM call<br/>with bounded context]
+
+    ENV -->|python-dotenv| OS
+    OS -->|GOOGLE_API_KEY| BG
+    OS -->|DB_*| DB[(Postgres)]
+    DEF -.fallbacks.-> BUILD
+    UI -->|attached to body| REQ --> BG
+    BG --> BUILD --> CLOSE --> LLM
+
+    style ENV fill:#fef3c7,stroke:#d97706
+    style UI fill:#dbeafe,stroke:#1d4ed8
+    style LLM fill:#dcfce7,stroke:#16a34a
+```
+
+**Three knobs, three audiences:**
+
+- **`.env`** — for the operator (DB credentials, API keys).
+- **Module constants** — for the developer (sane defaults).
+- **`AnalysisSettings`** — for the end user (how much context Gemini gets).
+
 ## Environment variables (`.env`)
 
 Loaded with `python-dotenv` from the repo root:
@@ -18,15 +50,15 @@ _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(_env_path)
 ```
 
-| Variable | Used by | Default fallback | Required? |
-|----------|---------|------------------|-----------|
-| `GOOGLE_API_KEY` | `graph_v3.ChatGoogleGenerativeAI` | — | **Yes** |
-| `MCP_SERVER_URL` | `api_endpoint.py`, `main.py`, `client.py` | `http://localhost:8003/mcp` | No |
-| `DB_HOST` | `tools/db_tools._get_db_connector` / `_get_engine` | `em-m-db4.ellatzite-med.com` | No |
-| `DB_PORT` | ↑ | `5432` | No |
-| `DB_NAME` | ↑ | `em_pulse_data` | No |
-| `DB_USER` | ↑ | `s.lyubenov` | No |
-| `DB_PASSWORD` | ↑ | *(hard-coded fallback present — override in prod)* | No |
+| Variable         | Used by                                            | Default fallback                                   | Required? |
+| ---------------- | -------------------------------------------------- | -------------------------------------------------- | --------- |
+| `GOOGLE_API_KEY` | `graph_v3.ChatGoogleGenerativeAI`                  | —                                                  | **Yes**   |
+| `MCP_SERVER_URL` | `api_endpoint.py`, `main.py`, `client.py`          | `http://localhost:8003/mcp`                        | No        |
+| `DB_HOST`        | `tools/db_tools._get_db_connector` / `_get_engine` | `em-m-db4.ellatzite-med.com`                       | No        |
+| `DB_PORT`        | ↑                                                  | `5432`                                             | No        |
+| `DB_NAME`        | ↑                                                  | `em_pulse_data`                                    | No        |
+| `DB_USER`        | ↑                                                  | `s.lyubenov`                                       | No        |
+| `DB_PASSWORD`    | ↑                                                  | _(hard-coded fallback present — override in prod)_ | No        |
 
 > The hard-coded database fallback in `db_tools.py` is a convenience for
 > local development. In production set `DB_*` explicitly in `.env` so the
@@ -69,7 +101,7 @@ MAX_SPECIALIST_ITERS   = 5
 MAX_REWORKS_PER_STAGE  = 1
 ```
 
-Note that the Pydantic model `AnalysisSettings` has *slightly different*
+Note that the Pydantic model `AnalysisSettings` has _slightly different_
 defaults (4000/4000/20/5). Those apply whenever the request carries a
 `settings` block. The module constants are used when no settings are
 supplied (e.g. the CLI `main.py`).
@@ -107,13 +139,13 @@ request body.
 
 ### Tuning guide
 
-| Symptom | Knob to turn |
-|---------|--------------|
-| Specialists truncate results before finishing | ↑ `maxToolOutputChars` |
-| Reporter forgets numbers from earlier specialists | ↑ `maxAiMessageChars` *or* ↑ `maxMessagesWindow` |
-| Analysis times out / costs too much | ↓ `maxSpecialistIterations` (to 3) or use a narrower template |
-| Tool error floods the context | ↓ `maxToolOutputChars` (to 2000) |
-| Rework loops never resolve | Keep `MAX_REWORKS_PER_STAGE = 1` (increasing rarely helps) |
+| Symptom                                           | Knob to turn                                                  |
+| ------------------------------------------------- | ------------------------------------------------------------- |
+| Specialists truncate results before finishing     | ↑ `maxToolOutputChars`                                        |
+| Reporter forgets numbers from earlier specialists | ↑ `maxAiMessageChars` _or_ ↑ `maxMessagesWindow`              |
+| Analysis times out / costs too much               | ↓ `maxSpecialistIterations` (to 3) or use a narrower template |
+| Tool error floods the context                     | ↓ `maxToolOutputChars` (to 2000)                              |
+| Rework loops never resolve                        | Keep `MAX_REWORKS_PER_STAGE = 1` (increasing rarely helps)    |
 
 ## Output budget: `8000` and `4000`
 
@@ -132,10 +164,10 @@ These happen **before** LangGraph's compression, so the server-side cap is
 
 Hard cap on total LangGraph node visits:
 
-| Flow | Value | Set in |
-|------|-------|--------|
+| Flow          | Value | Set in                                                       |
+| ------------- | ----- | ------------------------------------------------------------ |
 | Main analysis | `150` | `api_endpoint._run_analysis_background`, `main.run_analysis` |
-| Follow-up | `50` | `api_endpoint._run_followup_background` |
+| Follow-up     | `50`  | `api_endpoint._run_followup_background`                      |
 
 With 6 fixed stages (data_loader, planner, code_reviewer, reporter + their
 entries) plus up to 4 specialist stages × (1 LLM + 5 tool rounds + 1 manager
@@ -159,18 +191,18 @@ Python processes (systemd, pm2, docker logs, …).
 
 ## Other config knobs worth knowing
 
-| Where | What | Default |
-|-------|------|---------|
-| `graph_v3.SPECIALIST_POOL` | Which specialists the planner may choose | 6 specialists |
-| `graph_v3._AUTO_ACCEPT_STAGES` | Stages the manager skips LLM review for | `{data_loader, planner, code_reviewer, reporter}` |
-| `graph_v3.FIXED_PREFIX` / `FIXED_SUFFIX` | Stages inserted around the planner's choices | `[data_loader, planner]` / `[code_reviewer, reporter]` |
-| `api_endpoint.OUTPUT_DIR` | Root for output subfolders | `<agentic>/output` |
-| `client.py` | JSON-schema-to-Pydantic type map | `integer → int`, `number → float`, `boolean → bool`, else `str` |
+| Where                                    | What                                         | Default                                                         |
+| ---------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- |
+| `graph_v3.SPECIALIST_POOL`               | Which specialists the planner may choose     | 6 specialists                                                   |
+| `graph_v3._AUTO_ACCEPT_STAGES`           | Stages the manager skips LLM review for      | `{data_loader, planner, code_reviewer, reporter}`               |
+| `graph_v3.FIXED_PREFIX` / `FIXED_SUFFIX` | Stages inserted around the planner's choices | `[data_loader, planner]` / `[code_reviewer, reporter]`          |
+| `api_endpoint.OUTPUT_DIR`                | Root for output subfolders                   | `<agentic>/output`                                              |
+| `client.py`                              | JSON-schema-to-Pydantic type map             | `integer → int`, `number → float`, `boolean → bool`, else `str` |
 
 All of these are deliberate single-definition points — edit them in one
 place and the change propagates throughout.
 
-## Things that are *not* configurable (yet)
+## Things that are _not_ configurable (yet)
 
 - **Gemini temperature / generation params** — use defaults from
   `ChatGoogleGenerativeAI`. Wire through `build_graph` if you need control.

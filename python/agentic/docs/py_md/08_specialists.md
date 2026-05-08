@@ -5,6 +5,43 @@ Gemini model, tool set (`execute_python` + `list_output_files` + `list_skills`)
 and context-compression plumbing, but each has a distinct system prompt that
 defines its domain focus and a preferred skill chain.
 
+## The cast
+
+```mermaid
+flowchart TB
+    subgraph FIXED1["Fixed prefix (always run)"]
+        DL[🚚 data_loader<br/>SQL → DataFrames]
+        PL[🧭 planner<br/>picks specialists]
+    end
+
+    subgraph POOL["Specialist pool — planner picks 1–4"]
+        AN[📊 analyst<br/>EDA + SPC]
+        FC[🔮 forecaster<br/>Prophet, ARIMA]
+        AD[🚨 anomaly_detective<br/>IsolationForest, regimes]
+        BA[🎲 bayesian_analyst<br/>bootstrap, credible intervals]
+        OP[⚙️ optimizer<br/>Pareto, sensitivity, setpoints]
+        SR[👷 shift_reporter<br/>shift KPIs, downtime]
+    end
+
+    subgraph FIXED2["Fixed suffix (always run)"]
+        CR[🔍 code_reviewer<br/>sanity-check]
+        RP[📝 reporter<br/>writes the .md]
+    end
+
+    DL --> PL --> POOL --> CR --> RP
+
+    style DL fill:#fef3c7,stroke:#d97706
+    style PL fill:#fef3c7,stroke:#d97706
+    style CR fill:#fef3c7,stroke:#d97706
+    style RP fill:#dcfce7,stroke:#16a34a
+    style AN fill:#dbeafe,stroke:#1d4ed8
+    style FC fill:#dbeafe,stroke:#1d4ed8
+    style AD fill:#fee2e2,stroke:#dc2626
+    style BA fill:#fce7f3,stroke:#be185d
+    style OP fill:#dcfce7,stroke:#16a34a
+    style SR fill:#f3e8ff,stroke:#7e22ce
+```
+
 ## The pool
 
 ```python
@@ -91,7 +128,7 @@ run.
 
 - **Chain:**
   1. `skills.anomaly.isolation_forest_analysis(df, features=[...],
-     contamination=0.05)`
+contamination=0.05)`
   2. `skills.anomaly.regime_detection(df, features=[...])`
   3. Raw code (SHAP or feature-importance based) for **root cause analysis**
      — the one area explicitly allowed to bypass skills.
@@ -139,7 +176,7 @@ run.
 - **Expected actions:** call `list_output_files`, check stdout for errors,
   look for missing or failed charts, fix anything with one more
   `execute_python` call if truly necessary.
-- **Explicit prohibition:** *"Do NOT regenerate charts that already exist."*
+- **Explicit prohibition:** _"Do NOT regenerate charts that already exist."_
 - Auto-accepted by `manager_review` (no LLM judgement needed).
 
 ### `reporter`
@@ -160,17 +197,17 @@ run.
 `graph_v3._STAGE_LABELS` and `_STAGE_DESCRIPTIONS` provide Bulgarian friendly
 names used in progress messages:
 
-| Stage | Label | Description shown to the user |
-|-------|-------|-------------------------------|
-| `data_loader` | Зареждане на данни | Зареждане на данни от базата... |
-| `analyst` | Анализатор | Статистически анализ, разпределения и SPC диаграми... |
-| `forecaster` | Прогнозиране | Прогнозиране на трендове и сезонност... |
-| `anomaly_detective` | Детектор на аномалии | Търсене на аномалии и причини... |
-| `bayesian_analyst` | Байесов анализ | Байесов анализ и доверителни интервали... |
-| `optimizer` | Оптимизатор | Оптимизация на настройки и препоръки... |
-| `shift_reporter` | Сменен отчет | Анализ по смени и KPI показатели... |
-| `code_reviewer` | Проверка на резултати | Проверка на диаграми и резултати... |
-| `reporter` | Генериране на отчет | Писане на краен отчет... |
+| Stage               | Label                 | Description shown to the user                         |
+| ------------------- | --------------------- | ----------------------------------------------------- |
+| `data_loader`       | Зареждане на данни    | Зареждане на данни от базата...                       |
+| `analyst`           | Анализатор            | Статистически анализ, разпределения и SPC диаграми... |
+| `forecaster`        | Прогнозиране          | Прогнозиране на трендове и сезонност...               |
+| `anomaly_detective` | Детектор на аномалии  | Търсене на аномалии и причини...                      |
+| `bayesian_analyst`  | Байесов анализ        | Байесов анализ и доверителни интервали...             |
+| `optimizer`         | Оптимизатор           | Оптимизация на настройки и препоръки...               |
+| `shift_reporter`    | Сменен отчет          | Анализ по смени и KPI показатели...                   |
+| `code_reviewer`     | Проверка на резултати | Проверка на диаграми и резултати...                   |
+| `reporter`          | Генериране на отчет   | Писане на краен отчет...                              |
 
 ## Adding a new specialist
 

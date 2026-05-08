@@ -1,7 +1,32 @@
 # 09 — Planner and Manager Review
 
-Two special nodes govern the *shape* of the pipeline and the *quality* of what
+Two special nodes govern the _shape_ of the pipeline and the _quality_ of what
 each specialist produces. Neither does domain analysis of its own.
+
+## At a glance
+
+```mermaid
+flowchart LR
+    Q[user question +<br/>data_loader summary]
+    P[🧭 Planner<br/>which specialists?]
+    SEQ[stages_to_run:<br/>data_loader → planner →<br/>chosen specialists →<br/>code_reviewer → reporter]
+    S1[specialist 1] --> M1{🧑‍⚖️ Manager<br/>review}
+    S2[specialist 2] --> M1
+    Sn[specialist N] --> M1
+    M1 -->|ACCEPT| NXT[next stage]
+    M1 -->|REWORK<br/>once| RT[same stage,<br/>+1 attempt]
+
+    Q --> P --> SEQ --> S1
+    SEQ -.-> S2
+    SEQ -.-> Sn
+
+    style P fill:#fef3c7,stroke:#d97706
+    style M1 fill:#fce7f3,stroke:#be185d
+```
+
+- **Planner runs once** at the start to decide _which_ specialists run.
+- **Manager runs after every stage** to decide _whether the work is good
+  enough_ before advancing.
 
 ## The Planner
 
@@ -14,7 +39,7 @@ specialists irrelevant to the question.
 ### Inputs
 
 - `DOMAIN_CONTEXT` (standard plant preamble).
-- A bulleted description of each specialist with a *"USE when …"* clause.
+- A bulleted description of each specialist with a _"USE when …"_ clause.
 - The compressed, tool-stripped history so far (user question +
   data-loader summary).
 
@@ -116,8 +141,8 @@ produced charts, clean stdout" doesn't burn Gemini calls.
 
 ### Slow path: LLM review
 
-Only reached when the heuristic is inconclusive (no files *or* an error was
-detected *and* rework budget is not exhausted). The manager calls Gemini with
+Only reached when the heuristic is inconclusive (no files _or_ an error was
+detected _and_ rework budget is not exhausted). The manager calls Gemini with
 `MANAGER_REVIEW_PROMPT`:
 
 ```
@@ -161,8 +186,8 @@ When the manager decides REWORK, a callback fires:
 _progress("manager", f"⟳ {_label(current)}: Необходима е корекция, повторен опит...")
 ```
 
-This is how the user sees *"⟳ Анализатор: Необходима е корекция, повторен
-опит..."* in the UI progress bar.
+This is how the user sees _"⟳ Анализатор: Необходима е корекция, повторен
+опит..."_ in the UI progress bar.
 
 ### Why the two-phase design?
 
@@ -173,26 +198,36 @@ catch real quality problems.
 
 ## Routing summary
 
+```mermaid
+flowchart TD
+    IN[specialist produces a<br/>non-tool AIMessage]
+    MR{manager_review}
+    Q1{infrastructure<br/>stage?<br/>data_loader, planner,<br/>code_reviewer, reporter}
+    Q2{heuristic pass?<br/>files produced ✓<br/>no errors ✓}
+    Q3{LLM judge says<br/>ACCEPT or REWORK?}
+    BUDGET{rework budget<br/>exhausted?}
+    NEXT[next stage_entry<br/>advance]
+    SAME[same stage_entry<br/>retry +1 attempt]
+
+    IN --> MR --> Q1
+    Q1 -->|yes| NEXT
+    Q1 -->|no| Q2
+    Q2 -->|yes| NEXT
+    Q2 -->|no| BUDGET
+    BUDGET -->|yes| NEXT
+    BUDGET -->|no| Q3
+    Q3 -->|ACCEPT| NEXT
+    Q3 -->|REWORK| SAME
+
+    style NEXT fill:#dcfce7,stroke:#16a34a
+    style SAME fill:#fee2e2,stroke:#dc2626
+    style MR fill:#fce7f3,stroke:#be185d
 ```
-                         ┌───────────────────────┐
-                         │ specialist produces   │
-                         │ a non-tool AIMessage  │
-                         └──────────┬────────────┘
-                                    │
-                                    ▼
-                            manager_review
-                         ┌──────────┬────────────┐
-                         │          │            │
-           infrastructure│    heuristic pass │  LLM review
-             stage?      │    (files ✓,      │  needed?
-                         │     no errors)    │
-                         ▼          ▼            ▼
-                    ACCEPT       ACCEPT     ACCEPT or REWORK
-                         │          │            │
-                         └────┬─────┴────┬───────┘
-                              │          │
-                              │ ACCEPT   │ REWORK
-                              ▼          ▼
-                    next stage entry   same stage entry
-                         (advance)        (retry, +1 attempt)
-```
+
+**Three exit conditions**, in priority order:
+
+1. Auto-accept infrastructure stages (zero LLM cost).
+2. Heuristic auto-accept analysis stages that produced files cleanly (also
+   zero LLM cost).
+3. Otherwise, ask Gemini — but only if there's still rework budget; once
+   `MAX_REWORKS_PER_STAGE` is hit we accept whatever exists and move on.

@@ -58,7 +58,7 @@ interface ChatState {
     messageId: string,
     convId: string,
     reportAnalysisId?: string,
-    baselineReportFiles?: string[],
+    followUpStartedAt?: number,
   ) => void;
   stopPolling: () => void;
 
@@ -334,18 +334,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const convId = conv.id;
     const parentAnalysisId = conv.analysisId;
 
-    // Capture the set of report files that already exist in the parent folder
-    // so pollStatus can tell whether this follow-up actually produced a NEW
-    // report. Without this, ANSWER-style follow-ups (which only return text)
-    // would re-display the parent's stale report.
-    const baselineReportFiles: string[] = [];
-    for (const m of conv.messages) {
-      if (m.role === "assistant" && m.reportFiles) {
-        for (const f of m.reportFiles) {
-          if (!baselineReportFiles.includes(f)) baselineReportFiles.push(f);
-        }
-      }
-    }
+    // Capture the wall-clock instant the follow-up started (unix seconds).
+    // pollStatus uses this to flag any file with mtime >= followUpStartedAt
+    // as new-or-updated, which correctly handles REFINE_REPORT rewriting an
+    // existing .md filename and follow-ups that regenerate charts.
+    // Subtract a small skew so a file written in the same second still counts.
+    const followUpStartedAt = Date.now() / 1000 - 1;
 
     // Add user message
     addMessage({ role: "user", content: question });
@@ -397,7 +391,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         assistantMsg.id,
         convId,
         parentAnalysisId,
-        baselineReportFiles,
+        followUpStartedAt,
       );
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
@@ -423,15 +417,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     messageId: string,
     convId: string,
     reportAnalysisId?: string,
-    baselineReportFiles?: string[],
+    followUpStartedAt?: number,
   ) => {
     const { stopPolling } = get();
     stopPolling();
     // For follow-ups, report files live under the parent analysis ID
     const fileAnalysisId = reportAnalysisId || analysisId;
-    // For follow-ups, baselineReportFiles holds the parent's pre-existing
-    // reports; we only attach reportMarkdown if a NEW report appeared.
-    const baseline = new Set(baselineReportFiles || []);
+    // If followUpStartedAt is provided, this is a follow-up: only files with
+    // mtime >= followUpStartedAt count as new/updated. Otherwise (primary
+    // analysis), every produced file is "new".
+    const isFollowUp = typeof followUpStartedAt === "number";
 
     let consecutiveFailures = 0;
     let everSucceeded = false;
@@ -491,14 +486,41 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (data.status === "completed") {
           const reportFiles: string[] = data.report_files || [];
           const chartFiles: string[] = data.chart_files || [];
+          const reportMtimes: Record<string, number> =
+            data.report_files_mtime || {};
+          const chartMtimes: Record<string, number> =
+            data.chart_files_mtime || {};
 
-          // For follow-ups: only attach reportMarkdown if a NEW .md appeared
-          // (not already in the parent's baseline). For primary analyses the
-          // baseline is empty so every report is "new".
-          const newReportFiles = reportFiles.filter((f) => !baseline.has(f));
-          const mdToShow =
-            newReportFiles[0] ||
-            (baseline.size === 0 ? reportFiles[0] : undefined);
+          // Classify files as new/updated based on mtime vs follow-up start.
+          // Primary analyses (isFollowUp=false) treat every file as new.
+          const isNewOrUpdated = (
+            f: string,
+            mtimeMap: Record<string, number>,
+          ) => {
+            if (!isFollowUp) return true;
+            const mt = mtimeMap[f];
+            return (
+              typeof mt === "number" && mt >= (followUpStartedAt as number)
+            );
+          };
+
+          const newReportFiles = reportFiles.filter((f) =>
+            isNewOrUpdated(f, reportMtimes),
+          );
+          const newChartFiles = chartFiles.filter((f) =>
+            isNewOrUpdated(f, chartMtimes),
+          );
+
+          // Pick the most recently modified .md among the new/updated set so
+          // the bubble shows the freshest report inline.
+          let mdToShow: string | undefined;
+          if (newReportFiles.length > 0) {
+            mdToShow = [...newReportFiles].sort(
+              (a, b) => (reportMtimes[b] || 0) - (reportMtimes[a] || 0),
+            )[0];
+          } else if (!isFollowUp && reportFiles.length > 0) {
+            mdToShow = reportFiles[0];
+          }
 
           let reportMarkdown: string | undefined;
           if (mdToShow) {
@@ -514,26 +536,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           }
 
-          // Only expose NEW files to the per-message download list so the
-          // follow-up bubble doesn't re-advertise the parent's artefacts.
-          const newChartFiles =
-            baseline.size === 0
-              ? chartFiles
-              : // no chart baseline is captured separately; heuristic: if no
-                // new report, assume no new charts either (ANSWER mode).
-                newReportFiles.length > 0
-                ? chartFiles
-                : [];
-
           updateMessage(messageId, {
             status: "completed",
             content: data.final_answer || "Анализът е завършен.",
-            reportFiles:
-              newReportFiles.length > 0
-                ? newReportFiles
-                : baseline.size === 0
-                  ? reportFiles
-                  : [],
+            reportFiles: newReportFiles,
             chartFiles: newChartFiles,
             reportMarkdown,
           });

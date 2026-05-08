@@ -20,29 +20,47 @@ encoded via `msg.name`.
 
 ## Pipeline shape
 
+```mermaid
+flowchart TD
+    START([START])
+    DLE[data_loader_entry]
+    DL[data_loader<br/>LLM]
+    DLT[tools<br/>query_mill_data ⋯]
+    PLE[planner_entry]
+    PL[planner<br/>LLM picks specialists]
+    SPE["{specialist}_entry"]
+    SP["{specialist}<br/>LLM (analyst, forecaster, …)"]
+    SPT[tools<br/>execute_python ⋯]
+    MR{{manager_review}}
+    CRE[code_reviewer_entry]
+    CR[code_reviewer]
+    RPE[reporter_entry]
+    RP[reporter<br/>write_markdown_report]
+    END_([END])
+
+    START --> DLE --> DL
+    DL -->|tool_calls| DLT --> DL
+    DL -->|done| MR
+    MR -->|ACCEPT| PLE --> PL --> MR
+    MR -->|ACCEPT| SPE --> SP
+    SP -->|tool_calls| SPT --> SP
+    SP -->|done| MR
+    MR -->|REWORK<br/>(once)| SPE
+    MR -->|ACCEPT, more| SPE
+    MR -->|ACCEPT, last| CRE --> CR --> MR
+    MR -->|ACCEPT| RPE --> RP --> MR
+    MR -->|ACCEPT| END_
+
+    style START fill:#dbeafe,stroke:#1d4ed8
+    style END_ fill:#dcfce7,stroke:#16a34a
+    style MR fill:#fce7f3,stroke:#be185d
+    style PL fill:#fef3c7,stroke:#d97706
 ```
-START
-  │
-  ▼
-data_loader_entry ─▶ data_loader ─▶ tools ─▶ data_loader ─▶ manager_review
-                                                                │ ACCEPT
-                                                                ▼
-                                                          planner_entry ─▶ planner ─▶ manager_review
-                                                                                        │ ACCEPT
-                                                  ┌─────────────────────────────────────┘
-                                                  ▼
-          ┌──────────── (per specialist selected by planner) ────────────┐
-          │                                                              │
-          ▼                                                              │
-   {specialist}_entry ─▶ {specialist} ⇄ tools  ─▶ manager_review ────────┘
-   (analyst, forecaster, anomaly_detective, bayesian_analyst,     │ ACCEPT → next
-    optimizer, shift_reporter)                                    │ REWORK → same
-                                                                  ▼
-                                                  code_reviewer_entry ─▶ code_reviewer
-                                                                  │
-                                                                  ▼
-                                                         reporter_entry ─▶ reporter ─▶ END
-```
+
+**The "stage_entry → stage → manager_review" pattern repeats** for every stage.
+The list of specialist stages between the planner and the code_reviewer is
+**not hard-coded** — it comes from `state["stages_to_run"]`, which the planner
+fills in dynamically (or a template fills in deterministically).
 
 Two kinds of nodes alternate:
 
@@ -139,7 +157,7 @@ Three practical consequences:
 2. The `data_loader` cannot accidentally execute Python (which would defeat
    its narrow "load and summarise" role).
 3. All analysis specialists share the same tool set, so prompts differ only in
-   *what kind of analysis to do*, not in *how to do tool calls*.
+   _what kind of analysis to do_, not in _how to do tool calls_.
 
 ## Context compression
 
@@ -157,12 +175,12 @@ if len(messages) > MAX_MESSAGES_WINDOW + 1:
 
 Defaults (configurable via the UI settings panel → `AnalysisSettings`):
 
-| Setting | Default | Purpose |
-|---------|---------|---------|
-| `maxToolOutputChars` | 4000 | Per tool result |
-| `maxAiMessageChars` | 4000 | Per AI message |
-| `maxMessagesWindow` | 20 | Tail size (plus the original user msg) |
-| `maxSpecialistIterations` | 5 | Hard cap on specialist loops |
+| Setting                   | Default | Purpose                                |
+| ------------------------- | ------- | -------------------------------------- |
+| `maxToolOutputChars`      | 4000    | Per tool result                        |
+| `maxAiMessageChars`       | 4000    | Per AI message                         |
+| `maxMessagesWindow`       | 20      | Tail size (plus the original user msg) |
+| `maxSpecialistIterations` | 5       | Hard cap on specialist loops           |
 
 ### `build_focused_context(all_msgs, stage_name)`
 

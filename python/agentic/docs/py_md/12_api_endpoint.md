@@ -4,17 +4,63 @@
 the main app (`python/api.py`). It is the entire public surface of the
 agentic system.
 
+## Endpoint map
+
+```mermaid
+flowchart LR
+    UI[🌐 Next.js<br/>chat-store]
+
+    subgraph ROUTER["FastAPI APIRouter prefix=/api/v1/agentic"]
+        A1[POST /analyze<br/>start new run]
+        A2[GET /status/:id<br/>poll progress + files]
+        A3[POST /followup/:id<br/>ask follow-up]
+        A4[GET /reports<br/>list all files]
+        A5[GET /reports/:id/:file<br/>download PNG/MD]
+        A6[GET /templates<br/>list templates]
+        A7[DELETE /analysis/:id<br/>cleanup]
+    end
+
+    STATE[(_analyses dict<br/>in-memory)]
+    BG["asyncio.create_task<br/>(_run_analysis_background<br/>or _run_followup_background)"]
+    FS[/output/{id}/<br/>files on disk/]
+
+    UI -->|kick off| A1 --> BG
+    UI -->|poll 4s| A2
+    UI -->|extra question| A3 --> BG
+    UI -->|render charts| A5
+    UI -->|home screen| A6
+    UI -->|delete chat| A7
+
+    A1 --> STATE
+    A2 --> STATE
+    A2 --> FS
+    A5 --> FS
+    A7 --> STATE
+    A7 --> FS
+    BG -.updates.-> STATE
+    BG -.writes.-> FS
+
+    style A1 fill:#dbeafe,stroke:#1d4ed8
+    style A3 fill:#fef3c7,stroke:#d97706
+    style A7 fill:#fee2e2,stroke:#dc2626
+    style FS fill:#dcfce7,stroke:#16a34a
+```
+
+**Two kinds of endpoints**: those that _kick off_ work (`/analyze`,
+`/followup`, `/analysis` DELETE) mutate state; the rest are read-only
+projections of `_analyses` + the `output/` tree.
+
 ## Routes
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `POST` | `/analyze` | Start a new analysis; returns an `analysis_id`. |
-| `GET` | `/status/{analysis_id}` | Poll progress + final result for an analysis or follow-up. |
-| `POST` | `/followup/{analysis_id}` | Ask a follow-up against a completed analysis. |
-| `GET` | `/reports` | Flat list of every generated file across all analyses. |
-| `GET` | `/reports/{analysis_id}/{filename}` | Download one file (PNG or MD). |
-| `GET` | `/templates` | List available analysis templates. |
-| `DELETE` | `/analysis/{analysis_id}` | Delete output folder and in-memory tracking. |
+| Method   | Path                                | Purpose                                                    |
+| -------- | ----------------------------------- | ---------------------------------------------------------- |
+| `POST`   | `/analyze`                          | Start a new analysis; returns an `analysis_id`.            |
+| `GET`    | `/status/{analysis_id}`             | Poll progress + final result for an analysis or follow-up. |
+| `POST`   | `/followup/{analysis_id}`           | Ask a follow-up against a completed analysis.              |
+| `GET`    | `/reports`                          | Flat list of every generated file across all analyses.     |
+| `GET`    | `/reports/{analysis_id}/{filename}` | Download one file (PNG or MD).                             |
+| `GET`    | `/templates`                        | List available analysis templates.                         |
+| `DELETE` | `/analysis/{analysis_id}`           | Delete output folder and in-memory tracking.               |
 
 All responses are JSON except `/reports/{id}/{file}`, which uses `FileResponse`
 to stream PNGs / MDs with the correct content-type.

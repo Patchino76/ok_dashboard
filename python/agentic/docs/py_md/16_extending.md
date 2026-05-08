@@ -4,6 +4,36 @@ Four kinds of extension are common: adding a **tool**, adding a **skill**,
 adding a **specialist**, and adding a **template**. Each has a fixed
 checklist.
 
+## Pick your extension level
+
+```mermaid
+flowchart TD
+    Q{What are you<br/>trying to add?}
+    Q -->|new server-side capability<br/>e.g. fetch CSV, S3 upload| TOOL[1️⃣ Tool<br/>tools/*.py + register]
+    Q -->|reusable analysis function<br/>e.g. new SPC rule| SKILL[2️⃣ Skill<br/>skills/*.py]
+    Q -->|new LLM persona<br/>e.g. maintenance_advisor| SPEC[3️⃣ Specialist<br/>graph_v3.py prompt + pool]
+    Q -->|new fixed pipeline<br/>e.g. quarterly review| TPL[4️⃣ Template<br/>analysis_templates.py]
+
+    TOOL -.also update.-> TS[TOOL_SETS gating]
+    SPEC -.also update.-> TS
+    SPEC -.also update.-> LBL[_STAGE_LABELS<br/>+ planner prompt]
+
+    style TOOL fill:#dbeafe,stroke:#1d4ed8
+    style SKILL fill:#fef3c7,stroke:#d97706
+    style SPEC fill:#fce7f3,stroke:#be185d
+    style TPL fill:#dcfce7,stroke:#16a34a
+```
+
+**Rule of thumb — least invasive first:**
+
+1. Need a curated chain of _existing_ specialists? → **Template** (one
+   dictionary entry, no LLM changes).
+2. Need new analysis logic that any specialist could call? → **Skill**.
+3. Need to expose a new server-side capability (DB, file system, external
+   API)? → **Tool**.
+4. Need a whole new LLM persona with its own role and prompt? → **Specialist**
+   (touches the most files).
+
 ## 1. Adding a new MCP tool
 
 Goal: expose a new server-side capability (e.g. "upload file to S3", "fetch
@@ -70,7 +100,7 @@ tools = {
 
 Restart the server (`python agentic/server.py`) — new tools print on startup
 (`Tools registered: [...]`). Then call it from any specialist via
-`execute_python` *only* if it's in the specialist's `TOOL_SETS`.
+`execute_python` _only_ if it's in the specialist's `TOOL_SETS`.
 
 ## 2. Adding a new skill
 
@@ -257,16 +287,16 @@ Constraints:
 
 ## Common mistakes to avoid
 
-| Mistake | Consequence |
-|---------|-------------|
-| Registering a tool without adding it to `TOOL_SETS` | Tool is live on the MCP server but no specialist can call it. |
-| Adding a specialist without updating `_STAGE_LABELS` | Progress UI shows the raw snake_case name. |
-| Template specialist name doesn't match `SPECIALIST_POOL` | Template silently falls back to LLM planning. |
-| Skill returns a non-`dict` result | STRUCTURED_OUTPUT is skipped; downstream specialists lose structured context. |
-| Skill uses interactive `plt.show()` | Works locally but hangs in the server (no display). Use `plt.savefig` + `plt.close`. |
-| Tool handler returns multiple `TextContent` items | `client.py` only reads `result.content[0].text`; extras are dropped. |
-| MCP tool input schema uses `array` or `object` types | `_json_schema_to_pydantic` defaults them to `str`; the LLM will pass JSON strings. Either stick to scalars or extend the converter. |
-| Hard-coding a path instead of reading `get_output_dir()` | Files land in the wrong per-analysis folder. |
+| Mistake                                                  | Consequence                                                                                                                         |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Registering a tool without adding it to `TOOL_SETS`      | Tool is live on the MCP server but no specialist can call it.                                                                       |
+| Adding a specialist without updating `_STAGE_LABELS`     | Progress UI shows the raw snake_case name.                                                                                          |
+| Template specialist name doesn't match `SPECIALIST_POOL` | Template silently falls back to LLM planning.                                                                                       |
+| Skill returns a non-`dict` result                        | STRUCTURED_OUTPUT is skipped; downstream specialists lose structured context.                                                       |
+| Skill uses interactive `plt.show()`                      | Works locally but hangs in the server (no display). Use `plt.savefig` + `plt.close`.                                                |
+| Tool handler returns multiple `TextContent` items        | `client.py` only reads `result.content[0].text`; extras are dropped.                                                                |
+| MCP tool input schema uses `array` or `object` types     | `_json_schema_to_pydantic` defaults them to `str`; the LLM will pass JSON strings. Either stick to scalars or extend the converter. |
+| Hard-coding a path instead of reading `get_output_dir()` | Files land in the wrong per-analysis folder.                                                                                        |
 
 ## Regression testing checklist
 

@@ -88,6 +88,10 @@ class AnalysisResult(BaseModel):
     final_answer: Optional[str] = None
     report_files: list[str] = []
     chart_files: list[str] = []
+    # mtime (unix seconds) per filename — lets the UI detect updated files
+    # when a follow-up rewrites a same-named .md or regenerates a chart.
+    report_files_mtime: dict[str, float] = {}
+    chart_files_mtime: dict[str, float] = {}
     progress: list[ProgressMessage] = []
     started_at: str
     completed_at: Optional[str] = None
@@ -156,14 +160,23 @@ async def get_analysis_status(analysis_id: str):
     analysis_dir = os.path.join(OUTPUT_DIR, parent_id)
     report_files = []
     chart_files = []
+    report_files_mtime: dict[str, float] = {}
+    chart_files_mtime: dict[str, float] = {}
     if os.path.exists(analysis_dir):
         for f in sorted(os.listdir(analysis_dir)):
-            if not os.path.isfile(os.path.join(analysis_dir, f)):
+            full = os.path.join(analysis_dir, f)
+            if not os.path.isfile(full):
                 continue
+            try:
+                mtime = os.path.getmtime(full)
+            except OSError:
+                mtime = 0.0
             if f.endswith(".md"):
                 report_files.append(f)
+                report_files_mtime[f] = mtime
             elif f.endswith(".png"):
                 chart_files.append(f)
+                chart_files_mtime[f] = mtime
 
     fa = entry.get("final_answer")
     if fa is not None and not isinstance(fa, str):
@@ -176,6 +189,8 @@ async def get_analysis_status(analysis_id: str):
         final_answer=fa,
         report_files=report_files,
         chart_files=chart_files,
+        report_files_mtime=report_files_mtime,
+        chart_files_mtime=chart_files_mtime,
         progress=entry.get("progress", []),
         started_at=entry["started_at"],
         completed_at=entry.get("completed_at"),

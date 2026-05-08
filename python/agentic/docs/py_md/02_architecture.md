@@ -2,56 +2,57 @@
 
 ## Component view
 
+```mermaid
+flowchart TB
+    subgraph FE["🌐 Browser"]
+        UI[Next.js /ai-chat<br/>Zustand chat-store<br/>polls every 4s]
+    end
+
+    subgraph PY["🐍 Python (FastAPI process)"]
+        API[api_endpoint.py<br/>/api/v1/agentic/*<br/>tracks _analyses dict]
+        LG[graph_v3.py<br/>LangGraph StateGraph<br/>data_loader → planner →<br/>specialists* → code_reviewer<br/>→ reporter]
+        CB[client.py<br/>MCP → LangChain<br/>StructuredTool bridge]
+    end
+
+    subgraph MCP_PROC["🐍 Python (MCP server process, port 8003)"]
+        SRV[server.py<br/>Starlette + Streamable HTTP]
+        TOOLS[tools/*<br/>db • python_executor<br/>report • session<br/>domain • skill_registry]
+        DFS[(_dataframes dict<br/>in-memory)]
+        OUT[/output/{id}//<br/>charts + report.md/]
+    end
+
+    subgraph DATA["🗄️ Data sources"]
+        DB[(PostgreSQL<br/>em_pulse_data<br/>mills.MILL_01..12<br/>mills.ore_quality)]
+    end
+
+    UI -->|HTTP JSON| API
+    API -->|build_graph<br/>ainvoke| LG
+    LG -->|tool_calls<br/>(Gemini decides)| CB
+    CB -->|MCP JSON-RPC<br/>streamable HTTP| SRV
+    SRV --> TOOLS
+    TOOLS --> DFS
+    TOOLS --> OUT
+    TOOLS -->|SQLAlchemy| DB
+    OUT -.served by.-> API
+    API -.GET /reports/{id}/file.-> UI
+
+    style UI fill:#dbeafe,stroke:#1d4ed8
+    style API fill:#fef3c7,stroke:#d97706
+    style LG fill:#fce7f3,stroke:#be185d
+    style SRV fill:#dcfce7,stroke:#16a34a
+    style DB fill:#f3e8ff,stroke:#7e22ce
+    style OUT fill:#fef2f2,stroke:#dc2626
 ```
-                ┌─────────────────────────────────────────────┐
-                │               Next.js frontend               │
-                │   src/app/ai-chat/*  (Zustand chat-store)     │
-                └───────────────┬─────────────────────────────┘
-                                │ HTTP (JSON)
-                ┌───────────────▼─────────────────────────────┐
-                │       FastAPI agentic router                 │
-                │       api_endpoint.py    /api/v1/agentic/*   │
-                │   ─ starts background asyncio tasks          │
-                │   ─ tracks _analyses[id] in-memory           │
-                │   ─ serves reports/charts from output/{id}/  │
-                └───────────────┬─────────────────────────────┘
-                                │ build_graph / build_followup_graph
-                ┌───────────────▼─────────────────────────────┐
-                │        LangGraph pipeline (graph_v3.py)      │
-                │                                              │
-                │   data_loader → planner →                    │
-                │     [analyst | forecaster | anomaly_detective│
-                │      bayesian_analyst | optimizer |          │
-                │      shift_reporter]* →                      │
-                │   code_reviewer → reporter → END             │
-                │                                              │
-                │   manager_review is woven between every stage│
-                └───────────────┬─────────────────────────────┘
-                                │ LangChain StructuredTool
-                ┌───────────────▼─────────────────────────────┐
-                │       MCP client bridge (client.py)          │
-                │    session.call_tool(name, args) over        │
-                │    streamable HTTP to localhost:8003/mcp     │
-                └───────────────┬─────────────────────────────┘
-                                │ MCP JSON-RPC / streamable HTTP
-                ┌───────────────▼─────────────────────────────┐
-                │         MCP server (server.py)               │
-                │  Starlette + StreamableHTTPSessionManager    │
-                │  registers tools/{db,python,report,session,  │
-                │  domain_knowledge,skill_registry}            │
-                └───────────────┬─────────────────────────────┘
-                                │ in-process calls
-                ┌───────────────▼─────────────────────────────┐
-                │  Tools layer (tools/*.py)                    │
-                │   • db_tools → SQLAlchemy → Postgres         │
-                │   • python_executor → exec() with pandas/    │
-                │                      numpy/Prophet/sklearn   │
-                │   • report_tools → write .md / list files    │
-                │   • session_tools + output_dir → per-id dir  │
-                │   • domain_knowledge → PLANT_VARIABLES       │
-                │   • skill_registry → introspects skills/     │
-                └─────────────────────────────────────────────┘
-```
+
+**How to read it:**
+
+- **Top half** = the FastAPI process the browser talks to. It owns the analysis
+  state (in-memory `_analyses` dict) and runs the LangGraph pipeline.
+- **Bottom half** = a separate Python process — the **MCP server** — that
+  actually owns the data (loaded DataFrames) and writes files. It speaks
+  JSON-RPC over a long-lived HTTP connection.
+- **One arrow per concern**: HTTP for the UI, MCP for tool calls, SQL for
+  reading the plant database.
 
 ## Process boundaries
 
@@ -70,56 +71,58 @@ server writes charts and reports there; the API reads them back for the client.
 
 ## Data flow (happy path)
 
+```mermaid
+flowchart TD
+    Q[POST /analyze<br/>question + optional template_id]
+    BG[asyncio.create_task<br/>_run_analysis_background]
+    INIT["streamable_http_client<br/>→ session.initialize()"]
+    SETOUT["session.call_tool<br/>set_output_directory(id)"]
+    TOOLS[get_mcp_tools(session)<br/>→ ~9 LangChain tools]
+    BUILD["build_graph(tools, api_key,<br/>on_progress, settings, template_id)"]
+    INVOKE["graph.ainvoke<br/>messages=[HumanMessage(prompt)]"]
+
+    DL[data_loader<br/>SQL → _dataframes]
+    PL[planner<br/>picks 1–4 specialists]
+    SP["specialist N<br/>(analyst | forecaster |<br/>anomaly_detective | …)"]
+    EX[execute_python<br/>list_skills, list_output_files]
+    MR{manager_review}
+    NEXT[next specialist…]
+    CR[code_reviewer]
+    RP[reporter<br/>write_markdown_report]
+    DONE[_analyses id status=completed<br/>conversation_history saved<br/>final_answer set]
+
+    Q --> BG --> INIT --> SETOUT --> TOOLS --> BUILD --> INVOKE
+    INVOKE --> DL --> PL --> SP
+    SP --> EX --> SP
+    SP --> MR
+    MR -->|REWORK<br/>(once)| SP
+    MR -->|ACCEPT &<br/>more left| NEXT --> SP
+    MR -->|ACCEPT &<br/>last specialist| CR --> RP --> DONE
+
+    style Q fill:#dbeafe,stroke:#1d4ed8
+    style DL fill:#fef3c7,stroke:#d97706
+    style PL fill:#fef3c7,stroke:#d97706
+    style RP fill:#dcfce7,stroke:#16a34a
+    style DONE fill:#dcfce7,stroke:#16a34a
+    style MR fill:#fce7f3,stroke:#be185d
 ```
-user question
-     │
-     ▼
-FastAPI /analyze  ───▶ asyncio.create_task(_run_analysis_background)
-                             │
-                             ▼
-                    streamable_http_client → MCP session.initialize()
-                             │
-                             ▼
-                    session.call_tool("set_output_directory", {id})      ← per-analysis folder
-                             │
-                             ▼
-                    langchain_tools = await get_mcp_tools(session)       ← ~9 tools
-                             │
-                             ▼
-                    graph = build_graph(tools, api_key, on_progress, …)
-                             │
-                             ▼
-                    graph.ainvoke({messages: [HumanMessage(prompt)]})
-                             │
-               ┌─────────────┼──────────────────────────────────────┐
-               ▼             ▼                                      ▼
-        data_loader     planner                  [selected specialists …]
-        loads SQL       picks                    each calls execute_python /
-        into _dfs       specialists              list_skills / list_output_files
-                                                       │
-                                                       ▼
-                                                manager_review (heuristic + optional LLM)
-                                                       │
-                                                       ▼
-                                                next stage …
-                             │
-                             ▼
-                    code_reviewer → reporter → write_markdown_report
-                             │
-                             ▼
-                    _analyses[id].status = "completed"
-                    _analyses[id].conversation_history = serialized msgs
-```
+
+**Plain English:** the API spawns a background task. The task opens an MCP
+session, scopes the output folder to the analysis ID, then asks LangGraph to
+run the pipeline. Each specialist talks to the LLM, calls `execute_python`,
+gets reviewed by the manager, and either retries once or hands off to the next
+specialist. The reporter writes the final Markdown; the runner stores the
+conversation so the user can ask follow-ups later.
 
 ## Shared mutable state
 
-| State | Location | Lifetime |
-|-------|----------|----------|
-| `_dataframes` dict | `tools/db_tools.py` | MCP server process (shared across all analyses using that server) |
-| `_current_output_dir` | `tools/output_dir.py` | MCP server process; **mutated** at the start of each analysis via `set_output_directory` |
-| `_analyses` dict | `api_endpoint.py` | FastAPI process; holds status, progress, conversation history |
-| `output/{id}/*.png` + `*.md` | disk | persistent; cleaned up on `DELETE /analysis/{id}` |
-| LangGraph checkpoint | `checkpoints.db` (optional SqliteSaver) | persistent if `checkpointer` is passed |
+| State                        | Location                                | Lifetime                                                                                 |
+| ---------------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `_dataframes` dict           | `tools/db_tools.py`                     | MCP server process (shared across all analyses using that server)                        |
+| `_current_output_dir`        | `tools/output_dir.py`                   | MCP server process; **mutated** at the start of each analysis via `set_output_directory` |
+| `_analyses` dict             | `api_endpoint.py`                       | FastAPI process; holds status, progress, conversation history                            |
+| `output/{id}/*.png` + `*.md` | disk                                    | persistent; cleaned up on `DELETE /analysis/{id}`                                        |
+| LangGraph checkpoint         | `checkpoints.db` (optional SqliteSaver) | persistent if `checkpointer` is passed                                                   |
 
 > ⚠️ Because `_dataframes` and `_current_output_dir` are **process-global on the
 > MCP server**, running two analyses concurrently against the same MCP server

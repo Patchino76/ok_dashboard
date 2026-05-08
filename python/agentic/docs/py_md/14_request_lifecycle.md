@@ -4,6 +4,80 @@ End-to-end walkthrough of a single analysis, from the Next.js button click to
 the final Markdown report. The example assumes the user picked the
 `comprehensive` template for Mill 8, last 72 hours.
 
+## Lifecycle in one picture
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as 👤 User
+    participant UI as Next.js<br/>/ai-chat
+    participant API as FastAPI<br/>api_endpoint.py
+    participant BG as asyncio<br/>background task
+    participant LG as LangGraph<br/>graph_v3
+    participant MCP as MCP server<br/>tools/*
+    participant DB as Postgres
+    participant FS as output/{id}/
+
+    U->>UI: pick "comprehensive" template
+    UI->>API: POST /analyze {question, template_id, mill}
+    API->>API: _analyses[id] = {status:"running"}
+    API-->>UI: {analysis_id, "running"}
+    API->>BG: asyncio.create_task
+
+    BG->>MCP: session.initialize()
+    BG->>MCP: set_output_directory(id)
+    MCP->>FS: mkdir output/{id}
+    BG->>MCP: list_tools()
+    MCP-->>BG: 9 tools as StructuredTool
+
+    BG->>LG: build_graph + ainvoke
+
+    rect rgb(255, 247, 230)
+        Note over LG,FS: data_loader stage
+        LG->>MCP: query_mill_data(mill=8, …)
+        MCP->>DB: SELECT * FROM mills."MILL_08" …
+        DB-->>MCP: rows
+        MCP-->>LG: summary JSON (no full table)
+    end
+
+    rect rgb(255, 230, 247)
+        Note over LG: planner stage<br/>(template_id present → skip Gemini)
+        LG->>LG: stages_to_run = [analyst, anomaly_detective,<br/>shift_reporter, …]
+    end
+
+    loop for each chosen specialist
+        rect rgb(230, 247, 255)
+            Note over LG,FS: specialist stage
+            LG->>MCP: execute_python(skills.eda.… )
+            MCP->>FS: save .png + STRUCTURED_OUTPUT
+            MCP-->>LG: stdout + new_files
+            LG->>LG: manager_review (heuristic ACCEPT)
+        end
+    end
+
+    rect rgb(230, 255, 230)
+        Note over LG,FS: reporter stage
+        LG->>MCP: list_output_files
+        MCP-->>LG: [chart1.png, chart2.png, …]
+        LG->>MCP: write_markdown_report(filename, content)
+        MCP->>FS: write report.md
+    end
+
+    LG-->>BG: final_state
+    BG->>API: _analyses[id] = {status:"completed", final_answer, history}
+
+    loop UI polls every 4 s
+        UI->>API: GET /status/{id}
+        API-->>UI: progress[], report_files, chart_files
+    end
+    UI->>API: GET /reports/{id}/report.md
+    API-->>UI: rendered inline + chart pills
+```
+
+The blocks of colour represent the four logical phases: **load → plan →
+analyse (×N) → write**. The MCP server is the only actor that touches the DB
+and the disk; LangGraph just decides when to call it.
+
 ## Timeline (condensed)
 
 ```
@@ -121,13 +195,13 @@ for a comprehensive analysis.
 
 ## What each actor can see
 
-| Actor | Can see | Cannot see |
-|-------|---------|------------|
-| UI | `status`, `progress[]`, `report_files`, `chart_files`, `final_answer`, served files | Raw DataFrames, raw stdout, intermediate tool messages |
-| FastAPI `_analyses[id]` | Progress log, final answer, serialised messages, error | Live DataFrames (those live in the MCP server) |
-| LangGraph state | Full message history (possibly compressed), stages_to_run | DataFrames by reference only (via the `execute_python` tool) |
-| MCP server | DataFrames, output dir, tool registry | Nothing about LangGraph's plan — it just executes tool calls |
-| Specialist LLM | Focused message window built by `build_focused_context` | Other specialists' raw output (only structured summaries) |
+| Actor                   | Can see                                                                             | Cannot see                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| UI                      | `status`, `progress[]`, `report_files`, `chart_files`, `final_answer`, served files | Raw DataFrames, raw stdout, intermediate tool messages       |
+| FastAPI `_analyses[id]` | Progress log, final answer, serialised messages, error                              | Live DataFrames (those live in the MCP server)               |
+| LangGraph state         | Full message history (possibly compressed), stages_to_run                           | DataFrames by reference only (via the `execute_python` tool) |
+| MCP server              | DataFrames, output dir, tool registry                                               | Nothing about LangGraph's plan — it just executes tool calls |
+| Specialist LLM          | Focused message window built by `build_focused_context`                             | Other specialists' raw output (only structured summaries)    |
 
 ## Bidirectional truncation points
 
@@ -148,12 +222,12 @@ All six limits are tunable via `AnalysisSettings` per request.
 
 ## Failure modes
 
-| Failure | Observable effect | Recovery |
-|---------|-------------------|----------|
-| MCP server down | `streamable_http_client` raises; `status="failed"` with `error: "[Errno] …"`. | Start `python agentic/server.py`. |
-| `GOOGLE_API_KEY` missing | `ValueError("GOOGLE_API_KEY not configured")` from the runner. | Set key in `.env`, restart API. |
-| Postgres unreachable | `query_mill_data` handler raises during `pd.read_sql_query`. | Check VPN / credentials. |
-| LLM returns malformed plan | Planner falls back to `['analyst']` only. | None needed — pipeline still runs. |
-| Specialist loops on broken tool | Iteration cap fires → `[{name}] Done (iteration cap).` | Manager accepts; reporter works with whatever exists. |
-| Reporter can't find charts | It still calls `list_output_files` — if empty, it produces a text-only report. | Re-run analysis or fix upstream specialist. |
-| LangGraph `recursion_limit=150` hit | Graph aborts, runner marks `status="failed"`. | Increase `maxSpecialistIterations` / simplify request. |
+| Failure                             | Observable effect                                                              | Recovery                                               |
+| ----------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------ |
+| MCP server down                     | `streamable_http_client` raises; `status="failed"` with `error: "[Errno] …"`.  | Start `python agentic/server.py`.                      |
+| `GOOGLE_API_KEY` missing            | `ValueError("GOOGLE_API_KEY not configured")` from the runner.                 | Set key in `.env`, restart API.                        |
+| Postgres unreachable                | `query_mill_data` handler raises during `pd.read_sql_query`.                   | Check VPN / credentials.                               |
+| LLM returns malformed plan          | Planner falls back to `['analyst']` only.                                      | None needed — pipeline still runs.                     |
+| Specialist loops on broken tool     | Iteration cap fires → `[{name}] Done (iteration cap).`                         | Manager accepts; reporter works with whatever exists.  |
+| Reporter can't find charts          | It still calls `list_output_files` — if empty, it produces a text-only report. | Re-run analysis or fix upstream specialist.            |
+| LangGraph `recursion_limit=150` hit | Graph aborts, runner marks `status="failed"`.                                  | Increase `maxSpecialistIterations` / simplify request. |

@@ -4,6 +4,27 @@ Every analysis gets its own subfolder of `python/agentic/output/`. Charts and
 the final Markdown report land there and are served read-only to the
 frontend. This page documents the full lifecycle of that folder.
 
+## Folder lifecycle at a glance
+
+```mermaid
+stateDiagram-v2
+    [*] --> Default : MCP server boots
+    Default : _current_output_dir =<br/>agentic/output
+
+    Default --> Scoped : POST /analyze<br/>set_output_directory(id)
+    Scoped : _current_output_dir =<br/>agentic/output/{id}<br/>folder is mkdirs'd
+
+    Scoped --> Scoped : skills + agent code<br/>save .png + .md here
+    Scoped --> Scoped : follow-up arrives<br/>set_output_directory(parent_id)<br/>(same folder!)
+
+    Scoped --> Deleted : DELETE /analysis/{id}<br/>shutil.rmtree
+    Deleted --> [*]
+```
+
+Key invariant: **follow-ups re-use the parent's folder**, so the original
+`![chart.png](chart.png)` references in the Markdown keep working as new
+charts/edits arrive.
+
 ## Directory layout
 
 ```
@@ -87,12 +108,12 @@ path. This is why you can rewire the output location from a single place.
 
 ## Writers
 
-| Writer | How it writes |
-|--------|---------------|
-| Skills | `plt.savefig(os.path.join(output_dir, "chart.png"), dpi=150, bbox_inches='tight')` + `plt.close()`. `output_dir` is passed explicitly by the agent (usually `OUTPUT_DIR`, injected into the `execute_python` namespace). |
-| Raw agent code in `execute_python` | Same pattern. `OUTPUT_DIR` is always available in the namespace. |
-| `write_markdown_report` | `open(os.path.join(get_output_dir(), filename), "w", encoding="utf-8")`. |
-| `list_output_files` | `os.listdir(get_output_dir())` with optional extension filter. |
+| Writer                             | How it writes                                                                                                                                                                                                            |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Skills                             | `plt.savefig(os.path.join(output_dir, "chart.png"), dpi=150, bbox_inches='tight')` + `plt.close()`. `output_dir` is passed explicitly by the agent (usually `OUTPUT_DIR`, injected into the `execute_python` namespace). |
+| Raw agent code in `execute_python` | Same pattern. `OUTPUT_DIR` is always available in the namespace.                                                                                                                                                         |
+| `write_markdown_report`            | `open(os.path.join(get_output_dir(), filename), "w", encoding="utf-8")`.                                                                                                                                                 |
+| `list_output_files`                | `os.listdir(get_output_dir())` with optional extension filter.                                                                                                                                                           |
 
 ## Reading from the API
 
