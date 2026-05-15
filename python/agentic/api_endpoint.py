@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -32,6 +32,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from client import get_mcp_tools
 from graph_v3 import build_graph, build_followup_graph
+import db as analyses_db
 
 # Load .env from project root (two levels up: agentic → python → project root)
 _env_path = Path(__file__).resolve().parent.parent.parent / ".env"
@@ -41,6 +42,39 @@ router = APIRouter(prefix="/api/v1/agentic", tags=["agentic"])
 
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
 SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8003/mcp")
+
+# Initialize the SQLite analyses DB on import.
+analyses_db.init_db()
+
+# ── Role dependency ──────────────────────────────────────────────────
+ALLOWED_ROLES = {"mechanic", "technologist", "manager"}
+
+
+def require_role(x_user_role: Optional[str] = Header(None, alias="X-User-Role")) -> str:
+    """FastAPI dependency: extract and validate the X-User-Role header."""
+    if not x_user_role:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing X-User-Role header (mechanic|technologist|manager)",
+        )
+    role = x_user_role.strip().lower()
+    if role not in ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid role '{x_user_role}'. Allowed: {sorted(ALLOWED_ROLES)}",
+        )
+    return role
+
+
+def _ensure_role_match(analysis_id: str, role: str) -> str:
+    """Look up analysis role; 404 if missing, 403 if it doesn't match the caller.
+    Returns the persisted role on success."""
+    persisted = analyses_db.get_role(analysis_id)
+    if persisted is None:
+        raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+    if persisted != role:
+        raise HTTPException(status_code=403, detail="Analysis belongs to another role")
+    return persisted
 
 # ── In-flight analysis tracking ──────────────────────────────────────────────
 _analyses: dict[str, dict] = {}
@@ -101,7 +135,7 @@ class AnalysisResult(BaseModel):
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.post("/analyze", response_model=AnalysisResponse)
-async def start_analysis(request: AnalysisRequest):
+async def start_analysis(request: AnalysisRequest, role: str = Depends(require_role)):
     """Submit an analysis request. Returns an analysis_id to track progress."""
     analysis_id = str(uuid.uuid4())[:8]
 
@@ -115,11 +149,22 @@ async def start_analysis(request: AnalysisRequest):
         prompt_parts.append(f"End date: {request.end_date}.")
 
     full_prompt = " ".join(prompt_parts)
+    started_at = datetime.now().isoformat()
+
+    # Persist to SQLite (source of truth across browsers / restarts)
+    analyses_db.create_analysis(
+        analysis_id=analysis_id,
+        role=role,
+        question=full_prompt,
+        started_at=started_at,
+        status="running",
+    )
 
     _analyses[analysis_id] = {
         "status": "running",
         "question": full_prompt,
-        "started_at": datetime.now().isoformat(),
+        "role": role,
+        "started_at": started_at,
         "final_answer": None,
         "error": None,
         "completed_at": None,
@@ -148,10 +193,26 @@ async def start_analysis(request: AnalysisRequest):
 
 
 @router.get("/status/{analysis_id}", response_model=AnalysisResult)
-async def get_analysis_status(analysis_id: str):
+async def get_analysis_status(analysis_id: str, role: str = Depends(require_role)):
     """Check the status of a running or completed analysis."""
+    _ensure_role_match(analysis_id, role)
+
+    # Hydrate from DB if process was restarted and in-memory entry is gone.
     if analysis_id not in _analyses:
-        raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+        row = analyses_db.get_analysis(analysis_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+        _analyses[analysis_id] = {
+            "status": row["status"],
+            "question": row["question"],
+            "role": row["role"],
+            "started_at": row["started_at"],
+            "final_answer": row["final_answer"],
+            "error": row["error"],
+            "completed_at": row["completed_at"],
+            "progress": [],
+            "parent_analysis_id": row["parent_id"] or analysis_id,
+        }
 
     entry = _analyses[analysis_id]
 
@@ -223,11 +284,33 @@ async def list_reports():
 
 
 @router.get("/reports/{analysis_id}/{filename}")
-async def get_report_file(analysis_id: str, filename: str):
-    """Download a specific report or chart file from an analysis subfolder."""
+async def get_report_file(
+    analysis_id: str,
+    filename: str,
+    role: Optional[str] = None,
+    x_user_role: Optional[str] = Header(None, alias="X-User-Role"),
+):
+    """Download a specific report or chart file from an analysis subfolder.
+
+    Role-scoped: returns 403 if the analysis belongs to a different role.
+    Falls back to the flat output dir for an analysis_id that exists in DB
+    but whose files were written before per-analysis subfolders existed.
+
+    Role can be supplied via the X-User-Role header (used by apiFetch) OR
+    the ``role`` query parameter (used by native <img> and download links
+    that can't set custom headers).
+    """
+    effective_role = (role or x_user_role or "").strip().lower()
+    if not effective_role:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing role (X-User-Role header or ?role= query param)",
+        )
+    if effective_role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role '{effective_role}'")
+    _ensure_role_match(analysis_id, effective_role)
     file_path = os.path.join(OUTPUT_DIR, analysis_id, filename)
     if not os.path.exists(file_path):
-        # Fallback: try flat output dir for backward compat with old files
         fallback = os.path.join(OUTPUT_DIR, filename)
         if os.path.exists(fallback):
             return FileResponse(fallback)
@@ -235,30 +318,87 @@ async def get_report_file(analysis_id: str, filename: str):
     return FileResponse(file_path)
 
 
+# ── Role-scoped conversation listing / hydration ───────────────────────────
+
+@router.get("/conversations")
+async def list_conversations(role: str = Depends(require_role)):
+    """List root analyses for the caller's role (newest first).
+
+    Used by the UI to render the conversation list shared across browsers
+    by all users belonging to the same role.
+    """
+    rows = analyses_db.list_root_analyses_by_role(role)
+    return {"role": role, "count": len(rows), "conversations": rows}
+
+
+@router.get("/conversations/{analysis_id}/messages")
+async def get_conversation_messages(analysis_id: str, role: str = Depends(require_role)):
+    """Return the persisted message thread for a conversation.
+
+    The UI calls this when a user selects a conversation from the list so
+    that message bubbles can be rendered without relying on local storage.
+    """
+    _ensure_role_match(analysis_id, role)
+    messages = analyses_db.get_messages(analysis_id)
+    return {"analysis_id": analysis_id, "messages": messages}
+
+
 @router.post("/followup/{analysis_id}", response_model=AnalysisResponse)
-async def send_followup(analysis_id: str, request: FollowUpRequest):
+async def send_followup(analysis_id: str, request: FollowUpRequest, role: str = Depends(require_role)):
     """Send a follow-up question to refine or extend an existing analysis."""
     print(f"\n[send_followup] received analysis_id={analysis_id!r} "
           f"question_len={len(request.question or '')} "
           f"known_ids={len(_analyses)}")
     try:
-        # Verify the original analysis exists and is completed
+        # Role check against persisted DB row (works across restarts).
+        _ensure_role_match(analysis_id, role)
+
+        # Hydrate in-memory entry from DB if the server was restarted.
         original = _analyses.get(analysis_id)
         if not original:
-            print(f"[send_followup] 404 — id not in _analyses (have: "
-                  f"{list(_analyses.keys())[:5]}...)")
-            raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+            row = analyses_db.get_analysis(analysis_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+            messages = analyses_db.get_messages(analysis_id)
+            _analyses[analysis_id] = {
+                "status": row["status"],
+                "question": row["question"],
+                "role": row["role"],
+                "started_at": row["started_at"],
+                "final_answer": row["final_answer"],
+                "error": row["error"],
+                "completed_at": row["completed_at"],
+                "progress": [],
+                "conversation_history": [
+                    {"type": m["type"], "content": m["content"]} for m in messages
+                ],
+                "report_markdown": row["report_md"],
+            }
+            original = _analyses[analysis_id]
+
         if original["status"] not in ("completed", "failed"):
             print(f"[send_followup] 400 — status={original['status']!r}")
             raise HTTPException(status_code=400, detail=f"Analysis {analysis_id} is still {original['status']}")
 
         followup_id = f"{analysis_id}-f{str(uuid.uuid4())[:4]}"
+        started_at = datetime.now().isoformat()
+
+        # Persist follow-up row in DB (inherits role, links to parent).
+        analyses_db.create_analysis(
+            analysis_id=followup_id,
+            role=role,
+            question=request.question,
+            parent_id=analysis_id,
+            started_at=started_at,
+            status="running",
+        )
 
         _analyses[followup_id] = {
             "status": "running",
             "question": request.question,
+            "role": role,
             "parent_analysis_id": analysis_id,
-            "started_at": datetime.now().isoformat(),
+            "started_at": started_at,
             "final_answer": None,
             "error": None,
             "completed_at": None,
@@ -294,27 +434,41 @@ async def get_templates():
 
 
 @router.delete("/analysis/{analysis_id}")
-async def delete_analysis(analysis_id: str):
-    """Delete an analysis and its output files."""
-    # Remove output subfolder
+async def delete_analysis(analysis_id: str, role: str = Depends(require_role)):
+    """Delete an analysis (and its follow-ups) plus output files."""
+    _ensure_role_match(analysis_id, role)
+
+    # Find all follow-up ids before deletion so we can clean their folders too.
+    followup_ids = [analysis_id]
+    for key in list(_analyses.keys()):
+        entry = _analyses.get(key, {})
+        if entry.get("parent_analysis_id") == analysis_id and key != analysis_id:
+            followup_ids.append(key)
+
+    # Remove output subfolder (root id only — follow-ups share the parent folder)
     analysis_dir = os.path.join(OUTPUT_DIR, analysis_id)
     if os.path.exists(analysis_dir):
-        shutil.rmtree(analysis_dir)
+        shutil.rmtree(analysis_dir, ignore_errors=True)
+
+    # DB cascade removes follow-ups + messages.
+    analyses_db.delete_analysis(analysis_id)
 
     # Remove from in-memory tracking
-    _analyses.pop(analysis_id, None)
+    for fid in followup_ids:
+        _analyses.pop(fid, None)
 
     return {"status": "deleted", "analysis_id": analysis_id}
 
 
 @router.post("/cancel/{analysis_id}")
-async def cancel_analysis(analysis_id: str):
+async def cancel_analysis(analysis_id: str, role: str = Depends(require_role)):
     """Cancel a running analysis or follow-up.
 
     Aborts the underlying asyncio task. Partial artefacts already written to
     the per-analysis output folder are kept intact — the user explicitly
     chose "abort + keep partial artefacts" semantics.
     """
+    _ensure_role_match(analysis_id, role)
     entry = _analyses.get(analysis_id)
     if not entry:
         raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
@@ -340,7 +494,7 @@ async def cancel_analysis(analysis_id: str):
 
 
 @router.delete("/reports/{analysis_id}/{filename}")
-async def delete_report_file(analysis_id: str, filename: str):
+async def delete_report_file(analysis_id: str, filename: str, role: str = Depends(require_role)):
     """Delete a single file from an analysis's output folder.
 
     Used by the UI's "delete last exchange" button to remove files produced
@@ -349,6 +503,8 @@ async def delete_report_file(analysis_id: str, filename: str):
     # Basic path-traversal guard: reject anything with separators or ..
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
+
+    _ensure_role_match(analysis_id, role)
 
     file_path = os.path.join(OUTPUT_DIR, analysis_id, filename)
     if not os.path.exists(file_path):
@@ -495,9 +651,8 @@ async def _run_analysis_background(
 
                 final_answer = _content_to_str(final_state["messages"][-1].content)
                 # Store serialized messages for follow-up conversations
-                _analyses[analysis_id]["conversation_history"] = _serialize_messages(
-                    final_state["messages"]
-                )
+                serialized = _serialize_messages(final_state["messages"])
+                _analyses[analysis_id]["conversation_history"] = serialized
                 # Snapshot the generated Markdown report so follow-ups can
                 # see it verbatim as a SystemMessage (avoids losing it to the
                 # tool_calls stripping in _serialize_messages).
@@ -511,12 +666,29 @@ async def _run_analysis_background(
                 _analyses[analysis_id]["status"] = "completed"
                 _analyses[analysis_id]["final_answer"] = final_answer
                 _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
+
+                # Persist completion state to DB
+                try:
+                    analyses_db.update_status(
+                        analysis_id, "completed",
+                        final_answer=final_answer, completed=True,
+                    )
+                    analyses_db.append_messages(analysis_id, serialized)
+                    if report_md:
+                        analyses_db.set_report_md(analysis_id, report_md)
+                except Exception as db_err:
+                    print(f"[db] Failed to persist completion for {analysis_id}: {db_err}")
+
                 on_progress("system", "✓ Анализът е завършен.")
 
     except asyncio.CancelledError:
         print(f"\n[cancel] analysis {analysis_id} cancelled by user")
         _analyses[analysis_id]["status"] = "cancelled"
         _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
+        try:
+            analyses_db.update_status(analysis_id, "cancelled", completed=True)
+        except Exception as db_err:
+            print(f"[db] Failed to persist cancel for {analysis_id}: {db_err}")
         on_progress("system", "⛔ Анализът е прекъснат от потребителя.")
         # Re-raise so the task is properly marked as cancelled
         raise
@@ -530,6 +702,12 @@ async def _run_analysis_background(
         _analyses[analysis_id]["error"] = str(e)
         _analyses[analysis_id]["traceback"] = tb
         _analyses[analysis_id]["completed_at"] = datetime.now().isoformat()
+        try:
+            analyses_db.update_status(
+                analysis_id, "failed", error=str(e), completed=True,
+            )
+        except Exception as db_err:
+            print(f"[db] Failed to persist failure for {analysis_id}: {db_err}")
         on_progress("system", f"✗ Грешка при анализа: {str(e)[:200]}")
 
 
@@ -644,9 +822,8 @@ async def _run_followup_background(
 
                 final_answer = _content_to_str(final_state["messages"][-1].content)
                 # Update conversation history with follow-up messages
-                _analyses[analysis_id]["conversation_history"] = _serialize_messages(
-                    final_state["messages"]
-                )
+                serialized = _serialize_messages(final_state["messages"])
+                _analyses[analysis_id]["conversation_history"] = serialized
                 # Refresh the cached report snapshot in case this follow-up
                 # rewrote it (REFINE_REPORT or a SPECIALIST that called
                 # write_markdown_report). Disk remains the source of truth.
@@ -658,12 +835,30 @@ async def _run_followup_background(
                 _analyses[followup_id]["status"] = "completed"
                 _analyses[followup_id]["final_answer"] = final_answer
                 _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
+
+                # Persist follow-up completion + refreshed conversation/report on the parent.
+                try:
+                    analyses_db.update_status(
+                        followup_id, "completed",
+                        final_answer=final_answer, completed=True,
+                    )
+                    # Conversation history is stored on the parent (root) analysis.
+                    analyses_db.append_messages(analysis_id, serialized)
+                    if refreshed_md:
+                        analyses_db.set_report_md(analysis_id, refreshed_md)
+                except Exception as db_err:
+                    print(f"[db] Failed to persist follow-up completion for {followup_id}: {db_err}")
+
                 on_progress("followup", "✓ Допълнителният анализ е завършен.")
 
     except asyncio.CancelledError:
         print(f"\n[cancel] follow-up {followup_id} cancelled by user")
         _analyses[followup_id]["status"] = "cancelled"
         _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
+        try:
+            analyses_db.update_status(followup_id, "cancelled", completed=True)
+        except Exception as db_err:
+            print(f"[db] Failed to persist follow-up cancel for {followup_id}: {db_err}")
         on_progress("followup", "⛔ Допълнителният въпрос е прекъснат от потребителя.")
         raise
     except BaseException as e:
@@ -682,4 +877,10 @@ async def _run_followup_background(
         _analyses[followup_id]["error"] = str(e)
         _analyses[followup_id]["traceback"] = tb
         _analyses[followup_id]["completed_at"] = datetime.now().isoformat()
+        try:
+            analyses_db.update_status(
+                followup_id, "failed", error=str(e), completed=True,
+            )
+        except Exception as db_err:
+            print(f"[db] Failed to persist follow-up failure for {followup_id}: {db_err}")
         on_progress("followup", f"✗ Грешка: {str(e)[:200]}")

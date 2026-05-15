@@ -1,6 +1,8 @@
 import { create } from "zustand";
+import { apiFetch } from "./api-client";
+import { getCurrentRole, useRoleStore } from "./role-store";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ProgressMessage {
   timestamp: string;
@@ -29,6 +31,13 @@ export interface Conversation {
   messages: ChatMessage[];
   status: "idle" | "running" | "completed" | "failed";
   analysisId?: string;
+  /** Role this conversation belongs to (server source of truth). */
+  role?: string;
+  /** Original user question — set when the conversation was created remotely
+   * by another browser; used to render the user bubble before lazy hydration. */
+  question?: string;
+  /** True once messages were hydrated from the server for this conversation. */
+  messagesLoaded?: boolean;
 }
 
 interface ChatState {
@@ -73,16 +82,28 @@ interface ChatState {
 
   // Hydration
   hydrateFromStorage: () => void;
+  /** Fetch the list of conversations for the current role from the server
+   * and reconcile with the local cache. Call on mount and on role change. */
+  hydrateFromServer: () => Promise<void>;
+  /** Lazily fetch and hydrate the message thread for a conversation that
+   * was created on another browser (and thus has only a stub locally). */
+  loadConversationMessages: (convId: string) => Promise<void>;
 }
 
-// ── localStorage helpers ─────────────────────────────────────────────────────
+// ── localStorage helpers ──────────────────────────────────────────
+// LocalStorage is now a per-role cache of message bubbles (charts, report
+// MD, progress) so the UI restores fast across reloads. The server is the
+// authoritative source of the conversation LIST — every page load and
+// every role switch refreshes the list via GET /conversations.
 
-const STORAGE_KEY = "ai-chat-conversations";
+function storageKey(role: string): string {
+  return `ai-chat-conversations:${role}`;
+}
 
-function loadConversations(): Conversation[] {
+function loadConversations(role: string): Conversation[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey(role));
     if (!raw) return [];
     const parsed: Conversation[] = JSON.parse(raw);
     // Reset any stuck "running" conversations to "failed" on reload
@@ -97,7 +118,8 @@ function loadConversations(): Conversation[] {
 function saveConversations(conversations: Conversation[]) {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+    const role = getCurrentRole();
+    localStorage.setItem(storageKey(role), JSON.stringify(conversations));
   } catch (e) {
     console.warn("Failed to save conversations:", e);
   }
@@ -156,7 +178,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Find the conversation to get its analysisId for backend cleanup
     const conv = conversations.find((c) => c.id === id);
     if (conv?.analysisId) {
-      fetch(`/api/v1/agentic/analysis/${conv.analysisId}`, {
+      apiFetch(`/api/v1/agentic/analysis/${conv.analysisId}`, {
         method: "DELETE",
       }).catch((e) => console.warn("Failed to delete analysis files:", e));
     }
@@ -183,7 +205,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Delete all analysis output folders on the backend
     for (const conv of conversations) {
       if (conv.analysisId) {
-        fetch(`/api/v1/agentic/analysis/${conv.analysisId}`, {
+        apiFetch(`/api/v1/agentic/analysis/${conv.analysisId}`, {
           method: "DELETE",
         }).catch((e) => console.warn("Failed to delete analysis files:", e));
       }
@@ -266,7 +288,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const { useSettingsStore } = await import("./settings-store");
       const settings = useSettingsStore.getState().getSettings();
 
-      const res = await fetch("/api/v1/agentic/analyze", {
+      const res = await apiFetch("/api/v1/agentic/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -361,7 +383,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/v1/agentic/followup/${encodeURIComponent(parentAnalysisId)}`,
         {
           method: "POST",
@@ -444,7 +466,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       try {
-        const res = await fetch(`/api/v1/agentic/status/${analysisId}`);
+        const res = await apiFetch(`/api/v1/agentic/status/${analysisId}`);
         if (!res.ok) {
           consecutiveFailures++;
           // If we previously got a 200, the analysis exists — just skip this 404
@@ -525,7 +547,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           let reportMarkdown: string | undefined;
           if (mdToShow) {
             try {
-              const mdRes = await fetch(
+              const mdRes = await apiFetch(
                 `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(mdToShow)}`,
               );
               if (mdRes.ok) {
@@ -612,9 +634,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (targetId) {
       try {
-        await fetch(`/api/v1/agentic/cancel/${encodeURIComponent(targetId)}`, {
-          method: "POST",
-        });
+        await apiFetch(
+          `/api/v1/agentic/cancel/${encodeURIComponent(targetId)}`,
+          {
+            method: "POST",
+          },
+        );
       } catch (e) {
         console.warn("Cancel request failed:", e);
       }
@@ -677,7 +702,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (filesToDelete.length > 0) {
         await Promise.all(
           filesToDelete.map((f) =>
-            fetch(
+            apiFetch(
               `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(f)}`,
               { method: "DELETE" },
             ).catch((e) => console.warn(`Failed to delete ${f}:`, e)),
@@ -695,7 +720,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       get().stopPolling();
       if (targetId) {
         try {
-          await fetch(
+          await apiFetch(
             `/api/v1/agentic/cancel/${encodeURIComponent(targetId)}`,
             { method: "POST" },
           );
@@ -737,10 +762,195 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   hydrateFromStorage: () => {
-    const loaded = loadConversations();
+    const loaded = loadConversations(getCurrentRole());
     set({
       conversations: loaded,
       activeConversationId: loaded[0]?.id ?? null,
     });
   },
+
+  // ── Server hydration ──────────────────────────────────────────────
+
+  hydrateFromServer: async () => {
+    const { stopPolling } = get();
+    stopPolling();
+
+    const role = getCurrentRole();
+    const cached = loadConversations(role);
+
+    type ServerConv = {
+      id: string;
+      role: string;
+      title: string | null;
+      question: string;
+      status: "running" | "completed" | "failed" | "cancelled";
+      started_at: string;
+      completed_at: string | null;
+      error: string | null;
+    };
+
+    let serverConvs: ServerConv[] = [];
+    try {
+      const res = await apiFetch("/api/v1/agentic/conversations");
+      if (res.ok) {
+        const data = await res.json();
+        serverConvs = (data.conversations || []) as ServerConv[];
+      } else {
+        console.warn(
+          `hydrateFromServer: GET /conversations → HTTP ${res.status}`,
+        );
+      }
+    } catch (e) {
+      console.warn("hydrateFromServer: network error", e);
+      // Fall back to local cache only.
+      set({
+        conversations: cached,
+        activeConversationId: cached[0]?.id ?? null,
+      });
+      return;
+    }
+
+    // Reconcile: server is the source of truth for the LIST. For each server
+    // conversation we either reuse the local entry (preserving message
+    // bubbles + cached files) or create a stub that will lazy-hydrate on
+    // first selection.
+    const cachedByAnalysisId = new Map<string, Conversation>();
+    for (const c of cached) {
+      if (c.analysisId) cachedByAnalysisId.set(c.analysisId, c);
+    }
+
+    const merged: Conversation[] = serverConvs.map((s) => {
+      const local = cachedByAnalysisId.get(s.id);
+      const status: Conversation["status"] =
+        s.status === "running"
+          ? "running"
+          : s.status === "failed" || s.status === "cancelled"
+            ? "failed"
+            : "completed";
+      if (local) {
+        return {
+          ...local,
+          title: s.title || local.title,
+          analysisId: s.id,
+          role: s.role,
+          question: s.question,
+          status,
+        };
+      }
+      // Stub — messages will be lazily hydrated when the user opens it.
+      return {
+        id: crypto.randomUUID(),
+        title: s.title || (s.question || "").slice(0, 50) || "Анализ",
+        createdAt: s.started_at,
+        messages: [],
+        status,
+        analysisId: s.id,
+        role: s.role,
+        question: s.question,
+        messagesLoaded: false,
+      };
+    });
+
+    saveConversations(merged);
+    set({
+      conversations: merged,
+      activeConversationId: merged[0]?.id ?? null,
+      isLoading: false,
+    });
+  },
+
+  loadConversationMessages: async (convId: string) => {
+    const conv = get().conversations.find((c) => c.id === convId);
+    if (!conv || !conv.analysisId) return;
+    if (conv.messagesLoaded || conv.messages.length > 0) return;
+
+    try {
+      const res = await apiFetch(
+        `/api/v1/agentic/status/${encodeURIComponent(conv.analysisId)}`,
+      );
+      if (!res.ok) {
+        console.warn(
+          `loadConversationMessages: HTTP ${res.status} for ${conv.analysisId}`,
+        );
+        return;
+      }
+      const data = await res.json();
+      const reportFiles: string[] = data.report_files || [];
+      const chartFiles: string[] = data.chart_files || [];
+      const reportMtimes: Record<string, number> =
+        data.report_files_mtime || {};
+
+      // Pick the most recently modified .md as the inline report
+      let mdToShow: string | undefined;
+      if (reportFiles.length > 0) {
+        mdToShow = [...reportFiles].sort(
+          (a, b) => (reportMtimes[b] || 0) - (reportMtimes[a] || 0),
+        )[0];
+      }
+      let reportMarkdown: string | undefined;
+      if (mdToShow) {
+        try {
+          const mdRes = await apiFetch(
+            `/api/v1/agentic/reports/${encodeURIComponent(
+              conv.analysisId,
+            )}/${encodeURIComponent(mdToShow)}`,
+          );
+          if (mdRes.ok) reportMarkdown = await mdRes.text();
+        } catch {
+          /* ignore — reportMarkdown stays undefined */
+        }
+      }
+
+      const userMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: conv.question || data.question || "",
+        timestamp: data.started_at || new Date().toISOString(),
+      };
+      const assistantMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content:
+          data.final_answer ||
+          (data.status === "running"
+            ? "Анализът все още се изпълнява…"
+            : "(без отговор)"),
+        timestamp: data.completed_at || new Date().toISOString(),
+        analysisId: conv.analysisId,
+        status:
+          data.status === "completed"
+            ? "completed"
+            : data.status === "failed" || data.status === "cancelled"
+              ? "failed"
+              : "running",
+        reportFiles,
+        chartFiles,
+        reportMarkdown,
+        error: data.error || undefined,
+      };
+
+      set((s) => {
+        const updated = s.conversations.map((c) =>
+          c.id === convId
+            ? { ...c, messages: [userMsg, assistantMsg], messagesLoaded: true }
+            : c,
+        );
+        saveConversations(updated);
+        return { conversations: updated };
+      });
+    } catch (e) {
+      console.warn("loadConversationMessages failed:", e);
+    }
+  },
 }));
+
+// ── Auto-refresh on role changes ────────────────────────────────────────
+if (typeof window !== "undefined") {
+  let lastRole = useRoleStore.getState().role;
+  useRoleStore.subscribe((state) => {
+    if (state.role !== lastRole) {
+      lastRole = state.role;
+      void useChatStore.getState().hydrateFromServer();
+    }
+  });
+}

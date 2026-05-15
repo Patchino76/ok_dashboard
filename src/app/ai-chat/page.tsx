@@ -47,6 +47,16 @@ import {
 import { useUserPrompts, UserPrompt } from "./hooks/useUserPrompts";
 import SettingsPanel from "./components/settings-panel";
 import { useSettingsStore } from "./stores/settings-store";
+import { useRoleStore, ROLES, Role, getCurrentRole } from "./stores/role-store";
+
+// Append the caller's role as a query param so native <img>/<a> requests
+// (which can't send custom headers) still pass the backend role check.
+function withRole(url: string): string {
+  const role = getCurrentRole();
+  return (
+    url + (url.includes("?") ? "&" : "?") + "role=" + encodeURIComponent(role)
+  );
+}
 
 // ── Suggested prompts ──────────────────────────────────────────────────────
 const SUGGESTIONS = [
@@ -309,7 +319,7 @@ function FileDownloads({
         {allFiles.map(({ name, type }) => (
           <a
             key={name}
-            href={`${baseUrl}/${encodeURIComponent(name)}`}
+            href={withRole(`${baseUrl}/${encodeURIComponent(name)}`)}
             target="_blank"
             rel="noopener noreferrer"
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ${
@@ -371,8 +381,10 @@ function makeMarkdownComponents(analysisId?: string): Record<string, any> {
       const rawSrc = String(src || "");
       const resolvedSrc =
         rawSrc && !rawSrc.startsWith("http") && !rawSrc.startsWith("/")
-          ? `${baseUrl}/${encodeURIComponent(rawSrc)}`
-          : rawSrc;
+          ? withRole(`${baseUrl}/${encodeURIComponent(rawSrc)}`)
+          : rawSrc.startsWith("/api/v1/agentic/reports/")
+            ? withRole(rawSrc)
+            : rawSrc;
       return <CollapsibleImage src={resolvedSrc} alt={String(alt || "")} />;
     },
   };
@@ -389,8 +401,10 @@ function makePrintMarkdownComponents(analysisId?: string): Record<string, any> {
       const rawSrc = String(src || "");
       const resolvedSrc =
         rawSrc && !rawSrc.startsWith("http") && !rawSrc.startsWith("/")
-          ? `${baseUrl}/${encodeURIComponent(rawSrc)}`
-          : rawSrc;
+          ? withRole(`${baseUrl}/${encodeURIComponent(rawSrc)}`)
+          : rawSrc.startsWith("/api/v1/agentic/reports/")
+            ? withRole(rawSrc)
+            : rawSrc;
       return (
         <img
           src={resolvedSrc}
@@ -779,7 +793,12 @@ function HistorySidebar() {
                       ? "bg-blue-50 border-r-2 border-blue-500"
                       : "hover:bg-gray-50"
                   }`}
-                  onClick={() => selectConversation(conv.id)}
+                  onClick={() => {
+                    selectConversation(conv.id);
+                    void useChatStore
+                      .getState()
+                      .loadConversationMessages(conv.id);
+                  }}
                   onMouseEnter={(e) => showTooltip(e, fullPrompt)}
                   onMouseLeave={() => setTooltip(null)}
                 >
@@ -918,16 +937,28 @@ export default function AiChatPage() {
     sendAnalysis,
     sendFollowUp,
     cancelCurrent,
-    hydrateFromStorage,
+    hydrateFromServer,
   } = useChatStore();
+
+  const role = useRoleStore((s) => s.role);
+  const setRole = useRoleStore((s) => s.setRole);
+  const hydrateRole = useRoleStore((s) => s.hydrate);
+  const roleHydrated = useRoleStore((s) => s.hydrated);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Hydrate conversations from localStorage after first client render to avoid SSR mismatch
+  // Hydrate role from localStorage first, then pull role-scoped conversation
+  // list from the server. The role-store subscriber inside chat-store handles
+  // subsequent role changes automatically.
   useEffect(() => {
-    hydrateFromStorage();
-  }, [hydrateFromStorage]);
+    hydrateRole();
+  }, [hydrateRole]);
+
+  useEffect(() => {
+    if (!roleHydrated) return;
+    void hydrateFromServer();
+  }, [roleHydrated, hydrateFromServer]);
 
   const conv = activeConversation();
   const messages = conv?.messages ?? [];
@@ -1126,14 +1157,31 @@ export default function AiChatPage() {
               </p>
             </div>
           </div>
-          {conv && (
+          <div className="flex items-center gap-3">
+            {conv && (
+              <div className="flex items-center gap-2">
+                <ConvStatusIcon status={conv.status} />
+                <span className="text-xs text-gray-500 max-w-[200px] truncate">
+                  {conv.title}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
-              <ConvStatusIcon status={conv.status} />
-              <span className="text-xs text-gray-500 max-w-[200px] truncate">
-                {conv.title}
-              </span>
+              <User className="w-4 h-4 text-gray-500" />
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role)}
+                className="text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 hover:border-blue-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none cursor-pointer transition-colors"
+                title="Изберете роля — историята е споделена между потребителите от същата група"
+              >
+                {ROLES.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+          </div>
         </div>
 
         {/* ── Messages / empty state ───────────────────────── */}
