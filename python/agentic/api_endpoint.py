@@ -50,20 +50,29 @@ analyses_db.init_db()
 ALLOWED_ROLES = {"mechanic", "technologist", "manager"}
 
 
-def require_role(x_user_role: Optional[str] = Header(None, alias="X-User-Role")) -> str:
-    """FastAPI dependency: extract and validate the X-User-Role header."""
-    if not x_user_role:
+def require_role(
+    x_user_role: Optional[str] = Header(None, alias="X-User-Role"),
+    role: Optional[str] = None,
+) -> str:
+    """FastAPI dependency: extract and validate the caller's role.
+
+    Accepts the role from either the ``X-User-Role`` header (preferred, set
+    by the SPA's ``apiFetch`` helper) OR a ``?role=`` query parameter
+    (fallback for native browser flows like <img> / <a download>, and a
+    safety net in case a proxy strips custom headers).
+    """
+    raw = (x_user_role or role or "").strip().lower()
+    if not raw:
         raise HTTPException(
             status_code=400,
-            detail="Missing X-User-Role header (mechanic|technologist|manager)",
+            detail="Missing role (X-User-Role header or ?role= query param)",
         )
-    role = x_user_role.strip().lower()
-    if role not in ALLOWED_ROLES:
+    if raw not in ALLOWED_ROLES:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid role '{x_user_role}'. Allowed: {sorted(ALLOWED_ROLES)}",
+            detail=f"Invalid role '{raw}'. Allowed: {sorted(ALLOWED_ROLES)}",
         )
-    return role
+    return raw
 
 
 def _ensure_role_match(analysis_id: str, role: str) -> str:
@@ -460,6 +469,114 @@ async def delete_analysis(analysis_id: str, role: str = Depends(require_role)):
     return {"status": "deleted", "analysis_id": analysis_id}
 
 
+@router.delete("/followup/{followup_id}")
+async def delete_followup(followup_id: str, role: str = Depends(require_role)):
+    """Delete a single follow-up exchange.
+
+    Performs three coordinated cleanups so the deleted Q+A can never resurface
+    in a future follow-up's prompt context:
+
+    1. **Trim the parent's persisted messages** — find the HumanMessage whose
+       content matches this follow-up's stored ``question`` and drop it together
+       with the contiguous AIMessage(s) that follow, up to (but not including)
+       the next HumanMessage. The trimmed sequence is written back to the
+       ``messages`` table (replace-and-append semantics of append_messages).
+    2. **Delete the follow-up row** — cascades to any rows it owns.
+    3. **Invalidate in-memory state** — pop the follow-up entry and clear the
+       parent's ``conversation_history`` so the next follow-up rehydrates from
+       the freshly trimmed DB rows.
+
+    File cleanup (PNG/MD on disk) is handled separately by the existing
+    ``DELETE /reports/{parent}/{filename}`` flow that the SPA already invokes
+    in lockstep, so we don't touch the output directory here.
+    """
+    _ensure_role_match(followup_id, role)
+
+    row = analyses_db.get_analysis(followup_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Follow-up {followup_id} not found")
+
+    parent_id = row.get("parent_id")
+    if not parent_id:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "This is a root analysis, not a follow-up. "
+                "Use DELETE /analysis/{id} to remove a whole conversation."
+            ),
+        )
+
+    followup_question = (row.get("question") or "").strip()
+
+    # ── 1. Trim the parent's persisted message thread ───────────────────────
+    parent_messages = analyses_db.get_messages(parent_id)
+    trimmed: list[dict] = []
+    skipping = False
+    found_match = False
+    for m in parent_messages:
+        mtype = m.get("type", "")
+        mcontent = (m.get("content") or "").strip()
+
+        if not skipping:
+            # Start dropping at the HumanMessage that matches the follow-up's question.
+            if (
+                not found_match
+                and mtype == "HumanMessage"
+                and mcontent == followup_question
+                and followup_question
+            ):
+                skipping = True
+                found_match = True
+                continue
+            trimmed.append(m)
+        else:
+            # Keep skipping until we hit the next HumanMessage (start of next turn).
+            if mtype == "HumanMessage":
+                skipping = False
+                trimmed.append(m)
+            # else: drop AIMessage / ToolMessage tail belonging to this follow-up.
+
+    if found_match:
+        # append_messages does DELETE-then-INSERT, so passing the trimmed list
+        # replaces the parent's thread atomically. Pass at least one message
+        # (the parent's original question) because append_messages early-returns
+        # on an empty list, which would leave the old rows in place.
+        if trimmed:
+            analyses_db.append_messages(parent_id, trimmed)
+        else:
+            # Defensive: nothing left — wipe the table directly.
+            with analyses_db._cursor() as cur:  # type: ignore[attr-defined]
+                cur.execute(
+                    "DELETE FROM messages WHERE analysis_id = ?", (parent_id,)
+                )
+        print(
+            f"[delete_followup] trimmed parent {parent_id} messages: "
+            f"{len(parent_messages)} → {len(trimmed)}"
+        )
+    else:
+        print(
+            f"[delete_followup] no matching HumanMessage in parent {parent_id} "
+            f"for follow-up question (len={len(followup_question)}); "
+            "parent message thread left intact"
+        )
+
+    # ── 2. Delete the follow-up row (cascades to its own messages, if any) ──
+    analyses_db.delete_analysis(followup_id)
+
+    # ── 3. Invalidate in-memory state so the next follow-up rehydrates ──────
+    _analyses.pop(followup_id, None)
+    parent_entry = _analyses.get(parent_id)
+    if parent_entry is not None:
+        parent_entry.pop("conversation_history", None)
+
+    return {
+        "status": "deleted",
+        "followup_id": followup_id,
+        "parent_id": parent_id,
+        "parent_messages_remaining": len(trimmed),
+    }
+
+
 @router.post("/cancel/{analysis_id}")
 async def cancel_analysis(analysis_id: str, role: str = Depends(require_role)):
     """Cancel a running analysis or follow-up.
@@ -550,6 +667,31 @@ def _content_to_str(content) -> str:
                 parts.append(str(item))
         return "\n".join(p for p in parts if p).strip()
     return str(content) if content is not None else ""
+
+
+def _extract_final_answer(messages) -> str:
+    """Walk back from the end of the LangGraph message list to find the
+    last AIMessage with non-empty textual content.
+
+    The naive `messages[-1].content` approach fails when the final step is
+    a ToolMessage or an AIMessage that only carries `tool_calls` (no text),
+    which leaves the UI showing an empty "Анализът е завършен." placeholder
+    even though the run produced a real answer earlier in the trace.
+    """
+    for msg in reversed(messages or []):
+        msg_type = type(msg).__name__
+        if msg_type != "AIMessage":
+            continue
+        # Skip pure tool-call hops with no text
+        if getattr(msg, "tool_calls", None) and not msg.content:
+            continue
+        text = _content_to_str(msg.content)
+        if text and text.strip():
+            return text
+    # Fallback to the very last message (preserves prior behaviour)
+    if messages:
+        return _content_to_str(messages[-1].content)
+    return ""
 
 
 def _read_latest_report_markdown(analysis_id: str) -> Optional[str]:
@@ -649,7 +791,7 @@ async def _run_analysis_background(
                     },
                 )
 
-                final_answer = _content_to_str(final_state["messages"][-1].content)
+                final_answer = _extract_final_answer(final_state["messages"])
                 # Store serialized messages for follow-up conversations
                 serialized = _serialize_messages(final_state["messages"])
                 _analyses[analysis_id]["conversation_history"] = serialized
@@ -751,11 +893,42 @@ async def _run_followup_background(
         if not api_key:
             raise ValueError("GOOGLE_API_KEY not configured")
 
-        # Retrieve conversation history from the original analysis
+        # Retrieve conversation history from the original analysis.
+        # If the in-memory entry is missing or has no history (e.g. server
+        # was restarted, or the parent analysis predates message persistence),
+        # fall back to the DB row and synthesize a minimal history from the
+        # original question + final answer. The actual factual context is
+        # still carried by the report Markdown injected as a SystemMessage
+        # further down, so this is a safe fallback.
         original = _analyses.get(analysis_id, {})
         history = original.get("conversation_history", [])
+
         if not history:
-            raise ValueError(f"No conversation history found for analysis {analysis_id}")
+            row = analyses_db.get_analysis(analysis_id)
+            if row is None:
+                raise ValueError(f"Analysis {analysis_id} not found")
+            db_messages = analyses_db.get_messages(analysis_id)
+            if db_messages:
+                history = [
+                    {"type": m["type"], "content": m["content"]} for m in db_messages
+                ]
+            else:
+                # Last-resort synthesis: question + final_answer
+                synth: list[dict] = []
+                if row.get("question"):
+                    synth.append({"type": "HumanMessage", "content": row["question"]})
+                if row.get("final_answer"):
+                    synth.append({"type": "AIMessage", "content": row["final_answer"]})
+                history = synth
+                print(
+                    f"[followup] synthesized history from DB row for {analysis_id} "
+                    f"({len(synth)} msgs)"
+                )
+
+            if not history:
+                raise ValueError(
+                    f"No conversation history or final answer available for analysis {analysis_id}"
+                )
 
         # Rebuild message objects and keep only the last N for context
         prior_messages = _rebuild_messages(history)[-30:]
@@ -820,10 +993,27 @@ async def _run_followup_background(
                     },
                 )
 
-                final_answer = _content_to_str(final_state["messages"][-1].content)
+                final_answer = _extract_final_answer(final_state["messages"])
                 # Update conversation history with follow-up messages
                 serialized = _serialize_messages(final_state["messages"])
                 _analyses[analysis_id]["conversation_history"] = serialized
+
+                # ── Guarantee an MD artefact for every follow-up ──────────────
+                # If the agents produced new PNG charts during this follow-up
+                # but did NOT write/update a Markdown file referencing them,
+                # synthesize one here so the user always gets a coherent
+                # report bundle in the UI's "Файлове" footer.
+                try:
+                    _ensure_followup_report(
+                        parent_analysis_id=analysis_id,
+                        followup_id=followup_id,
+                        question=question,
+                        final_answer=final_answer,
+                        followup_started_iso=_analyses[followup_id]["started_at"],
+                    )
+                except Exception as e:
+                    print(f"[followup-md] auto-report writer failed for {followup_id}: {e}")
+
                 # Refresh the cached report snapshot in case this follow-up
                 # rewrote it (REFINE_REPORT or a SPECIALIST that called
                 # write_markdown_report). Disk remains the source of truth.

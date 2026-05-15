@@ -10,6 +10,28 @@ import { NextRequest, NextResponse } from "next/server";
 
 const API_URL = process.env.API_INTERNAL_URL || "http://127.0.0.1:8000";
 
+// Retry transient connection failures once. After a FastAPI restart Node's
+// global fetch Agent may still hold a half-dead TCP socket from the prior
+// process — the first POST fails on that stale socket, the second opens a
+// fresh one. Retrying once therefore turns the well-known "first 502 / second
+// 200" pattern into a single transparent success.
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(
+      `[followup-proxy] first attempt failed (${msg}); retrying once…`,
+    );
+    // Tiny delay to let the OS retire the dead socket before we open a new one.
+    await new Promise((r) => setTimeout(r, 100));
+    return await fetch(url, init);
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -30,14 +52,26 @@ export async function POST(
     );
   }
 
-  const upstreamUrl = `${API_URL}/api/v1/agentic/followup/${encodeURIComponent(id)}`;
-  console.log(`[followup-proxy] → ${upstreamUrl} (${bodyText.length} bytes)`);
+  // Forward the original query string (e.g. ?role=manager) verbatim.
+  const incomingQuery = request.nextUrl.search || "";
+  const upstreamUrl = `${API_URL}/api/v1/agentic/followup/${encodeURIComponent(id)}${incomingQuery}`;
+
+  // Forward the role header (the only custom header the backend cares about).
+  const upstreamHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const roleHeader = request.headers.get("x-user-role");
+  if (roleHeader) upstreamHeaders["X-User-Role"] = roleHeader;
+
+  console.log(
+    `[followup-proxy] → ${upstreamUrl} (${bodyText.length} bytes, role=${roleHeader || "<none>"})`,
+  );
 
   let upstream: Response;
   try {
-    upstream = await fetch(upstreamUrl, {
+    upstream = await fetchWithRetry(upstreamUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: upstreamHeaders,
       body: bodyText,
       // Avoid Node's default keep-alive pooling reusing a dead socket.
       cache: "no-store",

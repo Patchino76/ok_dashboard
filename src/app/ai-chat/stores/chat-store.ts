@@ -709,6 +709,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
           ),
         );
       }
+
+      // Tell the backend to drop the follow-up row AND prune its Q+A pair
+      // from the parent's persisted message thread. Without this, the deleted
+      // exchange would resurface in the prompt context of the next follow-up
+      // because the agents hydrate prior history from the parent's messages.
+      const followupAnalysisId = assistantMsg.analysisId;
+      if (
+        followupAnalysisId &&
+        assistantMsg.status !== "running" &&
+        assistantMsg.status !== "pending"
+      ) {
+        try {
+          await apiFetch(
+            `/api/v1/agentic/followup/${encodeURIComponent(followupAnalysisId)}`,
+            { method: "DELETE" },
+          );
+        } catch (e) {
+          console.warn(
+            `Failed to delete follow-up ${followupAnalysisId} from backend:`,
+            e,
+          );
+        }
+      }
     }
 
     // If the assistant reply is still in flight, cancel it before discarding.

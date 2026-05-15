@@ -1234,30 +1234,40 @@ def build_graph(
 
 FOLLOWUP_ROUTER_PROMPT = f"""{DOMAIN_CONTEXT}
 
-You are the Follow-Up Router. A user has already received an analysis report and is now
-asking a follow-up question. You must decide how to handle it.
+You are the Follow-Up Router. A user has already received an analysis report and
+is now asking a follow-up question. Decide how to handle it.
 
-Given the conversation history (previous analysis + user's new question), choose ONE action:
+Choose EXACTLY ONE action:
 
-1. **SPECIALIST:<name>** — Re-run a specific specialist to perform additional analysis.
-   Available specialists: analyst, forecaster, anomaly_detective, bayesian_analyst, optimizer, shift_reporter
-   Use this when the user asks for NEW analysis not in the original report.
+1. **SPECIALIST:<name>** — Run a specialist that produces NEW analysis and/or NEW
+   files (charts, tables, sub-reports).
+   Available specialists: analyst, forecaster, anomaly_detective,
+   bayesian_analyst, optimizer, shift_reporter
+   → USE THIS whenever the user asks to DRAW / CREATE / GENERATE / PLOT /
+     НАЧЕРТАЙ / ИЗГОТВИ / ГЕНЕРИРАЙ charts, graphs, figures, time-series,
+     histograms, comparisons, forecasts, anomaly maps, or any new artifact
+     that does not already exist in the current report.
+   → Default specialist for chart/visualisation requests: **analyst**.
 
-2. **REFINE_REPORT** — Modify/expand the existing report based on feedback.
-   Use this when the user wants more explanation, restructuring, or additions to the report.
+2. **REFINE_REPORT** — Rewrite/expand the existing Markdown report with NO new
+   analysis. Pure text edits, restructuring, adding explanatory prose.
+   → Do NOT pick this if new figures or new computations are needed.
 
-3. **ANSWER** — Answer directly using execute_python on the already-loaded data.
-   Use this for quick questions like "what is the mean of X?" or "show me column Y".
+3. **ANSWER** — Reply with TEXT ONLY using already-computed results.
+   → Allowed for trivial textual lookups like "what is the mean of X?" or
+     "which mill had the highest PSI200?".
+   → FORBIDDEN if the user asks for any new file, chart, image, plot,
+     dataset export, or any computation that hasn't already been performed.
 
-RESPOND with EXACTLY one line:
-ACTION: SPECIALIST:analyst
-or
-ACTION: REFINE_REPORT
-or
-ACTION: ANSWER
+CRITICAL OUTPUT CONTRACT:
+  - Respond with EXACTLY two lines.
+  - Do NOT explain, justify, or pre-answer the user's question.
+  - Do NOT mention filenames, numbers, or report content.
+  - Any extra prose will be discarded.
 
-Then on the next line:
-INSTRUCTION: <one sentence describing what to do>
+Format (literally):
+ACTION: <one of SPECIALIST:<name> | REFINE_REPORT | ANSWER>
+INSTRUCTION: <one short sentence describing what the executor must do>
 """
 
 FOLLOWUP_SPECIALIST_PROMPT = f"""{DOMAIN_CONTEXT}
@@ -1356,19 +1366,65 @@ def build_followup_graph(
             content = (str(raw) if raw else "").strip()
         print(f"  [followup_router] Response: {content[:200]}")
 
-        # Parse action
+        # Parse action / instruction from the model's output.
         action = "ANSWER"
         instruction = "Answer the user's question."
+        # Action may be on the very first line OR anywhere in the response
+        # (some models add prose before the contract lines). Scan all lines.
         for line in content.split("\n"):
             line = line.strip()
             if line.upper().startswith("ACTION:"):
                 action = line.split(":", 1)[1].strip()
+                # Allow "ACTION: SPECIALIST:analyst" by re-joining the rest:
+                rest = line.split(":", 1)[1].strip()
+                action = rest
             elif line.upper().startswith("INSTRUCTION:"):
                 instruction = line.split(":", 1)[1].strip()
 
+        # SAFETY NET — if the router defaulted to ANSWER but the user's last
+        # message clearly asks for new artifacts, escalate to the analyst.
+        # This catches the common failure mode where the LLM ignores the
+        # contract and writes a hallucinated answer in place of routing.
+        try:
+            last_human = next(
+                (m for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
+                None,
+            )
+            # Inline content flattening (Gemini may return content as a list of dicts).
+            def _flat(c):
+                if isinstance(c, str):
+                    return c
+                if isinstance(c, list):
+                    return " ".join(
+                        (item.get("text", "") if isinstance(item, dict) else str(item))
+                        for item in c
+                    )
+                return str(c) if c is not None else ""
+            user_text = _flat(last_human.content).lower() if last_human else ""
+        except Exception:
+            user_text = ""
+        CHART_KEYWORDS = (
+            "начертай", "изготви", "генерирай", "покажи график",
+            "графика", "графики", "хистограм", "визуализирай",
+            "диаграм", "plot", "draw", "chart", "figure", "histogram",
+            "visuali", "forecast", "прогноз",
+        )
+        if action.upper() == "ANSWER" and any(k in user_text for k in CHART_KEYWORDS):
+            print("  [followup_router] Overriding ANSWER → SPECIALIST:analyst (chart keywords detected)")
+            action = "SPECIALIST:analyst"
+            instruction = (
+                "Създай поисканите графики/визуализации. Използвай skills или "
+                "execute_python с matplotlib, запази PNG файловете в OUTPUT_DIR и "
+                "обнови доклада чрез write_markdown_report."
+            )
+
         _progress("followup", f"Действие: {action}")
+        # Store a SHORT deterministic marker in state — NEVER the model's verbose
+        # output. This prevents the router's hallucinations from being mistaken
+        # for the final answer by the UI or by downstream prompts.
+        marker = f"[router] action={action} | instruction={instruction[:160]}"
         return {
-            "messages": [AIMessage(content=content, name="followup_router")],
+            "messages": [AIMessage(content=marker, name="followup_router")],
             "action": action,
             "instruction": instruction,
         }
@@ -1397,7 +1453,15 @@ def build_followup_graph(
                 f"{FOLLOWUP_SPECIALIST_PROMPT}\n\n"
                 f"Task: {instruction}\n"
                 "Answer the user's question using the loaded data. "
-                "Use execute_python to compute answers. Print results clearly."
+                "Use execute_python to compute answers. Print results clearly.\n\n"
+                "СТРОГО ПРАВИЛО — БЕЗ ХАЛЮЦИНАЦИИ:\n"
+                "• НЕ твърди, че съществуват файлове/графики, които не си потвърдил/а "
+                "чрез list_output_files или които не си създал/а сам в този ход.\n"
+                "• Ако потребителят иска нещо ново (графика, изчисление, обновяване "
+                "на доклада), първо извикай съответния инструмент (execute_python или "
+                "write_markdown_report), изчакай резултата и едва тогава обяви успех.\n"
+                "• Ако не можеш да изпълниш това с наличните инструменти, кажи ясно "
+                "какво липсва, вместо да си измисляш отговор."
             )
             _progress("followup", "Отговор на въпрос...")
 
