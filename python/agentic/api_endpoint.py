@@ -18,6 +18,8 @@ can resume from any completed analysis.
 import asyncio
 import os
 import shutil
+import unicodedata
+import urllib.parse
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -319,12 +321,31 @@ async def get_report_file(
         raise HTTPException(status_code=400, detail=f"Invalid role '{effective_role}'")
     _ensure_role_match(analysis_id, effective_role)
     file_path = os.path.join(OUTPUT_DIR, analysis_id, filename)
-    if not os.path.exists(file_path):
-        fallback = os.path.join(OUTPUT_DIR, filename)
-        if os.path.exists(fallback):
-            return FileResponse(fallback)
-        raise HTTPException(status_code=404, detail=f"File {filename} not found")
-    return FileResponse(file_path)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+
+    # Unicode normalization fallback. The browser sends URL bytes that decode
+    # to one Unicode form (typically NFC), but matplotlib / the agents may
+    # have written the file under a different normalization (NFD on macOS,
+    # mixed forms on Windows when paths come from Cyrillic input). Scan the
+    # folder and match by NFC-normalized name so non-ASCII filenames like
+    # "oee_trend_Мелница_6.png" resolve regardless of which form was used.
+    folder = os.path.join(OUTPUT_DIR, analysis_id)
+    if os.path.isdir(folder):
+        target_nfc = unicodedata.normalize("NFC", filename)
+        try:
+            for entry in os.listdir(folder):
+                if unicodedata.normalize("NFC", entry) == target_nfc:
+                    return FileResponse(os.path.join(folder, entry))
+        except OSError as e:
+            print(f"[get_report_file] listdir failed for {folder}: {e}")
+
+    # Legacy flat-output fallback (analyses written before per-id subfolders).
+    fallback = os.path.join(OUTPUT_DIR, filename)
+    if os.path.exists(fallback):
+        return FileResponse(fallback)
+
+    raise HTTPException(status_code=404, detail=f"File {filename} not found")
 
 
 # ── Role-scoped conversation listing / hydration ───────────────────────────
@@ -625,7 +646,23 @@ async def delete_report_file(analysis_id: str, filename: str, role: str = Depend
 
     file_path = os.path.join(OUTPUT_DIR, analysis_id, filename)
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File {filename} not found")
+        # Same NFC/NFD normalization fallback as get_report_file — non-ASCII
+        # filenames may be stored under a different Unicode form than what
+        # the URL decodes to.
+        folder = os.path.join(OUTPUT_DIR, analysis_id)
+        resolved: Optional[str] = None
+        if os.path.isdir(folder):
+            target_nfc = unicodedata.normalize("NFC", filename)
+            try:
+                for entry in os.listdir(folder):
+                    if unicodedata.normalize("NFC", entry) == target_nfc:
+                        resolved = os.path.join(folder, entry)
+                        break
+            except OSError as e:
+                print(f"[delete_report_file] listdir failed for {folder}: {e}")
+        if resolved is None:
+            raise HTTPException(status_code=404, detail=f"File {filename} not found")
+        file_path = resolved
 
     try:
         os.remove(file_path)
@@ -719,6 +756,127 @@ def _read_latest_report_markdown(analysis_id: str) -> Optional[str]:
         return content.strip() or None
     except Exception as e:
         print(f"[report_markdown] Failed to read report for {analysis_id}: {e}")
+        return None
+
+
+def _ensure_followup_report(
+    *,
+    parent_analysis_id: str,
+    followup_id: str,
+    question: str,
+    final_answer: str,
+    followup_started_iso: str,
+) -> Optional[str]:
+    """Guarantee that every follow-up leaves behind a Markdown artefact.
+
+    Scans ``OUTPUT_DIR/<parent_analysis_id>/`` for files whose mtime is at or
+    after the follow-up's start time. If the agents produced new PNG charts
+    during this follow-up but did NOT write/update any Markdown file
+    referencing them, this function writes a deterministic follow-up report
+    that embeds those new images and includes the agent's textual answer.
+
+    Returns the absolute path of the file that was written, or ``None`` if no
+    auto-report was needed (either the agents already wrote one, or there
+    were no new charts to bundle).
+    """
+    folder = os.path.join(OUTPUT_DIR, parent_analysis_id)
+    if not os.path.isdir(folder):
+        return None
+
+    # Parse the follow-up start time into unix seconds. Apply a 2s skew so a
+    # file written within the same second still counts as "new".
+    try:
+        started_at = datetime.fromisoformat(followup_started_iso).timestamp() - 2.0
+    except Exception:
+        # If parsing fails, treat everything in the folder as eligible — better
+        # to over-include than to skip the auto-report entirely.
+        started_at = 0.0
+
+    new_pngs: list[str] = []
+    new_mds: list[str] = []
+    try:
+        for f in sorted(os.listdir(folder)):
+            full = os.path.join(folder, f)
+            if not os.path.isfile(full):
+                continue
+            try:
+                mtime = os.path.getmtime(full)
+            except OSError:
+                continue
+            if mtime < started_at:
+                continue
+            low = f.lower()
+            if low.endswith(".png"):
+                new_pngs.append(f)
+            elif low.endswith(".md"):
+                new_mds.append(f)
+    except OSError as e:
+        print(f"[followup-md] could not list {folder}: {e}")
+        return None
+
+    # If the agents already wrote (or rewrote) a Markdown report during this
+    # follow-up, trust them — don't add a second one.
+    if new_mds:
+        print(
+            f"[followup-md] {followup_id}: {len(new_mds)} MD file(s) already "
+            f"written by agents ({new_mds}); skipping auto-report"
+        )
+        return None
+
+    # Nothing visual was produced either → leave it alone, the text answer is
+    # rendered in the chat bubble already and would just duplicate as MD.
+    if not new_pngs:
+        return None
+
+    # Build the synthesized Markdown.
+    answer_text = (final_answer or "").strip() or (
+        "Допълнителният анализ е завършен. Виж приложените графики."
+    )
+    title = (question or "Допълнителен анализ").strip()
+    # Keep the title to a single line for the H1.
+    title_h1 = title.split("\n", 1)[0][:160]
+
+    lines: list[str] = [
+        f"# {title_h1}",
+        "",
+        f"_Автоматично генериран отчет за допълнителен въпрос ({followup_id})._",
+        "",
+        "## Въпрос",
+        "",
+        title,
+        "",
+        "## Отговор",
+        "",
+        answer_text,
+        "",
+        "## Генерирани графики",
+        "",
+    ]
+    for png in new_pngs:
+        # Percent-encode the URL portion so non-ASCII filenames (e.g.
+        # "oee_trend_Мелница_6.png") round-trip correctly through the
+        # MD renderer → <img src> → /reports/{parent}/{file} endpoint.
+        # The alt-text keeps the human-readable original.
+        encoded = urllib.parse.quote(png, safe="")
+        lines.append(f"![{png}]({encoded})")
+        lines.append("")
+
+    md_body = "\n".join(lines).rstrip() + "\n"
+
+    # Filename must be unique per follow-up so multiple follow-ups don't
+    # overwrite each other's auto-reports.
+    out_name = f"followup_{followup_id}.md"
+    out_path = os.path.join(folder, out_name)
+    try:
+        with open(out_path, "w", encoding="utf-8") as fh:
+            fh.write(md_body)
+        print(
+            f"[followup-md] {followup_id}: wrote auto-report {out_name} "
+            f"(embedding {len(new_pngs)} new chart(s))"
+        )
+        return out_path
+    except OSError as e:
+        print(f"[followup-md] failed to write {out_path}: {e}")
         return None
 
 
