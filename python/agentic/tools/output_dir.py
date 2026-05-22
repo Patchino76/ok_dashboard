@@ -12,6 +12,7 @@ _DEFAULT_OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 
 # Module-level mutable state — set once per analysis session
 _current_output_dir: str = _DEFAULT_OUTPUT_DIR
+_current_analysis_id: str = "default"
 
 
 def get_output_dir() -> str:
@@ -20,15 +21,23 @@ def get_output_dir() -> str:
     return _current_output_dir
 
 
+def get_analysis_id() -> str:
+    """Return the current analysis_id (used as the namespace key for the
+    REPL-style execute_python persistent variable store)."""
+    return _current_analysis_id
+
+
 def set_output_dir(subdir: str) -> str:
     """Set output to a subfolder of the base output dir. Returns the full path."""
-    global _current_output_dir
+    global _current_output_dir, _current_analysis_id
     _current_output_dir = os.path.join(_DEFAULT_OUTPUT_DIR, subdir)
+    _current_analysis_id = subdir or "default"
     os.makedirs(_current_output_dir, exist_ok=True)
     return _current_output_dir
 
 
 def reset_output_dir() -> None:
     """Reset to the default output directory."""
-    global _current_output_dir
+    global _current_output_dir, _current_analysis_id
     _current_output_dir = _DEFAULT_OUTPUT_DIR
+    _current_analysis_id = "default"

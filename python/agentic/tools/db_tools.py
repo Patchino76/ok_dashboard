@@ -51,6 +51,34 @@ def list_dataframes() -> dict[str, tuple[int, int]]:
     return {name: (df.shape[0], df.shape[1]) for name, df in _dataframes.items()}
 
 
+# ── Per-analysis query cache ────────────────────────────────────────────────
+# Avoids re-running the same expensive PostgreSQL query when multiple
+# specialists in the same analysis ask for the same mill+date range.
+# Keyed by (analysis_id, query_kind, mill_number, start_date, end_date).
+# DataFrames are stored once and shared by reference; each cache hit also
+# (re-)registers the frame in the in-memory store under the requested name
+# so existing skill/code paths keep working.
+_query_cache: dict[tuple, pd.DataFrame] = {}
+
+
+def _cache_key(analysis_id: str, kind: str, mill: int,
+               start: str | None, end: str | None) -> tuple:
+    return (analysis_id or "default", kind, int(mill), start or "", end or "")
+
+
+def clear_query_cache(analysis_id: str | None = None) -> int:
+    """Drop cached queries for one analysis (or all if analysis_id is None).
+    Returns the number of entries removed."""
+    if analysis_id is None:
+        n = len(_query_cache)
+        _query_cache.clear()
+        return n
+    keys = [k for k in _query_cache if k[0] == analysis_id]
+    for k in keys:
+        _query_cache.pop(k, None)
+    return len(keys)
+
+
 # ── Database connection helper ───────────────────────────────────────────────
 
 def _get_db_connector() -> MillsDataConnector:
@@ -200,6 +228,30 @@ async def query_mill_data(arguments: dict) -> list[types.TextContent]:
     if mill_number is None or not (1 <= mill_number <= 12):
         raise ValueError("mill_number is required and must be between 1 and 12")
 
+    # ── Per-analysis cache lookup ──────────────────────────────────────
+    from tools.output_dir import get_analysis_id
+    analysis_id = get_analysis_id()
+    cache_key = _cache_key(analysis_id, "mill", mill_number, start_date, end_date)
+    cached = _query_cache.get(cache_key)
+    if cached is not None and not cached.empty:
+        # Re-register under the requested store name so downstream code
+        # using `get_dataframe(store_name)` keeps working transparently.
+        set_dataframe(cached, store_name)
+        key_cols = [c for c in ["Ore", "PSI80", "PSI200", "DensityHC", "MotorAmp"] if c in cached.columns]
+        stats = {col: {"mean": round(float(cached[col].mean()), 2),
+                       "std": round(float(cached[col].std()), 2)}
+                 for col in key_cols}
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "loaded_from_cache",
+            "store_name": store_name,
+            "mill_number": mill_number,
+            "rows": cached.shape[0],
+            "columns": list(cached.columns),
+            "date_range": {"start": str(cached.index.min()), "end": str(cached.index.max())},
+            "key_stats": stats,
+            "cache_hit": True,
+        }, indent=2, default=str))]
+
     engine = _get_engine()
     mill_table = f"MILL_{mill_number:02d}"
     query = f'SELECT * FROM mills."{mill_table}"'
@@ -225,6 +277,8 @@ async def query_mill_data(arguments: dict) -> list[types.TextContent]:
     # Set TimeStamp as index for time-series analysis
     df = df.set_index("TimeStamp")
     set_dataframe(df, store_name)
+    # Memoise the (mill, range) result for this analysis
+    _query_cache[cache_key] = df
 
     # Compact summary
     key_cols = [c for c in ["Ore", "PSI80", "PSI200", "DensityHC", "MotorAmp"] if c in df.columns]

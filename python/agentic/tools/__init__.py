@@ -27,6 +27,9 @@ from tools.domain_knowledge import (
 from tools.skill_registry import (
     list_skills_tool, list_skills,
 )
+from tools.vision_tools import (
+    review_chart_tool, review_chart,
+)
 
 # Registry mapping tool name -> {"tool": types.Tool, "handler": callable}
 tools = {
@@ -39,4 +42,5 @@ tools = {
     set_output_directory_tool.name:     {"tool": set_output_directory_tool,     "handler": set_output_directory},
     get_domain_knowledge_tool.name:     {"tool": get_domain_knowledge_tool,     "handler": get_domain_knowledge},
     list_skills_tool.name:              {"tool": list_skills_tool,              "handler": list_skills},
+    review_chart_tool.name:             {"tool": review_chart_tool,             "handler": review_chart},
 }

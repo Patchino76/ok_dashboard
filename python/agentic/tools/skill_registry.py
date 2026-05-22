@@ -120,6 +120,25 @@ def _format_catalog(module_filter: str | None = None) -> str:
 
 
 # ── MCP Tool Definition ────────────────────────────────────────────────────
+#
+# Module list is reflected from the actually-discovered catalog at import time
+# so new skill modules registered in `skills/__init__.py` automatically appear
+# in this tool's description and parameter schema — no manual edits needed.
+
+_DISCOVERED_MODULES = sorted(_SKILL_CATALOG.keys())
+_MODULE_LIST_TEXT = ", ".join(_DISCOVERED_MODULES) or "(none)"
+
+_module_property: dict = {
+    "type": "string",
+    "description": (
+        f"Optional: filter by module name. Available: {_MODULE_LIST_TEXT}. "
+        "If omitted, returns all skills."
+    ),
+}
+# Only attach an enum constraint when we actually have modules; an empty enum
+# (or `null`) is invalid JSON Schema and will reject every call.
+if _DISCOVERED_MODULES:
+    _module_property["enum"] = _DISCOVERED_MODULES
 
 list_skills_tool = types.Tool(
     name="list_skills",
@@ -127,22 +146,21 @@ list_skills_tool = types.Tool(
         "List all available skill functions from the skills library. "
         "Returns function signatures, descriptions, parameters, and return types. "
         "Use this to discover which tested analysis functions are available before "
-        "writing code. Optionally filter by module: eda, spc, anomaly, forecasting, "
-        "shift_kpi, optimization."
+        f"writing code. Discovered modules: {_MODULE_LIST_TEXT}."
     ),
     inputSchema={
         "type": "object",
-        "properties": {
-            "module": {
-                "type": "string",
-                "description": "Optional: filter by module name (eda, spc, anomaly, "
-                               "forecasting, shift_kpi, optimization). "
-                               "If omitted, returns all skills.",
-            },
-        },
+        "properties": {"module": _module_property},
         "required": [],
     },
 )
+
+
+def get_discovered_modules() -> list[str]:
+    """Public accessor for the list of auto-discovered skill modules. Used by
+    the planner / specialist prompts so they can reference the live catalogue
+    instead of hard-coded module names."""
+    return list(_DISCOVERED_MODULES)
 
 
 async def list_skills(arguments: dict) -> list[types.TextContent]:

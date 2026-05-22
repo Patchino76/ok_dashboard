@@ -33,6 +33,7 @@ from langchain_core.messages import (
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, MessagesState, END, START
+from langgraph.types import Send
 
 GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 
@@ -49,6 +50,8 @@ class AnalysisState(MessagesState):
     current_stage: str
     stages_to_run: list[str]   # set by planner — dynamic per analysis
     stage_attempts: dict       # track rework attempts per stage
+    parallel_mode: bool        # True while parallel specialist branches are active
+    extensions_used: int       # number of times the critic has extended the pipeline
 
 
 # ── Specialist pool ──────────────────────────────────────────────────────────
@@ -59,7 +62,7 @@ SPECIALIST_POOL = [
 ]
 
 FIXED_PREFIX = ["data_loader", "planner"]
-FIXED_SUFFIX = ["code_reviewer", "reporter"]
+FIXED_SUFFIX = ["code_reviewer", "critic", "reporter"]
 
 MAX_REWORKS_PER_STAGE = 1
 
@@ -68,7 +71,8 @@ MAX_REWORKS_PER_STAGE = 1
 # System Prompts
 # ══════════════════════════════════════════════════════════════════════════════
 
-DOMAIN_CONTEXT = """You are working on data from an ore dressing (mineral processing) factory with 12 ball mills.
+# ── Core (always injected) ───────────────────────────────────────────────────
+CORE_CONTEXT = """You are working on data from an ore dressing (mineral processing) factory with 12 ball mills.
 Data is in MILL_XX tables (minute-level time-series) with columns:
 TimeStamp (index), Ore (t/h feed rate), WaterMill (water to mill), WaterZumpf (water to sump),
 Power (kW), ZumpfLevel (sump level), PressureHC (hydrocyclone pressure), DensityHC (hydrocyclone density),
@@ -84,23 +88,27 @@ Process relationships:
 - Targets: PSI80, PSI200 — grinding quality that must stay within specification
 - Energy: Power / Ore = specific energy consumption (kWh/ton)
 - Shifts (production schedule — ALWAYS use these exact boundaries):
-  * Shift 1: 06:00 → 14:00 (morning, "първа смяна")
-  * Shift 2: 14:00 → 22:00 (afternoon, "втора смяна")
-  * Shift 3: 22:00 → 06:00 next day (night, "трета смяна")
+  * Shift 1: 06:00 → 14:00 (morning, „първа смяна")
+  * Shift 2: 14:00 → 22:00 (afternoon, „втора смяна")
+  * Shift 3: 22:00 → 06:00 next day (night, „трета смяна")
+- Mill names in prose: „Мелница 1" … „Мелница 12" (raw identifier mill_data_N stays in code)."""
 
-OUTPUT LANGUAGE — MANDATORY:
+
+# ── Bulgarian output rules (only for stages that produce user-facing text) ──
+BULGARIAN_RULES = """OUTPUT LANGUAGE — MANDATORY:
 - All user-facing text MUST be written in Bulgarian (български език).
   This applies to: the final report, every section heading, executive summary,
-  findings, conclusions, recommendations, chart captions, tool-call summaries,
-  follow-up answers, and the last AI message returned to the user.
+  findings, conclusions, recommendations, chart captions, and the last AI
+  message returned to the user.
 - Keep variable names, SQL identifiers, column names, tool names, Python code,
   numeric values, and units exactly as-is (do NOT translate 'PSI80', 'Ore',
   'DensityHC', 'kWh/t', file names, etc.).
-- Use the native Bulgarian names for the shifts: „първа смяна", „втора смяна",
-  „трета смяна" (or "Смяна 1/2/3"). Refer to mills as „Мелница 1"…„Мелница 12"
-  in prose while keeping the raw identifier mill_data_N in code.
+- Use the native Bulgarian names for shifts and mills („първа смяна",
+  „Мелница 8", etc.) in prose."""
 
-STATISTICAL INTEGRITY — RATIO METRICS (CRITICAL):
+
+# ── Statistical-integrity rules (analyst, shift_reporter, optimizer) ────────
+STATISTICAL_RULES = """STATISTICAL INTEGRITY — RATIO METRICS (CRITICAL):
 For ANY ratio-type metric (specific energy kWh/t, specific consumption, yield,
 kg/ton, recovery %, energy per ton, water/ton, etc.) you MUST use
 **ratio-of-totals** aggregation, NEVER the mean of per-minute ratios.
@@ -131,9 +139,11 @@ Required procedure whenever you compute a per-ton / per-unit metric:
      "less downtime" with "better specific energy".
 
 The `skills.shift_kpi.shift_kpis(df, ore_col='Ore', power_col='Power')`
-function already implements this correctly; prefer it over ad-hoc code.
+function already implements this correctly; prefer it over ad-hoc code."""
 
-OEE — ОБЩА ЕФЕКТИВНОСТ НА ОБОРУДВАНЕТО (плантова конфигурация):
+
+# ── OEE rules (only for shift_reporter, optimizer when OEE is requested) ────
+OEE_RULES = """OEE — ОБЩА ЕФЕКТИВНОСТ НА ОБОРУДВАНЕТО (плантова конфигурация):
 Когато потребителят пита за OEE на мелница / на смяна / класиране между мелници,
 използвай следната ОФИЦИАЛНА конфигурация за обогатителната фабрика. Не я
 променяй и не измисляй други прагове.
@@ -194,9 +204,60 @@ OEE — ОБЩА ЕФЕКТИВНОСТ НА ОБОРУДВАНЕТО (план�
     докладват в отделни секции. Ако и двете са поискани, направи отделна
     подсекция за OEE и отделна за kWh/t."""
 
+
+# ── Structured-output protocol (injected into every analysis specialist) ───
+STRUCTURED_OUTPUT_RULES = """STRUCTURED OUTPUT PROTOCOL — MANDATORY:
+At the END of every execute_python call, emit ONE line that starts with
+`STRUCTURED_OUTPUT:` followed by a compact JSON object summarising the
+key numbers you computed in this step. This is how downstream specialists
+and the reporter receive numbers without re-reading large stdout dumps.
+
+Format (single line, valid JSON, no trailing prose):
+  STRUCTURED_OUTPUT:{"specialist":"<your name>","step":"<short id>", "metrics":{...}, "n":<sample_size>, "notes":"<≤120 chars>"}
+
+Required fields:
+  • specialist  — your role name (analyst, forecaster, anomaly_detective, ...)
+  • step        — short slug for what you computed (e.g. "psi80_spc",
+                  "ore_forecast_8h", "iforest", "shift_kpis")
+  • metrics     — dict of {name: number} with the 3–8 most important values
+                  (means, stds, p-values, R², CIs, anomaly_pct, A/P/Q/OEE…).
+                  Use null for missing, NEVER NaN. Keys must be ASCII.
+  • n           — sample size used (int). Helps the critic gauge confidence.
+  • notes       — ≤120-char qualitative remark in English.
+
+Rules:
+  • Print this line LAST in the cell, AFTER any other prints.
+  • One STRUCTURED_OUTPUT per execute_python call (combine if needed).
+  • If the step failed (NaN, empty df, error), emit:
+      STRUCTURED_OUTPUT:{"specialist":"<name>","step":"<slug>","metrics":{},"n":0,"notes":"failed: <reason>"}
+  • This is in addition to your normal prose/summary output, not instead of it."""
+
+
+# ── Context composer ────────────────────────────────────────────────────────
+def _ctx(*blocks: str) -> str:
+    """Compose a context string from selected blocks (skips empties)."""
+    return "\n\n".join(b for b in blocks if b)
+
+
+# Per-stage context bundles (only what each specialist actually needs).
+# CORE is always included; other blocks are added selectively.
+# Analysis specialists also receive STRUCTURED_OUTPUT_RULES so the critic
+# and the reporter can consume their numbers without re-reading raw stdout.
+CTX_MINIMAL             = CORE_CONTEXT
+CTX_STATS               = _ctx(CORE_CONTEXT, STATISTICAL_RULES)
+CTX_STATS_OEE           = _ctx(CORE_CONTEXT, STATISTICAL_RULES, OEE_RULES)
+CTX_REPORTING           = _ctx(CORE_CONTEXT, BULGARIAN_RULES)
+CTX_ANALYSIS            = _ctx(CORE_CONTEXT, STRUCTURED_OUTPUT_RULES)
+CTX_ANALYSIS_STATS      = _ctx(CORE_CONTEXT, STATISTICAL_RULES, STRUCTURED_OUTPUT_RULES)
+CTX_ANALYSIS_STATS_OEE  = _ctx(CORE_CONTEXT, STATISTICAL_RULES, OEE_RULES, STRUCTURED_OUTPUT_RULES)
+
+# Backward-compat alias used by the follow-up graph (full bundle).
+DOMAIN_CONTEXT = _ctx(CORE_CONTEXT, BULGARIAN_RULES, STATISTICAL_RULES, OEE_RULES)
+
+
 # ── Data Loader ──────────────────────────────────────────────────────────────
 
-DATA_LOADER_PROMPT = f"""{DOMAIN_CONTEXT}
+DATA_LOADER_PROMPT = f"""{CTX_MINIMAL}
 
 You are the Data Loader. Your ONLY job is to call query_mill_data or query_combined_data to load data.
 
@@ -217,7 +278,7 @@ RULES:
 
 # ── Planner ──────────────────────────────────────────────────────────────────
 
-PLANNER_PROMPT = f"""{DOMAIN_CONTEXT}
+PLANNER_PROMPT = f"""{CTX_MINIMAL}
 
 You are the Analysis Planner. Based on the user's request and the data that was loaded,
 decide which specialist agents should run. Available specialists:
@@ -252,24 +313,48 @@ decide which specialist agents should run. Available specialists:
    handover reports. USE when the user asks about shifts, performance comparison, KPIs, energy,
    efficiency, benchmarking, or operational reports.
 
-RESPOND with exactly this format (nothing else):
-SPECIALISTS: agent1, agent2, agent3
-RATIONALE: One sentence explaining why these specialists were chosen.
+DECISION TREE — pick the SMALLEST set that fully covers the request:
 
-RULES:
-- Always include "analyst" for general/vague requests
-- Select 1-4 specialists, never all 6 (keep analysis focused)
-- Order matters: put foundational analysis first (analyst), then specialized
-- For "comprehensive report" or "full analysis" → analyst, anomaly_detective, shift_reporter
-- For "forecast" or "predict" → analyst, forecaster
-- For "optimize" or "best settings" → analyst, optimizer
-- For "compare shifts" or "KPI report" → shift_reporter
-- For "anomaly" or "root cause" → anomaly_detective
-- For "uncertainty" or "how confident" → analyst, bayesian_analyst"""
+  1. Pure operational/KPI request (shift comparison, mill ranking, downtime,
+     OEE, energy efficiency, handover report)
+       → [shift_reporter]                                  (1 specialist)
+
+  2. Future-looking request (forecast, predict, projection, "what will happen",
+     trend extrapolation, seasonality)
+       → [analyst, forecaster]                             (2 specialists)
+
+  3. Diagnostic / root-cause request (anomaly, unusual event, equipment
+     problem, "why did X happen", regime change)
+       → [anomaly_detective]
+       → add bayesian_analyst ONLY if user asks for confidence/probability/uncertainty
+                                                           (1–2 specialists)
+
+  4. Recommendation / setpoint request (optimize, best settings, tradeoff,
+     "what if", recommended values)
+       → [analyst, optimizer]                              (2 specialists)
+
+  5. Vague "give me an analysis / report / overview"
+       → [analyst, anomaly_detective, shift_reporter]      (3 specialists)
+
+  6. Statistical confidence / hypothesis testing request
+     ("is the difference real?", "how sure are we?")
+       → [analyst, bayesian_analyst]                       (2 specialists)
+
+OUTPUT — exactly two lines, nothing else:
+SPECIALISTS: agent1, agent2
+RATIONALE: One short sentence (≤ 20 words) citing the keywords that matched.
+
+HARD RULES:
+- Pick the FIRST matching branch. Do not combine branches unless the request
+  literally combines them (e.g. "forecast PSI80 and find anomalies").
+- Never select more than 4 specialists.
+- Never select all 6 — that means you misclassified the request.
+- Order matters: foundational (analyst) first, specialized after.
+- If genuinely uncertain, default to branch 5."""
 
 # ── Analyst (enhanced from v2) ───────────────────────────────────────────────
 
-ANALYST_PROMPT = f"""{DOMAIN_CONTEXT}
+ANALYST_PROMPT = f"""{CTX_ANALYSIS_STATS}
 
 You are the Data Analyst. Data has been loaded by the data_loader.
 
@@ -317,7 +402,7 @@ OUTPUT: Print all key statistics to stdout. The reporter will use these numbers.
 
 # ── Forecaster ───────────────────────────────────────────────────────────────
 
-FORECASTER_PROMPT = f"""{DOMAIN_CONTEXT}
+FORECASTER_PROMPT = f"""{CTX_ANALYSIS}
 
 You are the Time Series Forecaster. Your job is to model temporal patterns and generate forecasts.
 
@@ -361,7 +446,7 @@ OUTPUT: Print all forecast statistics (trend, changepoints, CIs) to stdout."""
 
 # ── Anomaly Detective ────────────────────────────────────────────────────────
 
-ANOMALY_DETECTIVE_PROMPT = f"""{DOMAIN_CONTEXT}
+ANOMALY_DETECTIVE_PROMPT = f"""{CTX_ANALYSIS}
 
 You are the Anomaly Detective. Find unusual events, explain root causes, and identify operating regimes.
 
@@ -399,7 +484,7 @@ CRITICAL: Print detailed findings. The reporter needs specific numbers, timestam
 
 # ── Bayesian Analyst ─────────────────────────────────────────────────────────
 
-BAYESIAN_ANALYST_PROMPT = f"""{DOMAIN_CONTEXT}
+BAYESIAN_ANALYST_PROMPT = f"""{CTX_ANALYSIS_STATS}
 
 You are the Bayesian Analyst. Quantify uncertainty and provide probabilistic insights.
 
@@ -437,7 +522,7 @@ OUTPUT: Print all probabilities, CIs, and Cpk estimates to stdout."""
 
 # ── Process Optimizer ────────────────────────────────────────────────────────
 
-OPTIMIZER_PROMPT = f"""{DOMAIN_CONTEXT}
+OPTIMIZER_PROMPT = f"""{CTX_ANALYSIS_STATS}
 
 You are the Process Optimizer. Find optimal operating setpoints and analyze tradeoffs.
 
@@ -482,7 +567,7 @@ CRITICAL: Always provide SPECIFIC numbers and actionable setpoint recommendation
 
 # ── Shift Reporter ───────────────────────────────────────────────────────────
 
-SHIFT_REPORTER_PROMPT = f"""{DOMAIN_CONTEXT}
+SHIFT_REPORTER_PROMPT = f"""{CTX_ANALYSIS_STATS_OEE}
 
 You are the Shift Reporter. Generate structured operational KPIs and shift performance reports.
 
@@ -533,7 +618,7 @@ CRITICAL: Structure output as a formal shift report. Use clear sections and actu
 
 # ── Code Reviewer ────────────────────────────────────────────────────────────
 
-CODE_REVIEWER_PROMPT = f"""{DOMAIN_CONTEXT}
+CODE_REVIEWER_PROMPT = f"""{CTX_MINIMAL}
 
 You are the Code Reviewer. Validate ALL analysis outputs from ALL specialists that ran.
 
@@ -549,9 +634,83 @@ You are the Code Reviewer. Validate ALL analysis outputs from ALL specialists th
 
 Do NOT regenerate charts that already exist. Only fix errors or fill critical gaps."""
 
+# ── Critic ───────────────────────────────────────────────────────────────────
+
+CRITIC_PROMPT = f"""{CTX_MINIMAL}
+
+You are the Critic. Your job is to perform a CROSS-SPECIALIST CONSISTENCY CHECK
+on the numbers produced by the analysis specialists, BEFORE the reporter writes
+the final report.
+
+INPUTS YOU RECEIVE:
+- The compressed message log contains lines tagged "[structured data]: ..." —
+  one per execute_python call that emitted STRUCTURED_OUTPUT. Each carries
+  {{specialist, step, metrics, n, notes}}.
+- list_output_files lists the chart PNGs that exist on disk.
+
+WHAT TO CHECK:
+1. Numerical consistency across specialists:
+   • Means/percentages of the SAME metric (e.g. PSI80 mean) reported by two
+     specialists must agree within ±5%. Flag mismatches.
+   • Sample sizes (n) should be roughly comparable across specialists that
+     looked at the same window. Big disagreements → flag.
+2. Plausibility against process physics:
+   • Ore in [0, 250] t/h, PSI80 in [40, 120] μm, PSI200 in [0, 60] %,
+     DensityHC in [1.2, 2.0] t/m³, MotorAmp in [100, 350] A.
+   • Out-of-range values → flag with the specialist + step that produced them.
+3. Missing structured outputs:
+   • Each specialist that ran should have at least one STRUCTURED_OUTPUT line.
+     If any specialist emitted none, flag it (the reporter will be missing
+     numbers from that specialist).
+4. Chart-vs-claim alignment:
+   • If a specialist's notes claim a chart (e.g. "see iforest_anomalies.png")
+     and that file is not in list_output_files, flag a hallucinated reference.
+5. Visual chart sanity (call review_chart):
+   • Pick the 4–6 most important PNGs (the ones the reporter is likely to
+     embed) and call `review_chart` ONCE with their filenames. The tool
+     returns {ok, issues, notes} per file using Gemini multimodal vision.
+   • For any file with ok=false, flag it in REPORTER_DIRECTIVES with
+     "Do NOT cite <filename> — <issue>" so the reporter omits it.
+   • Skip review_chart if there are no PNGs to review.
+
+OUTPUT — emit EXACTLY this two-section block as plain text (English is fine,
+the reporter will translate the actionable items into Bulgarian):
+
+VERIFICATION_NOTES:
+- <bullet 1: a passed check, e.g. "PSI80 mean agrees across analyst and shift_reporter (84.1 vs 84.3)">
+- <bullet 2: an issue, e.g. "anomaly_detective reported anomaly_pct=12% but iforest n=300 — small sample, low confidence">
+- ... (3–8 bullets total)
+
+REPORTER_DIRECTIVES:
+- <one-line instruction to the reporter, e.g. "Mark PSI200=42% finding as low-confidence (n=180)">
+- <another instruction, e.g. "Do NOT cite anomaly_timeline.png — file missing">
+- ... (only directives the reporter MUST act on; omit if nothing to fix)
+
+OPTIONAL THIRD SECTION — adaptive re-planning:
+If the structured outputs reveal a SIGNIFICANT issue that an additional
+specialist could resolve (e.g. analyst found anomaly_pct > 8% but no
+anomaly_detective ran; or shift_reporter found wide PSI80 swings but no
+forecaster looked at it), append this single line at the very end:
+
+EXTEND_PIPELINE: <comma-separated specialist names>
+
+Allowed names: analyst, forecaster, anomaly_detective, bayesian_analyst,
+optimizer, shift_reporter. Maximum 2 names. Only add specialists that did
+NOT already run. Omit this line entirely if no extension is needed — the
+default and most common case.
+
+RULES:
+- Be terse. No prose paragraphs.
+- DO NOT call write_markdown_report. DO NOT regenerate charts.
+- You MAY call execute_python ONCE if you need to recompute a quick number to
+  resolve a disagreement; otherwise do not call any tool.
+- If everything checks out, emit VERIFICATION_NOTES with passed checks and an
+  empty REPORTER_DIRECTIVES section.
+- Use EXTEND_PIPELINE sparingly — only when a clear gap exists."""
+
 # ── Reporter ─────────────────────────────────────────────────────────────────
 
-REPORTER_PROMPT = f"""{DOMAIN_CONTEXT}
+REPORTER_PROMPT = f"""{CTX_REPORTING}
 
 ╔══════════════════════════════════════════════════════════════════════════╗
 ║  ВНИМАНИЕ — ЕЗИК НА ОТЧЕТА: БЪЛГАРСКИ (BULGARIAN ONLY)                   ║
@@ -581,7 +740,14 @@ via write_markdown_report.
 1. Извикай list_output_files, за да получиш точните имена на файловете с графики.
 2. Прегледай ВСИЧКИ предходни съобщения и извлечи числата и наблюденията от
    ВСЕКИ специалист, който е работил.
-3. Извикай write_markdown_report с пълното съдържание на доклада на български.
+3. НАМЕРИ съобщението от `critic` (ще съдържа VERIFICATION_NOTES и
+   REPORTER_DIRECTIVES). ЗАДЪЛЖИТЕЛНО:
+   • Прилагай ВСЯКА директива от REPORTER_DIRECTIVES (напр. „маркирай X като
+     с ниска увереност", „не цитирай файл Y").
+   • Не цитирай числа или файлове, които критикът е флагнал като несигурни/
+     несъществуващи. Ако трябва, омекоти твърденията („индикативно", „при
+     ограничена извадка").
+4. Извикай write_markdown_report с пълното съдържание на доклада на български.
 
 ЗАДЪЛЖИТЕЛНА СТРУКТУРА НА ДОКЛАДА (използвай ТОЧНО тези български заглавия):
 
@@ -627,7 +793,7 @@ via write_markdown_report.
 
 # ── Manager Review ───────────────────────────────────────────────────────────
 
-MANAGER_REVIEW_PROMPT = f"""{DOMAIN_CONTEXT}
+MANAGER_REVIEW_PROMPT = f"""{CTX_MINIMAL}
 
 You are the Quality Manager reviewing the output of a specialist agent.
 Your job is to decide if the work is ACCEPTABLE or needs REWORK.
@@ -660,6 +826,7 @@ _STAGE_LABELS: dict[str, str] = {
     "optimizer":         "Оптимизатор",
     "shift_reporter":    "Сменен отчет",
     "code_reviewer":     "Проверка на резултати",
+    "critic":            "Крос-специалистка проверка",
     "reporter":          "Генериране на отчет",
     "manager":           "Мениджър",
 }
@@ -674,6 +841,7 @@ _STAGE_DESCRIPTIONS: dict[str, str] = {
     "optimizer":         "Оптимизация на настройки и препоръки...",
     "shift_reporter":    "Анализ по смени и KPI показатели...",
     "code_reviewer":     "Проверка на диаграми и резултати...",
+    "critic":            "Крос-проверка на числата от всички специалисти...",
     "reporter":          "Писане на краен отчет...",
 }
 
@@ -691,6 +859,8 @@ def build_graph(
     settings: dict | None = None,
     template_id: str | None = None,
     checkpointer=None,
+    role: str | None = None,
+    user_question: str | None = None,
 ) -> StateGraph:
     # No-op fallback if caller doesn't supply a callback
     _progress = on_progress or (lambda stage, msg: None)
@@ -701,6 +871,11 @@ def build_graph(
     _MAX_AI_MSG_CHARS = _settings.get("maxAiMessageChars", MAX_AI_MSG_CHARS)
     _MAX_MESSAGES_WINDOW = _settings.get("maxMessagesWindow", MAX_MESSAGES_WINDOW)
     _MAX_SPECIALIST_ITERS = _settings.get("maxSpecialistIterations", MAX_SPECIALIST_ITERS)
+    # Parallel-specialist fan-out (opt-in). When True, after the planner is
+    # accepted, all selected specialists are dispatched concurrently via Send
+    # and converge directly at code_reviewer_entry. Cuts wall-clock time for
+    # multi-specialist analyses but skips per-stage manager_review.
+    _ENABLE_PARALLEL = bool(_settings.get("enableParallelSpecialists", False))
 
     # Template override (imported lazily to avoid circular imports)
     _template_id = template_id
@@ -714,6 +889,9 @@ def build_graph(
     ANALYSIS_TOOLS = ["execute_python", "list_output_files", "list_skills"]
     DATA_TOOLS = ["query_mill_data", "query_combined_data", "get_db_schema"]
     REPORT_TOOLS = ["list_output_files", "write_markdown_report"]
+    # Critic gets the vision tool on top of normal analysis tools, so it can
+    # actually LOOK at the produced PNGs and flag silently broken charts.
+    CRITIC_TOOLS = ANALYSIS_TOOLS + ["review_chart"]
 
     TOOL_SETS = {
         "data_loader":       DATA_TOOLS,
@@ -724,6 +902,7 @@ def build_graph(
         "optimizer":         ANALYSIS_TOOLS,
         "shift_reporter":    ANALYSIS_TOOLS,
         "code_reviewer":     ANALYSIS_TOOLS,
+        "critic":            CRITIC_TOOLS,
         "reporter":          REPORT_TOOLS,
     }
 
@@ -851,7 +1030,10 @@ def build_graph(
             elif isinstance(msg, AIMessage) and msg_name and msg_name not in ("manager", "planner") and not msg.tool_calls:
                 content = normalize_content(msg.content)
                 if content:
-                    prior_summary_parts.append(f"[{msg_name}]: {truncate(content, 400)}")
+                    # Critic's verification block must reach the reporter intact;
+                    # other specialist prose is fine compressed.
+                    cap = 1500 if msg_name == "critic" else 400
+                    prior_summary_parts.append(f"[{msg_name}]: {truncate(content, cap)}")
             elif msg_name == "manager" and isinstance(msg, AIMessage):
                 content = normalize_content(msg.content)
                 if "REWORK" in content and stage_name in content:
@@ -880,6 +1062,7 @@ def build_graph(
         "optimizer":         OPTIMIZER_PROMPT,
         "shift_reporter":    SHIFT_REPORTER_PROMPT,
         "code_reviewer":     CODE_REVIEWER_PROMPT,
+        "critic":            CRITIC_PROMPT,
         "reporter":          REPORTER_PROMPT,
     }
 
@@ -939,6 +1122,30 @@ def build_graph(
 
         return specialist_node
 
+    # ── Long-term memory: hint built once per graph build ─────────────
+    # Look up the 3 most-similar past analyses for the same role and turn
+    # them into a short bullet list that the planner can read alongside the
+    # user question. Cheap keyword-Jaccard retrieval — no embedding model.
+    _memory_hint: str = ""
+    if role and user_question:
+        try:
+            import db as _db
+            similar = _db.find_similar_analyses(user_question, role, limit=3)
+            if similar:
+                bullets = []
+                for r in similar:
+                    title = (r.get("title") or r.get("question") or "")[:120]
+                    bullets.append(f"  • [{r['started_at'][:10]}] {title}")
+                _memory_hint = (
+                    "RECENT SIMILAR ANALYSES (same role, completed):\n"
+                    + "\n".join(bullets)
+                    + "\nUse these as soft hints for which specialists tend to be useful. "
+                    + "DO NOT just copy their pipelines — re-evaluate from the current question."
+                )
+                print(f"  [memory] Found {len(similar)} similar past analyses for planner.")
+        except Exception as e:
+            print(f"  [memory] similar-analyses lookup failed: {str(e)[:120]}")
+
     # ── Planner node ──────────────────────────────────────────────────
     def planner_node(state: AnalysisState) -> dict:
         print("\n  [planner] Analyzing request to determine specialists needed...")
@@ -962,7 +1169,12 @@ def build_graph(
                     }
 
         compressed = compress_messages(state["messages"])
-        messages = [SystemMessage(content=PLANNER_PROMPT)] + strip_tool_messages(compressed)
+        # Prepend the long-term-memory hint to the planner's system prompt
+        # when we have recent similar analyses for this role.
+        planner_system = PLANNER_PROMPT
+        if _memory_hint:
+            planner_system = f"{PLANNER_PROMPT}\n\n---\n{_memory_hint}"
+        messages = [SystemMessage(content=planner_system)] + strip_tool_messages(compressed)
 
         try:
             response = llm.invoke(messages)
@@ -970,7 +1182,7 @@ def build_graph(
             print(f"  [planner] Error: {str(e)[:150]}. Defaulting to analyst only.")
             return {
                 "messages": [AIMessage(content="SPECIALISTS: analyst\nRATIONALE: Fallback due to planning error.", name="planner")],
-                "stages_to_run": ["data_loader", "planner", "analyst", "code_reviewer", "reporter"],
+                "stages_to_run": ["data_loader", "planner", "analyst", "code_reviewer", "critic", "reporter"],
                 "current_stage": "planner",
             }
 
@@ -1006,14 +1218,15 @@ def build_graph(
 
     # ── Manager review node ──────────────────────────────────────────
     # Stages that are auto-accepted without LLM review
-    _AUTO_ACCEPT_STAGES = {"data_loader", "planner", "code_reviewer", "reporter"}
+    _AUTO_ACCEPT_STAGES = {"data_loader", "planner", "code_reviewer", "critic", "reporter"}
 
     def _heuristic_check(messages: list[BaseMessage], stage_name: str) -> str | None:
-        """Check if a specialist produced files and had no errors.
+        """Check if a specialist produced files, structured output, and had no errors.
         Returns an auto-accept reason string, or None if LLM review is needed."""
         has_new_files = False
         has_error = False
         has_tool_output = False
+        has_structured = False
 
         for msg in reversed(messages):
             msg_name = getattr(msg, "name", None)
@@ -1030,6 +1243,8 @@ def build_graph(
                             has_new_files = True
                     except Exception:
                         pass
+                if "STRUCTURED_OUTPUT:" in content:
+                    has_structured = True
                 if '"error":' in content.lower() or "Traceback" in content or "Error:" in content:
                     has_error = True
             # Stop scanning once we hit this specialist's first AI message
@@ -1039,9 +1254,43 @@ def build_graph(
             if isinstance(msg, AIMessage) and msg_name and msg_name != stage_name and msg_name != "manager":
                 break
 
+        # Strict path: chart + structured output + no errors → auto-accept.
+        if has_tool_output and has_new_files and has_structured and not has_error:
+            return f"Heuristic auto-accept: {stage_name} produced files + STRUCTURED_OUTPUT, no errors."
+        # Lenient path: still accept on chart + no errors, but flag missing protocol.
         if has_tool_output and has_new_files and not has_error:
-            return f"Heuristic auto-accept: {stage_name} produced files with no errors."
+            return f"Heuristic auto-accept: {stage_name} produced files (no STRUCTURED_OUTPUT — degraded)."
         return None
+
+    def _maybe_extend_pipeline(state: AnalysisState) -> dict | None:
+        """If the critic just finished and asked for extensions, splice them
+        into stages_to_run BEFORE the reporter, then re-run code_reviewer +
+        critic on the extended outputs. Returns a dict of state updates,
+        or None if no extension is needed."""
+        ext_used = state.get("extensions_used", 0) or 0
+        if ext_used >= _MAX_PIPELINE_EXTENSIONS:
+            return None
+        stages = list(state.get("stages_to_run", []))
+        extras = _parse_extensions(state["messages"], stages)
+        if not extras:
+            return None
+        try:
+            reporter_idx = stages.index("reporter")
+        except ValueError:
+            reporter_idx = len(stages)
+        new_stages = (
+            stages[:reporter_idx]
+            + extras
+            + ["code_reviewer", "critic"]
+            + stages[reporter_idx:]
+        )
+        print(f"  [manager] Critic extends pipeline with: {', '.join(extras)} "
+              f"(extension {ext_used + 1}/{_MAX_PIPELINE_EXTENSIONS})")
+        _progress("critic", f"Допълнителни специалисти: {', '.join(_label(s) for s in extras)}")
+        return {
+            "stages_to_run": new_stages,
+            "extensions_used": ext_used + 1,
+        }
 
     def manager_review_node(state: AnalysisState) -> dict:
         current = state.get("current_stage", "data_loader")
@@ -1050,13 +1299,19 @@ def build_graph(
 
         print(f"\n  [manager] Reviewing {current} output (attempt {attempt_count + 1})...")
 
-        # Auto-accept infrastructure stages (data_loader, planner, code_reviewer, reporter)
+        # Auto-accept infrastructure stages (data_loader, planner, code_reviewer, critic, reporter)
         if current in _AUTO_ACCEPT_STAGES:
             print(f"  [manager] {current} — auto-accepting (infrastructure stage).")
-            return {
+            update = {
                 "messages": [AIMessage(content=f"ACCEPT: {current} completed.", name="manager")],
                 "stage_attempts": {**attempts, current: attempt_count + 1},
             }
+            # Adaptive re-plan: if the critic asked for more specialists, splice them in.
+            if current == "critic":
+                ext_update = _maybe_extend_pipeline(state)
+                if ext_update:
+                    update.update(ext_update)
+            return update
 
         if attempt_count >= MAX_REWORKS_PER_STAGE:
             print(f"  [manager] Max reworks reached for {current} — accepting.")
@@ -1137,6 +1392,9 @@ def build_graph(
         last = state["messages"][-1]
         if hasattr(last, "tool_calls") and last.tool_calls:
             return "tools"
+        # In parallel mode, all specialist branches converge at code_reviewer.
+        if state.get("parallel_mode"):
+            return "code_reviewer_entry"
         return "manager_review"
 
     def after_tools(state: AnalysisState) -> str:
@@ -1145,19 +1403,56 @@ def build_graph(
                 return msg.name
         return "data_loader"
 
-    def manager_router(state: AnalysisState) -> str:
-        """After manager review: advance to next stage in stages_to_run or rework current."""
+    # Maximum number of times the critic may extend the pipeline.
+    _MAX_PIPELINE_EXTENSIONS = 2
+
+    def _parse_extensions(messages: list[BaseMessage], stages: list[str]) -> list[str]:
+        """Find an EXTEND_PIPELINE: a, b line in the most recent critic message
+        and return up to 2 NEW specialists not already in stages."""
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage) and getattr(msg, "name", None) == "critic":
+                text = normalize_content(msg.content)
+                for line in text.splitlines():
+                    line = line.strip()
+                    if line.upper().startswith("EXTEND_PIPELINE:"):
+                        raw = line.split(":", 1)[1].strip()
+                        candidates = [s.strip().lower().replace(" ", "_") for s in raw.split(",")]
+                        return [
+                            s for s in candidates
+                            if s in SPECIALIST_POOL and s not in stages
+                        ][:2]
+                return []  # critic ran but did not request extensions
+        return []
+
+    def manager_router(state: AnalysisState):
+        """After manager review: advance to next stage, rework current, fan out
+        specialists in parallel, or splice in critic-requested extensions.
+        May return a string OR a list of Send commands."""
         last = state["messages"][-1]
         content = last.content if isinstance(last.content, str) else str(last.content)
         current = state.get("current_stage", "data_loader")
-        stages = state.get("stages_to_run", FIXED_PREFIX + ["analyst"] + FIXED_SUFFIX)
+        stages = list(state.get("stages_to_run", FIXED_PREFIX + ["analyst"] + FIXED_SUFFIX))
 
         # REWORK → send back to current stage
         if content.startswith("REWORK:"):
             print(f"  [manager] Sending {current} back for rework.")
             return f"{current}_entry"
 
-        # ACCEPT → advance to next stage
+        # PARALLEL FAN-OUT: planner just accepted → dispatch all specialists at once
+        if _ENABLE_PARALLEL and current == "planner":
+            specialists = [s for s in stages if s in SPECIALIST_POOL]
+            if specialists:
+                print(f"\n  ──→ Parallel fan-out: {', '.join(specialists)}")
+                _progress("planner", f"Паралелна обработка: {', '.join(_label(s) for s in specialists)}")
+                base = dict(state)
+                base["parallel_mode"] = True
+                return [Send(f"{s}_entry", base) for s in specialists]
+            return "code_reviewer_entry"
+
+        # ACCEPT → advance to next stage (sequential path)
+        # Note: any pipeline extensions requested by the critic have already
+        # been spliced into stages_to_run by manager_review_node, so the
+        # standard "next stage" lookup below picks them up automatically.
         if current in stages:
             idx = stages.index(current)
             if idx + 1 < len(stages):
@@ -1171,7 +1466,12 @@ def build_graph(
     # ── Stage entry nodes ────────────────────────────────────────
     def make_stage_entry(stage_name: str):
         def entry_node(state: AnalysisState) -> dict:
-            return {"current_stage": stage_name}
+            update: dict = {"current_stage": stage_name}
+            # When parallel branches converge at code_reviewer, switch back to
+            # sequential mode so the suffix (critic, reporter) runs normally.
+            if stage_name == "code_reviewer":
+                update["parallel_mode"] = False
+            return update
         return entry_node
 
     # ── Graph assembly ───────────────────────────────────────────────
@@ -1200,12 +1500,16 @@ def build_graph(
     # Wire: planner → manager_review (planner doesn't use tools)
     graph.add_edge("planner", "manager_review")
 
-    # Wire: specialist → tools or manager_review
+    # Wire: specialist → tools / manager_review / code_reviewer_entry (parallel join)
     for stage in ALL_STAGES:
         graph.add_conditional_edges(
             stage,
             specialist_router,
-            {"tools": "tools", "manager_review": "manager_review"},
+            {
+                "tools": "tools",
+                "manager_review": "manager_review",
+                "code_reviewer_entry": "code_reviewer_entry",
+            },
         )
 
     # Wire: tools → back to specialist
@@ -1232,7 +1536,7 @@ def build_graph(
 # Follow-Up Graph Builder
 # ══════════════════════════════════════════════════════════════════════════════
 
-FOLLOWUP_ROUTER_PROMPT = f"""{DOMAIN_CONTEXT}
+FOLLOWUP_ROUTER_PROMPT = f"""{CTX_MINIMAL}
 
 You are the Follow-Up Router. A user has already received an analysis report and
 is now asking a follow-up question. Decide how to handle it.

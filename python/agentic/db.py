@@ -249,6 +249,88 @@ def append_messages(analysis_id: str, messages: list[dict]) -> None:
         )
 
 
+# ── Long-term memory: similar past analyses ─────────────────────────────────
+
+# Domain-relevant tokens we use as a cheap "topic" signal across analyses.
+# Tokenising on these keeps retrieval robust to Bulgarian/English mixing
+# without needing embeddings or a vector store.
+_MEMORY_KEYWORDS = (
+    "psi80", "psi200", "ore", "watermill", "waterzumpf", "motoramp",
+    "power", "density", "densityhc", "pressurehc", "pulphc",
+    "shisti", "daiki", "grano",
+    "shift", "смяна", "смени",
+    "anomaly", "аномал",
+    "forecast", "прогноз",
+    "optim", "оптим",
+    "kpi", "oee", "ефективн", "престой", "downtime",
+    "мелница", "mill",
+    "energy", "kwh", "енерг",
+)
+
+
+def _tokenise(text: str) -> set[str]:
+    if not text:
+        return set()
+    low = text.lower()
+    found = {kw for kw in _MEMORY_KEYWORDS if kw in low}
+    # Mill numbers (1..12) — "mill 8", "мелница 8"
+    import re as _re
+    for m in _re.finditer(r"(?:mill|мелница)\s*(\d{1,2})", low):
+        n = int(m.group(1))
+        if 1 <= n <= 12:
+            found.add(f"mill_{n}")
+    return found
+
+
+def find_similar_analyses(
+    question: str,
+    role: str,
+    *,
+    limit: int = 3,
+    pool_size: int = 50,
+    exclude_id: Optional[str] = None,
+) -> list[dict]:
+    """Return up to `limit` recent COMPLETED analyses (same role) whose
+    questions share the most domain keywords with `question`. Lightweight
+    keyword-Jaccard scoring over the most-recent `pool_size` rows — no
+    embedding model required."""
+    if role not in ALLOWED_ROLES:
+        return []
+    target = _tokenise(question)
+    if not target:
+        return []
+
+    with _cursor() as cur:
+        rows = cur.execute(
+            """
+            SELECT id, title, question, status, started_at, completed_at
+            FROM analyses
+            WHERE role = ?
+              AND parent_id IS NULL
+              AND status = 'completed'
+              AND (id != ? OR ? IS NULL)
+            ORDER BY started_at DESC
+            LIMIT ?
+            """,
+            (role, exclude_id or "", exclude_id, pool_size),
+        ).fetchall()
+
+    scored: list[tuple[float, dict]] = []
+    for r in rows:
+        toks = _tokenise(r["question"])
+        if not toks:
+            continue
+        overlap = len(target & toks)
+        if overlap == 0:
+            continue
+        union = len(target | toks)
+        jaccard = overlap / union if union else 0.0
+        scored.append((jaccard, dict(r)))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [r for _, r in scored[:limit]]
+
+
 def get_messages(analysis_id: str) -> list[dict]:
     with _cursor() as cur:
         rows = cur.execute(

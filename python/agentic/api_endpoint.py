@@ -98,6 +98,11 @@ class AnalysisSettings(BaseModel):
     maxAiMessageChars: int = Field(4000, description="Max chars per AI message in history")
     maxMessagesWindow: int = Field(20, description="Max messages in context window")
     maxSpecialistIterations: int = Field(5, description="Max iterations per specialist")
+    enableParallelSpecialists: bool = Field(
+        False,
+        description="Run all selected specialists concurrently after planning. "
+                    "Trades per-stage manager review for wall-clock speed.",
+    )
 
 
 class AnalysisRequest(BaseModel):
@@ -182,16 +187,28 @@ async def start_analysis(request: AnalysisRequest, role: str = Depends(require_r
         "progress": [],
     }
 
-    # Prepare settings dict for graph builder
-    settings_dict = None
+    # Prepare settings dict for graph builder.
+    # User-supplied settings always win; template budgets fill in any gaps so
+    # template-tuned defaults take effect when the UI sliders are at default.
+    settings_dict: dict = {}
+    if request.template_id:
+        from analysis_templates import get_template_budgets
+        settings_dict.update(get_template_budgets(request.template_id))
     if request.settings:
-        settings_dict = request.settings.model_dump()
+        # exclude_unset=True keeps only keys the user actually set so template
+        # defaults survive for the rest. Falls back gracefully on Pydantic v1.
+        try:
+            user_overrides = request.settings.model_dump(exclude_unset=True)
+        except TypeError:
+            user_overrides = request.settings.model_dump()
+        settings_dict.update(user_overrides)
 
     # Run analysis in background and keep a handle so it can be cancelled
     task = asyncio.create_task(_run_analysis_background(
         analysis_id, full_prompt,
-        settings=settings_dict,
+        settings=settings_dict or None,
         template_id=request.template_id,
+        role=role,
     ))
     _analyses[analysis_id]["task"] = task
 
@@ -911,6 +928,7 @@ async def _run_analysis_background(
     prompt: str,
     settings: dict | None = None,
     template_id: str | None = None,
+    role: str | None = None,
 ) -> None:
     """Run the multi-agent analysis pipeline in the background."""
     on_progress = _make_progress_callback(analysis_id)
@@ -939,6 +957,8 @@ async def _run_analysis_background(
                     on_progress=on_progress,
                     settings=settings,
                     template_id=template_id,
+                    role=role,
+                    user_question=prompt,
                 )
 
                 final_state = await graph.ainvoke(
