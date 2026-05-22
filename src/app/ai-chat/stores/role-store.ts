@@ -7,7 +7,7 @@ import { create } from "zustand";
 export type Role = "mechanic" | "technologist" | "manager";
 
 export const ROLES: { key: Role; label: string }[] = [
-  { key: "mechanic", label: "Механик" },
+  { key: "mechanic", label: "Поддръжка" },
   { key: "technologist", label: "Технолог" },
   { key: "manager", label: "Мениджър" },
 ];
