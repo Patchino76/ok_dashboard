@@ -668,7 +668,7 @@ WHAT TO CHECK:
 5. Visual chart sanity (call review_chart):
    • Pick the 4–6 most important PNGs (the ones the reporter is likely to
      embed) and call `review_chart` ONCE with their filenames. The tool
-     returns {ok, issues, notes} per file using Gemini multimodal vision.
+     returns {{ok, issues, notes}} per file using Gemini multimodal vision.
    • For any file with ok=false, flag it in REPORTER_DIRECTIVES with
      "Do NOT cite <filename> — <issue>" so the reporter omits it.
    • Skip review_chart if there are no PNGs to review.
@@ -685,6 +685,20 @@ REPORTER_DIRECTIVES:
 - <one-line instruction to the reporter, e.g. "Mark PSI200=42% finding as low-confidence (n=180)">
 - <another instruction, e.g. "Do NOT cite anomaly_timeline.png — file missing">
 - ... (only directives the reporter MUST act on; omit if nothing to fix)
+
+CONFIDENCE_FLAGS — REQUIRED, one line per finding cluster:
+Score each major finding as HIGH / MEDIUM / LOW using these rules:
+  • HIGH   = n ≥ 1000 AND no critic-flagged issue AND chart vision ok=true
+  • MEDIUM = 200 ≤ n < 1000, OR a single minor critic note, OR data spans
+             only a short window
+  • LOW    = n < 200, OR a critic-flagged numerical inconsistency, OR a
+             chart with ok=false, OR a model that did not converge
+Format (≤ 6 lines):
+  - <finding> | <HIGH|MEDIUM|LOW> | <one-clause reason>
+Examples:
+  - PSI80 mean = 84.1 μm | HIGH | n=14400, agrees across analyst & shift_reporter
+  - Forecast +5% next-week PSI80 | LOW | Prophet horizon=7d, n=180 train rows
+  - Anomaly cluster on shift 3 | MEDIUM | iforest n=420, chart ok
 
 OPTIONAL THIRD SECTION — adaptive re-planning:
 If the structured outputs reveal a SIGNIFICANT issue that an additional
@@ -740,13 +754,25 @@ via write_markdown_report.
 1. Извикай list_output_files, за да получиш точните имена на файловете с графики.
 2. Прегледай ВСИЧКИ предходни съобщения и извлечи числата и наблюденията от
    ВСЕКИ специалист, който е работил.
-3. НАМЕРИ съобщението от `critic` (ще съдържа VERIFICATION_NOTES и
-   REPORTER_DIRECTIVES). ЗАДЪЛЖИТЕЛНО:
+3. НАМЕРИ съобщението от `critic` (ще съдържа VERIFICATION_NOTES,
+   REPORTER_DIRECTIVES и CONFIDENCE_FLAGS). ЗАДЪЛЖИТЕЛНО:
    • Прилагай ВСЯКА директива от REPORTER_DIRECTIVES (напр. „маркирай X като
      с ниска увереност", „не цитирай файл Y").
    • Не цитирай числа или файлове, които критикът е флагнал като несигурни/
      несъществуващи. Ако трябва, омекоти твърденията („индикативно", „при
      ограничена извадка").
+   • Прилагай CONFIDENCE_FLAGS чрез badge-и в текста — точно ПЪРВИЯ път, когато
+     цитираш съответната находка, добави един от тези маркери:
+       – „**[Висока увереност]**" за HIGH
+       – „**[Средна увереност]**" за MEDIUM
+       – „**[Ниска увереност — <кратка причина>]**" за LOW
+     След първото появяване не повтаряй badge-а в същата секция.
+   • LOW-confidence находките НЕ влизат в „Резюме (Executive Summary)" и НЕ
+     стават препоръки в „Изводи и препоръки" — освен ако не са изрично
+     отбелязани като indicator-и за следващо разследване.
+   • Ако критикът не е емитирал CONFIDENCE_FLAGS, третирай всяка находка като
+     MEDIUM по подразбиране и добави едно изречение в „Резюме" което казва
+     че критикът не е оценил уверенността.
 4. Извикай write_markdown_report с пълното съдържание на доклада на български.
 
 ЗАДЪЛЖИТЕЛНА СТРУКТУРА НА ДОКЛАДА (използвай ТОЧНО тези български заглавия):
@@ -982,6 +1008,48 @@ def build_graph(
         if structured_parts:
             return " | ".join(structured_parts)
         return None
+
+    # ── Stream STRUCTURED_OUTPUT events to the UI (Step 18) ────────────
+    # Parses the execute_python tool output, finds every STRUCTURED_OUTPUT
+    # JSON line emitted by skill functions, and forwards each as its own
+    # progress event with a ``STRUCTURED:`` prefix the frontend can route
+    # to a dedicated "live data tiles" panel. The textual progress feed
+    # remains untouched — these are additional events.
+    def _stream_structured_outputs(owner_name: str, output_str: str) -> None:
+        if not output_str or "STRUCTURED_OUTPUT:" not in output_str:
+            return
+        # `output_str` is the JSON-serialised result of execute_python; the
+        # actual STRUCTURED_OUTPUT lines live inside its stdout field, but
+        # we just scan the raw text — a substring search is robust to
+        # either shape (raw stdout or JSON-escaped).
+        import json as _json
+        # 1) Try to parse the execute_python wrapper {"stdout": "..."} first
+        candidate_text = output_str
+        try:
+            wrapper = _json.loads(output_str)
+            if isinstance(wrapper, dict) and isinstance(wrapper.get("stdout"), str):
+                candidate_text = wrapper["stdout"]
+        except (_json.JSONDecodeError, ValueError):
+            pass
+
+        for line in candidate_text.split("\n"):
+            stripped = line.strip()
+            if not stripped.startswith("STRUCTURED_OUTPUT:"):
+                continue
+            payload_raw = stripped[len("STRUCTURED_OUTPUT:"):].strip()
+            try:
+                parsed = _json.loads(payload_raw)
+            except _json.JSONDecodeError:
+                continue  # Skip malformed payloads silently
+            # Re-serialise compactly; cap to avoid blowing up the progress
+            # log if a skill ever dumps an enormous metrics dict.
+            try:
+                compact = _json.dumps(parsed, ensure_ascii=False, default=str)
+                if len(compact) > 4000:
+                    compact = compact[:3997] + "..."
+                _progress(owner_name, f"STRUCTURED:{compact}")
+            except Exception:
+                continue
 
     # ── Focused context builder ─────────────────────────────────────────
     def build_focused_context(all_msgs: list[BaseMessage], stage_name: str) -> list[BaseMessage]:
@@ -1365,6 +1433,10 @@ def build_graph(
     # ── Tool execution node ──────────────────────────────────────────
     async def tool_node(state: AnalysisState) -> dict:
         last_message = state["messages"][-1]
+        # Identify which specialist owns these tool calls — needed so the
+        # streamed STRUCTURED_OUTPUT events can be attributed correctly.
+        owner_name = getattr(last_message, "name", None) or "specialist"
+
         results = []
         for tc in last_message.tool_calls:
             tool = tools_by_name.get(tc["name"])
@@ -1377,9 +1449,19 @@ def build_graph(
             try:
                 print(f"    [tool] Executing {tc['name']}...")
                 output = await tool.ainvoke(tc["args"])
+                output_str = str(output)
                 results.append(ToolMessage(
-                    content=str(output), tool_call_id=tc["id"], name=tc["name"],
+                    content=output_str, tool_call_id=tc["id"], name=tc["name"],
                 ))
+
+                # ── Stream STRUCTURED_OUTPUT events to the UI (Step 18) ──
+                # When execute_python returns, scan its stdout for the
+                # STRUCTURED_OUTPUT:{...} lines emitted by skill functions
+                # and forward each as a dedicated progress event so the
+                # frontend can render live "data tiles" alongside the
+                # textual progress feed.
+                if tc["name"] == "execute_python":
+                    _stream_structured_outputs(owner_name, output_str)
             except Exception as e:
                 results.append(ToolMessage(
                     content=f"Error: {e}", tool_call_id=tc["id"], name=tc["name"],

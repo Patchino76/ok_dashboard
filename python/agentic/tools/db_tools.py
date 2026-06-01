@@ -349,6 +349,29 @@ async def query_combined_data(arguments: dict) -> list[types.TextContent]:
     if mill_number is None or not (1 <= mill_number <= 12):
         raise ValueError("mill_number is required and must be between 1 and 12")
 
+    # ── Per-analysis cache lookup (combined-frame variant) ─────────────
+    from tools.output_dir import get_analysis_id
+    analysis_id = get_analysis_id()
+    cache_key = _cache_key(analysis_id, "combined", mill_number, start_date, end_date)
+    cached = _query_cache.get(cache_key)
+    if cached is not None and not cached.empty:
+        set_dataframe(cached, store_name)
+        key_cols = [c for c in ["Ore", "PSI80", "PSI200", "DensityHC", "MotorAmp"] if c in cached.columns]
+        stats = {col: {"mean": round(float(cached[col].mean()), 2),
+                       "std": round(float(cached[col].std()), 2)}
+                 for col in key_cols}
+        return [types.TextContent(type="text", text=json.dumps({
+            "status": "loaded_from_cache",
+            "store_name": store_name,
+            "mill_number": mill_number,
+            "rows": cached.shape[0],
+            "columns": list(cached.columns),
+            "date_range": {"start": str(cached.index.min()), "end": str(cached.index.max())},
+            "ore_quality_joined": any(c in cached.columns for c in ["Shisti", "Daiki", "Grano"]),
+            "key_stats": stats,
+            "cache_hit": True,
+        }, indent=2, default=str))]
+
     engine = _get_engine()
 
     # Load mill data
@@ -397,6 +420,8 @@ async def query_combined_data(arguments: dict) -> list[types.TextContent]:
             df_mill = df_mill.join(df_ore_subset, how="left")
 
     set_dataframe(df_mill, store_name)
+    # Memoise combined frame for this analysis
+    _query_cache[cache_key] = df_mill
 
     # Compact summary
     key_cols = [c for c in ["Ore", "PSI80", "PSI200", "DensityHC", "MotorAmp"] if c in df_mill.columns]
