@@ -5,11 +5,19 @@ skills/oee.py — Overall Equipment Effectiveness (OEE) calculations for ball mi
 OEE = Availability × Performance × Quality
 
 Plant-specific configuration (Ellatzite ore-dressing factory):
-  • Speed/Performance reference  : Ore = 180 t/h  →  100% performance
+  • Speed/Performance reference  : depends on mill regime
+        – standard mills (1, 4–10, 12, std-regime of {2,3}) → 180 t/h
+        – „досмилане" (re-grinding) mill (one of {2, 3})    → 210 t/h
+        – small mill 11                                      →  90 t/h
   • Quality band (linear)        : PSI200 ≤ 18%   →  100% quality (zero scrap)
                                     PSI200 ≥ 30%   →  0%   quality (full scrap)
                                     between        →  linear interpolation
-  • Availability threshold       : Ore < 50 t/h   →  considered DOWNTIME
+  • Availability threshold       : Ore < 60 t/h   →  considered DOWNTIME
+                                   (mill 11: Ore < 25 t/h)
+
+When the caller passes ``mill_number``, this module resolves the correct
+regime via ``tools.domain_knowledge.get_mill_regime`` so callers do not have
+to hardcode per-mill thresholds.
 
 All ratios are computed using ratio-of-totals on running minutes (the mathematically
 correct way — see DOMAIN_CONTEXT in graph_v3.py for the full rationale).
@@ -25,10 +33,46 @@ import matplotlib.pyplot as plt
 
 # ── Plant-specific OEE constants ────────────────────────────────────────────
 
-OEE_SPEED_REF_TPH = 180.0          # Ore @ 100% performance
+OEE_SPEED_REF_TPH = 180.0          # Ore @ 100% performance (standard mills)
 OEE_QUALITY_PSI200_FLOOR = 18.0    # PSI200 (%) at or below which quality = 100%
 OEE_QUALITY_PSI200_LIMIT = 30.0    # PSI200 (%) at or above which quality = 0%
-OEE_DOWNTIME_THRESHOLD_TPH = 50.0  # Ore below this = downtime
+OEE_DOWNTIME_THRESHOLD_TPH = 60.0  # Ore below this = ore-feed stoppage / downtime
+                                    # (standard mills — mill 11 uses 25 t/h)
+
+
+def _resolve_regime(mill_number: int | None, df: pd.DataFrame | None,
+                    ore_col: str) -> tuple[float, float, str]:
+    """Return (speed_ref_tph, downtime_threshold_tph, regime_label) for a mill.
+
+    Pulls the canonical regime table from ``tools.domain_knowledge`` so a
+    single source of truth governs OEE everywhere. Falls back gracefully to
+    the standard defaults if domain_knowledge cannot be imported.
+    """
+    try:
+        from tools.domain_knowledge import get_mill_regime  # local import to avoid cycles
+    except Exception:
+        return OEE_SPEED_REF_TPH, OEE_DOWNTIME_THRESHOLD_TPH, "standard"
+
+    if mill_number is None:
+        return OEE_SPEED_REF_TPH, OEE_DOWNTIME_THRESHOLD_TPH, "standard"
+
+    # For mills 2/3 disambiguate using the actual data when available — the
+    # high-capacity „досмилане" assignment varies day to day.
+    mean_ore_running: float | None = None
+    if mill_number in (2, 3) and df is not None and ore_col in df.columns:
+        try:
+            ore = df[ore_col].astype(float)
+            # Use the global standard threshold to estimate running minutes
+            running = ore[ore >= OEE_DOWNTIME_THRESHOLD_TPH]
+            if len(running) > 0:
+                mean_ore_running = float(running.mean())
+        except Exception:
+            pass
+
+    info = get_mill_regime(int(mill_number), mean_ore_running)
+    return float(info["ref_tph"]), float(info["downtime_tph"]), str(info["label"])
+
+
 DEFAULT_SHIFTS = {
     1: {"start": 6, "end": 14, "label": "Shift 1 (06-14)"},
     2: {"start": 14, "end": 22, "label": "Shift 2 (14-22)"},
@@ -151,10 +195,11 @@ def _components(df: pd.DataFrame, ore_col: str, quality_col: str,
 
 def shift_oee(df: pd.DataFrame, ore_col: str = "Ore",
               quality_col: str = "PSI200",
-              speed_ref: float = OEE_SPEED_REF_TPH,
+              speed_ref: float | None = None,
               quality_floor: float = OEE_QUALITY_PSI200_FLOOR,
               quality_limit: float = OEE_QUALITY_PSI200_LIMIT,
-              downtime_threshold: float = OEE_DOWNTIME_THRESHOLD_TPH,
+              downtime_threshold: float | None = None,
+              mill_number: int | None = None,
               output_dir: str = "output") -> dict:
     """
     Compute OEE for a single mill broken down by shift (1, 2, 3) plus an
@@ -167,12 +212,22 @@ def shift_oee(df: pd.DataFrame, ore_col: str = "Ore",
                              (quality_limit - quality_floor), 0, 1)
         — linear band: PSI200 ≤ quality_floor → Q=100%; PSI200 ≥ quality_limit → Q=0%.
 
-    Plant defaults (Ellatzite): speed_ref=180 t/h, quality_floor=18 % PSI200,
-    quality_limit=30 % PSI200, downtime_threshold=50 t/h.
+    Plant defaults (Ellatzite): standard regime → speed_ref=180 t/h,
+    downtime_threshold=60 t/h; quality_floor=18 % PSI200, quality_limit=30 % PSI200.
+    Pass ``mill_number`` to auto-resolve the correct per-mill regime
+    (re-grinding mill ⇒ 210 t/h, mill 11 ⇒ 90 t/h ref + 25 t/h downtime).
+    Explicit ``speed_ref`` / ``downtime_threshold`` arguments override the
+    regime resolution.
 
     Returns:
         {"figures": [path], "stats": {shift_1, shift_2, shift_3, overall}, "summary": str}
     """
+    # Resolve regime-specific defaults if the caller did not supply explicit values.
+    regime_ref, regime_dn, regime_label = _resolve_regime(mill_number, df, ore_col)
+    if speed_ref is None:
+        speed_ref = regime_ref
+    if downtime_threshold is None:
+        downtime_threshold = regime_dn
     if not isinstance(df.index, pd.DatetimeIndex):
         df = df.copy()
         df.index = pd.to_datetime(df.index)
@@ -272,14 +327,19 @@ def shift_oee(df: pd.DataFrame, ore_col: str = "Ore",
 
 def multi_mill_oee(mill_dfs: dict, ore_col: str = "Ore",
                    quality_col: str = "PSI200",
-                   speed_ref: float = OEE_SPEED_REF_TPH,
+                   speed_ref: float | None = None,
                    quality_floor: float = OEE_QUALITY_PSI200_FLOOR,
                    quality_limit: float = OEE_QUALITY_PSI200_LIMIT,
-                   downtime_threshold: float = OEE_DOWNTIME_THRESHOLD_TPH,
+                   downtime_threshold: float | None = None,
                    output_dir: str = "output") -> dict:
     """
-    Rank multiple mills by OEE. Pass a dict mapping mill labels to DataFrames,
-    e.g. {"Mill 4": df4, "Mill 6": df6, "Mill 7": df7, "Mill 8": df8}.
+    Rank multiple mills by OEE. Pass a dict mapping mill labels (or mill
+    numbers) to DataFrames, e.g. ``{4: df4, 6: df6, 7: df7, 8: df8}`` or
+    ``{"Mill 4": df4, ...}``. When keys are integers (or strings matching
+    ``mill_data_N`` / ``Mill N`` / ``Мелница N``), each mill is evaluated
+    against its OWN regime — mill 11 vs. 90 t/h, the re-grinding mill vs.
+    210 t/h, the rest vs. 180 t/h. Pass explicit ``speed_ref`` /
+    ``downtime_threshold`` to override regime resolution for ALL mills.
 
     Returns:
         {"figures": [path], "stats": {mill_label: {A, P, Q, OEE, ...}}, "summary": str}
@@ -287,12 +347,37 @@ def multi_mill_oee(mill_dfs: dict, ore_col: str = "Ore",
     if not isinstance(mill_dfs, dict) or not mill_dfs:
         return {"figures": [], "stats": {}, "summary": "No mill data provided."}
 
+    import re as _re
+
+    def _extract_mill_number(key) -> int | None:
+        if isinstance(key, int):
+            return key if 1 <= key <= 12 else None
+        if isinstance(key, str):
+            m = _re.search(r"(\d{1,2})", key)
+            if m:
+                n = int(m.group(1))
+                if 1 <= n <= 12:
+                    return n
+        return None
+
     stats = {}
     for label, df in mill_dfs.items():
         if df is None or len(df) == 0:
             continue
-        comp = _components(df, ore_col, quality_col, speed_ref,
-                           quality_floor, quality_limit, downtime_threshold)
+        # Per-mill regime when the caller did not pin global overrides.
+        mn = _extract_mill_number(label)
+        regime_ref, regime_dn, regime_label = _resolve_regime(mn, df, ore_col)
+        ref_i = speed_ref if speed_ref is not None else regime_ref
+        dn_i = downtime_threshold if downtime_threshold is not None else regime_dn
+        comp = _components(df, ore_col, quality_col, ref_i,
+                           quality_floor, quality_limit, dn_i)
+        # Surface which regime / reference was used so charts and summaries
+        # do not silently mix scales between mills.
+        comp["regime"] = (
+            regime_label
+            if (speed_ref is None and downtime_threshold is None)
+            else f"override ref={ref_i:.0f}t/h, dn={dn_i:.0f}t/h"
+        )
         stats[label] = comp
 
     # Sort by OEE descending for the chart

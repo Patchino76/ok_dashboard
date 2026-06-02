@@ -218,20 +218,78 @@ SHIFTS = {
 
 # ── OEE Configuration (plant-wide) ───────────────────────────────────────────
 # Used by skills.oee.shift_oee / multi_mill_oee and referenced in DOMAIN_CONTEXT.
+# NOTE: ``speed_ref_tph`` and ``downtime_threshold_tph`` are the STANDARD-REGIME
+# defaults. Per-mill overrides live in ``MILL_REGIMES`` below — the OEE skill
+# resolves the correct values from there when given a mill_number.
 OEE_CONFIG = {
-    "speed_ref_tph": 180.0,           # Ore @ 100% performance
+    "speed_ref_tph": 180.0,           # Ore @ 100% performance (standard mills)
     "speed_variable": "Ore",
     "quality_variable": "PSI200",
     "quality_floor_pct": 18.0,        # PSI200 ≤ 18% → 100% quality (zero scrap)
     "quality_limit_pct": 30.0,        # PSI200 ≥ 30% → 0% quality (full scrap)
-    "downtime_threshold_tph": 50.0,   # Ore < 50 t/h → downtime
+    "downtime_threshold_tph": 60.0,   # Ore < 60 t/h → ore-feed stoppage / downtime
     "formula": "OEE = Availability × Performance × Quality",
-    "availability": "running_minutes / total_minutes  (running := Ore ≥ 50 t/h)",
-    "performance":  "min(mean(Ore[running]) / 180, 1.0)",
+    "availability": "running_minutes / total_minutes  (running := Ore ≥ 60 t/h)",
+    "performance":  "min(mean(Ore[running]) / ref_tph, 1.0)  # ref depends on mill",
     "quality":      "clamp((30 - mean(PSI200[running])) / (30 - 18), 0, 1)",
-    "skill_single_mill": "skills.oee.shift_oee(df, output_dir=OUTPUT_DIR)",
-    "skill_multi_mill":  "skills.oee.multi_mill_oee({label: df, ...}, output_dir=OUTPUT_DIR)",
+    "skill_single_mill": "skills.oee.shift_oee(df, mill_number=N, output_dir=OUTPUT_DIR)",
+    "skill_multi_mill":  "skills.oee.multi_mill_oee({mill_number: df, ...}, output_dir=OUTPUT_DIR)",
 }
+
+
+# ── Per-mill ore-throughput regimes (factory knowledge) ─────────────────────
+# One of mills 2 or 3 (NOT both) runs the high-capacity „досмилане" (re-grinding)
+# regime — detect from data (mean Ore on running minutes > ~195 t/h).
+# Mill 11 is the smaller mill and runs at much lower nominal throughput.
+# Everything else is the standard regime.
+MILL_REGIMES = {
+    "standard": {
+        "mills": [1, 4, 5, 6, 7, 8, 9, 10, 12],   # plus the std-regime one of {2,3}
+        "ref_tph": 180.0,
+        "downtime_tph": 60.0,
+        "label": "standard",
+    },
+    "regrind": {
+        "mills": [2, 3],                            # only ONE of these at a time
+        "ref_tph": 210.0,
+        "downtime_tph": 60.0,
+        "label": "досмилане (high-capacity)",
+    },
+    "small": {
+        "mills": [11],
+        "ref_tph": 90.0,
+        "downtime_tph": 25.0,
+        "label": "small mill",
+    },
+}
+
+
+def get_mill_regime(mill_number: int, mean_ore_running: float | None = None) -> dict:
+    """Resolve the operating regime for a mill.
+
+    Mills 2 and 3 are ambiguous: only ONE of them runs in „досмилане" at a
+    time. If ``mean_ore_running`` is provided, use it to disambiguate:
+    > 195 t/h → regrind, otherwise → standard. If not provided, default to
+    standard for safety (callers that care should pass the measurement).
+
+    Returns a dict: ``{"regime": <key>, "ref_tph": float, "downtime_tph": float,
+    "label": str}``.
+    """
+    if mill_number == 11:
+        r = MILL_REGIMES["small"]
+    elif mill_number in (2, 3):
+        if mean_ore_running is not None and mean_ore_running > 195.0:
+            r = MILL_REGIMES["regrind"]
+        else:
+            r = MILL_REGIMES["standard"]
+    else:
+        r = MILL_REGIMES["standard"]
+    return {
+        "regime": r["label"],
+        "ref_tph": r["ref_tph"],
+        "downtime_tph": r["downtime_tph"],
+        "label": r["label"],
+    }
 
 # ── Mill Names ───────────────────────────────────────────────────────────────
 

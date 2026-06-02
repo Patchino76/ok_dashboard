@@ -91,7 +91,65 @@ Process relationships:
   * Shift 1: 06:00 → 14:00 (morning, „първа смяна")
   * Shift 2: 14:00 → 22:00 (afternoon, „втора смяна")
   * Shift 3: 22:00 → 06:00 next day (night, „трета смяна")
-- Mill names in prose: „Мелница 1" … „Мелница 12" (raw identifier mill_data_N stays in code)."""
+- Mill names in prose: „Мелница 1" … „Мелница 12" (raw identifier mill_data_N stays in code).
+
+PER-MILL ORE-THROUGHPUT REGIMES (factory knowledge — apply this when judging
+whether a mill's feed rate is "normal", computing OEE Performance, or making
+recommendations):
+- Most mills (1, 4, 5, 6, 7, 8, 9, 10, 12, AND ONE of {2, 3}) →
+  STANDARD regime, typical Ore ≈ 160–180 t/h.
+  Use 180 t/h as the reference (100%) for OEE Performance.
+- ONE of mill 2 OR mill 3 (NOT both)  → HIGH-CAPACITY „досмилане"
+  (re-grinding) regime, routinely running > 200 t/h (up to ~230 t/h).
+  Which one is in this regime varies; DETECT IT FROM THE DATA — the mill
+  whose mean Ore on running minutes exceeds ~195 t/h is the one currently
+  in „досмилане". The other one of {2, 3} runs in the STANDARD regime.
+  For the high-capacity mill, use 210 t/h as the OEE Performance reference;
+  do NOT flag its >200 t/h readings as anomalies.
+- Mill 11                             → SMALLER mill, normally runs < 100 t/h
+  (typical ≈ 80–95 t/h). Do NOT compare mill 11's tonnage to the others or
+  call it "under-loaded" — that is its design throughput. For OEE on mill
+  11, use 90 t/h as the Performance reference (100%), and use a LOWER
+  downtime threshold of Ore < 25 t/h instead of the plant-wide 60 t/h.
+
+When ranking or benchmarking mills, ALWAYS compare each mill against its own
+regime reference, not against a single plant-wide number. When recommending
+setpoints, never suggest mill 11 should run at 180 t/h or that the
+„досмилане" mill should be capped at 180 t/h — those are the wrong
+references for those mills.
+
+ORE FEED STOPPAGES — CRITICAL FILTERING RULE (applies to ALL specialists):
+Whenever `Ore < 60 t/h` on a standard-regime mill (or `Ore < 25 t/h` on
+mill 11), the ore feeder is effectively STOPPED — these minutes are NOT
+real process operation, they are downtime/idling intervals. Sensor values
+during these intervals (PSI80, PSI200, DensityHC, MotorAmp, Power, etc.)
+do NOT reflect normal grinding and will distort any statistic that includes
+them.
+
+  DO (statistical analysis, histograms, distributions, correlations,
+        regressions, SPC charts, anomaly detection, forecasting,
+        optimization, KPI ratios):
+    • FIRST filter the dataframe to running minutes:
+        df_run = df[df["Ore"] >= 60]      # mills 1–10, 12 + std-regime of {2,3}
+        df_run = df[df["Ore"] >= 25]      # mill 11
+      Then compute means, std, correlations, histograms, models on df_run.
+    • Apply this filter BEFORE plotting any histogram, scatter, KDE, or
+      heatmap — otherwise a long zero-spike will dominate the chart.
+    • Apply this filter BEFORE training any model (Prophet, XGBoost,
+      IsolationForest, etc.).
+
+  DO NOT use the stoppage minutes for: means, distributions, correlations,
+  „normal range", quality bands, or recommended set-points.
+
+  DO use the stoppage minutes ONLY for:
+    • Counting downtime / уптайм (uptime_pct, downtime_pct).
+    • Computing Availability (A) in the OEE formula.
+    • Building stoppage timelines / Gantt charts of feeder events.
+    • Investigating WHEN and WHY the feed stopped (root cause).
+
+When reporting any statistic, ALWAYS state the filter you applied
+(e.g. „при Ore ≥ 60 t/h, n = 12 845 минути"). The critic will reject
+findings that did not exclude stoppage minutes."""
 
 
 # ── Bulgarian output rules (only for stages that produce user-facing text) ──
@@ -151,14 +209,25 @@ OEE_RULES = """OEE — ОБЩА ЕФЕКТИВНОСТ НА ОБОРУДВАНЕ
   OEE = Наличност (A) × Производителност (P) × Качество (Q)
 
   1) Наличност (Availability) — на база `Ore`:
-       • Минути в престой := `Ore < 50 t/h` (под 50 t/h се счита за престой).
-       • Минути в работа  := `Ore ≥ 50 t/h`.
+       • Минути в престой := `Ore < 60 t/h` за стандартни мелници
+         (за мелница 11: `Ore < 25 t/h`). Под този праг подаването на руда
+         реално е спряно — това е „престой на рудоподаване".
+       • Минути в работа  := `Ore ≥ 60 t/h` (съотв. `Ore ≥ 25 t/h` за М11).
        • A = брой_работни_минути / общ_брой_минути   (стойност в [0, 1]).
 
   2) Производителност (Performance) — на база `Ore` (скорост на подаване):
-       • Референтна скорост (100% производителност) = 180 t/h.
-       • P = mean(Ore[running]) / 180, ограничено в [0, 1].
-       • mean се изчислява само върху работните минути (Ore ≥ 50 t/h).
+       • Референтна скорост (100% производителност) зависи от мелницата
+         (виж секцията PER-MILL ORE-THROUGHPUT REGIMES в CORE_CONTEXT):
+           – Мелници 1, 4–10, 12 и една от {2, 3}            → reference = 180 t/h
+           – „Досмилане" — другата (само ЕДНА!) от {2, 3}    → reference = 210 t/h
+             (определя се по данните: mean(Ore[running]) > ~195 t/h)
+           – Мелница 11                                      → reference =  90 t/h
+             прагът за престой също е по-нисък: Ore < 25 t/h, не < 60 t/h.
+       • P = mean(Ore[running]) / reference, ограничено в [0, 1].
+       • mean се изчислява само върху работните минути (Ore ≥ downtime_threshold).
+       • Когато сравняваш OEE между мелници, ВИНАГИ използвай съответния
+         per-mill reference — иначе мелница 2/3 ще изглежда „свръхпроизводителна",
+         а мелница 11 — „недонатоварена", което е грешно.
 
   3) Качество (Quality) — на база `PSI200` (фракция +200 μm, % overflow):
        Линейна крива на качеството в работния диапазон:
@@ -166,7 +235,8 @@ OEE_RULES = """OEE — ОБЩА ЕФЕКТИВНОСТ НА ОБОРУДВАНЕ
        • PSI200 ≥ 30%  →  Q = 0%   (изцяло брак, горна граница).
        • Между 18% и 30% — линейна интерполация.
        • Формула: Q = clamp((30 − mean(PSI200[running])) / (30 − 18), 0, 1).
-       • mean се изчислява само върху работните минути (Ore ≥ 50 t/h).
+       • mean се изчислява само върху работните минути
+         (Ore ≥ 60 t/h за стандартни мелници, Ore ≥ 25 t/h за М11).
 
   Връща се като процент: OEE_% = A · P · Q · 100.
 
@@ -192,10 +262,12 @@ OEE_RULES = """OEE — ОБЩА ЕФЕКТИВНОСТ НА ОБОРУДВАНЕ
 ПРАВИЛА ПРИ ИНТЕРПРЕТАЦИЯ:
   • Винаги докладвай и трите компонента (A, P, Q) ОТДЕЛНО, не само OEE.
     Така мениджърът вижда къде е проблемът — престои, нисък товар или брак.
-  • Ако `Ore < 50 t/h` за дадена смяна: коментирай ниска НАЛИЧНОСТ
-    (организационни/механични престои), не „ниска ефективност".
-  • Ако mean(Ore[running]) е значително под 180 t/h: коментирай ниска
-    ПРОИЗВОДИТЕЛНОСТ (под-натоварване на мелницата).
+  • Ако `Ore < 60 t/h` (или < 25 t/h за М11) за дадена смяна: коментирай
+    ниска НАЛИЧНОСТ (организационни/механични престои на рудоподаването),
+    не „ниска ефективност".
+  • Ако mean(Ore[running]) е значително под per-mill reference
+    (180/210/90 t/h съответно): коментирай ниска ПРОИЗВОДИТЕЛНОСТ
+    (под-натоварване на мелницата).
   • Ако mean(PSI200[running]) ≤ 18%: качеството е на максимум (Q=100%) — отбележи,
     че помолът е в спецификация. Ако е между 18% и 30%: качеството спада линейно —
     коментирай как близостта до 30% намалява Q. Ако ≥ 30%: пълен брак (Q=0%) —
@@ -655,9 +727,18 @@ WHAT TO CHECK:
    • Sample sizes (n) should be roughly comparable across specialists that
      looked at the same window. Big disagreements → flag.
 2. Plausibility against process physics:
-   • Ore in [0, 250] t/h, PSI80 in [40, 120] μm, PSI200 in [0, 60] %,
-     DensityHC in [1.2, 2.0] t/m³, MotorAmp in [100, 350] A.
+   • Ore in [0, 250] t/h (PLANT-WIDE bound), PSI80 in [40, 120] μm,
+     PSI200 in [0, 60] %, DensityHC in [1.2, 2.0] t/m³,
+     MotorAmp in [100, 350] A.
    • Out-of-range values → flag with the specialist + step that produced them.
+   • BUT respect per-mill regimes (see CORE_CONTEXT):
+       – Mills 2 and 3 routinely run > 200 t/h (up to ~230 t/h) — NORMAL,
+         do NOT flag as outlier.
+       – Mill 11 normally runs < 100 t/h (≈ 80–95 t/h) — NORMAL, do NOT
+         flag as under-loaded or anomalous.
+       – Other mills: typical range 160–180 t/h.
+     Only flag readings that fall OUTSIDE the regime range for that specific
+     mill (e.g. mill 5 at 230 t/h, or mill 11 at 180 t/h).
 3. Missing structured outputs:
    • Each specialist that ran should have at least one STRUCTURED_OUTPUT line.
      If any specialist emitted none, flag it (the reporter will be missing
