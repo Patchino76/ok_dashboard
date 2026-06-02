@@ -72,7 +72,7 @@ def wrapper(*args, **kwargs):
 ```
 
 The `STRUCTURED_OUTPUT:` line is picked up by
-`graph_v3._extract_structured_output` when the `execute_python` ToolMessage
+`graph._extract_structured_output` when the `execute_python` ToolMessage
 flows back through `build_focused_context`. Downstream specialists see a
 compact `[structured data]: {…}` entry instead of a giant blob of stdout.
 

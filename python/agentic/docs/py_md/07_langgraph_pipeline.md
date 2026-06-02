@@ -1,6 +1,6 @@
-# 07 — LangGraph Pipeline (`graph_v3.py`)
+# 07 — LangGraph Pipeline (`graph.py`)
 
-The main analysis pipeline is built by `graph_v3.build_graph()`. It is a
+The main analysis pipeline is built by `graph.build_graph()`. It is a
 LangGraph `StateGraph` with ~13 nodes, custom routing logic, and context
 compression. This page covers the mechanics; agent prompts live in **08**,
 planner/manager logic in **09**.

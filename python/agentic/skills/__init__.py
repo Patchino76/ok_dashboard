@@ -40,7 +40,7 @@ def _structured_output_wrapper(func, module_name):
                     "figures": [f.rsplit("/", 1)[-1] if "/" in f else f.rsplit("\\", 1)[-1] if "\\" in f else f
                                 for f in result.get("figures", [])],
                 }
-                # Emit the structured output line (picked up by graph_v3 _extract_structured_output)
+                # Emit the structured output line (picked up by graph._extract_structured_output)
                 print(f"STRUCTURED_OUTPUT:{_json.dumps(payload, ensure_ascii=False, default=str)}")
             except Exception:
                 pass  # Never break the skill function due to serialization issues

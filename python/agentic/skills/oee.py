@@ -20,7 +20,7 @@ regime via ``tools.domain_knowledge.get_mill_regime`` so callers do not have
 to hardcode per-mill thresholds.
 
 All ratios are computed using ratio-of-totals on running minutes (the mathematically
-correct way — see DOMAIN_CONTEXT in graph_v3.py for the full rationale).
+correct way — see DOMAIN_CONTEXT in graph.py for the full rationale).
 """
 
 import os

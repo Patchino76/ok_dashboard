@@ -182,7 +182,7 @@ Three complementary channels:
    `PLANT_SPECS`, `SHIFTS`, `MILL_NAMES`, and `get_spec_limits` directly into
    every `execute_python` namespace. Agents can write
    `specs = get_spec_limits('PSI80')` without a round-trip.
-3. **Baked into prompts** — `graph_v3.DOMAIN_CONTEXT` summarises the variable
+3. **Baked into prompts** — `graph.DOMAIN_CONTEXT` summarises the variable
    taxonomy in plain English and is prepended to every specialist's system
    prompt. This keeps domain grounding even for the first LLM call before any
    tool has run.

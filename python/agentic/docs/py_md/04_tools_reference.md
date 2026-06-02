@@ -133,7 +133,7 @@ The handler:
    ```
 
 Output limits: `stdout` is truncated to **8 000** chars and `error` to **4 000**
-chars by the tool. Additional compression is applied by `graph_v3.compress_messages`
+chars by the tool. Additional compression is applied by `graph.compress_messages`
 once the result enters the message history.
 
 ### Security model
@@ -215,7 +215,7 @@ writing code if unsure which skill to use.
 
 ## Tool-set gating per specialist
 
-Not every specialist sees every tool. `graph_v3.build_graph` binds specialist-
+Not every specialist sees every tool. `graph.build_graph` binds specialist-
 specific tool subsets to the LLM so it cannot even attempt an out-of-role
 action:
 

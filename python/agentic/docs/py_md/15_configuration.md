@@ -4,7 +4,7 @@ Everything that varies between environments or runs is configurable through
 one of three surfaces:
 
 1. **`.env` file** at the repo root — secrets and connection strings.
-2. **Module-level constants** in `graph_v3.py` and `tools/db_tools.py` —
+2. **Module-level constants** in `graph.py` and `tools/db_tools.py` —
    defaults for budgets and connections.
 3. **`AnalysisSettings` per request** — the UI's settings panel overrides
    the per-analysis context budgets.
@@ -15,7 +15,7 @@ one of three surfaces:
 flowchart LR
     ENV[".env file<br/>at repo root"]
     OS[os.environ]
-    DEF[Module constants<br/>graph_v3.py defaults]
+    DEF[Module constants<br/>graph.py defaults]
     UI[UI settings panel<br/>localStorage]
     REQ[POST /analyze body<br/>settings: AnalysisSettings]
     BG["_run_analysis_background<br/>(api_endpoint.py)"]
@@ -52,7 +52,7 @@ load_dotenv(_env_path)
 
 | Variable         | Used by                                            | Default fallback                                   | Required? |
 | ---------------- | -------------------------------------------------- | -------------------------------------------------- | --------- |
-| `GOOGLE_API_KEY` | `graph_v3.ChatGoogleGenerativeAI`                  | —                                                  | **Yes**   |
+| `GOOGLE_API_KEY` | `graph.ChatGoogleGenerativeAI`                  | —                                                  | **Yes**   |
 | `MCP_SERVER_URL` | `api_endpoint.py`, `main.py`, `client.py`          | `http://localhost:8003/mcp`                        | No        |
 | `DB_HOST`        | `tools/db_tools._get_db_connector` / `_get_engine` | `em-m-db4.ellatzite-med.com`                       | No        |
 | `DB_PORT`        | ↑                                                  | `5432`                                             | No        |
@@ -80,7 +80,7 @@ DB_PASSWORD=your_password
 ## Model selection
 
 ```python
-# graph_v3.py
+# graph.py
 GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
 ```
 
@@ -90,7 +90,7 @@ built from this constant.
 
 ## Module-level budget defaults
 
-`graph_v3.py`:
+`graph.py`:
 
 ```python
 MAX_TOOL_OUTPUT_CHARS  = 2000   # overridden to 4000 when settings are provided
@@ -193,9 +193,9 @@ Python processes (systemd, pm2, docker logs, …).
 
 | Where                                    | What                                         | Default                                                         |
 | ---------------------------------------- | -------------------------------------------- | --------------------------------------------------------------- |
-| `graph_v3.SPECIALIST_POOL`               | Which specialists the planner may choose     | 6 specialists                                                   |
-| `graph_v3._AUTO_ACCEPT_STAGES`           | Stages the manager skips LLM review for      | `{data_loader, planner, code_reviewer, reporter}`               |
-| `graph_v3.FIXED_PREFIX` / `FIXED_SUFFIX` | Stages inserted around the planner's choices | `[data_loader, planner]` / `[code_reviewer, reporter]`          |
+| `graph.SPECIALIST_POOL`               | Which specialists the planner may choose     | 6 specialists                                                   |
+| `graph._AUTO_ACCEPT_STAGES`           | Stages the manager skips LLM review for      | `{data_loader, planner, code_reviewer, reporter}`               |
+| `graph.FIXED_PREFIX` / `FIXED_SUFFIX` | Stages inserted around the planner's choices | `[data_loader, planner]` / `[code_reviewer, reporter]`          |
 | `api_endpoint.OUTPUT_DIR`                | Root for output subfolders                   | `<agentic>/output`                                              |
 | `client.py`                              | JSON-schema-to-Pydantic type map             | `integer → int`, `number → float`, `boolean → bool`, else `str` |
 

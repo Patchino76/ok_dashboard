@@ -10,7 +10,7 @@ flowchart TB
 
     subgraph PY["🐍 Python (FastAPI process)"]
         API[api_endpoint.py<br/>/api/v1/agentic/*<br/>tracks _analyses dict]
-        LG[graph_v3.py<br/>LangGraph StateGraph<br/>data_loader → planner →<br/>specialists* → code_reviewer<br/>→ reporter]
+        LG[graph.py<br/>LangGraph StateGraph<br/>data_loader → planner →<br/>specialists* → code_reviewer<br/>→ reporter]
         CB[client.py<br/>MCP → LangChain<br/>StructuredTool bridge]
     end
 

@@ -52,7 +52,7 @@ it inline in the chat bubble.
 | 04  | `04_tools_reference.md`        | Every MCP tool: inputs, outputs, examples.                       |
 | 05  | `05_domain_knowledge.md`       | Plant variables, specs, shifts, mills.                           |
 | 06  | `06_skills_library.md`         | The `skills/` package — tested pandas/sklearn functions.         |
-| 07  | `07_langgraph_pipeline.md`     | `graph_v3.py` state, nodes, routing.                             |
+| 07  | `07_langgraph_pipeline.md`     | `graph.py` state, nodes, routing.                             |
 | 08  | `08_specialists.md`            | Each specialist agent and its prompt.                            |
 | 09  | `09_planner_and_manager.md`    | Dynamic pipeline selection + quality review loop.                |
 | 10  | `10_followup_conversations.md` | The follow-up graph and conversation persistence.                |
@@ -102,8 +102,8 @@ The Next.js UI at `/ai-chat` will call `POST /api/v1/agentic/analyze` and poll
 | `tools/domain_knowledge.py`                | 04, 05           |
 | `tools/skill_registry.py`                  | 04, 06           |
 | `skills/*.py`                              | 06               |
-| `graph_v3.py` (main graph)                 | 07, 08, 09       |
-| `graph_v3.py` (follow-up graph)            | 10               |
+| `graph.py` (main graph)                 | 07, 08, 09       |
+| `graph.py` (follow-up graph)            | 10               |
 | `analysis_templates.py`                    | 11               |
 | `api_endpoint.py`                          | 12, 13, 14       |
 | `main.py`                                  | 14 (CLI variant) |

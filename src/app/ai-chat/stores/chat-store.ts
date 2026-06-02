@@ -45,6 +45,7 @@ interface ChatState {
   activeConversationId: string | null;
   isLoading: boolean;
   pollingInterval: ReturnType<typeof setInterval> | null;
+  eventSource: EventSource | null;
 
   // Derived helpers
   activeConversation: () => Conversation | undefined;
@@ -62,6 +63,14 @@ interface ChatState {
   // Analysis flow
   sendAnalysis: (question: string, templateId?: string) => Promise<void>;
   sendFollowUp: (question: string) => Promise<void>;
+  // Track a running analysis via SSE (preferred), with polling as fallback.
+  trackAnalysis: (
+    analysisId: string,
+    messageId: string,
+    convId: string,
+    reportAnalysisId?: string,
+    followUpStartedAt?: number,
+  ) => void;
   pollStatus: (
     analysisId: string,
     messageId: string,
@@ -133,6 +142,117 @@ function truncate(s: string, max = 50) {
 
 const POLL_INTERVAL_MS = 4000;
 
+// ── Shared status handling (used by both SSE and polling) ──────────────────────
+
+interface TrackContext {
+  messageId: string;
+  convId: string;
+  fileAnalysisId: string;
+  isFollowUp: boolean;
+  followUpStartedAt?: number;
+}
+
+type StoreGet = () => ChatState;
+type StoreSet = (
+  partial: Partial<ChatState> | ((s: ChatState) => Partial<ChatState>),
+) => void;
+
+/**
+ * Apply a status payload (from an SSE `done` event or a poll response) to the
+ * store. Returns true once the analysis reaches a terminal state
+ * (completed/failed) so the caller can stop tracking.
+ */
+async function applyStatusData(
+  data: Record<string, unknown>,
+  ctx: TrackContext,
+  get: StoreGet,
+  set: StoreSet,
+): Promise<boolean> {
+  const { updateMessage } = get();
+  const { messageId, convId, fileAnalysisId, isFollowUp, followUpStartedAt } =
+    ctx;
+
+  const progress = (data.progress as ProgressMessage[]) || [];
+  if (progress.length > 0) {
+    updateMessage(messageId, { progressMessages: progress });
+  }
+
+  if (data.status === "completed") {
+    const reportFiles = (data.report_files as string[]) || [];
+    const chartFiles = (data.chart_files as string[]) || [];
+    const reportMtimes =
+      (data.report_files_mtime as Record<string, number>) || {};
+    const chartMtimes =
+      (data.chart_files_mtime as Record<string, number>) || {};
+
+    const isNewOrUpdated = (f: string, mtimeMap: Record<string, number>) => {
+      if (!isFollowUp) return true;
+      const mt = mtimeMap[f];
+      return typeof mt === "number" && mt >= (followUpStartedAt as number);
+    };
+
+    const newReportFiles = reportFiles.filter((f) =>
+      isNewOrUpdated(f, reportMtimes),
+    );
+    const newChartFiles = chartFiles.filter((f) =>
+      isNewOrUpdated(f, chartMtimes),
+    );
+
+    let mdToShow: string | undefined;
+    if (newReportFiles.length > 0) {
+      mdToShow = [...newReportFiles].sort(
+        (a, b) => (reportMtimes[b] || 0) - (reportMtimes[a] || 0),
+      )[0];
+    } else if (!isFollowUp && reportFiles.length > 0) {
+      mdToShow = reportFiles[0];
+    }
+
+    let reportMarkdown: string | undefined;
+    if (mdToShow) {
+      try {
+        const mdRes = await apiFetch(
+          `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(mdToShow)}`,
+        );
+        if (mdRes.ok) reportMarkdown = await mdRes.text();
+      } catch (e) {
+        console.warn("Failed to fetch report MD:", e);
+      }
+    }
+
+    updateMessage(messageId, {
+      status: "completed",
+      content: (data.final_answer as string) || "Анализът е завършен.",
+      reportFiles: newReportFiles,
+      chartFiles: newChartFiles,
+      reportMarkdown,
+    });
+
+    set((s) => {
+      const updated = s.conversations.map((c) =>
+        c.id === convId ? { ...c, status: "completed" as const } : c,
+      );
+      saveConversations(updated);
+      return { conversations: updated, isLoading: false };
+    });
+    return true;
+  } else if (data.status === "failed") {
+    updateMessage(messageId, {
+      status: "failed",
+      content: `Анализът е неуспешен: ${(data.error as string) || "Неизвестна грешка"}`,
+      error: data.error as string,
+    });
+    set((s) => {
+      const updated = s.conversations.map((c) =>
+        c.id === convId ? { ...c, status: "failed" as const } : c,
+      );
+      saveConversations(updated);
+      return { conversations: updated, isLoading: false };
+    });
+    return true;
+  }
+  return false;
+}
+
 // ── Store ────────────────────────────────────────────────────────────────────
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -140,6 +260,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeConversationId: null,
   isLoading: false,
   pollingInterval: null,
+  eventSource: null,
 
   // ── Derived ──────────────────────────────────────────────────────────────
 
@@ -259,7 +380,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // ── Analysis flow ────────────────────────────────────────────────────────
 
   sendAnalysis: async (question: string, templateId?: string) => {
-    const { createConversation, addMessage, updateMessage, pollStatus } = get();
+    const { createConversation, addMessage, updateMessage, trackAnalysis } =
+      get();
 
     // Create a new conversation for this analysis
     const convId = createConversation(truncate(question));
@@ -323,7 +445,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: "Анализът е стартиран. Агентите работят...",
       });
 
-      pollStatus(analysisId, assistantMsg.id, convId);
+      trackAnalysis(analysisId, assistantMsg.id, convId);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
       updateMessage(assistantMsg.id, {
@@ -344,7 +466,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // ── Follow-up ────────────────────────────────────────────────────────────
 
   sendFollowUp: async (question: string) => {
-    const { addMessage, updateMessage, pollStatus, activeConversationId } =
+    const { addMessage, updateMessage, trackAnalysis, activeConversationId } =
       get();
     const conv = get().activeConversation();
 
@@ -408,7 +530,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         content: "Обработка на допълнителен въпрос...",
       });
 
-      pollStatus(
+      trackAnalysis(
         followupId,
         assistantMsg.id,
         convId,
@@ -432,7 +554,125 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  // ── Polling ──────────────────────────────────────────────────────────────
+  // ── Tracking (SSE preferred, polling fallback) ───────────────────────────
+
+  trackAnalysis: (
+    analysisId: string,
+    messageId: string,
+    convId: string,
+    reportAnalysisId?: string,
+    followUpStartedAt?: number,
+  ) => {
+    const { stopPolling, pollStatus } = get();
+    stopPolling();
+
+    // Fall back to polling when SSE is unavailable (SSR / old browsers).
+    if (typeof window === "undefined" || typeof EventSource === "undefined") {
+      pollStatus(
+        analysisId,
+        messageId,
+        convId,
+        reportAnalysisId,
+        followUpStartedAt,
+      );
+      return;
+    }
+
+    const fileAnalysisId = reportAnalysisId || analysisId;
+    const isFollowUp = typeof followUpStartedAt === "number";
+    const ctx: TrackContext = {
+      messageId,
+      convId,
+      fileAnalysisId,
+      isFollowUp,
+      followUpStartedAt,
+    };
+
+    const role = getCurrentRole();
+    const url = `/api/v1/agentic/stream/${encodeURIComponent(analysisId)}?role=${encodeURIComponent(role)}`;
+
+    let es: EventSource;
+    try {
+      es = new EventSource(url);
+    } catch {
+      pollStatus(
+        analysisId,
+        messageId,
+        convId,
+        reportAnalysisId,
+        followUpStartedAt,
+      );
+      return;
+    }
+
+    // Accumulate progress items, deduped across any auto-reconnects.
+    const seen = new Set<string>();
+    const items: ProgressMessage[] = [];
+    let gotEvent = false;
+
+    const fallbackToPolling = () => {
+      try {
+        es.close();
+      } catch {
+        /* noop */
+      }
+      set({ eventSource: null });
+      get().pollStatus(
+        analysisId,
+        messageId,
+        convId,
+        reportAnalysisId,
+        followUpStartedAt,
+      );
+    };
+
+    es.addEventListener("progress", (e) => {
+      gotEvent = true;
+      try {
+        const item = JSON.parse((e as MessageEvent).data) as ProgressMessage;
+        const key = `${item.timestamp}|${item.stage}|${item.message}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          items.push(item);
+          get().updateMessage(messageId, { progressMessages: [...items] });
+        }
+      } catch {
+        /* ignore malformed progress frame */
+      }
+    });
+
+    es.addEventListener("done", async (e) => {
+      gotEvent = true;
+      try {
+        const data = JSON.parse((e as MessageEvent).data) as Record<
+          string,
+          unknown
+        >;
+        await applyStatusData(data, ctx, get, set);
+      } catch (err) {
+        console.warn("SSE done parse failed:", err);
+      }
+      try {
+        es.close();
+      } catch {
+        /* noop */
+      }
+      set({ eventSource: null });
+    });
+
+    es.onerror = () => {
+      // EventSource auto-reconnects on transient errors. If we never received
+      // a single event, the stream endpoint is likely unreachable — fall back
+      // to the polling path so the user still gets results.
+      if (!gotEvent) {
+        fallbackToPolling();
+      }
+    };
+
+    set({ eventSource: es });
+  },
+
+  // ── Polling (fallback) ───────────────────────────────────────────────────
 
   pollStatus: (
     analysisId: string,
@@ -497,99 +737,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
         consecutiveFailures = 0;
         everSucceeded = true;
         const data = await res.json();
-        const { updateMessage, stopPolling: stop } = get();
+        const { stopPolling: stop } = get();
 
-        // Always push new progress messages while running
-        const progress: ProgressMessage[] = data.progress || [];
-        if (progress.length > 0) {
-          updateMessage(messageId, { progressMessages: progress });
-        }
-
-        if (data.status === "completed") {
-          const reportFiles: string[] = data.report_files || [];
-          const chartFiles: string[] = data.chart_files || [];
-          const reportMtimes: Record<string, number> =
-            data.report_files_mtime || {};
-          const chartMtimes: Record<string, number> =
-            data.chart_files_mtime || {};
-
-          // Classify files as new/updated based on mtime vs follow-up start.
-          // Primary analyses (isFollowUp=false) treat every file as new.
-          const isNewOrUpdated = (
-            f: string,
-            mtimeMap: Record<string, number>,
-          ) => {
-            if (!isFollowUp) return true;
-            const mt = mtimeMap[f];
-            return (
-              typeof mt === "number" && mt >= (followUpStartedAt as number)
-            );
-          };
-
-          const newReportFiles = reportFiles.filter((f) =>
-            isNewOrUpdated(f, reportMtimes),
-          );
-          const newChartFiles = chartFiles.filter((f) =>
-            isNewOrUpdated(f, chartMtimes),
-          );
-
-          // Pick the most recently modified .md among the new/updated set so
-          // the bubble shows the freshest report inline.
-          let mdToShow: string | undefined;
-          if (newReportFiles.length > 0) {
-            mdToShow = [...newReportFiles].sort(
-              (a, b) => (reportMtimes[b] || 0) - (reportMtimes[a] || 0),
-            )[0];
-          } else if (!isFollowUp && reportFiles.length > 0) {
-            mdToShow = reportFiles[0];
-          }
-
-          let reportMarkdown: string | undefined;
-          if (mdToShow) {
-            try {
-              const mdRes = await apiFetch(
-                `/api/v1/agentic/reports/${encodeURIComponent(fileAnalysisId)}/${encodeURIComponent(mdToShow)}`,
-              );
-              if (mdRes.ok) {
-                reportMarkdown = await mdRes.text();
-              }
-            } catch (e) {
-              console.warn("Failed to fetch report MD:", e);
-            }
-          }
-
-          updateMessage(messageId, {
-            status: "completed",
-            content: data.final_answer || "Анализът е завършен.",
-            reportFiles: newReportFiles,
-            chartFiles: newChartFiles,
-            reportMarkdown,
-          });
-
-          set((s) => {
-            const updated = s.conversations.map((c) =>
-              c.id === convId ? { ...c, status: "completed" as const } : c,
-            );
-            saveConversations(updated);
-            return { conversations: updated, isLoading: false };
-          });
-          stop();
-        } else if (data.status === "failed") {
-          updateMessage(messageId, {
-            status: "failed",
-            content: `Анализът е неуспешен: ${data.error || "Неизвестна грешка"}`,
-            error: data.error,
-          });
-
-          set((s) => {
-            const updated = s.conversations.map((c) =>
-              c.id === convId ? { ...c, status: "failed" as const } : c,
-            );
-            saveConversations(updated);
-            return { conversations: updated, isLoading: false };
-          });
-          stop();
-        }
+        const terminal = await applyStatusData(
+          data,
+          { messageId, convId, fileAnalysisId, isFollowUp, followUpStartedAt },
+          get,
+          set,
+        );
+        if (terminal) stop();
       } catch (err) {
         console.error("Polling error:", err);
         if (!everSucceeded) {
@@ -606,10 +762,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   stopPolling: () => {
-    const { pollingInterval } = get();
+    const { pollingInterval, eventSource } = get();
     if (pollingInterval) {
       clearInterval(pollingInterval);
-      set({ pollingInterval: null });
+    }
+    if (eventSource) {
+      eventSource.close();
+    }
+    if (pollingInterval || eventSource) {
+      set({ pollingInterval: null, eventSource: null });
     }
   },
 

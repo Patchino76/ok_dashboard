@@ -16,6 +16,7 @@ can resume from any completed analysis.
 """
 
 import asyncio
+import json
 import os
 import shutil
 import unicodedata
@@ -26,14 +27,14 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, Depends, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from langchain_core.messages import HumanMessage, SystemMessage
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 from client import get_mcp_tools
-from graph_v3 import build_graph, build_followup_graph
+from graph import build_graph, build_followup_graph
 import db as analyses_db
 
 # Load .env from project root (two levels up: agentic → python → project root)
@@ -90,6 +91,22 @@ def _ensure_role_match(analysis_id: str, role: str) -> str:
 # ── In-flight analysis tracking ──────────────────────────────────────────────
 _analyses: dict[str, dict] = {}
 
+# SSE subscribers: analysis_id -> list of asyncio.Queue. Each connected
+# /stream client registers a queue; the progress callback "ticks" every queue
+# so streams wake up and flush new progress without polling. The tick carries
+# no payload — subscribers re-read _analyses[id]["progress"] by index, which
+# avoids duplicate-delivery races on connect.
+_event_queues: dict[str, list[asyncio.Queue]] = {}
+
+
+def _notify_subscribers(analysis_id: str) -> None:
+    """Wake all SSE subscribers for an analysis (non-blocking)."""
+    for q in _event_queues.get(analysis_id, []):
+        try:
+            q.put_nowait(None)
+        except asyncio.QueueFull:
+            pass  # subscriber is behind; it will catch up on its next read
+
 
 # ── Request / Response models ────────────────────────────────────────────────
 
@@ -102,6 +119,11 @@ class AnalysisSettings(BaseModel):
         False,
         description="Run all selected specialists concurrently after planning. "
                     "Trades per-stage manager review for wall-clock speed.",
+    )
+    reporterModel: Optional[str] = Field(
+        None,
+        description="Optional stronger Gemini model for the reporter stage only. "
+                    "Defaults to the base model (env GEMINI_REPORTER_MODEL) when unset.",
     )
 
 
@@ -220,28 +242,30 @@ async def start_analysis(request: AnalysisRequest, role: str = Depends(require_r
     )
 
 
-@router.get("/status/{analysis_id}", response_model=AnalysisResult)
-async def get_analysis_status(analysis_id: str, role: str = Depends(require_role)):
-    """Check the status of a running or completed analysis."""
-    _ensure_role_match(analysis_id, role)
+def _hydrate_entry(analysis_id: str) -> None:
+    """Ensure an in-memory entry exists for analysis_id, hydrating from the DB
+    if the process was restarted. Raises 404 if it doesn't exist anywhere."""
+    if analysis_id in _analyses:
+        return
+    row = analyses_db.get_analysis(analysis_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
+    _analyses[analysis_id] = {
+        "status": row["status"],
+        "question": row["question"],
+        "role": row["role"],
+        "started_at": row["started_at"],
+        "final_answer": row["final_answer"],
+        "error": row["error"],
+        "completed_at": row["completed_at"],
+        "progress": [],
+        "parent_analysis_id": row["parent_id"] or analysis_id,
+    }
 
-    # Hydrate from DB if process was restarted and in-memory entry is gone.
-    if analysis_id not in _analyses:
-        row = analyses_db.get_analysis(analysis_id)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"Analysis {analysis_id} not found")
-        _analyses[analysis_id] = {
-            "status": row["status"],
-            "question": row["question"],
-            "role": row["role"],
-            "started_at": row["started_at"],
-            "final_answer": row["final_answer"],
-            "error": row["error"],
-            "completed_at": row["completed_at"],
-            "progress": [],
-            "parent_analysis_id": row["parent_id"] or analysis_id,
-        }
 
+def _build_analysis_result(analysis_id: str) -> AnalysisResult:
+    """Build the AnalysisResult payload (status + produced files) for an
+    already-hydrated analysis. Shared by the status and stream endpoints."""
     entry = _analyses[analysis_id]
 
     # Resolve output folder — follow-ups use the parent analysis's folder
@@ -284,6 +308,76 @@ async def get_analysis_status(analysis_id: str, role: str = Depends(require_role
         started_at=entry["started_at"],
         completed_at=entry.get("completed_at"),
         error=entry.get("error"),
+    )
+
+
+@router.get("/status/{analysis_id}", response_model=AnalysisResult)
+async def get_analysis_status(analysis_id: str, role: str = Depends(require_role)):
+    """Check the status of a running or completed analysis (polling fallback)."""
+    _ensure_role_match(analysis_id, role)
+    _hydrate_entry(analysis_id)
+    return _build_analysis_result(analysis_id)
+
+
+@router.get("/stream/{analysis_id}")
+async def stream_analysis(analysis_id: str, request: Request, role: str = Depends(require_role)):
+    """Server-Sent Events stream of progress + a terminal result event.
+
+    Replaces 4s polling: the client opens one EventSource and receives
+    `progress` events as the agents emit them, then a single `done` event
+    carrying the full AnalysisResult when the run reaches a terminal state.
+    The polling endpoint above remains available as a fallback.
+    """
+    _ensure_role_match(analysis_id, role)
+    _hydrate_entry(analysis_id)
+
+    def _sse(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+    async def event_generator():
+        queue: asyncio.Queue = asyncio.Queue(maxsize=256)
+        _event_queues.setdefault(analysis_id, []).append(queue)
+        sent = 0
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                entry = _analyses.get(analysis_id, {})
+                progress = entry.get("progress", [])
+                # Flush any progress items not yet sent (dedup by index).
+                while sent < len(progress):
+                    yield _sse("progress", progress[sent])
+                    sent += 1
+
+                status = entry.get("status", "running")
+                if status != "running":
+                    result = _build_analysis_result(analysis_id)
+                    yield _sse("done", result.model_dump())
+                    break
+
+                # Wait for the next tick; heartbeat every 15s so the loop
+                # re-checks status even if no event arrives (and keeps proxies
+                # from closing an idle connection).
+                try:
+                    await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+        finally:
+            subs = _event_queues.get(analysis_id)
+            if subs and queue in subs:
+                subs.remove(queue)
+            if subs is not None and not subs:
+                _event_queues.pop(analysis_id, None)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disable proxy buffering (nginx)
+        },
     )
 
 
@@ -701,6 +795,8 @@ def _make_progress_callback(analysis_id: str) -> Callable[[str, str], None]:
                 "stage": stage,
                 "message": message,
             })
+        # Wake any connected SSE subscribers so they flush this update.
+        _notify_subscribers(analysis_id)
     return on_progress
 
 

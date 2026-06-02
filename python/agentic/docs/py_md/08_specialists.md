@@ -194,7 +194,7 @@ contamination=0.05)`
 
 ## Stage labels and descriptions
 
-`graph_v3._STAGE_LABELS` and `_STAGE_DESCRIPTIONS` provide Bulgarian friendly
+`graph._STAGE_LABELS` and `_STAGE_DESCRIPTIONS` provide Bulgarian friendly
 names used in progress messages:
 
 | Stage               | Label                 | Description shown to the user                         |

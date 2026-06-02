@@ -1,103 +1,84 @@
-# Agentic Skills Enhancement
+# Agentic Skills & Pipeline Reference
 
-## Overview
+This document describes the skills library and the multi-agent pipeline that powers the
+ore-dressing-plant analysis system. The LLM is **Google Gemini** (`GOOGLE_API_KEY`).
 
-This document tracks the skill upgrades applied to the multi-agent analysis system.
-The agents use LangGraph + MCP tools to perform data analysis on ore dressing plant data.
+## Pipeline (graph.py)
 
-## Changes Summary
+```
+data_loader → planner → [specialists*] → code_reviewer → critic → reporter
+```
 
-| ID | Feature | Files Created/Modified | Status |
-|----|---------|----------------------|--------|
-| 1D | Domain Knowledge Reference | `tools/domain_knowledge.py`, `tools/__init__.py`, `tools/python_executor.py` | ✅ |
-| 1A | Skill Library | `skills/__init__.py`, `skills/eda.py`, `skills/spc.py`, `skills/anomaly.py`, `skills/forecasting.py`, `skills/shift_kpi.py`, `skills/optimization.py`, `tools/python_executor.py` | ✅ |
-| 1C | Context Budget UI Settings | `src/app/ai-chat/stores/settings-store.ts`, `src/app/ai-chat/components/settings-panel.tsx`, `src/app/ai-chat/page.tsx`, `api_endpoint.py`, `graph_v3.py` | ✅ |
-| 2C | Structured Output Protocol | `graph_v3.py` | ✅ |
-| 2D | Analysis Templates | `analysis_templates.py`, `api_endpoint.py`, `graph_v3.py`, `src/app/ai-chat/page.tsx` | ✅ |
+- **data_loader** — loads SQL-filtered mill data into the per-analysis DataFrame store.
+- **planner** — selects the smallest useful set of specialists for the request.
+- **specialists** (dynamic pool, may run in parallel): `analyst`, `forecaster`,
+  `anomaly_detective`, `bayesian_analyst`, `optimizer`, `shift_reporter`.
+- **code_reviewer** — validates outputs (files exist, no errors, gaps filled).
+- **critic** — cross-specialist numerical consistency, plausibility vs process physics,
+  chart vision review (`review_chart`), confidence flags, optional `EXTEND_PIPELINE`.
+- **reporter** — writes one comprehensive Markdown report **in Bulgarian**.
 
----
+A `manager_review` node sits between stages: it auto-accepts on a heuristic
+(charts + `STRUCTURED_OUTPUT` + no errors) and only invokes an LLM review for
+ambiguous cases. The critic may extend the pipeline with up to 2 extra specialists.
 
-## 1D — Domain Knowledge Reference
+## Skills Library (skills/)
 
-**Purpose**: Give agents access to plant specifications (variable ranges, units, types, operational
-thresholds) so they use correct specs instead of guessing.
-
-**File**: `python/agentic/tools/domain_knowledge.py`
-
-- `PLANT_VARIABLES` dict: every process variable with min, max, unit, varType (MV/CV/DV/TARGET),
-  description in Bulgarian, spec limits, and operational notes.
-- `SHIFTS` dict: shift schedule (3 shifts × 8 hours).
-- `MILL_NAMES`: list of all 12 mills.
-- MCP tool `get_domain_knowledge`: agents can call it to retrieve the full reference.
-- Also injected directly into `execute_python` namespace as `PLANT_SPECS`.
-
-**Source**: Values extracted from `src/app/mills-ai/data/mills-parameters.ts`.
-
----
-
-## 1A — Skill Library
-
-**Purpose**: Pre-built, tested Python functions that agents call instead of generating code from
-scratch. Each function returns a standardized dict: `{"figures": [...], "stats": {...}, "summary": "..."}`.
-
-**Package**: `python/agentic/skills/`
+Pre-built, tested functions called inside `execute_python` so specialists don't
+re-write boilerplate. Each returns a standardized dict
+`{"figures": [...], "stats": {...}, "summary": "..."}` and auto-emits a
+`STRUCTURED_OUTPUT:{json}` line consumed by `graph._extract_structured_output`.
 
 | Module | Key Functions |
 |--------|--------------|
-| `eda.py` | `descriptive_stats()`, `distribution_plots()`, `correlation_heatmap()`, `time_series_overview()` |
-| `spc.py` | `xbar_chart()`, `process_capability()`, `control_limits_table()` |
-| `anomaly.py` | `isolation_forest_analysis()`, `anomaly_timeline()`, `regime_detection()` |
-| `forecasting.py` | `prophet_forecast()`, `seasonal_decomposition()` |
-| `shift_kpi.py` | `assign_shifts()`, `shift_kpis()`, `shift_comparison_chart()`, `downtime_analysis()` |
-| `optimization.py` | `pareto_frontier()`, `sensitivity_analysis()`, `optimal_windows()` |
+| `eda` | `descriptive_stats`, `distribution_plots`, `correlation_heatmap`, `time_series_overview` |
+| `spc` | `xbar_chart`, `process_capability`, `control_limits_table` |
+| `anomaly` | `isolation_forest_analysis`, `anomaly_timeline`, `regime_detection` |
+| `forecasting` | `prophet_forecast`, `seasonal_decomposition` |
+| `shift_kpi` | `assign_shifts`, `shift_kpis`, `shift_comparison_chart`, `downtime_analysis` |
+| `optimization` | `pareto_frontier`, `sensitivity_analysis`, `optimal_windows` |
+| `oee` | `shift_oee` and plant-configured Availability × Performance × Quality |
+| `causal` | causal / lead-lag relationship helpers |
+| `changepoint` | structural break / changepoint detection |
+| `energy` | specific energy (kWh/t) analysis (ratio-of-totals) |
+| `benchmark` | cross-mill ranking / benchmarking |
 
-**Injection**: Available in `execute_python` as `import skills` or via `skills.spc.xbar_chart(...)`.
+Discover available functions at runtime with `list_skills()` (or the `list_skills`
+MCP tool), which is auto-generated from the registry in `tools/skill_registry.py`.
 
----
+## Domain Knowledge (tools/domain_knowledge.py)
 
-## 1C — Context Budget UI Settings
+- `PLANT_VARIABLES` — every process variable with min/max/unit/varType/description.
+- `SHIFTS` — 3 × 8-hour shift schedule. `MILL_NAMES` — all 12 mills. `OEE_CONFIG`.
+- Injected into the `execute_python` namespace as `PLANT_SPECS`, `SHIFTS`,
+  `MILL_NAMES`, `OEE_CONFIG`, `get_spec_limits(var)`.
+- Also exposed as the `get_domain_knowledge` MCP tool.
 
-**Purpose**: Let users control how much context agents use (affects quality vs. speed).
+## Context Budget (UI settings)
 
-**Frontend**:
-- `src/app/ai-chat/stores/settings-store.ts` — Zustand store, persisted in localStorage.
-- `src/app/ai-chat/components/settings-panel.tsx` — Collapsible settings panel.
-- Settings: max_tool_output_chars, max_ai_message_chars, max_messages_window, max_specialist_iterations.
+- Frontend: `src/app/ai-chat/stores/settings-store.ts` + `components/settings-panel.tsx`.
+- Settings: `maxToolOutputChars`, `maxAiMessageChars`, `maxMessagesWindow`,
+  `maxSpecialistIterations`.
+- `POST /analyze` accepts an optional `settings` dict; `api_endpoint.py` forwards it to
+  `build_graph()`, which uses it instead of the module-level defaults in `graph.py`.
 
-**Backend**:
-- `POST /analyze` accepts optional `settings` dict.
-- `api_endpoint.py` passes settings to `build_graph()`.
-- `graph_v3.py` uses settings instead of hardcoded constants.
+## Structured Output Protocol
 
----
+Skill functions print `STRUCTURED_OUTPUT:{json}` after each call.
+`build_focused_context()` extracts these blocks and injects compact
+`[structured data]: {…}` summaries for downstream agents (critic, reporter) instead of
+raw stdout.
 
-## 2C — Structured Output Protocol
+## Analysis Templates (analysis_templates.py)
 
-**Purpose**: Pass structured data (not truncated free-form text) between specialists → reporter.
+Pre-defined specialist sequences that skip the planner. `POST /analyze` accepts an
+optional `template_id`; `GET /templates` lists them.
 
-**Convention**: Specialists append to stdout:
-```
-STRUCTURED_OUTPUT:{"psi80_mean": 72.3, "cpk": 1.12, "charts": ["file.png"]}
-```
-
-**In graph_v3.py**: `build_focused_context()` extracts these JSON blocks from prior messages and
-injects them as compact structured summaries for downstream agents.
-
----
-
-## 2D — Analysis Templates
-
-**Purpose**: Pre-defined analysis pipelines that skip the planner and use exact specialist sequences.
-
-**File**: `python/agentic/analysis_templates.py`
-
-| Template ID | Label | Specialists |
-|-------------|-------|------------|
-| `comprehensive` | Пълен анализ | analyst, anomaly_detective, shift_reporter |
-| `forecast` | Прогноза | analyst, forecaster |
-| `quality` | Качество на смилане | analyst, optimizer |
-| `shift_comparison` | Сравнение на смени | shift_reporter |
-| `anomaly_investigation` | Разследване на аномалии | anomaly_detective, bayesian_analyst |
-
-**Frontend**: Template selector shown on the chat empty state page.
-**API**: `POST /analyze` accepts optional `template_id`. If provided, planner is skipped.
+| Template ID | Specialists |
+|-------------|------------|
+| `comprehensive` | analyst, anomaly_detective, shift_reporter |
+| `forecast` | analyst, forecaster |
+| `quality` | analyst, optimizer |
+| `shift_comparison` | shift_reporter |
+| `anomaly_investigation` | anomaly_detective, bayesian_analyst |
+| `optimization` | analyst, optimizer |

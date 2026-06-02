@@ -15,8 +15,8 @@ Execution flow:
          └─ data_loader → query_combined_data via MCP tools
          └─ manager     → routes to analyst
          └─ analyst     → execute_python (EDA, SPC, charts) via MCP tools
-         └─ manager     → routes to code_reviewer
-         └─ code_reviewer → validates outputs, fixes issues
+         └─ manager     → routes to critic
+         └─ critic      → validates outputs + cross-checks numbers
          └─ manager     → routes to reporter
          └─ reporter    → write_markdown_report via MCP tools
          └─ manager     → FINISH → END
@@ -33,7 +33,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 from client import get_mcp_tools
-from graph_v3 import build_graph
+from graph import build_graph
 
 # Load .env from project root (two levels up: agentic → python → project root)
 _project_root = Path(__file__).resolve().parent.parent.parent

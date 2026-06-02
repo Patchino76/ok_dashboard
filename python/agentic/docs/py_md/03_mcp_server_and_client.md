@@ -152,7 +152,7 @@ the connection is closed when the analysis completes (success or failure).
 | What tools exist and how they behave       | `tools/*.py`         |
 | How to expose them over the network        | `server.py`          |
 | How to consume them from LangGraph         | `client.py`          |
-| Where in the pipeline each tool is allowed | `graph_v3.TOOL_SETS` |
+| Where in the pipeline each tool is allowed | `graph.TOOL_SETS` |
 
 Each layer has one responsibility and can be swapped independently — e.g.
 switching from streamable HTTP to stdio only touches `server.py` and the three

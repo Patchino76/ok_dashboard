@@ -13,7 +13,7 @@ sequenceDiagram
     participant UI as Next.js<br/>/ai-chat
     participant API as FastAPI<br/>api_endpoint.py
     participant BG as asyncio<br/>background task
-    participant LG as LangGraph<br/>graph_v3
+    participant LG as LangGraph<br/>graph
     participant MCP as MCP server<br/>tools/*
     participant DB as Postgres
     participant FS as output/{id}/

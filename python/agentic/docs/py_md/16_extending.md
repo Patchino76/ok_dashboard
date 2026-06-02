@@ -11,7 +11,7 @@ flowchart TD
     Q{What are you<br/>trying to add?}
     Q -->|new server-side capability<br/>e.g. fetch CSV, S3 upload| TOOL[1️⃣ Tool<br/>tools/*.py + register]
     Q -->|reusable analysis function<br/>e.g. new SPC rule| SKILL[2️⃣ Skill<br/>skills/*.py]
-    Q -->|new LLM persona<br/>e.g. maintenance_advisor| SPEC[3️⃣ Specialist<br/>graph_v3.py prompt + pool]
+    Q -->|new LLM persona<br/>e.g. maintenance_advisor| SPEC[3️⃣ Specialist<br/>graph.py prompt + pool]
     Q -->|new fixed pipeline<br/>e.g. quarterly review| TPL[4️⃣ Template<br/>analysis_templates.py]
 
     TOOL -.also update.-> TS[TOOL_SETS gating]
@@ -80,7 +80,7 @@ tools = {
 }
 ```
 
-3. **Gate** in `graph_v3.build_graph.TOOL_SETS` — decide which specialists
+3. **Gate** in `graph.build_graph.TOOL_SETS` — decide which specialists
    may call it. Omit it from `TOOL_SETS` entirely if it should only be
    called by the framework (like `set_output_directory`).
 
@@ -185,7 +185,7 @@ hint if you add a reference, or at worst appear in `list_skills()` output.
 Goal: introduce a new LLM persona (e.g. `maintenance_advisor`,
 `energy_auditor`).
 
-### Files to touch — all in `graph_v3.py`
+### Files to touch — all in `graph.py`
 
 1. **Write the system prompt** alongside existing ones:
 

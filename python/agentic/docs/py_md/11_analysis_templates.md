@@ -121,7 +121,7 @@ asyncio.create_task(_run_analysis_background(
 ))
 ```
 
-### Graph (`graph_v3.build_graph`)
+### Graph (`graph.build_graph`)
 
 ```python
 def build_graph(..., template_id=None, ...):
