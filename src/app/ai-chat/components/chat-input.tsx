@@ -59,6 +59,8 @@ export default function ChatInput() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
+  const [micError, setMicError] = useState<string | null>(null);
+
   const toggleRecording = useCallback(async () => {
     if (isRecording) {
       const recorder = mediaRecorderRef.current;
@@ -69,73 +71,155 @@ export default function ChatInput() {
       return;
     }
 
+    setMicError(null);
+
+    // Enumerate devices first so we have IDs for fallback
+    let audioInputs: MediaDeviceInfo[] = [];
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          channelCount: 1,
-        },
-      });
-
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm")
-          ? "audio/webm"
-          : "audio/ogg";
-
-      console.log("[Mic] Using MIME type:", mimeType);
-      const recorder = new MediaRecorder(stream, { mimeType });
-      audioChunksRef.current = [];
-
-      recorder.ondataavailable = (e) => {
-        console.log("[Mic] Chunk received, size:", e.data.size);
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
-        setIsRecording(false);
-
-        console.log(
-          "[Mic] Recording stopped, chunks:",
-          audioChunksRef.current.length,
-        );
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        console.log("[Mic] Blob size:", blob.size, "bytes");
-        if (blob.size === 0) {
-          console.warn("[Mic] Empty recording, skipping transcription");
-          return;
-        }
-
-        setIsTranscribing(true);
-        try {
-          const fd = new FormData();
-          fd.append("audio", blob, "recording.webm");
-          const res = await fetch("/api/transcribe", {
-            method: "POST",
-            body: fd,
-          });
-          const data = await res.json();
-          if (res.ok && data.text) {
-            setInput((prev) => (prev ? prev + " " + data.text : data.text));
-          } else {
-            console.error("[Transcribe]", data.error || "Unknown error");
-          }
-        } catch (err) {
-          console.error("[Transcribe] Failed:", err);
-        } finally {
-          setIsTranscribing(false);
-        }
-      };
-
-      recorder.start(250);
-      mediaRecorderRef.current = recorder;
-      setIsRecording(true);
-      console.log("[Mic] Recording started");
-    } catch (err) {
-      console.error("[Mic] Access denied:", err);
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      audioInputs = devices.filter((d) => d.kind === "audioinput");
+      console.log(
+        `[Mic] Found ${audioInputs.length} audio input device(s):`,
+        audioInputs.map((d) => ({
+          label: d.label || "(no label)",
+          id: d.deviceId.slice(0, 8) + "...",
+          groupId: d.groupId?.slice(0, 4) || "",
+        })),
+      );
+    } catch (enumErr) {
+      console.warn("[Mic] enumerateDevices failed:", enumErr);
     }
+
+    const requestMic = async (
+      constraints: MediaStreamConstraints,
+      attemptLabel: string,
+    ): Promise<MediaStream> => {
+      console.log("[Mic] Trying:", attemptLabel, constraints);
+      return navigator.mediaDevices.getUserMedia(constraints);
+    };
+
+    let stream: MediaStream | null = null;
+
+    // Tier 1: advanced constraints
+    try {
+      stream = await requestMic(
+        {
+          audio: {
+            echoCancellation: { ideal: true },
+            noiseSuppression: { ideal: true },
+            channelCount: { ideal: 1 },
+          },
+        },
+        "advanced constraints",
+      );
+    } catch (err1) {
+      console.warn("[Mic] Tier 1 failed:", err1);
+    }
+
+    // Tier 2: bare-minimum audio
+    if (!stream) {
+      try {
+        stream = await requestMic({ audio: true }, "basic constraints");
+      } catch (err2) {
+        console.warn("[Mic] Tier 2 failed:", err2);
+      }
+    }
+
+    // Tier 3: explicit deviceId from enumerateDevices
+    // Some drivers reject {audio:true} but accept a specific deviceId
+    if (!stream && audioInputs.length > 0) {
+      const defaultDevice =
+        audioInputs.find((d) => d.deviceId === "default") ||
+        audioInputs.find((d) => d.deviceId === "communications") ||
+        audioInputs[0];
+      try {
+        stream = await requestMic(
+          {
+            audio: {
+              deviceId: { ideal: defaultDevice.deviceId },
+              channelCount: { ideal: 1 },
+            },
+          },
+          `explicit deviceId (${defaultDevice.label || defaultDevice.deviceId.slice(0, 8)})`,
+        );
+      } catch (err3) {
+        console.warn("[Mic] Tier 3 failed:", err3);
+      }
+    }
+
+    // Tier 4: retry basic after a short delay (device may be briefly in use)
+    if (!stream) {
+      await new Promise((r) => setTimeout(r, 300));
+      try {
+        stream = await requestMic({ audio: true }, "retry basic after delay");
+      } catch (err4) {
+        console.warn("[Mic] Tier 4 failed:", err4);
+      }
+    }
+
+    if (!stream) {
+      console.error("[Mic] All tiers failed.");
+      setMicError(
+        "Микрофонът не е намерен от браузъра. Проверете: (1) Windows Settings → Privacy → Microphone, (2) Sound Settings → изберете Default микрофон, (3) ако използвате Remote Desktop/VM — включете Audio Input Redirection. Понякога помага рестарт на браузъра.",
+      );
+      return;
+    }
+
+    const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+      ? "audio/webm;codecs=opus"
+      : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/ogg";
+
+    console.log("[Mic] Using MIME type:", mimeType);
+    const recorder = new MediaRecorder(stream, { mimeType });
+    audioChunksRef.current = [];
+
+    recorder.ondataavailable = (e) => {
+      console.log("[Mic] Chunk received, size:", e.data.size);
+      if (e.data.size > 0) audioChunksRef.current.push(e.data);
+    };
+
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+      setIsRecording(false);
+
+      console.log(
+        "[Mic] Recording stopped, chunks:",
+        audioChunksRef.current.length,
+      );
+      const blob = new Blob(audioChunksRef.current, { type: mimeType });
+      console.log("[Mic] Blob size:", blob.size, "bytes");
+      if (blob.size === 0) {
+        console.warn("[Mic] Empty recording, skipping transcription");
+        return;
+      }
+
+      setIsTranscribing(true);
+      try {
+        const fd = new FormData();
+        fd.append("audio", blob, "recording.webm");
+        const res = await fetch("/api/transcribe", {
+          method: "POST",
+          body: fd,
+        });
+        const data = await res.json();
+        if (res.ok && data.text) {
+          setInput((prev) => (prev ? prev + " " + data.text : data.text));
+        } else {
+          console.error("[Transcribe]", data.error || "Unknown error");
+        }
+      } catch (err) {
+        console.error("[Transcribe] Failed:", err);
+      } finally {
+        setIsTranscribing(false);
+      }
+    };
+
+    recorder.start(250);
+    mediaRecorderRef.current = recorder;
+    setIsRecording(true);
+    console.log("[Mic] Recording started");
   }, [isRecording]);
 
   const handleCancel = async () => {
@@ -207,6 +291,11 @@ export default function ChatInput() {
           </button>
         )}
       </div>
+      {micError && (
+        <p className="text-center text-[11px] text-red-500 mt-1.5 font-medium">
+          {micError}
+        </p>
+      )}
       <p className="text-center text-[10px] text-gray-400 mt-2">
         {conv && conv.analysisId
           ? 'Този разговор е заключен към избрания анализ — въпросите се изпращат като допълнителни. За нов анализ натиснете „Нов анализ".'
