@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Query, APIRouter, BackgroundTasks
+from fastapi import FastAPI, Depends, HTTPException, Query, APIRouter, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, RootModel, Field
@@ -1134,6 +1134,86 @@ def get_all_mills_by_param(
         logger.error(f"Error in get_all_mills_by_param: {str(e)}")
         raise HTTPException(status_code=500, 
                            detail=f"Error retrieving mill data: {str(e)}")
+
+@app.post("/api/transcribe")
+def transcribe_audio(
+    audio: UploadFile = File(...),
+    language: str = Form(default="bg")
+):
+    """
+    Transcribe audio using Groq Whisper API.
+    Mirrors the Next.js /api/transcribe route for production use.
+    """
+    import os
+
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        logger.error("[Transcribe] GROQ_API_KEY not found in environment")
+        raise HTTPException(status_code=500, detail="API key not configured")
+
+    # Read uploaded file into memory
+    content = audio.file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Audio file too large (max 25MB)")
+
+    base_mime = (audio.content_type or "").split(";")[0].strip()
+    valid_types = [
+        "audio/webm", "audio/ogg", "audio/wav", "audio/mp3",
+        "audio/m4a", "audio/x-m4a", "audio/mp4", "audio/x-wav"
+    ]
+    if base_mime not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid audio type: {base_mime}"
+        )
+
+    try:
+        import requests
+    except ImportError:
+        raise HTTPException(status_code=500, detail="requests library not installed")
+
+    files_payload = {"file": ("recording.webm", content, base_mime or "audio/webm")}
+    data_payload = {
+        "model": "whisper-large-v3",
+        "language": language,
+        "response_format": "json"
+    }
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    logger.info(f"[Transcribe] Forwarding {len(content)} bytes to Groq API")
+
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            files=files_payload,
+            data=data_payload,
+            headers=headers,
+            timeout=60
+        )
+    except Exception as e:
+        logger.error(f"[Transcribe] Groq API request failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Groq API request failed: {str(e)}")
+
+    if not response.ok:
+        logger.error(f"[Transcribe] Groq API error: {response.status_code} - {response.text}")
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text or "Transcription failed"
+        )
+
+    try:
+        result = response.json()
+    except Exception as e:
+        logger.error(f"[Transcribe] Invalid JSON from Groq: {response.text}")
+        raise HTTPException(status_code=502, detail="Invalid response from transcription service")
+
+    if not result.get("text"):
+        logger.error(f"[Transcribe] No text in response: {result}")
+        raise HTTPException(status_code=500, detail="No transcription returned")
+
+    logger.info(f"[Transcribe] Successful, length: {len(result['text'])}")
+    return {"text": result["text"]}
+
 
 if __name__ == "__main__":
     import uvicorn
