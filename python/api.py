@@ -478,6 +478,36 @@ try:
     app.include_router(agentic_router, tags=["Agentic Analysis"])
     AGENTIC_SYSTEM_AVAILABLE = True
     logger.info(f"Successfully loaded Agentic Analysis router with {len(agentic_router.routes)} routes")
+
+    # The agentic pipeline depends on a separate MCP tool server (server.py,
+    # default port 8003). It is NOT auto-started in production, which makes
+    # every analysis silently fail. Ensure it is running on app startup and
+    # shut it down with the API (only if we were the ones who started it).
+    try:
+        from mcp_launcher import ensure_mcp_server_running, stop_mcp_server
+
+        @app.on_event("startup")
+        def _start_agentic_mcp_server():
+            try:
+                ok = ensure_mcp_server_running()
+                if ok:
+                    logger.info("Agentic MCP server is reachable.")
+                else:
+                    logger.warning(
+                        "Agentic MCP server could not be started/reached; "
+                        "agentic analyses will fail until it is available."
+                    )
+            except Exception as exc:
+                logger.warning(f"Error ensuring MCP server is running: {exc}")
+
+        @app.on_event("shutdown")
+        def _stop_agentic_mcp_server():
+            try:
+                stop_mcp_server()
+            except Exception as exc:
+                logger.warning(f"Error stopping MCP server: {exc}")
+    except Exception as e:
+        logger.warning(f"MCP server auto-launcher unavailable: {e}")
 except Exception as e:
     logger.warning(f"Agentic Analysis system not available: {e}")
     AGENTIC_SYSTEM_AVAILABLE = False

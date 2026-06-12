@@ -554,7 +554,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  // ── Tracking (SSE preferred, polling fallback) ───────────────────────────
+  // ── Tracking (polling — exact parity with the working Linux version) ─────
 
   trackAnalysis: (
     analysisId: string,
@@ -566,110 +566,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { stopPolling, pollStatus } = get();
     stopPolling();
 
-    // Fall back to polling when SSE is unavailable (SSR / old browsers).
-    if (typeof window === "undefined" || typeof EventSource === "undefined") {
-      pollStatus(
-        analysisId,
-        messageId,
-        convId,
-        reportAnalysisId,
-        followUpStartedAt,
-      );
-      return;
-    }
-
-    const fileAnalysisId = reportAnalysisId || analysisId;
-    const isFollowUp = typeof followUpStartedAt === "number";
-    const ctx: TrackContext = {
+    // Drive updates via /status polling rather than SSE. The /stream (SSE)
+    // endpoint still exists server-side, but EventSource streams get swallowed
+    // by buffering proxies (nginx/Express) in production, leaving the UI stuck
+    // on "Агентите работят...". Polling is proxy-agnostic and matches the
+    // known-working deployment.
+    pollStatus(
+      analysisId,
       messageId,
       convId,
-      fileAnalysisId,
-      isFollowUp,
+      reportAnalysisId,
       followUpStartedAt,
-    };
-
-    const role = getCurrentRole();
-    const url = `/api/v1/agentic/stream/${encodeURIComponent(analysisId)}?role=${encodeURIComponent(role)}`;
-
-    let es: EventSource;
-    try {
-      es = new EventSource(url);
-    } catch {
-      pollStatus(
-        analysisId,
-        messageId,
-        convId,
-        reportAnalysisId,
-        followUpStartedAt,
-      );
-      return;
-    }
-
-    // Accumulate progress items, deduped across any auto-reconnects.
-    const seen = new Set<string>();
-    const items: ProgressMessage[] = [];
-    let gotEvent = false;
-
-    const fallbackToPolling = () => {
-      try {
-        es.close();
-      } catch {
-        /* noop */
-      }
-      set({ eventSource: null });
-      get().pollStatus(
-        analysisId,
-        messageId,
-        convId,
-        reportAnalysisId,
-        followUpStartedAt,
-      );
-    };
-
-    es.addEventListener("progress", (e) => {
-      gotEvent = true;
-      try {
-        const item = JSON.parse((e as MessageEvent).data) as ProgressMessage;
-        const key = `${item.timestamp}|${item.stage}|${item.message}`;
-        if (!seen.has(key)) {
-          seen.add(key);
-          items.push(item);
-          get().updateMessage(messageId, { progressMessages: [...items] });
-        }
-      } catch {
-        /* ignore malformed progress frame */
-      }
-    });
-
-    es.addEventListener("done", async (e) => {
-      gotEvent = true;
-      try {
-        const data = JSON.parse((e as MessageEvent).data) as Record<
-          string,
-          unknown
-        >;
-        await applyStatusData(data, ctx, get, set);
-      } catch (err) {
-        console.warn("SSE done parse failed:", err);
-      }
-      try {
-        es.close();
-      } catch {
-        /* noop */
-      }
-      set({ eventSource: null });
-    });
-
-    es.onerror = () => {
-      // EventSource auto-reconnects on transient errors. If we never received
-      // a single event, the stream endpoint is likely unreachable — fall back
-      // to the polling path so the user still gets results.
-      if (!gotEvent) {
-        fallbackToPolling();
-      }
-    };
-
-    set({ eventSource: es });
+    );
   },
 
   // ── Polling (fallback) ───────────────────────────────────────────────────

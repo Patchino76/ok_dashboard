@@ -1,0 +1,22 @@
+Everything is built and verified. Here's what needs to happen to test:
+
+You need to restart api.py and server.py since both are running with the old code in memory. The key changes:
+
+api_endpoint.py now imports graph_v3 instead of graph_v2
+server.py will load the enhanced python_executor.py with 10 new libraries in the namespace
+Recursion limit bumped from 50 → 150
+Once restarted, you can test through the AI Chat UI with requests like:
+
+"Analyze Mill 8 for the last 7 days" → planner picks analyst + shift_reporter
+"Predict PSI80 trends for Mill 8" → planner picks analyst + forecaster
+"Find anomalies in Mill 8 last 30 days and explain root causes" → planner picks anomaly_detective
+"Optimize Mill 8 setpoints for minimum PSI80" → planner picks analyst + optimizer
+"Full comprehensive report for Mill 8" → planner picks analyst + anomaly_detective + shift_reporter
+Summary of All Changes
+File	Change
+graph_v3.py	New — Planner-driven architecture with 6 specialist agents (analyst, forecaster, anomaly_detective, bayesian_analyst, optimizer, shift_reporter) and dynamic routing
+python_executor.py	Enhanced namespace with Prophet, statsmodels, pmdarima, sklearn (IsolationForest, DBSCAN, StandardScaler, LinearRegression), shap, hmmlearn
+requirements.txt	Added prophet, statsmodels, pmdarima, shap, hmmlearn, optuna, scikit-optimize, langchain-google-genai
+api_endpoint.py	Switched graph_v2 → graph_v3, recursion limit 50 → 150
+main.py	Switched graph_v2 → graph_v3, recursion limit 100 → 150
+The old graph_v2.py is untouched — you can revert by changing the imports back if needed.

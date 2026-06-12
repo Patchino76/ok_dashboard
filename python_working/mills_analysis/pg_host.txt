@@ -1,0 +1,5 @@
+pg_host = 'em-m-db4.ellatzite-med.com'  # PostgreSQL server host
+pg_port = 5432                          # PostgreSQL server port
+pg_dbname = 'em_pulse_data'             # PostgreSQL database name
+pg_user = 's.lyubenov'                 # PostgreSQL username
+pg_password = 'tP9uB7sH7mK6zA7t'       # PostgreSQL password
