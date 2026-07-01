@@ -6,11 +6,11 @@
 
 ## Three places settings live
 
-| Place | Who edits it | Examples | Lifetime |
-|-------|--------------|----------|----------|
-| **`.env` file** | DevOps / operator | `GOOGLE_API_KEY`, `DB_HOST`, `DB_PASSWORD` | Persistent (file on disk) |
-| **Python constants** | Developer | `MAX_MESSAGES_WINDOW`, `MAX_SPECIALIST_ITERS` | Code-level (change → restart server) |
-| **`AnalysisSettings`** | End user (UI panel) | Context budget, timeout, role | Per-request (attached to each POST /analyze) |
+| Place                  | Who edits it        | Examples                                      | Lifetime                                     |
+| ---------------------- | ------------------- | --------------------------------------------- | -------------------------------------------- |
+| **`.env` file**        | DevOps / operator   | `GOOGLE_API_KEY`, `DB_HOST`, `DB_PASSWORD`    | Persistent (file on disk)                    |
+| **Python constants**   | Developer           | `MAX_MESSAGES_WINDOW`, `MAX_SPECIALIST_ITERS` | Code-level (change → restart server)         |
+| **`AnalysisSettings`** | End user (UI panel) | Context budget, timeout, role                 | Per-request (attached to each POST /analyze) |
 
 ---
 
@@ -18,23 +18,24 @@
 
 ```mermaid
 flowchart LR
-    ENV[".env file<br/>at repo root"]
-    OS[os.environ]
-    DEF[Module constants<br/>graph.py defaults]
+    ENV["env file at repo root"]
+    OS["os.environ"]
+    DEF["Module constants<br/>graph.py defaults"]
     UI["UI settings panel<br/>localStorage"]
-    REQ[POST /analyze body]
-    BG[_run_analysis_background]
-    BUILD[build_graph]
-    LLM[LLM call with bounded context]
+    REQ["POST analyze body"]
+    BG["run_analysis_background"]
+    BUILD["build_graph"]
+    LLM["LLM call with bounded context"]
 
     ENV -->|python-dotenv| OS
     OS -->|GOOGLE_API_KEY| BG
-    OS -->|DB_HOST, DB_NAME| DB[(PostgreSQL)]
+    OS -->|DB_HOST DB_NAME| DB["PostgreSQL"]
     DEF --> BUILD
     UI --> REQ --> BG --> BUILD --> LLM
 ```
 
 **How to read it:**
+
 1. The server reads `.env` once at startup.
 2. `api_endpoint.py` uses `GOOGLE_API_KEY` to authenticate with Gemini.
 3. `graph.py` uses module constants as fallback limits.
@@ -99,12 +100,12 @@ MAX_SPECIALIST_ITERS = 6           # Specialist can loop tool calls max 6 times
 
 When the user opens the settings panel in `/ai-chat`, they can tweak:
 
-| Setting | Default | What it controls |
-|---------|---------|------------------|
-| Context budget | 80,000 tokens | How much text the LLM sees per call |
-| Max specialists | 4 | How many pipeline stages run |
-| Timeout | 300 seconds | How long before the background task is killed |
-| Role | "operator" | Which conversation history and templates are visible |
+| Setting         | Default       | What it controls                                     |
+| --------------- | ------------- | ---------------------------------------------------- |
+| Context budget  | 80,000 tokens | How much text the LLM sees per call                  |
+| Max specialists | 4             | How many pipeline stages run                         |
+| Timeout         | 300 seconds   | How long before the background task is killed        |
+| Role            | "operator"    | Which conversation history and templates are visible |
 
 **In the UI:**
 
@@ -138,13 +139,13 @@ graph = build_graph(
 
 ## Summary: which file to edit for what
 
-| You want to... | Edit this | Restart server? |
-|----------------|-----------|-----------------|
-| Change the Gemini API key | `.env` → `GOOGLE_API_KEY` | Yes |
-| Change database host | `.env` → `DB_HOST` | Yes |
-| Allow longer tool outputs | `graph.py` → `MAX_TOOL_OUTPUT_CHARS` | Yes |
-| Let users pick more specialists | `graph.py` → `MAX_SPECIALIST_ITERS` | Yes |
-| Change default UI settings | `src/app/ai-chat/stores/chat-store.ts` | No (browser refresh) |
+| You want to...                  | Edit this                              | Restart server?      |
+| ------------------------------- | -------------------------------------- | -------------------- |
+| Change the Gemini API key       | `.env` → `GOOGLE_API_KEY`              | Yes                  |
+| Change database host            | `.env` → `DB_HOST`                     | Yes                  |
+| Allow longer tool outputs       | `graph.py` → `MAX_TOOL_OUTPUT_CHARS`   | Yes                  |
+| Let users pick more specialists | `graph.py` → `MAX_SPECIALIST_ITERS`    | Yes                  |
+| Change default UI settings      | `src/app/ai-chat/stores/chat-store.ts` | No (browser refresh) |
 
 ---
 

@@ -12,22 +12,22 @@ connection carrying JSON-RPC frames in both directions.
 
 ```mermaid
 flowchart LR
-    subgraph SERVER["🖥️ MCP server (server.py, port 8003)"]
-        S1[Starlette app<br/>Mount /mcp]
-        S2[StreamableHTTPSessionManager]
-        S3[Server agentic-data-analysis-server]
-        S4[@list_tools → tools dict]
-        S5[@call_tool → handler]
+    subgraph SERVER["MCP server - server.py port 8003"]
+        S1["Starlette app<br/>Mount mcp"]
+        S2["StreamableHTTPSessionManager"]
+        S3["Server agentic-data-analysis-server"]
+        S4["list_tools to tools dict"]
+        S5["call_tool to handler"]
         S1 --> S2 --> S3
         S3 --> S4
         S3 --> S5
     end
 
-    subgraph CLIENT["🤖 Client side (client.py inside FastAPI)"]
-        C1[streamable_http_client]
-        C2[ClientSession]
-        C3[get_mcp_tools session]
-        C4[StructuredTool list<br/>for LangGraph]
+    subgraph CLIENT["Client side - client.py inside FastAPI"]
+        C1["streamable_http_client"]
+        C2["ClientSession"]
+        C3["get_mcp_tools session"]
+        C4["StructuredTool list<br/>for LangGraph"]
         C1 --> C2 --> C3 --> C4
     end
 
@@ -147,11 +147,11 @@ the connection is closed when the analysis completes (success or failure).
 
 ## Why this split?
 
-| Concern                                    | Handled in           |
-| ------------------------------------------ | -------------------- |
-| What tools exist and how they behave       | `tools/*.py`         |
-| How to expose them over the network        | `server.py`          |
-| How to consume them from LangGraph         | `client.py`          |
+| Concern                                    | Handled in        |
+| ------------------------------------------ | ----------------- |
+| What tools exist and how they behave       | `tools/*.py`      |
+| How to expose them over the network        | `server.py`       |
+| How to consume them from LangGraph         | `client.py`       |
 | Where in the pipeline each tool is allowed | `graph.TOOL_SETS` |
 
 Each layer has one responsibility and can be swapped independently — e.g.

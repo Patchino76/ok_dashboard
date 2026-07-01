@@ -49,15 +49,15 @@ From this moment on, every chart and report saved by the AI lands inside `output
 ```mermaid
 stateDiagram-v2
     [*] --> Default : MCP server boots
-    Default : output_dir = agentic/output/
+    Default : output_dir = agentic output
 
-    Default --> Scoped : POST /analyze
-    Scoped : output_dir = agentic/output/{id}/
+    Default --> Scoped : POST analyze
+    Scoped : output_dir = agentic output (id)
 
-    Scoped --> Scoped : AI saves .png + .md
-    Scoped --> Scoped : Follow-up re-uses same folder
+    Scoped --> Scoped : AI saves png and md
+    Scoped --> Scoped : Follow-up reuses same folder
 
-    Scoped --> Deleted : DELETE /analysis/{id}
+    Scoped --> Deleted : DELETE analysis (id)
     Deleted --> [*]
 ```
 
@@ -73,10 +73,7 @@ The frontend does not know file paths. It only knows the `analysis_id`. When pol
 {
   "status": "completed",
   "report_files": ["mill_8_analysis.md"],
-  "chart_files": [
-    "distribution_plots.png",
-    "correlation_heatmap.png"
-  ]
+  "chart_files": ["distribution_plots.png", "correlation_heatmap.png"]
 }
 ```
 
@@ -111,11 +108,11 @@ This removes the folder and all charts/reports inside it. The analysis entry is 
 
 ## What survives a server restart?
 
-| Survives restart | Does NOT survive restart |
-|------------------|--------------------------|
-| `.png` and `.md` files on disk | `_analyses` dict in memory |
-| SQLite conversation history | MCP `_current_output_dir` variable |
-| localStorage in the browser | MCP `_dataframes` dict |
+| Survives restart               | Does NOT survive restart           |
+| ------------------------------ | ---------------------------------- |
+| `.png` and `.md` files on disk | `_analyses` dict in memory         |
+| SQLite conversation history    | MCP `_current_output_dir` variable |
+| localStorage in the browser    | MCP `_dataframes` dict             |
 
 ---
 

@@ -14,6 +14,7 @@ Step 2: If value > 100, print "ALERT"
 ```
 
 An **agent** flips this around. You give it a **goal** ("Analyze Mill 8 for anomalies") and the agent decides the steps itself. It can:
+
 - Ask questions
 - Run database queries
 - Write Python scripts
@@ -32,6 +33,7 @@ Your computer has USB ports. You can plug in a mouse, a keyboard, or a hard driv
 **MCP is a USB port for AI tools.**
 
 In our project:
+
 - The **mouse/keyboard** = tools like `query_mill_data`, `execute_python`, `write_markdown_report`
 - The **computer** = the AI agent (LangGraph)
 - The **USB port** = MCP
@@ -54,6 +56,7 @@ Why not one program? Because the tool server is **stateful** (it keeps DataFrame
 ### The factory assembly line
 
 Imagine a car factory:
+
 - **Frame station** welds the chassis
 - **Paint station** paints the body
 - **Engine station** installs the motor
@@ -62,6 +65,7 @@ Imagine a car factory:
 A **conveyor belt** moves the half-built car between stations.
 
 LangGraph works exactly like this:
+
 - **Station** = a node (e.g., `data_loader`, `analyst`, `reporter`)
 - **Conveyor belt** = the `state` object that carries messages and data between nodes
 - **Factory controller** = the edges and routing logic that decide which station comes next
@@ -89,16 +93,16 @@ Every time a node finishes, it appends new messages to `state["messages"]`. The 
 
 Instead of one AI doing everything, we have a **team of specialists**:
 
-| Specialist | Job description |
-|------------|-----------------|
-| **data_loader** | "Go to the database, fetch the raw numbers, and tell me what you see." |
-| **planner** | "Based on the user's question, which specialists should we call?" |
-| **analyst** | "Calculate statistics, draw distribution plots, build SPC charts." |
-| **forecaster** | "Predict the next 8 hours using Prophet." |
-| **anomaly_detective** | "Find weird spikes and explain why they happened." |
-| **shift_reporter** | "Compare KPIs across shifts and write a handover summary." |
-| **critic** | "Look at all charts and verify the numbers are correct." |
-| **reporter** | "Write the final Markdown report in Bulgarian." |
+| Specialist            | Job description                                                        |
+| --------------------- | ---------------------------------------------------------------------- |
+| **data_loader**       | "Go to the database, fetch the raw numbers, and tell me what you see." |
+| **planner**           | "Based on the user's question, which specialists should we call?"      |
+| **analyst**           | "Calculate statistics, draw distribution plots, build SPC charts."     |
+| **forecaster**        | "Predict the next 8 hours using Prophet."                              |
+| **anomaly_detective** | "Find weird spikes and explain why they happened."                     |
+| **shift_reporter**    | "Compare KPIs across shifts and write a handover summary."             |
+| **critic**            | "Look at all charts and verify the numbers are correct."               |
+| **reporter**          | "Write the final Markdown report in Bulgarian."                        |
 
 A **manager** reviews each specialist's work. If the manager says "REWORK", the specialist tries again (once). If the manager says "ACCEPT", the conveyor belt moves to the next station.
 
@@ -109,11 +113,13 @@ A **manager** reviews each specialist's work. If the manager says "REWORK", the 
 A **tool** is just a Python function that the AI is allowed to call.
 
 Example: `execute_python`
+
 - **Input:** a string of Python code
 - **What it does:** runs the code in a safe namespace with pandas, numpy, matplotlib, etc.
 - **Output:** stdout + any saved chart files
 
 The AI does not "know" how to run Python. It only knows:
+
 1. There is a tool called `execute_python`
 2. It needs one argument: `code`
 3. The result will be text
@@ -152,17 +158,17 @@ User sees: a chat bubble with a full report and a gallery of charts.
 
 ## 6. Key vocabulary cheat sheet
 
-| Term | Meaning |
-|------|---------|
-| **Agent** | An AI that decides its own steps to reach a goal. |
-| **Tool** | A function the AI can call (e.g., run Python, query DB). |
-| **Node** | One step in the LangGraph pipeline (e.g., `analyst`). |
-| **Edge** | The arrow between nodes; decides where to go next. |
-| **State** | The shared dictionary that carries data between nodes. |
-| **Router** | A function that looks at the state and picks the next node. |
-| **Message** | A single entry in the conversation (Human, AI, Tool, System). |
-| **Prompt** | The hidden instructions given to the AI at each node. |
-| **Context window** | How much text the AI can read at once (~20 messages for us). |
+| Term                  | Meaning                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| **Agent**             | An AI that decides its own steps to reach a goal.                 |
+| **Tool**              | A function the AI can call (e.g., run Python, query DB).          |
+| **Node**              | One step in the LangGraph pipeline (e.g., `analyst`).             |
+| **Edge**              | The arrow between nodes; decides where to go next.                |
+| **State**             | The shared dictionary that carries data between nodes.            |
+| **Router**            | A function that looks at the state and picks the next node.       |
+| **Message**           | A single entry in the conversation (Human, AI, Tool, System).     |
+| **Prompt**            | The hidden instructions given to the AI at each node.             |
+| **Context window**    | How much text the AI can read at once (~20 messages for us).      |
 | **Progress callback** | A function that tells the UI what the agents are doing right now. |
 
 ---

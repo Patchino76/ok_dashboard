@@ -8,34 +8,34 @@
 
 ```mermaid
 flowchart TB
-    subgraph Browser["🌐 Browser (React / Next.js)"]
-        PAGE["ai-chat/page.tsx<br/>Zustand stores<br/>polls every 4s"]
+    subgraph Browser["Browser - React and Next.js"]
+        PAGE["ai-chat page.tsx<br/>Zustand stores<br/>polls every 4s"]
     end
 
-    subgraph FastAPI_Process["🐍 Python FastAPI Process (port 8000)"]
+    subgraph FastAPI_Process["Python FastAPI Process - port 8000"]
         API["api_endpoint.py<br/>REST router + _analyses dict"]
-        BG["asyncio background task<br/>_run_analysis_background()"]
+        BG["asyncio background task<br/>_run_analysis_background"]
         LG["graph.py<br/>LangGraph pipeline"]
-        CB["client.py<br/>MCP → LangChain bridge"]
+        CB["client.py<br/>MCP to LangChain bridge"]
     end
 
-    subgraph MCP_Process["🐍 Python MCP Process (port 8003)"]
+    subgraph MCP_Process["Python MCP Process - port 8003"]
         SRV["server.py<br/>Starlette HTTP"]
-        REG["tools/__init__.py<br/>tool registry"]
-        DBT["tools/db_tools.py<br/>PostgreSQL queries"]
-        PYE["tools/python_executor.py<br/>exec() Python code"]
-        RPT["tools/report_tools.py<br/>write .md / list files"]
+        REG["tools init.py<br/>tool registry"]
+        DBT["tools db_tools.py<br/>PostgreSQL queries"]
+        PYE["tools python_executor.py<br/>exec Python code"]
+        RPT["tools report_tools.py<br/>write md and list files"]
         DFS["_dataframes dict<br/>in-memory pandas"]
-        OUT[/output/{id}/<br/>charts + reports/]
+        OUT["output (id)<br/>charts + reports"]
     end
 
-    subgraph Data["🗄️ External Data"]
-        DB[(PostgreSQL<br/>mill data)]
+    subgraph Data["External Data"]
+        DB["PostgreSQL<br/>mill data"]
     end
 
-    PAGE -->|HTTP POST /analyze| API
-    PAGE -->|GET /status every 4s| API
-    PAGE -->|GET /reports/{id}/{file}| API
+    PAGE -->|HTTP POST analyze| API
+    PAGE -->|GET status every 4s| API
+    PAGE -->|GET reports by id and file| API
     API -->|spawns| BG
     BG -->|build_graph| LG
     LG -->|tool_calls| CB
@@ -91,29 +91,29 @@ The front kitchen does not know how to cook. It just passes notes to the back ki
 
 ```mermaid
 flowchart TD
-    Q[User clicks Send<br/>"Analyze Mill 8"]
-    FE[Next.js sends<br/>POST /api/v1/agentic/analyze]
-    REG[FastAPI registers<br/>analysis_id = ab12cd34]
-    BG[asyncio.create_task<br/>_run_analysis_background]
-    RET[FastAPI returns<br/>{analysis_id, status:running}]
-    POLL[UI starts polling<br/>GET /status/ab12cd34]
+    Q["User clicks Send<br/>Analyze Mill 8"]
+    FE["Next.js sends<br/>POST /api/v1/agentic/analyze"]
+    REG["FastAPI registers<br/>analysis_id = ab12cd34"]
+    BG["asyncio.create_task<br/>_run_analysis_background"]
+    RET["FastAPI returns<br/>analysis_id, status:running"]
+    POLL["UI starts polling<br/>GET /status/ab12cd34"]
 
-    MCP_INIT[MCP session init<br/>set_output_directory]
-    GET_TOOLS[get_mcp_tools<br/>~9 LangChain tools]
-    BUILD[build_graph<br/>pipeline blueprint]
-    RUN[graph.ainvoke<br/>conveyor belt starts]
+    MCP_INIT["MCP session init<br/>set_output_directory"]
+    GET_TOOLS["get_mcp_tools<br/>9 LangChain tools"]
+    BUILD["build_graph<br/>pipeline blueprint"]
+    RUN["graph.ainvoke<br/>conveyor belt starts"]
 
-    DL[data_loader<br/>query_mill_data → DataFrame]
-    PL[planner<br/>picks specialists]
-    SP1[analyst<br/>execute_python → charts]
-    SP2[anomaly_detective<br/>execute_python → charts]
-    CR[critic<br/>review_chart validation]
-    RP[reporter<br/>write_markdown_report]
+    DL["data_loader<br/>query_mill_data to DataFrame"]
+    PL["planner<br/>picks specialists"]
+    SP1["analyst<br/>execute_python to charts"]
+    SP2["anomaly_detective<br/>execute_python to charts"]
+    CR["critic<br/>review_chart validation"]
+    RP["reporter<br/>write_markdown_report"]
 
-    DONE[graph returns<br/>final messages]
-    SAVE[FastAPI saves<br/>status = completed]
-    FETCH[UI fetches<br/>report.md + .png files]
-    SHOW[User sees report<br/>inline in chat bubble]
+    DONE["graph returns<br/>final messages"]
+    SAVE["FastAPI saves<br/>status = completed"]
+    FETCH["UI fetches<br/>report.md + .png files"]
+    SHOW["User sees report<br/>inline in chat bubble"]
 
     Q --> FE --> REG --> BG
     BG --> RET
@@ -121,7 +121,7 @@ flowchart TD
     BG --> MCP_INIT --> GET_TOOLS --> BUILD --> RUN
     RUN --> DL --> PL --> SP1 --> SP2 --> CR --> RP --> DONE
     DONE --> SAVE
-    POLL -->|status=completed| FETCH --> SHOW
+    POLL -->|status: completed| FETCH --> SHOW
 
     style Q fill:#dbeafe,stroke:#1d4ed8
     style RUN fill:#fce7f3,stroke:#be185d

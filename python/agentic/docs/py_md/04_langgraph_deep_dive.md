@@ -8,30 +8,30 @@
 
 ```mermaid
 flowchart TD
-    START([START]) --> DLE[data_loader_entry]
-    DLE --> DL[data_loader<br/>LLM loads data]
-    DL --> DLT[tools<br/>query_mill_data]
+    START["START"] --> DLE["data_loader_entry"]
+    DLE --> DL["data_loader<br/>LLM loads data"]
+    DL --> DLT["tools<br/>query_mill_data"]
     DLT --> DL
-    DL --> MR{{manager_review}}
-    MR -->|ACCEPT| PLE[planner_entry]
-    PLE --> PL[planner<br/>LLM picks specialists]
+    DL --> MR["manager_review"]
+    MR -->|ACCEPT| PLE["planner_entry"]
+    PLE --> PL["planner<br/>LLM picks specialists"]
     PL --> MR
-    MR -->|ACCEPT| SPE["{specialist}_entry<br/>(analyst, forecaster, …)"]
-    SPE --> SP["{specialist}<br/>LLM runs analysis"]
-    SP --> SPT[tools<br/>execute_python]
+    MR -->|ACCEPT| SPE["specialist_entry<br/>analyst or forecaster"]
+    SPE --> SP["specialist<br/>LLM runs analysis"]
+    SP --> SPT["tools<br/>execute_python"]
     SPT --> SP
     SP --> MR
-    MR -->|REWORK<br/>(once)| SPE
-    MR -->|ACCEPT, more| SPE2["next specialist_entry"]
-    MR -->|ACCEPT, last| CRE[critic_entry]
-    CRE --> CR[critic<br/>validates charts]
+    MR -->|REWORK once| SPE
+    MR -->|ACCEPT more| SPE2["next specialist_entry"]
+    MR -->|ACCEPT last| CRE["critic_entry"]
+    CRE --> CR["critic<br/>validates charts"]
     CR --> MR
-    MR -->|ACCEPT| RPE[reporter_entry]
-    RPE --> RP[reporter<br/>writes .md report]
-    RP --> RPT[tools<br/>write_markdown_report]
+    MR -->|ACCEPT| RPE["reporter_entry"]
+    RPE --> RP["reporter<br/>writes md report"]
+    RP --> RPT["tools<br/>write_markdown_report"]
     RPT --> RP
     RP --> MR
-    MR -->|ACCEPT| END_([END])
+    MR -->|ACCEPT| END_["END"]
 
     style START fill:#dbeafe,stroke:#1d4ed8
     style END_ fill:#dcfce7,stroke:#16a34a
@@ -41,6 +41,7 @@ flowchart TD
 ```
 
 **How to read the diagram:**
+
 - Every box is a **node** (a Python function).
 - Every arrow is an **edge** (a routing decision).
 - `manager_review` is the quality gate. Nothing passes without its approval.
@@ -92,6 +93,7 @@ def build_graph(
 ```
 
 **Parameters explained:**
+
 - `tools` — the ~9 LangChain tools from `client.py`.
 - `api_key` — the Gemini API key.
 - `on_progress` — a callback function. Every time a stage starts or finishes, this function is called so the UI can show a progress message.
@@ -133,6 +135,7 @@ for stage_name, tool_names in TOOL_SETS.items():
 **This is the security model.**
 
 Each specialist gets a **different set of tools**:
+
 - `data_loader` can only query the database. It cannot run Python.
 - `reporter` can only list files and write reports. It cannot run new analysis code.
 - `analyst`, `forecaster`, etc. can run Python and skills.
@@ -287,6 +290,7 @@ Result: Gemini sees ~7 messages instead of 40. Faster, cheaper, and less confusi
 The planner is an LLM node with a special prompt: "Given the user's question and the data summary, which specialists should we run?"
 
 It can return two formats:
+
 1. **JSON:** `{"specialists": ["analyst", "anomaly_detective"], "rationale": "..."}`
 2. **Legacy line:** `SPECIALISTS: analyst, anomaly_detective`
 
@@ -321,6 +325,7 @@ If all three are green → **auto-accept**. No LLM call needed. This saves time 
 If the heuristic is inconclusive → the manager falls back to an LLM review with `MANAGER_REVIEW_PROMPT`.
 
 The manager can say two things:
+
 - **"ACCEPT"** → conveyor belt moves to the next stage.
 - **"REWORK"** → conveyor belt moves back to the same stage's entry node (once only).
 
@@ -355,6 +360,7 @@ def specialist_router(state: AnalysisState) -> str:
 ```
 
 **Three paths:**
+
 1. **Tool calls exist** → go to `tools` node. After tools finish, `after_tools()` sends control back to the same specialist.
 2. **Parallel mode** → skip manager review and go straight to `critic_entry`. All specialists ran at the same time; we only need one review at the end.
 3. **Normal path** → go to `manager_review`. The manager decides ACCEPT or REWORK.
@@ -442,6 +448,7 @@ return graph.compile()
 ```
 
 **How to read it:**
+
 - `add_node(name, function)` — registers a station on the assembly line.
 - `add_edge(from, to)` — always go from A to B.
 - `add_conditional_edges(from, router_function)` — let the router function decide where to go next.
@@ -476,13 +483,12 @@ It updates `state["current_stage"]` so the manager_review node knows whose work 
 
 ```mermaid
 flowchart LR
-    subgraph One_Specialist_Loop
-        direction TB
-        A[entry_node<br/>sets current_stage] --> B[specialist_node<br/>LLM decides tool or text]
-        B -->|tool_calls| C[tool_node<br/>runs Python/SQL]
+    subgraph One_Specialist_Loop["One Specialist Loop"]
+        A["entry_node<br/>sets current_stage"] --> B["specialist_node<br/>LLM decides tool or text"]
+        B -->|tool_calls| C["tool_node<br/>runs Python or SQL"]
         C --> B
-        B -->|no tools| D[manager_review<br/>heuristic or LLM]
-        D -->|ACCEPT| E[manager_router<br/>next stage]
+        B -->|no tools| D["manager_review<br/>heuristic or LLM"]
+        D -->|ACCEPT| E["manager_router<br/>next stage"]
         D -->|REWORK| A
     end
 ```

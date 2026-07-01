@@ -69,7 +69,7 @@ asynchronously on the server.
 | ------------------ | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | **MCP tool**       | `tools/*.py`                    | A server-side function (DB query, Python exec, report write) exposed to any MCP client.                                |
 | **LangChain tool** | built at startup by `client.py` | The same MCP tool wrapped so LangGraph's LLMs can call it.                                                             |
-| **Specialist**     | `graph.py` nodes             | An LLM persona (analyst, forecaster, anomaly_detective, …) with its own system prompt and tool set.                    |
+| **Specialist**     | `graph.py` nodes                | An LLM persona (analyst, forecaster, anomaly_detective, …) with its own system prompt and tool set.                    |
 | **Skill**          | `skills/*.py`                   | A pure-Python helper (e.g. `skills.spc.xbar_chart`) used inside `execute_python` so agents don't re-write boilerplate. |
 | **Template**       | `analysis_templates.py`         | A fixed specialist sequence that bypasses the planner for common intents.                                              |
 | **Analysis ID**    | `api_endpoint.py`               | 8-char UUID; drives the per-analysis output subfolder `output/{id}/`.                                                  |

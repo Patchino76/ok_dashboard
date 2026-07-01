@@ -8,14 +8,15 @@
 
 ```mermaid
 flowchart TD
-    Q{What do you want to add?}
-    Q -->|New server-side action<br/>e.g. send email, fetch weather| A[1. Add a Tool]
-    Q -->|Reusable Python helper<br/>e.g. new SPC rule| B[2. Add a Skill]
-    Q -->|New AI persona<br/>e.g. maintenance advisor| C[3. Add a Specialist]
-    Q -->|Fixed pipeline preset<br/>e.g. quarterly review| D[4. Add a Template]
+    Q{"What do you want to add?"}
+    Q -->|New server-side action| A["1. Add a Tool"]
+    Q -->|Reusable Python helper| B["2. Add a Skill"]
+    Q -->|New AI persona| C["3. Add a Specialist"]
+    Q -->|Fixed pipeline preset| D["4. Add a Template"]
 ```
 
 **Rule of thumb:** Start with the least invasive option.
+
 - New analysis logic any specialist can use? → **Skill**.
 - New server action (database, file system, external API)? → **Tool**.
 - New AI personality with its own prompt? → **Specialist**.
@@ -25,7 +26,7 @@ flowchart TD
 
 ## 1. Adding a new MCP tool
 
-A tool is something the AI can *call* to make the server do work.
+A tool is something the AI can _call_ to make the server do work.
 
 ### Step-by-step checklist
 
@@ -100,7 +101,7 @@ The MCP server loads the registry at startup. You must restart it for new tools 
 
 ## 2. Adding a new skill
 
-A skill is a reusable Python function that lives inside `execute_python`'s namespace. It is *not* a separate MCP tool. It is a helper function the AI can import while running code.
+A skill is a reusable Python function that lives inside `execute_python`'s namespace. It is _not_ a separate MCP tool. It is a helper function the AI can import while running code.
 
 ### Step-by-step checklist
 
@@ -275,12 +276,12 @@ The UI fetches `/templates` and shows them as quick-start cards. When the user c
 
 ## Extension comparison
 
-| Type | Files touched | Server restart? | LLM retraining? | Difficulty |
-|------|-------------|-----------------|-----------------|------------|
-| **Tool** | `tools/new.py`, `tools/__init__.py` | MCP only | No | ⭐ Easy |
-| **Skill** | `skills/new.py` | No | No | ⭐ Easy |
-| **Specialist** | `graph.py` (3 places) | FastAPI only | No | ⭐⭐ Medium |
-| **Template** | `analysis_templates.py` | No | No | ⭐ Easy |
+| Type           | Files touched                       | Server restart? | LLM retraining? | Difficulty  |
+| -------------- | ----------------------------------- | --------------- | --------------- | ----------- |
+| **Tool**       | `tools/new.py`, `tools/__init__.py` | MCP only        | No              | ⭐ Easy     |
+| **Skill**      | `skills/new.py`                     | No              | No              | ⭐ Easy     |
+| **Specialist** | `graph.py` (3 places)               | FastAPI only    | No              | ⭐⭐ Medium |
+| **Template**   | `analysis_templates.py`             | No              | No              | ⭐ Easy     |
 
 ---
 

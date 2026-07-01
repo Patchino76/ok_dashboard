@@ -9,22 +9,22 @@
 ```mermaid
 sequenceDiagram
     autonumber
-    participant LLM as Gemini (AI)
+    participant LLM as Gemini AI
     participant LG as LangGraph node
     participant CB as client.py bridge
     participant SRV as server.py
-    participant REG as tools/__init__.py
-    participant HAND as Tool handler<br/>(python_executor.py)
+    participant REG as tools init.py
+    participant HAND as Tool handler python_executor.py
 
     LLM->>LG: "I want to run Python code"
-    LG->>CB: tool_call(name="execute_python", args={code:"..."})
-    CB->>SRV: HTTP POST /mcp (JSON-RPC)
-    SRV->>REG: "Who handles 'execute_python'?"
+    LG->>CB: tool_call execute_python
+    CB->>SRV: HTTP POST mcp JSON-RPC
+    SRV->>REG: "Who handles execute_python?"
     REG-->>SRV: handler = execute_python function
-    SRV->>HAND: await handler({"code":"..."})
+    SRV->>HAND: await handler code
     HAND-->>SRV: result text
     SRV-->>CB: JSON-RPC response
-    CB-->>LG: ToolMessage(content=result)
+    CB-->>LG: ToolMessage content=result
     LG-->>LLM: "Here is what the tool returned..."
 ```
 
@@ -90,6 +90,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[types.T
 ```
 
 **How to read this:**
+
 - `handle_list_tools` builds a list of tool **descriptors** (name, description, JSON schema for arguments). It does NOT run anything.
 - `handle_call_tool` looks up the tool name in the dictionary, grabs the `handler` function, and calls it with the arguments the AI provided.
 
@@ -151,6 +152,7 @@ tools = {
 ```
 
 **Pattern:** For every tool there are **two objects**:
+
 1. **`xxx_tool`** — a `types.Tool` descriptor (name, description, JSON schema). Used by `handle_list_tools`.
 2. **`xxx`** — the actual async Python function that does the work. Used by `handle_call_tool`.
 
@@ -192,6 +194,7 @@ def _json_schema_to_pydantic(schema: dict, model_name: str) -> Type[BaseModel]:
 ```
 
 **What this does:**
+
 - MCP tools describe their arguments as JSON Schema (e.g., `"code": {"type": "string"}`).
 - LangChain needs a Pydantic class (e.g., `class ExecutePythonInput(BaseModel): code: str`).
 - This function builds that class dynamically at runtime.
@@ -219,6 +222,7 @@ def mcp_tool_to_langchain(tool: mcp_types.Tool, session: ClientSession) -> BaseT
 ```
 
 **Step by step:**
+
 1. Build the Pydantic schema from the tool's JSON schema.
 2. Create a `_call` closure that captures the live `session`.
 3. Inside `_call`, strip out any `None` values (LLMs sometimes send nulls for optional args).
@@ -297,7 +301,8 @@ def _get_persistent_namespace(analysis_id: str) -> dict:
 **What is a namespace?** In Python, a namespace is just a dictionary of variable names → values. When you run `x = 5`, Python stores `"x": 5` in the current namespace.
 
 **Why persist it?** Imagine the AI runs two tool calls:
-1. `df = get_df("mill_8")`  — loads data
+
+1. `df = get_df("mill_8")` — loads data
 2. `result = df.describe()` — analyzes it
 
 Call 2 needs the variable `df` created in Call 1. By keeping a persistent namespace per `analysis_id`, the executor behaves like a Jupyter notebook: variables survive between calls.
@@ -371,6 +376,7 @@ async def execute_python(arguments: dict) -> list[types.TextContent]:
 ```
 
 **Step by step:**
+
 1. Look up the analysis ID. If this is the first call, create an empty namespace.
 2. Build a temporary execution namespace that contains:
    - All user variables from previous calls
@@ -402,17 +408,17 @@ The summary is what the AI actually reads. The full DataFrame stays in memory on
 
 ```mermaid
 flowchart TD
-    A[AI decides to call a tool] --> B{Which tool?}
-    B -->|execute_python| C[client.py sends JSON-RPC]
+    A["AI decides to call a tool"] --> B{"Which tool?"}
+    B -->|execute_python| C["client.py sends JSON-RPC"]
     B -->|query_mill_data| C
     B -->|write_markdown_report| C
-    C --> D[server.py receives request]
-    D --> E[tools/__init__.py lookup]
-    E --> F[Handler function runs]
-    F --> G[Result returned]
-    G --> H[client.py wraps as ToolMessage]
-    H --> I[LangGraph puts message on state belt]
-    I --> J[AI reads result and decides next step]
+    C --> D["server.py receives request"]
+    D --> E["tools init.py lookup"]
+    E --> F["Handler function runs"]
+    F --> G["Result returned"]
+    G --> H["client.py wraps as ToolMessage"]
+    H --> I["LangGraph puts message on state belt"]
+    I --> J["AI reads result and decides next step"]
 ```
 
 ---
