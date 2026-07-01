@@ -1141,7 +1141,7 @@ def transcribe_audio(
     language: str = Form(default="bg")
 ):
     """
-    Transcribe audio using Groq Whisper API.
+    Transcribe audio using Groq Whisper API. O`e
     Mirrors the Next.js /api/transcribe route for production use.
     """
     import os
