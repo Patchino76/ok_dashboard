@@ -257,7 +257,7 @@ class DatabaseManager:
             # Query the database for trend data
             from datetime import datetime, timedelta
             
-            # Calculate the time range
+            # Calculate the time range+++++++++++++++
             end_time = datetime.now()
             start_time = end_time - timedelta(hours=hours)
             

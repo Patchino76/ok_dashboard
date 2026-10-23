@@ -36,7 +36,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, MessagesState, END, START
 from langgraph.types import Send
 
-GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+# GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+GEMINI_MODEL = "gemini-3.5-flash"
 # Optional model tiering: use a stronger model only where it pays off (the
 # reporter, which synthesizes the final Bulgarian report). Defaults to the base
 # model so behavior is unchanged unless GEMINI_REPORTER_MODEL is set (or the
