@@ -1,11 +1,14 @@
 {
   "folders": [
     {
-      "path": "."
+      "path": ".",
     },
     {
-      "path": "../ok_ui_templates/industrial-downtime-analysis"
-    }
+      "path": "../ok_ui_templates/industrial-downtime-analysis",
+    },
+    {
+      "path": "../vhs_basic",
+    },
   ],
-  "settings": {}
+  "settings": {},
 }
