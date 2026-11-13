@@ -203,8 +203,8 @@ export function VhsDashboard() {
                   },
                   {
                     name: "ПС Карлиево",
-                    value: fmt("VHS_KARLIEVO_TR_JIT201_APOWER", 3),
-                    unit: "MW",
+                    value: fmt("VHS_KARLIEVO_TR_JIT201_APOWER", 0),
+                    unit: "kW",
                     tag: "VHS_KARLIEVO_TR_JIT201_APOWER",
                   },
                   {
@@ -288,9 +288,9 @@ export function VhsDashboard() {
             >
               <GaugeAndStats
                 name="Ниво"
-                value={num("VHS_LIT120")}
+                value={num("VHS_LIT110")}
                 tone="fresh"
-                tag="VHS_LIT120"
+                tag="VHS_LIT110"
                 onSelect={selectMeasurement}
                 stats={[
                   {
@@ -372,9 +372,9 @@ export function VhsDashboard() {
                 columns={4}
                 items={[
                   {
-                    name: "Оборотна вода",
-                    value: fmt("VHS_OBOROTNA_VODA", 1),
-                    unit: "l/s",
+                    name: "Обем оборотна (общо)",
+                    value: fmt("VHS_OBOROTNA_VODA", 0),
+                    unit: "m³",
                     tag: "VHS_OBOROTNA_VODA",
                   },
                   {
@@ -461,16 +461,16 @@ export function VhsDashboard() {
             >
               <GaugeAndStats
                 name="Ниво"
-                value={num("VHS_LIT110")}
+                value={num("VHS_LIT120")}
                 tone="recycle"
-                tag="VHS_LIT110"
+                tag="VHS_LIT120"
                 onSelect={selectMeasurement}
                 stats={[
                   {
                     name: "Дебит",
-                    value: fmt("VHS_OBOROTNA_VODA", 1),
+                    value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03", 1),
                     unit: "l/s",
-                    tag: "VHS_OBOROTNA_VODA",
+                    tag: "VHS9_HVOSTOPROVOD_SONARTRAC03",
                   },
                 ]}
               />
@@ -546,10 +546,12 @@ export function VhsDashboard() {
             >
               <div className="flex items-center gap-2">
                 <LevelGauge
-                  name="Ниво"
+                  name="Мътност"
                   value={num("VHS_LIT320")}
-                  max={4}
-                  ticks={[0, 2, 4]}
+                  max={0.5}
+                  ticks={[0, 0.25, 0.5]}
+                  unit="g/l"
+                  decimals={3}
                   tone="recycle"
                   tag="VHS_LIT320"
                   onSelect={selectMeasurement}
@@ -637,10 +639,12 @@ export function VhsDashboard() {
             >
               <div className="flex items-center gap-2">
                 <LevelGauge
-                  name="Ниво"
+                  name="Мътност"
                   value={num("VHS_LIT420")}
-                  max={4}
-                  ticks={[0, 2, 4]}
+                  max={0.5}
+                  ticks={[0, 0.25, 0.5]}
+                  unit="g/l"
+                  decimals={3}
                   tone="recycle"
                   tag="VHS_LIT420"
                   onSelect={selectMeasurement}
@@ -1002,8 +1006,8 @@ export function VhsDashboard() {
                   items={[
                     {
                       name: "Дебит",
-                      value: fmt("VHS_HVOSTOPROVOD_VOLUME_FLOW", 3),
-                      unit: "m³/s",
+                      value: fmt("VHS_HVOSTOPROVOD_VOLUME_FLOW", 0),
+                      unit: "m³/h",
                       tag: "VHS_HVOSTOPROVOD_VOLUME_FLOW",
                     },
                     {
