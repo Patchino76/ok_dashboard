@@ -26,6 +26,7 @@ export function PumpStatus({
           key={pump.id}
           type="button"
           variant="ghost"
+          data-tag={pump.tag ?? ""}
           className="h-auto flex-col gap-1 rounded-md px-2 py-1.5 hover:bg-white/10"
           aria-label={`${station}, помпа ${pump.id}: ${pump.running ? "работи" : "спряна"}. Покажи тренд.`}
           onClick={() =>
@@ -58,14 +59,40 @@ export function PumpStatus({
             }}
             aria-hidden="true"
           >
-            <rect x="4" y="32" width="36" height="3" rx="1" fill="currentColor" fillOpacity=".25" />
-            <rect x="2" y="14" width="11" height="14" rx="2.5" fill="currentColor" fillOpacity=".18" />
-            <path d="M5.5 16v10M8 16v10M10.5 16v10M13 21h4M30 11V4M26.5 4h7M26.5 6.5h7" strokeWidth="1.3" />
-            <circle cx="25" cy="21" r="10" fill="currentColor" fillOpacity=".15" />
+            <rect
+              x="4"
+              y="32"
+              width="36"
+              height="3"
+              rx="1"
+              fill="currentColor"
+              fillOpacity=".25"
+            />
+            <rect
+              x="2"
+              y="14"
+              width="11"
+              height="14"
+              rx="2.5"
+              fill="currentColor"
+              fillOpacity=".18"
+            />
+            <path
+              d="M5.5 16v10M8 16v10M10.5 16v10M13 21h4M30 11V4M26.5 4h7M26.5 6.5h7"
+              strokeWidth="1.3"
+            />
+            <circle
+              cx="25"
+              cy="21"
+              r="10"
+              fill="currentColor"
+              fillOpacity=".15"
+            />
             <path d="M17 29l-3 3M33 29l3 3" />
             <g
               className={cn(
-                pump.running && "motion-safe:animate-spin [animation-duration:1.2s]",
+                pump.running &&
+                  "motion-safe:animate-spin [animation-duration:1.2s]",
               )}
               style={{ transformOrigin: "25px 21px" }}
               strokeWidth="1.4"

@@ -52,6 +52,7 @@ export function LevelGauge({
     <Button
       type="button"
       variant="ghost"
+      data-tag={tag ?? ""}
       className="h-auto shrink-0 flex-col gap-1 rounded-lg px-1.5 py-1 text-slate-100 hover:bg-white/[0.06]"
       aria-label={`Покажи тренд: ${name}`}
       onClick={() => onSelect(measurement)}

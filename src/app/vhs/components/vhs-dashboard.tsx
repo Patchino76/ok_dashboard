@@ -1,6 +1,7 @@
 "use client";
+import { Inspector, gotoVSCode } from "react-dev-inspector";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Activity, Gauge } from "lucide-react";
 import type { Measurement, WaterTone } from "./dashboard-types";
 import { LevelGauge } from "./level-gauge";
@@ -21,6 +22,72 @@ type Stat = {
   alarm?: boolean;
   tag?: string;
 };
+export function DevInspector() {
+  if (process.env.NODE_ENV !== "development") return null;
+  return <Inspector onInspectElement={gotoVSCode} />;
+}
+
+function copyText(text: string) {
+  const fallback = () => {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+  };
+  if (window.isSecureContext && navigator.clipboard) {
+    navigator.clipboard.writeText(text).catch(fallback);
+  } else {
+    fallback();
+  }
+}
+
+function DevTagPicker() {
+  const [picked, setPicked] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "development") return;
+    const onClick = (e: MouseEvent) => {
+      if (!e.altKey) return;
+      const el = (e.target as HTMLElement).closest<HTMLElement>("[data-tag]");
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const tag = el.dataset.tag || "";
+      setPicked(tag || "no tag");
+      setCopied(false);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
+
+  if (process.env.NODE_ENV !== "development" || picked === null) return null;
+  return (
+    <div className="fixed bottom-4 right-4 z-50 flex items-center gap-3 rounded-md border border-amber-400/50 bg-slate-900 px-3 py-2 font-mono text-sm text-amber-300 shadow-lg">
+      <span>{picked}</span>
+      {picked !== "no tag" && (
+        <button
+          type="button"
+          className="rounded border border-amber-400/50 px-2 py-0.5 text-xs hover:bg-amber-400/20"
+          onClick={() => {
+            copyText(picked);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      )}
+      <button type="button" onClick={() => setPicked(null)}>
+        x
+      </button>
+    </div>
+  );
+}
 
 function StatGrid({
   items,
@@ -155,6 +222,7 @@ export function VhsDashboard() {
 
   return (
     <main className="-m-4 min-h-dvh bg-slate-950 bg-[radial-gradient(1000px_500px_at_5%_-10%,rgba(37,99,235,.18),transparent),radial-gradient(800px_400px_at_100%_0%,rgba(16,185,129,.1),transparent)] px-3 py-5 text-slate-100 sm:px-6 md:-m-6">
+      <DevTagPicker />
       <div className="mx-auto max-w-[1900px] space-y-7">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
