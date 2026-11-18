@@ -209,10 +209,10 @@ export function VhsDashboard() {
   ];
   const radinPumps = ["VHS_PM611_ON", "VHS_PM612_ON", "VHS_PM613_ON"];
   const mirkovoRecyclePumps = [
-    "VHS_PM111_ON",
-    "VHS_PM112_ON",
-    "VHS_PM113_ON",
-    "VHS_PM114_ON",
+    "VHS_PM121_ON",
+    "VHS_PM122_ON",
+    "VHS_PM123_ON",
+    "VHS_PM124_ON",
   ];
   const ayderePumps = ["VHS_PM321_ON", "VHS_PM322_ON", "VHS_PM323_ON"];
   const suldjaderePumps = ["VHS_PM421_ON", "VHS_PM422_ON", "VHS_PM423_ON"];
@@ -223,7 +223,7 @@ export function VhsDashboard() {
   return (
     <main className="-m-4 min-h-dvh bg-slate-950 bg-[radial-gradient(1000px_500px_at_5%_-10%,rgba(37,99,235,.18),transparent),radial-gradient(800px_400px_at_100%_0%,rgba(16,185,129,.1),transparent)] px-3 py-5 text-slate-100 sm:px-6 md:-m-6">
       <DevTagPicker />
-      <div className="mx-auto max-w-[1900px] space-y-7">
+      <div className="mx-auto max-w-[1900px] space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
@@ -246,7 +246,7 @@ export function VhsDashboard() {
           </Badge>
         </header>
 
-        <section className="space-y-3">
+        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
           <SectionHeading
             title="Свежа вода"
             subtitle="Захранване, подаване и налягане"
@@ -271,21 +271,21 @@ export function VhsDashboard() {
                   },
                   {
                     name: "ПС Карлиево",
-                    value: fmt("VHS_KARLIEVO_TR_JIT201_APOWER", 0),
-                    unit: "kW",
-                    tag: "VHS_KARLIEVO_TR_JIT201_APOWER",
+                    value: fmt("OK_E3_P_PS_KARLIEVO", 3),
+                    unit: "MW",
+                    tag: "OK_E3_P_PS_KARLIEVO",
                   },
                   {
                     name: "Помпени 1",
-                    value: fmt("VHS_MIRKOVO_TR1_JIT101_APOWER", 3),
+                    value: fmt("OK_E4_P_PS1", 3),
                     unit: "MW",
-                    tag: "VHS_MIRKOVO_TR1_JIT101_APOWER",
+                    tag: "OK_E4_P_PS1",
                   },
                   {
                     name: "Помпени 2",
-                    value: fmt("VHS_MIRKOVO_TR2_JIT102_APOWER", 3),
+                    value: fmt("OK_E5_P_PS2", 3),
                     unit: "MW",
-                    tag: "VHS_MIRKOVO_TR2_JIT102_APOWER",
+                    tag: "OK_E5_P_PS2",
                   },
                 ]}
               />
@@ -294,12 +294,42 @@ export function VhsDashboard() {
                 onSelect={selectMeasurement}
                 columns={3}
                 items={[
-                  { name: "ВХС 1.1", value: "—", unit: "kV" },
-                  { name: "ВХС 1.2", value: "—", unit: "kV" },
-                  { name: "ВХС 2.1", value: "—", unit: "kV" },
-                  { name: "ВХС 2.2", value: "—", unit: "kV" },
-                  { name: "ВХС 3.1", value: "—", unit: "kV" },
-                  { name: "ВХС 3.2", value: "—", unit: "kV" },
+                  {
+                    name: "ВХС 1.1",
+                    value: fmt("OK_E4_PS1_V1", 2),
+                    unit: "kV",
+                    tag: "OK_E4_PS1_V1",
+                  },
+                  {
+                    name: "ВХС 1.2",
+                    value: fmt("OK_E5_PS2_V1", 2),
+                    unit: "kV",
+                    tag: "OK_E5_PS2_V1",
+                  },
+                  {
+                    name: "ВХС 2.1",
+                    value: fmt("OK_E4_PS1_V2", 2),
+                    unit: "kV",
+                    tag: "OK_E4_PS1_V2",
+                  },
+                  {
+                    name: "ВХС 2.2",
+                    value: fmt("OK_E5_PS2_V2", 2),
+                    unit: "kV",
+                    tag: "OK_E5_PS2_V2",
+                  },
+                  {
+                    name: "ВХС 3.1",
+                    value: fmt("OK_E4_PS1_V3", 2),
+                    unit: "kV",
+                    tag: "OK_E4_PS1_V3",
+                  },
+                  {
+                    name: "ВХС 3.2",
+                    value: fmt("OK_E5_PS2_V3", 2),
+                    unit: "kV",
+                    tag: "OK_E5_PS2_V3",
+                  },
                 ]}
               />
             </StationCard>
@@ -371,11 +401,11 @@ export function VhsDashboard() {
               />
               <PumpStatus
                 pumps={[
-                  pump("P6", "VHS_PM121_ON"),
-                  pump("P7", "VHS_PM122_ON"),
-                  pump("P8", "VHS_PM123_ON"),
-                  pump("P9", "VHS_PM124_ON"),
-                  pump("P10", "VHS_PM125_ON"),
+                  pump("P6", "VHS_PM111_ON"),
+                  pump("P7", "VHS_PM112_ON"),
+                  pump("P8", "VHS_PM113_ON"),
+                  pump("P9", "VHS_PM114_ON"),
+                  pump("P10", "VHS_PM115_ON"),
                 ]}
                 station="ПС Мирково"
                 onSelect={selectMeasurement}
@@ -426,7 +456,14 @@ export function VhsDashboard() {
                 tone="fresh"
                 tag="VHS_LIT620"
                 onSelect={selectMeasurement}
-                stats={[{ name: "Налягане", value: "—", unit: "bar" }]}
+                stats={[
+                  {
+                    name: "Налягане",
+                    value: fmt("VHS_PIT614"),
+                    unit: "bar",
+                    tag: "VHS_PIT614",
+                  },
+                ]}
               />
             </StationCard>
             <StationCard
@@ -510,7 +547,7 @@ export function VhsDashboard() {
           </div>
         </section>
 
-        <section className="space-y-3">
+        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
           <SectionHeading
             title="Оборотна вода"
             subtitle="Помпени станции и резервоари"
@@ -540,14 +577,20 @@ export function VhsDashboard() {
                     unit: "l/s",
                     tag: "VHS9_HVOSTOPROVOD_SONARTRAC03",
                   },
+                  {
+                    name: "Обем",
+                    value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03_TOT", 0),
+                    unit: "m³",
+                    tag: "VHS9_HVOSTOPROVOD_SONARTRAC03_TOT",
+                  },
                 ]}
               />
               <PumpStatus
                 pumps={[
-                  pump("P1", "VHS_PM111_ON"),
-                  pump("P2", "VHS_PM112_ON"),
-                  pump("P3", "VHS_PM113_ON"),
-                  pump("P4", "VHS_PM114_ON"),
+                  pump("P1", "VHS_PM121_ON"),
+                  pump("P2", "VHS_PM122_ON"),
+                  pump("P3", "VHS_PM123_ON"),
+                  pump("P4", "VHS_PM124_ON"),
                 ]}
                 station="ПС Мирково · оборотна"
                 onSelect={selectMeasurement}
@@ -793,7 +836,7 @@ export function VhsDashboard() {
           </div>
         </section>
 
-        <section className="space-y-3">
+        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
           <SectionHeading
             title="Дренажни води"
             subtitle="Дренажни помпени станции"
@@ -1042,7 +1085,7 @@ export function VhsDashboard() {
           </div>
         </section>
 
-        <section className="space-y-3">
+        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
           <SectionHeading
             title="Хвостово стопанство"
             subtitle="Шахти, нитки и измерителен възел"

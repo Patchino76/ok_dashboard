@@ -2,6 +2,25 @@ import { TagDefinition } from "./types";
 
 // VHS (Водно и хвостово стопанство) tags — generated from vhs_tags_with_ids.xlsx
 export const vhsTags: TagDefinition[] = [
+  ...(
+    [
+      [2252, "OK_E4_PS1_V1", "ВХС 1.1"],
+      [2258, "OK_E5_PS2_V1", "ВХС 1.2"],
+      [2253, "OK_E4_PS1_V2", "ВХС 2.1"],
+      [2259, "OK_E5_PS2_V2", "ВХС 2.2"],
+      [2254, "OK_E4_PS1_V3", "ВХС 3.1"],
+      [2260, "OK_E5_PS2_V3", "ВХС 3.2"],
+    ] as [number, string, string][]
+  ).map(([id, name, desc]) => ({
+    id,
+    name,
+    desc,
+    unit: "kV",
+    precision: 2,
+    group: "Свежа вода",
+    icon: "energy",
+    state: null,
+  })),
   {
     id: 1196,
     name: "VHS_SUM_POWER",
@@ -13,9 +32,9 @@ export const vhsTags: TagDefinition[] = [
     state: null,
   },
   {
-    id: 1886,
-    name: "VHS_KARLIEVO_TR_JIT201_APOWER",
-    desc: "Активна мощност, вход ПС Карлиево (JIT201)",
+    id: 5735,
+    name: "OK_E3_P_PS_KARLIEVO",
+    desc: "Активна мощност ПС Карлиево",
     unit: "kW",
     precision: 0,
     group: "Свежа вода",
@@ -23,9 +42,9 @@ export const vhsTags: TagDefinition[] = [
     state: null,
   },
   {
-    id: 1947,
-    name: "VHS_MIRKOVO_TR1_JIT101_APOWER",
-    desc: "Активна мощност, вход 1 ПС Мирково (JIT101) – „Помпени 1“",
+    id: 5736,
+    name: "OK_E4_P_PS1",
+    desc: "Активна мощност – „Помпени 1“ (PS1)",
     unit: "MW",
     precision: 3,
     group: "Свежа вода",
@@ -33,9 +52,9 @@ export const vhsTags: TagDefinition[] = [
     state: null,
   },
   {
-    id: 1951,
-    name: "VHS_MIRKOVO_TR2_JIT102_APOWER",
-    desc: "Активна мощност, вход 2 ПС Мирково (JIT102) – „Помпени 2“",
+    id: 5737,
+    name: "OK_E5_P_PS2",
+    desc: "Активна мощност – „Помпени 2“ (PS2)",
     unit: "MW",
     precision: 3,
     group: "Свежа вода",
@@ -426,6 +445,16 @@ export const vhsTags: TagDefinition[] = [
     id: 1115,
     name: "VHS_PM114_ON",
     desc: "Помпа t-P4 (оборотна вода) – работи",
+    unit: "bool",
+    precision: 0,
+    group: "Оборотна вода",
+    icon: null,
+    state: null,
+  },
+  {
+    id: 1116,
+    name: "VHS_PM115_ON",
+    desc: "Помпа t-P6 (оборотна вода) – работи",
     unit: "bool",
     precision: 0,
     group: "Оборотна вода",

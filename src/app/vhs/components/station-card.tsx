@@ -1,11 +1,6 @@
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { WaterTone } from "./dashboard-types";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +10,18 @@ const edgeColors: Record<WaterTone, string> = {
   drain: "border-t-amber-400/80",
   power: "border-t-yellow-300/80",
   tail: "border-t-stone-300/80",
+};
+
+const hoverAccents: Record<WaterTone, string> = {
+  fresh:
+    "hover:border-t-sky-300 focus-within:border-t-sky-300 hover:ring-sky-400/30 focus-within:ring-sky-400/30 hover:shadow-sky-500/10 focus-within:shadow-sky-500/10",
+  recycle:
+    "hover:border-t-emerald-300 focus-within:border-t-emerald-300 hover:ring-emerald-400/30 focus-within:ring-emerald-400/30 hover:shadow-emerald-500/10 focus-within:shadow-emerald-500/10",
+  drain:
+    "hover:border-t-amber-300 focus-within:border-t-amber-300 hover:ring-amber-400/30 focus-within:ring-amber-400/30 hover:shadow-amber-500/10 focus-within:shadow-amber-500/10",
+  power:
+    "hover:border-t-yellow-200 focus-within:border-t-yellow-200 hover:ring-yellow-300/30 focus-within:ring-yellow-300/30 hover:shadow-yellow-400/10 focus-within:shadow-yellow-400/10",
+  tail: "hover:border-t-stone-200 focus-within:border-t-stone-200 hover:ring-stone-300/30 focus-within:ring-stone-300/30 hover:shadow-stone-300/10 focus-within:shadow-stone-300/10",
 };
 
 export function StationCard({
@@ -33,13 +40,16 @@ export function StationCard({
   return (
     <Card
       className={cn(
-        "gap-3 border-t-2 border-white/10 bg-slate-900/80 py-3 text-slate-100 shadow-lg",
+        "gap-3 border-t-2 border-white/10 bg-slate-900/80 py-3 text-slate-100 shadow-lg ring-1 ring-transparent transition-[background-color,border-color,box-shadow] duration-200 hover:bg-slate-900/95 hover:shadow-xl focus-within:bg-slate-900/95 focus-within:shadow-xl active:bg-slate-900/95 active:ring-white/20",
         edgeColors[tone],
+        hoverAccents[tone],
         className,
       )}
     >
       <CardHeader className="flex items-start justify-between gap-2 px-3">
-        <CardTitle className="text-[13px] leading-snug font-semibold">{title}</CardTitle>
+        <CardTitle className="text-[13px] leading-snug font-semibold">
+          {title}
+        </CardTitle>
         {status}
       </CardHeader>
       <CardContent className="grid gap-3 px-3">{children}</CardContent>
