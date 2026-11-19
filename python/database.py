@@ -255,11 +255,14 @@ class DatabaseManager:
 
         try:
             # Query the database for trend data
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
             
-            # Calculate the time range+++++++++++++++
-            end_time = datetime.now()
+            # IndexTime is stored in UTC, so the window must be built in UTC as well.
+            end_time = datetime.now(timezone.utc).replace(tzinfo=None)
             start_time = end_time - timedelta(hours=hours)
+            
+            # Display timestamps in the local timezone (handles EET/EEST).
+            local_offset = datetime.now().astimezone().utcoffset() or timedelta(0)
             
             # Get list of tables to query (current + archive tables)
             tables = self._get_archive_table_names(start_time, end_time)
@@ -273,7 +276,7 @@ class DatabaseManager:
                     try:
                         # Build query for this table
                         query = text(f"""
-                            SELECT LoggerTagID, Value, DATEADD(hour, 3, IndexTime) AS IndexTime 
+                            SELECT LoggerTagID, Value, IndexTime 
                             FROM {table_name}
                             WHERE LoggerTagID = :tag_id
                             AND IndexTime BETWEEN :start_time AND :end_time
@@ -288,8 +291,9 @@ class DatabaseManager:
                         
                         for row in result:
                             values.append(row.Value)
-                            # Convert timestamp to ISO format
-                            timestamp_iso = row.IndexTime.isoformat() if hasattr(row.IndexTime, 'isoformat') else str(row.IndexTime)
+                            # Convert UTC timestamp to local time ISO format
+                            local_time = row.IndexTime + local_offset
+                            timestamp_iso = local_time.isoformat() if hasattr(local_time, 'isoformat') else str(local_time)
                             timestamps.append(timestamp_iso)
                             
                     except Exception as table_error:

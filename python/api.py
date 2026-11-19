@@ -668,24 +668,9 @@ async def get_tag_trend(
     """
     result = db.get_tag_trend(tag_id, hours)
     
-    # For development: Return mock trend data instead of 404
+    # Never fabricate data: an empty series means the tag has no samples in the window.
     if not result or not result.get("timestamps"):
-        # Generate mock trend data
-        import random
-        from datetime import datetime, timedelta
-        
-        # Create timestamps for the requested hours
-        now = datetime.now()
-        timestamps = [(now - timedelta(minutes=i*30)).isoformat() for i in range(hours*2)]
-        timestamps.reverse()  # Oldest first
-        
-        # Generate random values
-        values = [random.uniform(40, 60) for _ in range(len(timestamps))]
-        
-        return {
-            "timestamps": timestamps,
-            "values": values
-        }
+        return {"timestamps": [], "values": []}
     
     return result
 

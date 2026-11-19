@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -13,6 +13,7 @@ import {
 import { X } from "lucide-react";
 import type { Measurement } from "./dashboard-types";
 import { useVhsTrend } from "../hooks/useVhsTrend";
+import { vhsTagByName } from "@/lib/tags/vhs-tags";
 import {
   Dialog,
   DialogClose,
@@ -24,10 +25,10 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const ranges = [
-  { label: "1 ч", hours: 1 },
   { label: "8 ч", hours: 8 },
   { label: "24 ч", hours: 24 },
   { label: "7 дни", hours: 168 },
+  { label: "30 дни", hours: 720 },
 ] as const;
 
 const colors: Record<string, string> = {
@@ -67,12 +68,28 @@ export function TrendDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [range, setRange] = useState<(typeof ranges)[number]["label"]>("1 ч");
-  const selectedRange = ranges.find((item) => item.label === range) ?? ranges[0];
-  const { data: trend, loading } = useVhsTrend(
-    measurement?.tag,
-    selectedRange.hours,
-  );
+  const [range, setRange] = useState<(typeof ranges)[number]["label"]>("8 ч");
+  const [autoNote, setAutoNote] = useState<string | null>(null);
+  const userPickedRef = useRef(false);
+  const autoFromRef = useRef<string | null>(null);
+
+  // Always start a fresh dialog session on the default 8 hour window.
+  useEffect(() => {
+    if (!open) {
+      setRange("8 ч");
+      setAutoNote(null);
+      userPickedRef.current = false;
+      autoFromRef.current = null;
+    }
+  }, [open]);
+
+  const selectedRange =
+    ranges.find((item) => item.label === range) ?? ranges[0];
+  const {
+    data: trend,
+    loading,
+    fetching,
+  } = useVhsTrend(measurement?.tag, selectedRange.hours, { enabled: open });
 
   const data = useMemo(
     () =>
@@ -84,6 +101,22 @@ export function TrendDialog({
     [trend],
   );
 
+  const hasData = data.some((point) => point.value !== null);
+
+  // No samples in the selected window? Widen it (8h -> 24h -> 7d -> 30d) until data shows up.
+  useEffect(() => {
+    if (!open || loading || fetching || hasData || userPickedRef.current)
+      return;
+    const index = ranges.findIndex((item) => item.label === range);
+    if (index < 0 || index >= ranges.length - 1) return;
+    const next = ranges[index + 1];
+    if (autoFromRef.current === null) autoFromRef.current = range;
+    setAutoNote(
+      `Няма данни за ${autoFromRef.current} — показан е периодът ${next.label}`,
+    );
+    setRange(next.label);
+  }, [open, loading, fetching, hasData, range]);
+
   const stats = useMemo(() => {
     const values = data
       .map((item) => item.value)
@@ -93,7 +126,8 @@ export function TrendDialog({
     }
     const low = Math.min(...values);
     const high = Math.max(...values);
-    const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+    const average =
+      values.reduce((sum, value) => sum + value, 0) / values.length;
     const switches = values.filter(
       (value, index) => index > 0 && value !== values[index - 1],
     ).length;
@@ -101,8 +135,26 @@ export function TrendDialog({
   }, [data]);
 
   const color = colors[measurement?.tone ?? "fresh"] ?? colors.fresh;
+  // Sparse series (1-2 points) would otherwise yield duplicate tick values and duplicate React keys.
   const tickIndexes =
-    data.length > 0 ? [0, Math.floor(data.length / 2), data.length - 1] : [];
+    data.length > 0
+      ? Array.from(new Set([0, Math.floor(data.length / 2), data.length - 1]))
+      : [];
+
+  const tagDefinition = measurement?.tag
+    ? vhsTagByName[measurement.tag]
+    : undefined;
+  const isPump = measurement?.kind === "pump";
+  // Digital tags (pumps, alarms, *_ON flags) must not be spline-interpolated.
+  const isBoolean =
+    isPump ||
+    tagDefinition?.unit === "bool" ||
+    (!tagDefinition &&
+      data.length > 0 &&
+      data.every((point) => point.value === 0 || point.value === 1));
+
+  const booleanLabel = (value: number) =>
+    isPump ? (value >= 0.5 ? "Работи" : "Спряна") : value >= 0.5 ? "1" : "0";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,12 +169,20 @@ export function TrendDialog({
             {measurement?.tag
               ? `Историческа серия · ${measurement.tag}`
               : "Няма свързан таг"}
+            {fetching && !loading ? (
+              <span className="ml-2 text-[11px] text-sky-300/80">
+                обновяване…
+              </span>
+            ) : null}
           </DialogDescription>
         </DialogHeader>
         <Tabs
           value={range}
           onValueChange={(value) => {
             if (ranges.some((item) => item.label === value)) {
+              userPickedRef.current = true;
+              autoFromRef.current = null;
+              setAutoNote(null);
               setRange(value as (typeof ranges)[number]["label"]);
             }
           }}
@@ -135,6 +195,9 @@ export function TrendDialog({
             ))}
           </TabsList>
         </Tabs>
+        {autoNote ? (
+          <p className="text-[11px] text-amber-300/80">{autoNote}</p>
+        ) : null}
         {measurement && (
           <>
             <div className="h-[240px] w-full">
@@ -153,12 +216,25 @@ export function TrendDialog({
                     margin={{ top: 12, right: 12, left: 0, bottom: 0 }}
                   >
                     <defs>
-                      <linearGradient id="vhsTrendFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity={0.28} />
+                      <linearGradient
+                        id="vhsTrendFill"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor={color}
+                          stopOpacity={0.28}
+                        />
                         <stop offset="100%" stopColor={color} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid vertical={false} stroke="rgba(255,255,255,.09)" />
+                    <CartesianGrid
+                      vertical={false}
+                      stroke="rgba(255,255,255,.09)"
+                    />
                     <XAxis
                       dataKey="index"
                       tickLine={false}
@@ -175,11 +251,12 @@ export function TrendDialog({
                       tickLine={false}
                       axisLine={false}
                       tick={{ fill: "#94a3b8", fontSize: 10 }}
+                      domain={isBoolean ? [0, 1] : undefined}
+                      ticks={isBoolean ? [0, 1] : undefined}
+                      allowDecimals={!isBoolean}
                       tickFormatter={(value: number) =>
-                        measurement.kind === "pump"
-                          ? value >= 0.5
-                            ? "Работи"
-                            : "Спряна"
+                        isBoolean
+                          ? booleanLabel(value)
                           : formatValue(value, measurement.unit)
                       }
                     />
@@ -201,22 +278,22 @@ export function TrendDialog({
                         return point ? formatTime(point.timestamp) : "";
                       }}
                       formatter={(value: any) =>
-                        measurement.kind === "pump"
-                          ? [
-                              Number(value) >= 0.5 ? "Работи" : "Спряна",
+                        isBoolean
+                          ? [booleanLabel(Number(value)), measurement.name]
+                          : [
+                              formatValue(Number(value), measurement.unit),
                               measurement.name,
                             ]
-                          : [formatValue(Number(value), measurement.unit), measurement.name]
                       }
                     />
                     <Area
-                      type="monotone"
+                      type={isBoolean ? "linear" : "monotone"}
                       dataKey="value"
                       stroke={color}
                       strokeWidth={2}
                       fill="url(#vhsTrendFill)"
                       isAnimationActive={false}
-                      dot={false}
+                      dot={data.length <= 2}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -224,12 +301,15 @@ export function TrendDialog({
             </div>
             <div
               className={`grid gap-2 ${
-                measurement.kind === "pump" ? "grid-cols-2" : "grid-cols-3"
+                isBoolean ? "grid-cols-2" : "grid-cols-3"
               }`}
             >
-              {(measurement.kind === "pump"
+              {(isBoolean
                 ? [
-                    ["Време в работа", `${(stats.average * 100).toFixed(0)} %`],
+                    [
+                      isPump ? "Време в работа" : "Активно",
+                      `${(stats.average * 100).toFixed(0)} %`,
+                    ],
                     ["Превключвания", String(stats.switches)],
                   ]
                 : [

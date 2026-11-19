@@ -42,19 +42,25 @@ async function fetchVhsTrend(
 /**
  * Hook for fetching trend data for a VHS tag.
  */
-export function useVhsTrend(tagName: string | undefined, hours: number = 8) {
+export function useVhsTrend(
+  tagName: string | undefined,
+  hours: number = 8,
+  options: { enabled?: boolean } = {},
+) {
   const tag = tagName ? vhsTagByName[tagName] : undefined;
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ["vhsTrend", tagName, hours],
     queryFn: () => fetchVhsTrend(tagName as string, hours),
-    staleTime: 5 * 60 * 1000,
-    enabled: !!tag,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+    enabled: !!tag && (options.enabled ?? true),
   });
 
   return {
     data: data || [],
     loading: isLoading,
+    fetching: isFetching,
     error,
     unit: tag?.unit,
   };
