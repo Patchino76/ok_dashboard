@@ -287,7 +287,7 @@ export function TrendDialog({
                       }
                     />
                     <Area
-                      type={isBoolean ? "linear" : "monotone"}
+                      type={isBoolean ? "stepAfter" : "monotone"}
                       dataKey="value"
                       stroke={color}
                       strokeWidth={2}
