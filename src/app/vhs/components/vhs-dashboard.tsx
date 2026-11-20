@@ -7,6 +7,7 @@ import type { Measurement, WaterTone } from "./dashboard-types";
 import { LevelGauge } from "./level-gauge";
 import { MetricCard } from "./metric-card";
 import { SemiGauge } from "./semi-gauge";
+import { ReservoirSchematic } from "./reservoir-schematic";
 import { PumpStatus } from "./pump-status";
 import { SectionHeading } from "./section-heading";
 import { StationCard, PumpCountBadge } from "./station-card";
@@ -697,49 +698,43 @@ export function VhsDashboard() {
               />
             </StationCard>
             <StationCard title="Резервоар оборотна вода" tone="recycle">
-              <div className="flex items-center justify-around">
-                <LevelGauge
-                  name="Камера 1"
-                  value={num("VHS_LIT701_1_PV")}
-                  max={4}
-                  tone="recycle"
-                  tag="VHS_LIT701_1_PV"
-                  onSelect={selectMeasurement}
-                />
-                <LevelGauge
-                  name="Камера 2"
-                  value={num("VHS_LIT702_PV")}
-                  max={4}
-                  tone="recycle"
-                  tag="VHS_LIT702_PV"
-                  onSelect={selectMeasurement}
-                />
-                <StatGrid
-                  items={[
-                    {
-                      name: "Ниво A",
-                      value: fmt("VHS_LIT701"),
-                      unit: "m",
-                      tag: "VHS_LIT701",
-                    },
-                    {
-                      name: "Ниво B",
-                      value: fmt("VHS_LIT702_1_PV"),
-                      unit: "m",
-                      tag: "VHS_LIT702_1_PV",
-                    },
-                    {
-                      name: "Налягане",
-                      value: fmt("VHS_PIT126"),
-                      unit: "bar",
-                      tag: "VHS_PIT126",
-                    },
-                  ]}
-                  tone="recycle"
-                  onSelect={selectMeasurement}
-                  columns={1}
-                />
-              </div>
+              <ReservoirSchematic
+                onSelect={selectMeasurement}
+                top={[
+                  {
+                    name: "Резервоар 1",
+                    tag: "VHS_LIT701_1_PV",
+                    value: num("VHS_LIT701_1_PV"),
+                  },
+                  {
+                    name: "Резервоар 2",
+                    tag: "VHS_LIT702_PV",
+                    value: num("VHS_LIT702_PV"),
+                  },
+                ]}
+                bottom={[
+                  {
+                    name: "Резервоар 3",
+                    tag: "VHS_LIT702_1_PV",
+                    value: num("VHS_LIT702_1_PV"),
+                  },
+                  {
+                    name: "Резервоар 4",
+                    tag: "VHS_LIT701",
+                    value: num("VHS_LIT701"),
+                    ph: num("VHS_RECYCLEDWATER_PH702"),
+                    phTag: "VHS_RECYCLEDWATER_PH702",
+                    temp: num("VHS_RECYCLEDWATER_TEMPERATURE"),
+                    tempTag: "VHS_RECYCLEDWATER_TEMPERATURE",
+                  },
+                  {
+                    name: "Резервоар 5",
+                    tag: "VHS_LIT701",
+                    value: num("VHS_LIT701"),
+                  },
+                  { name: "Резервоар 6", value: null },
+                ]}
+              />
             </StationCard>
             {SHOW_AYDERE_SECTION && (
               <StationCard
