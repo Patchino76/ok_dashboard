@@ -21,6 +21,7 @@ export function LevelGauge({
   unit = "m",
   tone = "fresh",
   decimals = 2,
+  centered = false,
   tag,
   onSelect,
 }: {
@@ -32,6 +33,7 @@ export function LevelGauge({
   unit?: string;
   tone: WaterTone;
   decimals?: number;
+  centered?: boolean;
   tag?: string;
   onSelect: (measurement: Measurement) => void;
 }) {
@@ -58,8 +60,13 @@ export function LevelGauge({
       onClick={() => onSelect(measurement)}
     >
       <span className="text-[10px] text-slate-400">{name}</span>
-      <span className="flex items-end gap-1.5">
-        <span className="relative flex h-24 w-7 flex-col justify-between py-0.5 text-right text-[9px] leading-none text-slate-400">
+      <span className="relative flex items-end gap-1.5">
+        <span
+          className={cn(
+            "relative flex h-24 w-7 flex-col justify-between py-0.5 text-right text-[9px] leading-none text-slate-400",
+            centered && "absolute right-full mr-1.5",
+          )}
+        >
           {ticks
             .slice()
             .reverse()

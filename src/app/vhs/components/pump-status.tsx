@@ -4,7 +4,12 @@ import { Button } from "@/components/ui/button";
 import type { Measurement } from "./dashboard-types";
 import { cn } from "@/lib/utils";
 
-export type Pump = { id: string; running: boolean; tag?: string };
+export type Pump = {
+  id: string;
+  running: boolean;
+  tag?: string;
+  small?: boolean;
+};
 
 export function PumpStatus({
   pumps,
@@ -15,19 +20,14 @@ export function PumpStatus({
   station: string;
   onSelect: (measurement: Measurement) => void;
 }) {
-  return (
-    <div
-      className="flex flex-wrap items-end gap-x-3 gap-y-2"
-      role="group"
-      aria-label="Помпи"
-    >
-      {pumps.map((pump) => (
+  const grouped = pumps.some((pump) => pump.small);
+  const renderPump = (pump: Pump) => (
         <Button
           key={pump.id}
           type="button"
           variant="ghost"
           data-tag={pump.tag ?? ""}
-          className="h-auto flex-col gap-1 rounded-md px-2 py-1.5 hover:bg-white/10"
+          className="h-auto min-w-0 shrink flex-col gap-1 rounded-md px-1 py-1.5 hover:bg-white/10"
           aria-label={`${station}, помпа ${pump.id}: ${pump.running ? "работи" : "спряна"}. Покажи тренд.`}
           onClick={() =>
             onSelect({
@@ -44,7 +44,7 @@ export function PumpStatus({
           <svg
             viewBox="0 0 44 36"
             className={cn(
-              "size-4",
+              "h-auto max-w-full",
               pump.running && "drop-shadow-[0_0_8px_rgba(52,211,153,.65)]",
             )}
             fill="none"
@@ -54,8 +54,7 @@ export function PumpStatus({
             strokeLinecap="round"
             style={{
               color: pump.running ? "#34d399" : "#64748b",
-              width: 74.67,
-              height: 58.67,
+              width: pump.small ? 40 : 74.67,
             }}
             aria-hidden="true"
           >
@@ -110,7 +109,28 @@ export function PumpStatus({
             {pump.id}
           </span>
         </Button>
-      ))}
+  );
+
+  return (
+    <div
+      className={cn(
+        grouped
+          ? "grid grid-cols-4 items-end justify-items-center gap-x-1.5"
+          : "flex flex-nowrap items-end justify-center gap-x-1",
+      )}
+      role="group"
+      aria-label="Помпи"
+    >
+      {grouped ? (
+        <>
+          {pumps.filter((pump) => !pump.small).map(renderPump)}
+          <div className="flex min-w-0 items-end justify-center gap-x-1">
+            {pumps.filter((pump) => pump.small).map(renderPump)}
+          </div>
+        </>
+      ) : (
+        pumps.map(renderPump)
+      )}
     </div>
   );
 }

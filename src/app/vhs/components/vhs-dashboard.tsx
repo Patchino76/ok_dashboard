@@ -6,6 +6,7 @@ import { Activity, Gauge } from "lucide-react";
 import type { Measurement, WaterTone } from "./dashboard-types";
 import { LevelGauge } from "./level-gauge";
 import { MetricCard } from "./metric-card";
+import { SemiGauge } from "./semi-gauge";
 import { PumpStatus } from "./pump-status";
 import { SectionHeading } from "./section-heading";
 import { StationCard, PumpCountBadge } from "./station-card";
@@ -22,6 +23,7 @@ type Stat = {
   alarm?: boolean;
   tag?: string;
 };
+const SHOW_AYDERE_SECTION: boolean = false;
 export function DevInspector() {
   if (process.env.NODE_ENV !== "development") return null;
   return <Inspector onInspectElement={gotoVSCode} />;
@@ -555,6 +557,104 @@ export function VhsDashboard() {
           />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <StationCard
+              title="Плаваща ПС „Сулуджа дере“"
+              tone="recycle"
+              status={
+                <PumpCountBadge
+                  total={suldjaderePumps.length}
+                  running={pumpCount(suldjaderePumps)}
+                />
+              }
+            >
+              <SemiGauge
+                name="Мътност"
+                value={num("VHS_LIT420")}
+                max={0.5}
+                ticks={[0, 0.25, 0.5]}
+                unit="g/l"
+                decimals={3}
+                tone="recycle"
+                tag="VHS_LIT420"
+                onSelect={selectMeasurement}
+              />
+              <div className="grid grid-cols-4 gap-1.5 justify-items-center">
+                <LevelGauge
+                  name="Понтон 1"
+                  value={num("VHS_LIT426")}
+                  tone="recycle"
+                  centered
+                  tag="VHS_LIT426"
+                  onSelect={selectMeasurement}
+                />
+                <LevelGauge
+                  name="Понтон 2"
+                  value={num("VHS_LIT427")}
+                  tone="recycle"
+                  centered
+                  tag="VHS_LIT427"
+                  onSelect={selectMeasurement}
+                />
+                <LevelGauge
+                  name="Понтон 3"
+                  value={num("VHS_LIT428")}
+                  tone="recycle"
+                  centered
+                  tag="VHS_LIT428"
+                  onSelect={selectMeasurement}
+                />
+                <LevelGauge
+                  name="Понтон 4"
+                  value={num("VHS_LIT429")}
+                  tone="recycle"
+                  centered
+                  tag="VHS_LIT429"
+                  onSelect={selectMeasurement}
+                />
+              </div>
+              <StatGrid
+                items={[
+                  {
+                    name: "Напр. 1",
+                    value: fmt("VHS_PIT421"),
+                    unit: "bar",
+                    tag: "VHS_PIT421",
+                  },
+                  {
+                    name: "Напр. 2",
+                    value: fmt("VHS_PIT422"),
+                    unit: "bar",
+                    tag: "VHS_PIT422",
+                  },
+                  {
+                    name: "Напр. 3",
+                    value: fmt("VHS_PIT423"),
+                    unit: "bar",
+                    tag: "VHS_PIT423",
+                  },
+                  {
+                    name: "Общо",
+                    value: fmt("VHS_SULDJADERE_TOTAL_PRESURE"),
+                    unit: "bar",
+                    tag: "VHS_SULDJADERE_TOTAL_PRESURE",
+                  },
+                ]}
+                tone="recycle"
+                onSelect={selectMeasurement}
+                columns={4}
+              />
+              <PumpStatus
+                pumps={[
+                  pump("P1", "VHS_PM421_ON"),
+                  pump("P2", "VHS_PM422_ON"),
+                  pump("P3", "VHS_PM423_ON"),
+                  { ...pump("PV424", "VHS_PV424_ON"), small: true },
+                  { ...pump("PV425", "VHS_PV425_ON"), small: true },
+                ]}
+                station="Плаваща ПС Сулуджа дере"
+                onSelect={selectMeasurement}
+              />
+            </StationCard>
+            <StationCard
               title="ПС Мирково · оборотна"
               tone="recycle"
               status={
@@ -641,198 +741,101 @@ export function VhsDashboard() {
                 />
               </div>
             </StationCard>
-            <StationCard
-              title="Плаваща ПС „Ай дере“"
-              tone="recycle"
-              status={
-                bool("VHS_OA3") ? (
-                  <Badge variant="destructive">Аларма</Badge>
-                ) : (
-                  <PumpCountBadge
-                    total={ayderePumps.length}
-                    running={pumpCount(ayderePumps)}
+            {SHOW_AYDERE_SECTION && (
+              <StationCard
+                title="Плаваща ПС „Ай дере“"
+                tone="recycle"
+                status={
+                  bool("VHS_OA3") ? (
+                    <Badge variant="destructive">Аларма</Badge>
+                  ) : (
+                    <PumpCountBadge
+                      total={ayderePumps.length}
+                      running={pumpCount(ayderePumps)}
+                    />
+                  )
+                }
+              >
+                <div className="flex items-center gap-2">
+                  <LevelGauge
+                    name="Мътност"
+                    value={num("VHS_LIT320")}
+                    max={0.5}
+                    ticks={[0, 0.25, 0.5]}
+                    unit="g/l"
+                    decimals={3}
+                    tone="recycle"
+                    tag="VHS_LIT320"
+                    onSelect={selectMeasurement}
                   />
-                )
-              }
-            >
-              <div className="flex items-center gap-2">
-                <LevelGauge
-                  name="Мътност"
-                  value={num("VHS_LIT320")}
-                  max={0.5}
-                  ticks={[0, 0.25, 0.5]}
-                  unit="g/l"
-                  decimals={3}
-                  tone="recycle"
-                  tag="VHS_LIT320"
-                  onSelect={selectMeasurement}
-                />
+                  <StatGrid
+                    items={[
+                      {
+                        name: "Ниво A",
+                        value: fmt("VHS_LIT326"),
+                        unit: "m",
+                        tag: "VHS_LIT326",
+                      },
+                      {
+                        name: "Ниво B",
+                        value: fmt("VHS_LIT327"),
+                        unit: "m",
+                        tag: "VHS_LIT327",
+                      },
+                      {
+                        name: "Ниво C",
+                        value: fmt("VHS_LIT328"),
+                        unit: "m",
+                        tag: "VHS_LIT328",
+                      },
+                      {
+                        name: "Ниво D",
+                        value: fmt("VHS_LIT329"),
+                        unit: "m",
+                        tag: "VHS_LIT329",
+                      },
+                    ]}
+                    tone="recycle"
+                    onSelect={selectMeasurement}
+                    columns={2}
+                  />
+                </div>
                 <StatGrid
                   items={[
                     {
-                      name: "Ниво A",
-                      value: fmt("VHS_LIT326"),
-                      unit: "m",
-                      tag: "VHS_LIT326",
+                      name: "Налягане 1",
+                      value: fmt("VHS_PIT321"),
+                      unit: "bar",
+                      tag: "VHS_PIT321",
                     },
                     {
-                      name: "Ниво B",
-                      value: fmt("VHS_LIT327"),
-                      unit: "m",
-                      tag: "VHS_LIT327",
+                      name: "Налягане 2",
+                      value: fmt("VHS_PIT322"),
+                      unit: "bar",
+                      tag: "VHS_PIT322",
                     },
                     {
-                      name: "Ниво C",
-                      value: fmt("VHS_LIT328"),
-                      unit: "m",
-                      tag: "VHS_LIT328",
-                    },
-                    {
-                      name: "Ниво D",
-                      value: fmt("VHS_LIT329"),
-                      unit: "m",
-                      tag: "VHS_LIT329",
+                      name: "Налягане 3",
+                      value: fmt("VHS_PIT323"),
+                      unit: "bar",
+                      tag: "VHS_PIT323",
                     },
                   ]}
                   tone="recycle"
                   onSelect={selectMeasurement}
-                  columns={2}
+                  columns={3}
                 />
-              </div>
-              <StatGrid
-                items={[
-                  {
-                    name: "Налягане 1",
-                    value: fmt("VHS_PIT321"),
-                    unit: "bar",
-                    tag: "VHS_PIT321",
-                  },
-                  {
-                    name: "Налягане 2",
-                    value: fmt("VHS_PIT322"),
-                    unit: "bar",
-                    tag: "VHS_PIT322",
-                  },
-                  {
-                    name: "Налягане 3",
-                    value: fmt("VHS_PIT323"),
-                    unit: "bar",
-                    tag: "VHS_PIT323",
-                  },
-                ]}
-                tone="recycle"
-                onSelect={selectMeasurement}
-                columns={3}
-              />
-              <PumpStatus
-                pumps={[
-                  pump("P1", "VHS_PM321_ON"),
-                  pump("P2", "VHS_PM322_ON"),
-                  pump("P3", "VHS_PM323_ON"),
-                ]}
-                station="Плаваща ПС Ай дере"
-                onSelect={selectMeasurement}
-              />
-            </StationCard>
-            <StationCard
-              title="Плаваща ПС „Сулуджа дере“"
-              tone="recycle"
-              status={
-                bool("VHS_OA4") ? (
-                  <Badge variant="destructive">Аларма</Badge>
-                ) : (
-                  <PumpCountBadge
-                    total={suldjaderePumps.length}
-                    running={pumpCount(suldjaderePumps)}
-                  />
-                )
-              }
-            >
-              <div className="flex items-center gap-2">
-                <LevelGauge
-                  name="Мътност"
-                  value={num("VHS_LIT420")}
-                  max={0.5}
-                  ticks={[0, 0.25, 0.5]}
-                  unit="g/l"
-                  decimals={3}
-                  tone="recycle"
-                  tag="VHS_LIT420"
-                  onSelect={selectMeasurement}
-                />
-                <StatGrid
-                  items={[
-                    {
-                      name: "Ниво A",
-                      value: fmt("VHS_LIT426"),
-                      unit: "m",
-                      tag: "VHS_LIT426",
-                    },
-                    {
-                      name: "Ниво B",
-                      value: fmt("VHS_LIT427"),
-                      unit: "m",
-                      tag: "VHS_LIT427",
-                    },
-                    {
-                      name: "Ниво C",
-                      value: fmt("VHS_LIT428"),
-                      unit: "m",
-                      tag: "VHS_LIT428",
-                    },
-                    {
-                      name: "Ниво D",
-                      value: fmt("VHS_LIT429"),
-                      unit: "m",
-                      tag: "VHS_LIT429",
-                    },
+                <PumpStatus
+                  pumps={[
+                    pump("P1", "VHS_PM321_ON"),
+                    pump("P2", "VHS_PM322_ON"),
+                    pump("P3", "VHS_PM323_ON"),
                   ]}
-                  tone="recycle"
+                  station="Плаваща ПС Ай дере"
                   onSelect={selectMeasurement}
-                  columns={2}
                 />
-              </div>
-              <StatGrid
-                items={[
-                  {
-                    name: "Напр. 1",
-                    value: fmt("VHS_PIT421"),
-                    unit: "bar",
-                    tag: "VHS_PIT421",
-                  },
-                  {
-                    name: "Напр. 2",
-                    value: fmt("VHS_PIT422"),
-                    unit: "bar",
-                    tag: "VHS_PIT422",
-                  },
-                  {
-                    name: "Напр. 3",
-                    value: fmt("VHS_PIT423"),
-                    unit: "bar",
-                    tag: "VHS_PIT423",
-                  },
-                  {
-                    name: "Напр. 4",
-                    value: fmt("VHS_SULDJADERE_TOTAL_PRESURE"),
-                    unit: "bar",
-                    tag: "VHS_SULDJADERE_TOTAL_PRESURE",
-                  },
-                ]}
-                tone="recycle"
-                onSelect={selectMeasurement}
-                columns={4}
-              />
-              <PumpStatus
-                pumps={[
-                  pump("P1", "VHS_PM421_ON"),
-                  pump("P2", "VHS_PM422_ON"),
-                  pump("P3", "VHS_PM423_ON"),
-                ]}
-                station="Плаваща ПС Сулуджа дере"
-                onSelect={selectMeasurement}
-              />
-            </StationCard>
+              </StationCard>
+            )}
           </div>
         </section>
 
