@@ -6,102 +6,53 @@ import type { Measurement } from "./dashboard-types";
 
 const pulpColor = "#d6b98c";
 
-type PressurePoint = { tag: string; label: string; name: string };
+type PressurePoint = { tag: string | null; name: string };
+
+const W = "Западна нитка";
+const E = "Източна нитка";
 
 const westPoints: PressurePoint[] = [
-  {
-    tag: "VHS_HVOSTOPROVOD_PRESUSRE03",
-    label: "т.01",
-    name: "Западна нитка · т.01 естакада",
-  },
-  {
-    tag: "VHS_HVOSTOPROVOD_PRESUSRE02",
-    label: "т.02",
-    name: "Западна нитка · т.02 при мост",
-  },
-  {
-    tag: "VHS_HVOSTOPROVOD_PRESUSRE01",
-    label: "т.03",
-    name: "Западна нитка · т.03 между мост и дебитомер",
-  },
-  {
-    tag: "VHS_HVOSTOPROVOD_PRESUSRE04",
-    label: "т.04",
-    name: "Западна нитка · т.04 възел C2",
-  },
-  {
-    tag: "VHS_HVOSTOPROVOD_PRESUSRE05",
-    label: "т.05",
-    name: "Западна нитка · т.05 възел D",
-  },
-  {
-    tag: "VHS_HVOSTOPROVOD_PRESUSRE06",
-    label: "т.06",
-    name: "Западна нитка · т.06 след шахта 3",
-  },
-  {
-    tag: "VHS_HVOSTOPROVOD_PRESUSRE07",
-    label: "т.07",
-    name: "Западна нитка · т.07 между естакада и шахта 3",
-  },
-  {
-    tag: "VHS9_HVOSTOPROVOD_PT201",
-    label: "PT201",
-    name: "Западна нитка · PT201",
-  },
+  { tag: "VHS_LORAWAN_PRESSURE_78D3", name: `${W} · LoRaWAN след ЖП мост` },
   {
     tag: "VHS_LORAWAN_PRESSURE_37AE",
-    label: "LoRa 1",
-    name: "Западна нитка · LoRaWAN между ЖП мост и шахта 03",
+    name: `${W} · LoRaWAN между ЖП мост и шахта 03`,
   },
+  { tag: "VHS_LORAWAN_PRESSURE_78CA", name: `${W} · LoRaWAN при шахта 03` },
+  { tag: "VHS_HVOSTOPROVOD_PRESUSRE06", name: `${W} · т.06 след шахта 3` },
   {
-    tag: "VHS_LORAWAN_PRESSURE_78CA",
-    label: "LoRa 2",
-    name: "Западна нитка · LoRaWAN при шахта 03",
+    tag: "VHS_HVOSTOPROVOD_PRESUSRE07",
+    name: `${W} · т.07 между естакада и шахта 3`,
   },
+  { tag: "VHS_HVOSTOPROVOD_PRESUSRE03", name: `${W} · т.01 естакада` },
+  { tag: "VHS_LORAWAN_PRESSURE_78D1", name: `${W} · LoRaWAN при мост (A1)` },
   {
-    tag: "VHS_LORAWAN_PRESSURE_78D3",
-    label: "LoRa 3",
-    name: "Западна нитка · LoRaWAN след ЖП мост",
-  },
-  {
-    tag: "VHS_LORAWAN_PRESSURE_78D1",
-    label: "LoRa 4",
-    name: "Западна нитка · LoRaWAN при мост (A1)",
+    tag: "VHS_HVOSTOPROVOD_PRESUSRE01",
+    name: `${W} · т.03 между мост и дебитомер`,
   },
   {
     tag: "VHS_LORAWAN_PRESSURE_78C8",
-    label: "LoRa 5",
-    name: "Западна нитка · LoRaWAN мерителен възел при дебитомер (A1)",
+    name: `${W} · LoRaWAN мерителен възел при дебитомер (A1)`,
   },
+  { tag: "VHS_HVOSTOPROVOD_PRESUSRE04", name: `${W} · т.04 възел C2` },
 ];
 
 const eastPoints: PressurePoint[] = [
+  { tag: "VHS_LORAWAN_PRESSURE_78CD", name: `${E} · LoRaWAN след ЖП мост` },
   {
     tag: "VHS_LORAWAN_PRESSURE_78C9",
-    label: "LoRa 1",
-    name: "Източна нитка · LoRaWAN между ЖП мост и шахта 03",
+    name: `${E} · LoRaWAN между ЖП мост и шахта 03`,
   },
-  {
-    tag: "VHS_LORAWAN_PRESSURE_78D0",
-    label: "LoRa 2",
-    name: "Източна нитка · LoRaWAN при шахта 03",
-  },
-  {
-    tag: "VHS_LORAWAN_PRESSURE_78CD",
-    label: "LoRa 3",
-    name: "Източна нитка · LoRaWAN след ЖП мост",
-  },
-  {
-    tag: "VHS_LORAWAN_PRESSURE_78D5",
-    label: "LoRa 4",
-    name: "Източна нитка · LoRaWAN при мост (A1)",
-  },
+  { tag: "VHS_LORAWAN_PRESSURE_78D0", name: `${E} · LoRaWAN при шахта 03` },
+  { tag: null, name: E },
+  { tag: null, name: E },
+  { tag: null, name: E },
+  { tag: "VHS_LORAWAN_PRESSURE_78D5", name: `${E} · LoRaWAN при мост (A1)` },
+  { tag: null, name: E },
   {
     tag: "VHS_LORAWAN_PRESSURE_78D8",
-    label: "LoRa 5",
-    name: "Източна нитка · LoRaWAN мерителен възел при дебитомер (A1)",
+    name: `${E} · LoRaWAN мерителен възел при дебитомер (A1)`,
   },
+  { tag: null, name: E },
 ];
 
 function activateOnKeyboard(
@@ -182,6 +133,140 @@ function ValueChip({
         {value}
       </text>
     </>
+  );
+}
+
+function PressureSensor({
+  point,
+  rowY,
+  side,
+  value,
+  onSelect,
+}: {
+  point: PressurePoint;
+  rowY: number;
+  side: "left" | "right";
+  value: number | null;
+  onSelect: (measurement: Measurement) => void;
+}) {
+  const left = side === "left";
+  const pipeEdge = left ? 114 : 306;
+  const gx = left ? 82 : 338;
+  const chipX = left ? 6 : 362;
+  const sign = left ? 1 : -1;
+  const installed = point.tag !== null;
+  const stroke = !installed ? "#334155" : value === null ? "#64748b" : pulpColor;
+  const angle = -120 + Math.max(0, Math.min(1, (value ?? 0) / 12)) * 240;
+  const rad = ((angle - 90) * Math.PI) / 180;
+
+  const chip = installed && (
+    <>
+      <line
+        x1={left ? chipX + 52 : gx + 8.5}
+        x2={left ? gx - 8.5 : chipX}
+        y1={rowY}
+        y2={rowY}
+        stroke="#ffffff30"
+      />
+      <ValueChip
+        x={chipX}
+        y={rowY - 10}
+        value={value === null ? "—" : value.toFixed(2)}
+        dimmed={value === null}
+      />
+    </>
+  );
+
+  const sensor = (
+    <>
+      <line
+        x1={gx + sign * 8.5}
+        x2={pipeEdge}
+        y1={rowY}
+        y2={rowY}
+        stroke={stroke}
+        strokeWidth="2.5"
+      />
+      <rect
+        x={left ? pipeEdge - 5 : pipeEdge}
+        y={rowY - 5}
+        width="5"
+        height="10"
+        rx="1.5"
+        fill="#334155"
+        stroke={stroke}
+      />
+      <circle
+        cx={gx}
+        cy={rowY}
+        r="8.5"
+        fill="#0b1220"
+        stroke={stroke}
+        strokeWidth="1.5"
+      />
+      <circle
+        cx={gx}
+        cy={rowY}
+        r="6"
+        fill="none"
+        stroke={stroke}
+        strokeOpacity=".35"
+        strokeDasharray="1.5 2"
+      />
+      {installed && (
+        <line
+          x1={gx}
+          y1={rowY}
+          x2={gx + Math.cos(rad) * 5.5}
+          y2={rowY + Math.sin(rad) * 5.5}
+          stroke={stroke}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+      )}
+      <circle cx={gx} cy={rowY} r="1.3" fill={stroke} />
+    </>
+  );
+
+  if (!installed) {
+    return (
+      <g opacity=".6">
+        <title>Няма сензор</title>
+        {sensor}
+      </g>
+    );
+  }
+
+  return (
+    <InteractiveGroup
+      label={
+        value === null
+          ? `${point.name}, няма данни`
+          : `Тренд: ${point.name}, ${value.toFixed(2)} bar`
+      }
+      disabled={value === null}
+      onActivate={() => {
+        if (value !== null)
+          onSelect({
+            name: point.name,
+            value,
+            unit: "bar",
+            tone: "tail",
+            tag: point.tag ?? undefined,
+          });
+      }}
+    >
+      <title>{point.name}</title>
+      <rect
+        x={left ? 4 : 326}
+        y={rowY - 12}
+        width={left ? 96 : 90}
+        height="24"
+        fill="transparent"
+      />
+      {chip}
+      {sensor}
+    </InteractiveGroup>
   );
 }
 
@@ -339,7 +424,7 @@ export function TailingsSchematic({
   onSelect: (measurement: Measurement) => void;
 }) {
   const rowStart = 186;
-  const rowGap = 24;
+  const rowGap = 28;
   const westPipeX = 123;
   const eastPipeX = 297;
   const pipeBottom = rowStart + (westPoints.length - 1) * rowGap + 16;
@@ -416,7 +501,7 @@ export function TailingsSchematic({
 
       <rect
         x={westPipeX - 13}
-        y={pipeBottom - 44}
+        y={rowStart + 8 * rowGap - 8}
         width="26"
         height="16"
         rx="4"
@@ -424,127 +509,26 @@ export function TailingsSchematic({
         stroke="#ffffff30"
       />
 
-      {westPoints.map((point, index) => {
-        const rowY = rowStart + index * rowGap;
-        const value = num(point.tag);
-        return (
-          <g key={point.tag}>
-            <line
-              x1="58"
-              x2={westPipeX - 9}
-              y1={rowY}
-              y2={rowY}
-              stroke="#ffffff30"
-            />
-            <circle
-              cx={westPipeX - 9}
-              cy={rowY}
-              r="3"
-              fill={value === null ? "#475569" : pulpColor}
-            />
-            <InteractiveGroup
-              label={
-                value === null
-                  ? `${point.name}, няма данни`
-                  : `Тренд: ${point.name}, ${value.toFixed(2)} bar`
-              }
-              disabled={value === null}
-              onActivate={() => {
-                if (value !== null) {
-                  onSelect({
-                    name: point.name,
-                    value,
-                    unit: "bar",
-                    tone: "tail",
-                    tag: point.tag,
-                  });
-                }
-              }}
-            >
-              <rect
-                x="4"
-                y={rowY - 12}
-                width="56"
-                height="24"
-                fill="transparent"
-              />
-              <ValueChip
-                x={6}
-                y={rowY - 10}
-                value={value === null ? "—" : value.toFixed(2)}
-                dimmed={value === null}
-              />
-            </InteractiveGroup>
-            <text x="66" y={rowY - 4} fontSize="9" fill="#94a3b8">
-              {point.label}
-            </text>
-          </g>
-        );
-      })}
-
-      {eastPoints.map((point, index) => {
-        const rowY = rowStart + index * rowGap;
-        const value = num(point.tag);
-        return (
-          <g key={point.tag}>
-            <line
-              x1={eastPipeX + 9}
-              x2="362"
-              y1={rowY}
-              y2={rowY}
-              stroke="#ffffff30"
-            />
-            <circle
-              cx={eastPipeX + 9}
-              cy={rowY}
-              r="3"
-              fill={value === null ? "#475569" : pulpColor}
-            />
-            <InteractiveGroup
-              label={
-                value === null
-                  ? `${point.name}, няма данни`
-                  : `Тренд: ${point.name}, ${value.toFixed(2)} bar`
-              }
-              disabled={value === null}
-              onActivate={() => {
-                if (value !== null) {
-                  onSelect({
-                    name: point.name,
-                    value,
-                    unit: "bar",
-                    tone: "tail",
-                    tag: point.tag,
-                  });
-                }
-              }}
-            >
-              <rect
-                x="360"
-                y={rowY - 12}
-                width="56"
-                height="24"
-                fill="transparent"
-              />
-              <ValueChip
-                x={362}
-                y={rowY - 10}
-                value={value === null ? "—" : value.toFixed(2)}
-                dimmed={value === null}
-              />
-            </InteractiveGroup>
-            <text
-              x="356"
-              y={rowY - 4}
-              textAnchor="end"
-              fontSize="9"
-              fill="#94a3b8"
-            >
-              {point.label}
-            </text>
-          </g>
-        );
-      })}
+      {westPoints.map((point, index) => (
+        <PressureSensor
+          key={`w${index}`}
+          point={point}
+          rowY={rowStart + index * rowGap}
+          side="left"
+          value={point.tag ? num(point.tag) : null}
+          onSelect={onSelect}
+        />
+      ))}
+      {eastPoints.map((point, index) => (
+        <PressureSensor
+          key={`e${index}`}
+          point={point}
+          rowY={rowStart + index * rowGap}
+          side="right"
+          value={point.tag ? num(point.tag) : null}
+          onSelect={onSelect}
+        />
+      ))}
 
       <LevelTank
         x={40}

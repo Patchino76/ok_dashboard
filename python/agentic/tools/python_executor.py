@@ -47,22 +47,22 @@ _ADVANCED_LIBS = {}  # populated at import time, injected into exec namespace
 try:
     from prophet import Prophet
     _ADVANCED_LIBS["Prophet"] = Prophet
-except ImportError:
-    pass
+except Exception as _exc:
+    print(f"[python_executor] Prophet unavailable: {_exc}")
 
 try:
     import statsmodels.api as _sm
     import statsmodels.tsa.api as _tsa
     _ADVANCED_LIBS["sm"] = _sm
     _ADVANCED_LIBS["tsa"] = _tsa
-except ImportError:
-    pass
+except Exception as _exc:
+    print(f"[python_executor] statsmodels unavailable: {_exc}")
 
 try:
     import pmdarima as _pmdarima
     _ADVANCED_LIBS["pmdarima"] = _pmdarima
-except ImportError:
-    pass
+except Exception as _exc:
+    print(f"[python_executor] pmdarima unavailable: {_exc}")
 
 # Anomaly detection & clustering
 try:
@@ -74,22 +74,22 @@ try:
     _ADVANCED_LIBS["DBSCAN"] = _DBSCAN
     _ADVANCED_LIBS["StandardScaler"] = _SS
     _ADVANCED_LIBS["LinearRegression"] = _LR
-except ImportError:
-    pass
+except Exception as _exc:
+    print(f"[python_executor] sklearn unavailable: {_exc}")
 
 # SHAP explainability
 try:
     import shap as _shap
     _ADVANCED_LIBS["shap"] = _shap
-except ImportError:
-    pass
+except Exception as _exc:
+    print(f"[python_executor] shap unavailable: {_exc}")
 
 # Hidden Markov Models
 try:
     import hmmlearn.hmm as _hmm
     _ADVANCED_LIBS["hmm"] = _hmm
-except ImportError:
-    pass
+except Exception as _exc:
+    print(f"[python_executor] hmmlearn unavailable: {_exc}")
 
 print(f"[python_executor] Advanced libs available: {list(_ADVANCED_LIBS.keys())}")
 

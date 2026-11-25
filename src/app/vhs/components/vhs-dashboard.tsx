@@ -9,6 +9,7 @@ import { MetricCard } from "./metric-card";
 import { SemiGauge } from "./semi-gauge";
 import { ReservoirSchematic } from "./reservoir-schematic";
 import { PumpStatus } from "./pump-status";
+import { ValvePositions } from "./valve-positions";
 import { SectionHeading } from "./section-heading";
 import { StationCard, PumpCountBadge } from "./station-card";
 import { TailingsSchematic } from "./tailings-schematic";
@@ -177,6 +178,15 @@ export function VhsDashboard() {
   const bool = (tag: string): boolean => {
     const v = values[tag]?.value;
     return v === true || v === 1;
+  };
+
+  const fmtDiv = (tag: string, divisor: number, decimals = 2): string => {
+    const v = num(tag);
+    if (v === null) return "—";
+    return new Intl.NumberFormat("bg-BG", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(v / divisor);
   };
 
   const fmt = (tag: string, decimals = 2): string => {
@@ -367,6 +377,15 @@ export function VhsDashboard() {
                   },
                 ]}
               />
+              <ValvePositions
+                onSelect={selectMeasurement}
+                tone="fresh"
+                valves={[
+                  { name: "V211", tag: "VHS_KARLIEVO_VALVE_V211" },
+                  { name: "V212", tag: "VHS_KARLIEVO_VALVE_V212" },
+                  { name: "V213", tag: "VHS_KARLIEVO_VALVE_V213" },
+                ].map((v) => ({ ...v, value: num(v.tag) }))}
+              />
               <PumpStatus
                 pumps={[
                   pump("P1", "VHS_PM211_ON"),
@@ -401,6 +420,16 @@ export function VhsDashboard() {
                     tag: "VHS_PIT116",
                   },
                 ]}
+              />
+              <ValvePositions
+                onSelect={selectMeasurement}
+                tone="fresh"
+                columns={5}
+                valves={["V111", "V112", "V113", "V114", "V115"].map((n) => ({
+                  name: n,
+                  tag: `VHS_MIRKOVO_VALVE_${n}`,
+                  value: num(`VHS_MIRKOVO_VALVE_${n}`),
+                }))}
               />
               <PumpStatus
                 pumps={[
@@ -438,6 +467,15 @@ export function VhsDashboard() {
                     tag: "VHS_PIT614",
                   },
                 ]}
+              />
+              <ValvePositions
+                onSelect={selectMeasurement}
+                tone="fresh"
+                valves={["V611", "V612", "V613"].map((n) => ({
+                  name: n,
+                  tag: `VHS_RADINIZVOR_VALVE_${n}`,
+                  value: num(`VHS_RADINIZVOR_VALVE_${n}`),
+                }))}
               />
               <PumpStatus
                 pumps={[
@@ -643,6 +681,14 @@ export function VhsDashboard() {
                 onSelect={selectMeasurement}
                 columns={4}
               />
+              <ValvePositions
+                onSelect={selectMeasurement}
+                valves={[
+                  { name: "V421", tag: "VHS_SULDJADERE_VALVE_V421" },
+                  { name: "V422", tag: "VHS_SULDJADERE_VALVE_V422" },
+                  { name: "V423", tag: "VHS_SULDJADERE_VALVE_V423" },
+                ].map((v) => ({ ...v, value: num(v.tag) }))}
+              />
               <PumpStatus
                 pumps={[
                   pump("P1", "VHS_PM421_ON"),
@@ -685,6 +731,16 @@ export function VhsDashboard() {
                     tag: "VHS9_HVOSTOPROVOD_SONARTRAC03_TOT",
                   },
                 ]}
+              />
+              <ValvePositions
+                onSelect={selectMeasurement}
+                tone="recycle"
+                columns={4}
+                valves={["V121", "V122", "V123", "V124"].map((n) => ({
+                  name: n,
+                  tag: `VHS_MIRKOVO_VALVE_${n}`,
+                  value: num(`VHS_MIRKOVO_VALVE_${n}`),
+                }))}
               />
               <PumpStatus
                 pumps={[
@@ -1115,9 +1171,9 @@ export function VhsDashboard() {
                   items={[
                     {
                       name: "Дебит",
-                      value: fmt("VHS_HVOSTOPROVOD_VOLUME_FLOW", 0),
-                      unit: "m³/h",
-                      tag: "VHS_HVOSTOPROVOD_VOLUME_FLOW",
+                      value: fmtDiv("VHS9_HVOSTOPROVOD_FT201_H", 3600, 3),
+                      unit: "m³/s",
+                      tag: "VHS9_HVOSTOPROVOD_FT201_H",
                     },
                     {
                       name: "Дебит",
@@ -1154,9 +1210,9 @@ export function VhsDashboard() {
                     },
                     {
                       name: "Дебит",
-                      value: fmt("VHS9_HVOST_CORRECTED_FLOW_TOTAL", 0),
+                      value: fmt("VHS_HVOSTOPROVOD_VOLUME_FLOW", 0),
                       unit: "m³/h",
-                      tag: "VHS9_HVOST_CORRECTED_FLOW_TOTAL",
+                      tag: "VHS_HVOSTOPROVOD_VOLUME_FLOW",
                     },
                     {
                       name: "Плътност",
