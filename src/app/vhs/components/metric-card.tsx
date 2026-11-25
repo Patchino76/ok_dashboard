@@ -21,7 +21,7 @@ export function MetricCard({
     <Card
       data-tag={measurement.tag ?? ""}
       className={cn(
-        "group relative gap-1 border-white/10 bg-white/[0.035] p-2 transition-colors hover:border-sky-300/40 hover:bg-white/[0.07]",
+        "group relative gap-1 border-white/10 bg-white/[0.035] p-2 transition-all duration-200 ease-out hover:border-sky-300/70 hover:bg-sky-400/15 hover:shadow-md hover:shadow-sky-400/25 hover:ring-1 hover:ring-sky-300/60 active:bg-sky-400/25 active:ring-sky-300",
         alarm && "border-red-500/50 bg-red-500/10",
         className,
       )}

@@ -55,7 +55,7 @@ export function SemiGauge({
       type="button"
       variant="ghost"
       data-tag={tag ?? ""}
-      className="h-auto w-full flex-col gap-0 rounded-lg px-1.5 py-1 text-slate-100 hover:bg-white/[0.06]"
+      className="h-auto w-full flex-col gap-0 rounded-lg px-1.5 py-1 text-slate-100 ring-1 ring-transparent transition-all duration-200 ease-out hover:bg-sky-400/20 hover:bg-sky-400/15 hover:ring-sky-300/70 hover:shadow-md hover:shadow-sky-400/20 active:bg-sky-400/25 active:ring-sky-300"
       aria-label={`Покажи тренд: ${name}`}
       onClick={() => onSelect(measurement)}
     >

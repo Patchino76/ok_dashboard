@@ -13,6 +13,7 @@ import { ValvePositions } from "./valve-positions";
 import { SectionHeading } from "./section-heading";
 import { StationCard, PumpCountBadge } from "./station-card";
 import { TailingsSchematic } from "./tailings-schematic";
+import { TagTooltip } from "./tag-tooltip";
 import { TrendDialog } from "./trend-dialog";
 import { Badge } from "@/components/ui/badge";
 import { useVhsValues } from "../hooks/useVhsValues";
@@ -236,6 +237,7 @@ export function VhsDashboard() {
   return (
     <main className="-m-4 min-h-dvh bg-slate-950 bg-[radial-gradient(1000px_500px_at_5%_-10%,rgba(37,99,235,.18),transparent),radial-gradient(800px_400px_at_100%_0%,rgba(16,185,129,.1),transparent)] px-3 py-5 text-slate-100 sm:px-6 md:-m-6">
       <DevTagPicker />
+      <TagTooltip />
       <div className="mx-auto max-w-[1900px] space-y-4">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -259,7 +261,7 @@ export function VhsDashboard() {
           </Badge>
         </header>
 
-        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
+        <section className="group/section space-y-3 rounded-2xl p-2 ring-1 ring-transparent transition-all duration-300 ease-out hover:bg-white/[0.08] hover:ring-white/30 hover:shadow-lg hover:shadow-black/30 active:bg-white/[0.09] active:ring-white/25">
           <SectionHeading
             title="Свежа вода"
             subtitle="Захранване, подаване и налягане"
@@ -588,7 +590,7 @@ export function VhsDashboard() {
           </div>
         </section>
 
-        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
+        <section className="group/section space-y-3 rounded-2xl p-2 ring-1 ring-transparent transition-all duration-300 ease-out hover:bg-white/[0.08] hover:ring-white/30 hover:shadow-lg hover:shadow-black/30 active:bg-white/[0.09] active:ring-white/25">
           <SectionHeading
             title="Оборотна вода"
             subtitle="Помпени станции и резервоари"
@@ -890,7 +892,7 @@ export function VhsDashboard() {
           </div>
         </section>
 
-        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
+        <section className="group/section space-y-3 rounded-2xl p-2 ring-1 ring-transparent transition-all duration-300 ease-out hover:bg-white/[0.08] hover:ring-white/30 hover:shadow-lg hover:shadow-black/30 active:bg-white/[0.09] active:ring-white/25">
           <SectionHeading
             title="Дренажни води"
             subtitle="Дренажни помпени станции"
@@ -1139,7 +1141,7 @@ export function VhsDashboard() {
           </div>
         </section>
 
-        <section className="group/section space-y-3 rounded-2xl p-2 transition-colors duration-200 hover:bg-white/[0.025] active:bg-white/[0.04]">
+        <section className="group/section space-y-3 rounded-2xl p-2 ring-1 ring-transparent transition-all duration-300 ease-out hover:bg-white/[0.08] hover:ring-white/30 hover:shadow-lg hover:shadow-black/30 active:bg-white/[0.09] active:ring-white/25">
           <SectionHeading
             title="Хвостово стопанство"
             subtitle="Шахти, нитки и измерителен възел"
@@ -1150,7 +1152,7 @@ export function VhsDashboard() {
               title="Хвостови шахти и нитки"
               tone="tail"
               status={
-                (num("VHS_SHAHTA03") ?? 0) > 1500 ? (
+                (num("VHS_SHAHTA_NOVA") ?? 0) > 1500 ? (
                   <Badge
                     variant="destructive"
                     className="bg-orange-500/15 text-orange-300"

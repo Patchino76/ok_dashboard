@@ -27,7 +27,7 @@ export function PumpStatus({
           type="button"
           variant="ghost"
           data-tag={pump.tag ?? ""}
-          className="h-auto min-w-0 shrink flex-col gap-1 rounded-md px-1 py-1.5 hover:bg-white/10"
+          className="h-auto min-w-0 shrink flex-col gap-1 rounded-md px-1 py-1.5 ring-1 ring-transparent transition-all duration-200 ease-out hover:bg-sky-400/20 hover:bg-sky-400/15 hover:ring-sky-300/70 hover:shadow-md hover:shadow-sky-400/20 active:bg-sky-400/25 active:ring-sky-300"
           aria-label={`${station}, помпа ${pump.id}: ${pump.running ? "работи" : "спряна"}. Покажи тренд.`}
           onClick={() =>
             onSelect({

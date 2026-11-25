@@ -1297,8 +1297,8 @@ export const vhsTags: TagDefinition[] = [
     state: null,
   },
   {
-    id: 4012,
-    name: "VHS_IZTOCHNANITKA",
+    id: 5714,
+    name: "VHS_SHAHTA_NITKA_IZTOK",
     desc: "Ниво източна нитка",
     unit: "mm",
     precision: 0,
@@ -1317,8 +1317,8 @@ export const vhsTags: TagDefinition[] = [
     state: null,
   },
   {
-    id: 4013,
-    name: "VHS_SHAHTA03",
+    id: 5713,
+    name: "VHS_SHAHTA_NOVA",
     desc: "Ниво нова шахта (шахта 03)",
     unit: "mm",
     precision: 0,

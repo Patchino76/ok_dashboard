@@ -14,14 +14,14 @@ const edgeColors: Record<WaterTone, string> = {
 
 const hoverAccents: Record<WaterTone, string> = {
   fresh:
-    "hover:border-t-sky-300 focus-within:border-t-sky-300 hover:ring-sky-400/30 focus-within:ring-sky-400/30 hover:shadow-sky-500/10 focus-within:shadow-sky-500/10",
+    "hover:border-t-sky-300 focus-within:border-t-sky-300 hover:ring-sky-400/50 focus-within:ring-sky-400/50 hover:shadow-sky-500/25 focus-within:shadow-sky-500/25",
   recycle:
-    "hover:border-t-emerald-300 focus-within:border-t-emerald-300 hover:ring-emerald-400/30 focus-within:ring-emerald-400/30 hover:shadow-emerald-500/10 focus-within:shadow-emerald-500/10",
+    "hover:border-t-emerald-300 focus-within:border-t-emerald-300 hover:ring-emerald-400/50 focus-within:ring-emerald-400/50 hover:shadow-emerald-500/25 focus-within:shadow-emerald-500/25",
   drain:
-    "hover:border-t-amber-300 focus-within:border-t-amber-300 hover:ring-amber-400/30 focus-within:ring-amber-400/30 hover:shadow-amber-500/10 focus-within:shadow-amber-500/10",
+    "hover:border-t-amber-300 focus-within:border-t-amber-300 hover:ring-amber-400/50 focus-within:ring-amber-400/50 hover:shadow-amber-500/25 focus-within:shadow-amber-500/25",
   power:
-    "hover:border-t-yellow-200 focus-within:border-t-yellow-200 hover:ring-yellow-300/30 focus-within:ring-yellow-300/30 hover:shadow-yellow-400/10 focus-within:shadow-yellow-400/10",
-  tail: "hover:border-t-stone-200 focus-within:border-t-stone-200 hover:ring-stone-300/30 focus-within:ring-stone-300/30 hover:shadow-stone-300/10 focus-within:shadow-stone-300/10",
+    "hover:border-t-yellow-200 focus-within:border-t-yellow-200 hover:ring-yellow-300/50 focus-within:ring-yellow-300/50 hover:shadow-yellow-400/25 focus-within:shadow-yellow-400/25",
+  tail: "hover:border-t-stone-200 focus-within:border-t-stone-200 hover:ring-stone-300/50 focus-within:ring-stone-300/50 hover:shadow-stone-300/25 focus-within:shadow-stone-300/25",
 };
 
 export function StationCard({
@@ -40,7 +40,7 @@ export function StationCard({
   return (
     <Card
       className={cn(
-        "gap-3 border-t-2 border-white/10 bg-slate-900/80 py-3 text-slate-100 shadow-lg ring-1 ring-transparent transition-[background-color,border-color,box-shadow] duration-200 hover:bg-slate-900/95 hover:shadow-xl focus-within:bg-slate-900/95 focus-within:shadow-xl active:bg-slate-900/95 active:ring-white/20",
+        "gap-3 border-t-2 border-white/10 bg-slate-900/80 py-3 text-slate-100 shadow-lg ring-1 ring-transparent transition-all duration-300 ease-out hover:bg-slate-800/90 hover:ring-white/25 hover:shadow-xl focus-within:bg-slate-800/90 focus-within:shadow-xl active:bg-slate-800 active:ring-white/30",
         edgeColors[tone],
         hoverAccents[tone],
         className,

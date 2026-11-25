@@ -70,7 +70,9 @@ function InteractiveGroup({
   onActivate,
   children,
   disabled = false,
+  tag,
 }: {
+  tag?: string;
   label: string;
   onActivate: () => void;
   children: ReactNode;
@@ -82,11 +84,12 @@ function InteractiveGroup({
       tabIndex={disabled ? -1 : 0}
       aria-label={label}
       aria-disabled={disabled || undefined}
+      data-tag={tag ?? ""}
       onClick={disabled ? undefined : onActivate}
       onKeyDown={
         disabled ? undefined : (event) => activateOnKeyboard(event, onActivate)
       }
-      className={disabled ? "group" : "group cursor-pointer outline-none"}
+      className={disabled ? "group" : "group cursor-pointer outline-none transition-[filter] duration-200 ease-out [&:hover]:[filter:drop-shadow(0_0_6px_rgba(125,211,252,.95))] [&:active]:[filter:drop-shadow(0_0_10px_rgba(125,211,252,1))] focus-visible:[filter:drop-shadow(0_0_6px_rgba(125,211,252,.8))]"}
     >
       {children}
     </g>
@@ -245,6 +248,7 @@ function PressureSensor({
           : `Тренд: ${point.name}, ${value.toFixed(2)} bar`
       }
       disabled={value === null}
+      tag={point.tag ?? undefined}
       onActivate={() => {
         if (value !== null)
           onSelect({
@@ -318,6 +322,7 @@ function LevelTank({
   return (
     <InteractiveGroup
       label={`Тренд: ${name}, ${value ?? "—"} ${unit}`}
+      tag={tag}
       onActivate={() =>
         onSelect({ name, value: numericValue, unit, tone: "tail", tag })
       }
@@ -407,7 +412,11 @@ function LevelTank({
         y={y + height / 2 - 10}
         width={56}
         value={
-          value === null ? "—" : new Intl.NumberFormat("bg-BG").format(value)
+          value === null
+            ? "—"
+            : new Intl.NumberFormat("bg-BG", {
+                maximumFractionDigits: 0,
+              }).format(value)
         }
         warning={warning}
         dimmed={value === null}
@@ -460,19 +469,8 @@ export function TailingsSchematic({
         </linearGradient>
       </defs>
 
-      <rect x="124" y="41" width="44" height="10" fill="url(#metal)" />
-      <line
-        x1="128"
-        x2="164"
-        y1="46"
-        y2="46"
-        stroke={pulpColor}
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeDasharray="8 12"
-        className="tailings-flow"
-      />
-      <path d="M198 68H222L262 102H158Z" fill="url(#metal)" />
+      <rect x="206" y="45" width="8" height="10" fill="url(#metal)" />
+      <path d="M198 76H222L262 102H158Z" fill="url(#metal)" />
 
       {[westPipeX, eastPipeX].map((centerX) => (
         <g key={centerX}>
@@ -533,8 +531,8 @@ export function TailingsSchematic({
       <LevelTank
         x={40}
         y={24}
-        width={84}
-        height={44}
+        width={166}
+        height={52}
         value={num("VHS_SHAHTA00")}
         max={1000}
         ticks={[
@@ -543,15 +541,16 @@ export function TailingsSchematic({
           [1000, "1 m"],
         ]}
         name="Шахта 0"
+        nameAlign="left"
         tag="VHS_SHAHTA00"
         onSelect={onSelect}
       />
       <LevelTank
-        x={168}
+        x={214}
         y={24}
-        width={84}
-        height={44}
-        value={num("VHS_SHAHTA03")}
+        width={166}
+        height={52}
+        value={num("VHS_SHAHTA_NOVA")}
         max={2000}
         ticks={[
           [0, "0"],
@@ -559,9 +558,9 @@ export function TailingsSchematic({
           [2000, "2 m"],
         ]}
         name="Нова шахта 3"
-        warning
+        nameAlign="right"
         axisSide="right"
-        tag="VHS_SHAHTA03"
+        tag="VHS_SHAHTA_NOVA"
         onSelect={onSelect}
       />
       <LevelTank
@@ -587,7 +586,7 @@ export function TailingsSchematic({
         y={102}
         width={166}
         height={52}
-        value={num("VHS_IZTOCHNANITKA")}
+        value={num("VHS_SHAHTA_NITKA_IZTOK")}
         max={3000}
         ticks={[
           [0, "0"],
@@ -598,34 +597,9 @@ export function TailingsSchematic({
         name="Източна нитка"
         nameAlign="right"
         axisSide="right"
-        tag="VHS_IZTOCHNANITKA"
+        tag="VHS_SHAHTA_NITKA_IZTOK"
         onSelect={onSelect}
       />
-
-      <g>
-        <rect
-          x="316"
-          y="26"
-          width="76"
-          height="40"
-          rx="8"
-          fill="#0f172a"
-          stroke="#ffffff40"
-        />
-        <text x="354" y="41" textAnchor="middle" fontSize="10" fill="#94a3b8">
-          Кота
-        </text>
-        <text
-          x="354"
-          y="58"
-          textAnchor="middle"
-          fontSize="14"
-          fontWeight="600"
-          fill="#64748b"
-        >
-          —
-        </text>
-      </g>
     </svg>
   );
 }
