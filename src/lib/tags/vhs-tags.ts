@@ -111,6 +111,16 @@ export const vhsTags: TagDefinition[] = [
     icon: null,
     state: null,
   },
+  ...[5741, 5742, 5743, 5744].map((id, i) => ({
+    id,
+    name: `VHS_KARLIEVO_VALVE_V22${i + 1}`,
+    desc: `Положение клапа V22${i + 1} – ПС Карлиево`,
+    unit: "%",
+    precision: 0,
+    group: "Свежа вода",
+    icon: null,
+    state: null,
+  })),
   {
     id: 5740,
     name: "VHS_KARLIEVO_VALVE_V213",

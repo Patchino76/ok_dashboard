@@ -8,6 +8,9 @@ import { LevelGauge } from "./level-gauge";
 import { MetricCard } from "./metric-card";
 import { SemiGauge } from "./semi-gauge";
 import { ReservoirSchematic } from "./reservoir-schematic";
+import { KarlievoSchematic } from "./karlievo-schematic";
+import { MirkovoSchematic } from "./mirkovo-schematic";
+import { Arrow, PIPE, Readout } from "./karlievo-schematic";
 import { PumpStatus } from "./pump-status";
 import { ValvePositions } from "./valve-positions";
 import { SectionHeading } from "./section-heading";
@@ -15,6 +18,7 @@ import { StationCard, PumpCountBadge } from "./station-card";
 import { TailingsSchematic } from "./tailings-schematic";
 import { TagTooltip } from "./tag-tooltip";
 import { TrendDialog } from "./trend-dialog";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useVhsValues } from "../hooks/useVhsValues";
 import { vhsTagNames } from "@/lib/tags/vhs-tags";
@@ -358,37 +362,26 @@ export function VhsDashboard() {
                 />
               }
             >
-              <GaugeAndStats
-                name="Ниво"
-                value={num("VHS_LIT200")}
-                tone="fresh"
-                tag="VHS_LIT200"
-                onSelect={selectMeasurement}
-                stats={[
-                  {
-                    name: "Налягане",
-                    value: fmt("VHS_PIT225"),
-                    unit: "bar",
-                    tag: "VHS_PIT225",
-                  },
-                  {
-                    name: "Входящ тръбопровод",
-                    value: fmt("VHS_KARLIEVO_PIT201_PROCESSVALUE"),
-                    unit: "bar",
-                    tag: "VHS_KARLIEVO_PIT201_PROCESSVALUE",
-                  },
+              <KarlievoSchematic
+                level={num("VHS_LIT200")}
+                levelTag="VHS_LIT200"
+                inletPressure={num("VHS_KARLIEVO_PIT201_PROCESSVALUE")}
+                inletTag="VHS_KARLIEVO_PIT201_PROCESSVALUE"
+                outletPressure={num("VHS_PIT225")}
+                outletTag="VHS_PIT225"
+                risers={[
+                  { name: "V223", tag: "VHS_KARLIEVO_VALVE_V223", value: num("VHS_KARLIEVO_VALVE_V223") },
+                  { name: "V224", tag: "VHS_KARLIEVO_VALVE_V224", value: num("VHS_KARLIEVO_VALVE_V224") },
                 ]}
-              />
-              <ValvePositions
-                onSelect={selectMeasurement}
-                tone="fresh"
-                valves={[
-                  { name: "V211", tag: "VHS_KARLIEVO_VALVE_V211" },
-                  { name: "V212", tag: "VHS_KARLIEVO_VALVE_V212" },
-                  { name: "V213", tag: "VHS_KARLIEVO_VALVE_V213" },
-                ].map((v) => ({ ...v, value: num(v.tag) }))}
-              />
-              <PumpStatus
+                manifold={[
+                  { name: "V221", tag: "VHS_KARLIEVO_VALVE_V221", value: num("VHS_KARLIEVO_VALVE_V221") },
+                  { name: "V222", tag: "VHS_KARLIEVO_VALVE_V222", value: num("VHS_KARLIEVO_VALVE_V222") },
+                ]}
+                pumpValves={[
+                  { name: "V211", tag: "VHS_KARLIEVO_VALVE_V211", value: num("VHS_KARLIEVO_VALVE_V211") },
+                  { name: "V212", tag: "VHS_KARLIEVO_VALVE_V212", value: num("VHS_KARLIEVO_VALVE_V212") },
+                  { name: "V213", tag: "VHS_KARLIEVO_VALVE_V213", value: num("VHS_KARLIEVO_VALVE_V213") },
+                ]}
                 pumps={[
                   pump("P1", "VHS_PM211_ON"),
                   pump("P2", "VHS_PM212_ON"),
@@ -408,32 +401,18 @@ export function VhsDashboard() {
                 />
               }
             >
-              <GaugeAndStats
-                name="Ниво"
-                value={num("VHS_LIT110")}
-                tone="fresh"
-                tag="VHS_LIT110"
-                onSelect={selectMeasurement}
-                stats={[
-                  {
-                    name: "Налягане",
-                    value: fmt("VHS_PIT116"),
-                    unit: "bar",
-                    tag: "VHS_PIT116",
-                  },
-                ]}
-              />
-              <ValvePositions
-                onSelect={selectMeasurement}
-                tone="fresh"
-                columns={5}
+              <MirkovoSchematic
+                level={num("VHS_LIT110")}
+                levelTag="VHS_LIT110"
+                inletPressure={num("VHS_PIT225")}
+                inletTag="VHS_PIT225"
+                pressure={num("VHS_PIT116")}
+                pressureTag="VHS_PIT116"
                 valves={["V111", "V112", "V113", "V114", "V115"].map((n) => ({
                   name: n,
                   tag: `VHS_MIRKOVO_VALVE_${n}`,
                   value: num(`VHS_MIRKOVO_VALVE_${n}`),
                 }))}
-              />
-              <PumpStatus
                 pumps={[
                   pump("P6", "VHS_PM111_ON"),
                   pump("P7", "VHS_PM112_ON"),
@@ -455,31 +434,18 @@ export function VhsDashboard() {
                 />
               }
             >
-              <GaugeAndStats
-                name="Ниво"
-                value={num("VHS_LIT600")}
-                tone="fresh"
-                tag="VHS_LIT600"
-                onSelect={selectMeasurement}
-                stats={[
-                  {
-                    name: "Налягане",
-                    value: fmt("VHS_PIT614"),
-                    unit: "bar",
-                    tag: "VHS_PIT614",
-                  },
-                ]}
-              />
-              <ValvePositions
-                onSelect={selectMeasurement}
-                tone="fresh"
+              <MirkovoSchematic
+                level={num("VHS_LIT600")}
+                levelTag="VHS_LIT600"
+                inletPressure={num("VHS_PIT116")}
+                inletTag="VHS_PIT116"
+                pressure={num("VHS_PIT614")}
+                pressureTag="VHS_PIT614"
                 valves={["V611", "V612", "V613"].map((n) => ({
                   name: n,
                   tag: `VHS_RADINIZVOR_VALVE_${n}`,
                   value: num(`VHS_RADINIZVOR_VALVE_${n}`),
                 }))}
-              />
-              <PumpStatus
                 pumps={[
                   pump("P1", "VHS_PM611_ON"),
                   pump("P2", "VHS_PM612_ON"),
@@ -490,24 +456,36 @@ export function VhsDashboard() {
               />
             </StationCard>
             <StationCard title="Водонапорна кула" tone="fresh">
-              <GaugeAndStats
-                name="Ниво"
-                value={num("VHS_LIT620")}
-                min={843.66}
-                max={863.66}
-                ticks={[843.66, 848.66, 853.66, 858.66, 863.66]}
-                tone="fresh"
-                tag="VHS_LIT620"
-                onSelect={selectMeasurement}
-                stats={[
-                  {
-                    name: "Налягане",
-                    value: fmt("VHS_PIT614"),
-                    unit: "bar",
-                    tag: "VHS_PIT614",
-                  },
-                ]}
-              />
+              <div className="flex items-center justify-center gap-1">
+                <div className="flex w-24 shrink-0 flex-col gap-1">
+                  <Readout
+                    name="Входящ тръбопровод"
+                    value={num("VHS_PIT614")}
+                    unit="bar"
+                    tag="VHS_PIT614"
+                    tone="fresh"
+                    decimals={3}
+                    onSelect={selectMeasurement}
+                  />
+                  <div className="relative h-[3px]">
+                    <span className={cn("absolute inset-0", PIPE)} />
+                    <Arrow left="calc(100% - 8px)" top="50%" dir="right" />
+                  </div>
+                  <span className="text-[10px] leading-tight text-slate-400">
+                    Входящ тръбопровод
+                  </span>
+                </div>
+                <LevelGauge
+                  name="Ниво"
+                  value={num("VHS_LIT620")}
+                  min={843.66}
+                  max={863.66}
+                  ticks={[843.66, 848.66, 853.66, 858.66, 863.66]}
+                  tone="fresh"
+                  tag="VHS_LIT620"
+                  onSelect={selectMeasurement}
+                />
+              </div>
             </StationCard>
             <StationCard
               title="Баланс на водата"
