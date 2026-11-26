@@ -630,50 +630,29 @@ export function VhsDashboard() {
                   onSelect={selectMeasurement}
                 />
               </div>
-              <StatGrid
-                items={[
-                  {
-                    name: "Напор 1",
-                    value: fmt("VHS_PIT421"),
-                    unit: "bar",
-                    tag: "VHS_PIT421",
-                  },
-                  {
-                    name: "Напор 2",
-                    value: fmt("VHS_PIT422"),
-                    unit: "bar",
-                    tag: "VHS_PIT422",
-                  },
-                  {
-                    name: "Напор 3",
-                    value: fmt("VHS_PIT423"),
-                    unit: "bar",
-                    tag: "VHS_PIT423",
-                  },
-                  {
-                    name: "Общо",
-                    value: fmt("VHS_SULDJADERE_TOTAL_PRESURE"),
-                    unit: "bar",
-                    tag: "VHS_SULDJADERE_TOTAL_PRESURE",
-                  },
-                ]}
+              <MirkovoSchematic
                 tone="recycle"
-                onSelect={selectMeasurement}
-                columns={4}
-              />
-              <ValvePositions
-                onSelect={selectMeasurement}
+                hideTop
+                dialMax={10}
+                pressure={num("VHS_SULDJADERE_TOTAL_PRESURE")}
+                pressureTag="VHS_SULDJADERE_TOTAL_PRESURE"
                 valves={[
-                  { name: "V421", tag: "VHS_SULDJADERE_VALVE_V421" },
-                  { name: "V422", tag: "VHS_SULDJADERE_VALVE_V422" },
-                  { name: "V423", tag: "VHS_SULDJADERE_VALVE_V423" },
-                ].map((v) => ({ ...v, value: num(v.tag) }))}
-              />
-              <PumpStatus
+                  ["V421", "VHS_PIT421"],
+                  ["V422", "VHS_PIT422"],
+                  ["V423", "VHS_PIT423"],
+                ].map(([n, pt]) => ({
+                  name: n,
+                  tag: `VHS_SULDJADERE_VALVE_${n}`,
+                  value: num(`VHS_SULDJADERE_VALVE_${n}`),
+                  pressure: num(pt),
+                  pressureTag: pt,
+                }))}
                 pumps={[
                   pump("P1", "VHS_PM421_ON"),
                   pump("P2", "VHS_PM422_ON"),
                   pump("P3", "VHS_PM423_ON"),
+                ]}
+                extraPumps={[
                   { ...pump("PV424", "VHS_PV424_ON"), small: true },
                   { ...pump("PV425", "VHS_PV425_ON"), small: true },
                 ]}

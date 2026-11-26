@@ -5,7 +5,13 @@ import { LevelGauge } from "./level-gauge";
 import { PumpStatus, type Pump } from "./pump-status";
 import { cn } from "@/lib/utils";
 
-export type KarlievoValve = { name: string; tag?: string; value?: number | null };
+export type KarlievoValve = {
+  name: string;
+  tag?: string;
+  value?: number | null;
+  pressure?: number | null;
+  pressureTag?: string;
+};
 
 export const PIPE = "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.5)]";
 const L = "16.667%";

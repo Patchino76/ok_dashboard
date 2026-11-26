@@ -22,7 +22,8 @@ export function PumpStatus({
   aligned?: boolean;
   onSelect: (measurement: Measurement) => void;
 }) {
-  const grouped = pumps.some((pump) => pump.small);
+  const grouped =
+    pumps.some((pump) => pump.small) && pumps.some((pump) => !pump.small);
   const renderPump = (pump: Pump) => (
         <Button
           key={pump.id}
