@@ -135,7 +135,7 @@ function Tank({
               <Readout
                 value={tank.ph}
                 unit="pH"
-                decimals={3}
+                decimals={2}
                 tag={tank.phTag}
                 onClick={() => select("pH", tank.ph, "", tank.phTag)}
               />

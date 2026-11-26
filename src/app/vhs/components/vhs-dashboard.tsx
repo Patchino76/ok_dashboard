@@ -10,6 +10,7 @@ import { SemiGauge } from "./semi-gauge";
 import { ReservoirSchematic } from "./reservoir-schematic";
 import { KarlievoSchematic } from "./karlievo-schematic";
 import { MirkovoSchematic } from "./mirkovo-schematic";
+import { DialReadout } from "./dial-readout";
 import { Arrow, PIPE, Readout } from "./karlievo-schematic";
 import { PumpStatus } from "./pump-status";
 import { ValvePositions } from "./valve-positions";
@@ -457,21 +458,20 @@ export function VhsDashboard() {
             </StationCard>
             <StationCard title="Водонапорна кула" tone="fresh">
               <div className="flex items-center justify-center gap-1">
-                <div className="flex w-24 shrink-0 flex-col gap-1">
-                  <Readout
+                <div className="flex w-28 shrink-0 flex-col">
+                  <DialReadout
                     name="Входящ тръбопровод"
                     value={num("VHS_PIT614")}
-                    unit="bar"
                     tag="VHS_PIT614"
                     tone="fresh"
-                    decimals={3}
+                    side="top"
                     onSelect={selectMeasurement}
                   />
                   <div className="relative h-[3px]">
                     <span className={cn("absolute inset-0", PIPE)} />
                     <Arrow left="calc(100% - 8px)" top="50%" dir="right" />
                   </div>
-                  <span className="text-[10px] leading-tight text-slate-400">
+                  <span className="mt-1 text-[10px] leading-tight text-slate-400">
                     Входящ тръбопровод
                   </span>
                 </div>
@@ -591,7 +591,7 @@ export function VhsDashboard() {
                 max={0.5}
                 ticks={[0, 0.25, 0.5]}
                 unit="g/l"
-                decimals={3}
+                decimals={2}
                 tone="recycle"
                 tag="VHS_LIT420"
                 onSelect={selectMeasurement}
@@ -676,61 +676,51 @@ export function VhsDashboard() {
                 max={15}
                 ticks={[0, 7.5, 15]}
                 unit="g/l"
-                decimals={3}
+                decimals={2}
                 tone="recycle"
                 tag="VHS_LORAWAN_NTU_66B0"
                 onSelect={selectMeasurement}
               />
-              <GaugeAndStats
-                name="Ниво"
-                value={num("VHS_LIT120")}
+              <MirkovoSchematic
                 tone="recycle"
-                tag="VHS_LIT120"
-                onSelect={selectMeasurement}
-                stats={[
-                  {
-                    name: "Дебит",
-                    value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03", 1),
-                    unit: "l/s",
-                    tag: "VHS9_HVOSTOPROVOD_SONARTRAC03",
-                  },
-                  {
-                    name: "Обем",
-                    value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03_TOT", 0),
-                    unit: "m³",
-                    tag: "VHS9_HVOSTOPROVOD_SONARTRAC03_TOT",
-                  },
-                ]}
-              />
-              <StatGrid
-                items={[
-                  {
-                    name: "Напор",
-                    value: fmt("VHS_PIT126"),
-                    unit: "bar",
-                    tag: "VHS_PIT126",
-                  },
-                ]}
-                tone="recycle"
-                onSelect={selectMeasurement}
-                columns={1}
-              />
-              <ValvePositions
-                onSelect={selectMeasurement}
-                tone="recycle"
-                columns={4}
+                level={num("VHS_LIT120")}
+                levelTag="VHS_LIT120"
+                inletContent={
+                  <>
+                    <Readout
+                      name="Дебит"
+                      value={num("VHS9_HVOSTOPROVOD_SONARTRAC03")}
+                      unit="l/s"
+                      tag="VHS9_HVOSTOPROVOD_SONARTRAC03"
+                      tone="recycle"
+                      decimals={1}
+                      onSelect={selectMeasurement}
+                    />
+                    <Readout
+                      name="Обем"
+                      value={num("VHS9_HVOSTOPROVOD_SONARTRAC03_TOT")}
+                      unit="m³"
+                      tag="VHS9_HVOSTOPROVOD_SONARTRAC03_TOT"
+                      tone="recycle"
+                      decimals={0}
+                      onSelect={selectMeasurement}
+                    />
+                  </>
+                }
+                pressure={num("VHS_PIT126")}
+                pressureTag="VHS_PIT126"
                 valves={["V121", "V122", "V123", "V124"].map((n) => ({
                   name: n,
                   tag: `VHS_MIRKOVO_VALVE_${n}`,
                   value: num(`VHS_MIRKOVO_VALVE_${n}`),
                 }))}
-              />
-              <PumpStatus
                 pumps={[
                   pump("P1", "VHS_PM121_ON"),
                   pump("P2", "VHS_PM122_ON"),
                   pump("P3", "VHS_PM123_ON"),
                   pump("P4", "VHS_PM124_ON"),
+                ]}
+                extraPumps={[
                   { ...pump("PD131", "VHS_PD131_ON"), small: true },
                   { ...pump("PD561", "VHS_PD561_ON"), small: true },
                 ]}
@@ -799,7 +789,7 @@ export function VhsDashboard() {
                     max={0.5}
                     ticks={[0, 0.25, 0.5]}
                     unit="g/l"
-                    decimals={3}
+                    decimals={2}
                     tone="recycle"
                     tag="VHS_LIT320"
                     onSelect={selectMeasurement}

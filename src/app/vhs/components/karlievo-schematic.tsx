@@ -2,6 +2,7 @@
 
 import type { Measurement } from "./dashboard-types";
 import { LevelGauge } from "./level-gauge";
+import { DialReadout } from "./dial-readout";
 import { PumpStatus, type Pump } from "./pump-status";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +14,7 @@ export type KarlievoValve = {
   pressureTag?: string;
 };
 
+export const PIPE_GREEN = "bg-emerald-500 shadow-[0_0_6px_rgba(52,211,153,0.5)]";
 export const PIPE = "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.5)]";
 const L = "16.667%";
 const C = "50%";
@@ -115,29 +117,29 @@ export function Valve({
   );
 }
 
-export function HLine({ from, to, top }: { from: string; to: string; top: number }) {
+export function HLine({ from, to, top, green }: { from: string; to: string; top: number; green?: boolean }) {
   return (
     <span
-      className={cn("absolute h-[3px]", PIPE)}
+      className={cn("absolute h-[3px]", green ? PIPE_GREEN : PIPE)}
       style={{ left: from, width: `calc(${to} - ${from})`, top: top - 1.5 }}
     />
   );
 }
 
-export function VLine({ left, from, to }: { left: string; from: number; to: number }) {
+export function VLine({ left, from, to, green }: { left: string; from: number; to: number; green?: boolean }) {
   return (
     <span
-      className={cn("absolute w-[3px] -translate-x-1/2", PIPE)}
+      className={cn("absolute w-[3px] -translate-x-1/2", green ? PIPE_GREEN : PIPE)}
       style={{ left, top: from, height: to - from }}
     />
   );
 }
 
-export function Arrow({ left, top, dir }: { left: string; top: number | string; dir: "up" | "down" | "right" }) {
+export function Arrow({ left, top, dir, green }: { left: string; top: number | string; dir: "up" | "down" | "right"; green?: boolean }) {
   const cls = {
-    up: "-translate-x-1/2 border-x-[5px] border-b-[8px] border-x-transparent border-b-sky-300",
-    down: "-translate-x-1/2 border-x-[5px] border-t-[8px] border-x-transparent border-t-sky-300",
-    right: "-translate-y-1/2 border-y-[5px] border-l-[8px] border-y-transparent border-l-sky-300",
+    up: cn("-translate-x-1/2 border-x-[5px] border-b-[8px] border-x-transparent", green ? "border-b-emerald-400" : "border-b-sky-300"),
+    down: cn("-translate-x-1/2 border-x-[5px] border-t-[8px] border-x-transparent", green ? "border-t-emerald-400" : "border-t-sky-300"),
+    right: cn("-translate-y-1/2 border-y-[5px] border-l-[8px] border-y-transparent", green ? "border-l-emerald-400" : "border-l-sky-300"),
   }[dir];
   return <span className={cn("absolute h-0 w-0", cls)} style={{ left, top }} />;
 }
@@ -205,13 +207,13 @@ export function KarlievoSchematic({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-center gap-1">
-        <div className="flex w-24 shrink-0 flex-col gap-1">
-          <Readout name="Входящ тръбопровод" value={inletPressure} unit="bar" tag={inletTag} tone={tone} decimals={3} onSelect={onSelect} />
+        <div className="flex w-28 shrink-0 flex-col gap-0">
+          <DialReadout name="Входящ тръбопровод" value={inletPressure} tag={inletTag} tone={tone} side="top" onSelect={onSelect} />
           <div className="relative h-[3px]">
             <span className={cn("absolute inset-0", PIPE)} />
             <Arrow left="calc(100% - 8px)" top="50%" dir="right" />
           </div>
-          <span className="text-[10px] leading-tight text-slate-400">Входящ тръбопровод</span>
+          <span className="mt-1 text-[10px] leading-tight text-slate-400">Входящ тръбопровод</span>
         </div>
         <LevelGauge name="Ниво" value={level} tone="fresh" tag={levelTag} onSelect={onSelect} />
       </div>
@@ -232,9 +234,9 @@ export function KarlievoSchematic({
         <Arrow left={C} top={Y_MANIFOLD + 6} dir="up" />
         <Arrow left={R} top={Y_MANIFOLD + 6} dir="up" />
 
-        <Pos left={C} top={Y_HEADER - 16}>
-          <Readout name="Налягане" value={outletPressure} unit="bar" tag={outletTag} tone={tone} onSelect={onSelect} />
-        </Pos>
+        <div className="absolute right-0" style={{ top: Y_HEADER - 27 }}>
+          <DialReadout name="Налягане" value={outletPressure} tag={outletTag} tone={tone} side="top" onSelect={onSelect} />
+        </div>
 
         <Valve valve={risers[0]} left={L} top={Y_HEADER + 40} vertical tone={tone} onSelect={onSelect} />
         <Valve valve={risers[1]} left={R} top={Y_HEADER + 40} vertical tone={tone} onSelect={onSelect} />
