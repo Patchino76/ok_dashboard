@@ -8,4 +8,6 @@ export type Measurement = {
   tag?: string;
   kind?: "pump";
   on?: boolean;
+  station?: string;
+  series?: { name: string; tag: string; color: string }[];
 };

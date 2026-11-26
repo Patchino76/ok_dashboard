@@ -19,6 +19,7 @@ import { StationCard, PumpCountBadge } from "./station-card";
 import { TailingsSchematic } from "./tailings-schematic";
 import { TagTooltip } from "./tag-tooltip";
 import { TrendDialog } from "./trend-dialog";
+import { MultiTrendDialog } from "./multi-trend-dialog";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useVhsValues } from "../hooks/useVhsValues";
@@ -415,7 +416,25 @@ export function VhsDashboard() {
                   value: num(`VHS_MIRKOVO_VALVE_${n}`),
                 }))}
                 pumps={[
-                  pump("P6", "VHS_PM111_ON"),
+                  {
+                    ...pump("P6", "VHS_PM111_ON"),
+                    temps: (
+                      [
+                        ["Мотор, лагер 1", "TMB1", "#fb7185"],
+                        ["Мотор, лагер 2", "TMB2", "#fb923c"],
+                        ["Помпа, лагер 1", "TPB1", "#38bdf8"],
+                        ["Помпа, лагер 2", "TPB2", "#a78bfa"],
+                        ["Мотор, намотка 1", "TMF1", "#fbbf24"],
+                        ["Мотор, намотка 2", "TMF2", "#a3e635"],
+                        ["Мотор, намотка 3", "TMF3", "#2dd4bf"],
+                      ] as const
+                    ).map(([name, sfx, color]) => ({
+                      name,
+                      color,
+                      tag: `VHS_PM111_${sfx}`,
+                      value: num(`VHS_PM111_${sfx}`),
+                    })),
+                  },
                   pump("P7", "VHS_PM112_ON"),
                   pump("P8", "VHS_PM113_ON"),
                   pump("P9", "VHS_PM114_ON"),
@@ -1266,7 +1285,12 @@ export function VhsDashboard() {
       </div>
       <TrendDialog
         measurement={selectedMeasurement}
-        open={selectedMeasurement !== null}
+        open={selectedMeasurement !== null && !selectedMeasurement.series}
+        onOpenChange={closeTrend}
+      />
+      <MultiTrendDialog
+        measurement={selectedMeasurement?.series ? selectedMeasurement : null}
+        open={!!selectedMeasurement?.series}
         onOpenChange={closeTrend}
       />
     </main>

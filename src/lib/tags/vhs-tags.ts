@@ -242,6 +242,36 @@ export const vhsTags: TagDefinition[] = [
     icon: null,
     state: null,
   })),
+  ...(
+    [
+      [272, "VHS_PM111_TMB1"],
+      [273, "VHS_PM111_TMB2"],
+      [274, "VHS_PM111_TMF1"],
+      [275, "VHS_PM111_TMF2"],
+      [276, "VHS_PM111_TMF3"],
+      [277, "VHS_PM111_TPB1"],
+      [278, "VHS_PM111_TPB2"],
+    ] as [number, string][]
+  ).map(([id, name]) => ({
+    id,
+    name,
+    desc: `${
+      {
+        TMB1: "Мотор, лагер 1",
+        TMB2: "Мотор, лагер 2",
+        TMF1: "Мотор, намотка 1",
+        TMF2: "Мотор, намотка 2",
+        TMF3: "Мотор, намотка 3",
+        TPB1: "Помпа, лагер 1",
+        TPB2: "Помпа, лагер 2",
+      }[name.split("_")[2]]
+    } – P6 (Мирково)`,
+    unit: "°C",
+    precision: 0,
+    group: "Свежа вода",
+    icon: "temperature",
+    state: null,
+  })),
   {
     id: 1117,
     name: "VHS_PM121_ON",

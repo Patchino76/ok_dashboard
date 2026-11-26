@@ -3,12 +3,14 @@
 import { Button } from "@/components/ui/button";
 import type { Measurement } from "./dashboard-types";
 import { cn } from "@/lib/utils";
+import { PumpAvg, PumpTemps, type PumpTemp } from "./pump-temps";
 
 export type Pump = {
   id: string;
   running: boolean;
   tag?: string;
   small?: boolean;
+  temps?: PumpTemp[];
 };
 
 export function PumpStatus({
@@ -24,7 +26,8 @@ export function PumpStatus({
 }) {
   const grouped =
     pumps.some((pump) => pump.small) && pumps.some((pump) => !pump.small);
-  const renderPump = (pump: Pump) => (
+  const renderPump = (pump: Pump) => {
+    const button = (
         <Button
           key={pump.id}
           type="button"
@@ -112,7 +115,34 @@ export function PumpStatus({
             {pump.id}
           </span>
         </Button>
-  );
+    );
+    if (!pump.temps) return button;
+    const openTemps = () =>
+      onSelect({
+        name: `Помпа ${pump.id}`,
+        station,
+        value: "",
+        unit: "°C",
+        tone: "pump",
+        series: pump.temps!.map(({ name, tag, color }) => ({ name, tag, color })),
+      });
+    return (
+      <div key={pump.id} className="flex min-w-0 flex-col items-center gap-1">
+        {button}
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Тренд на температурите на ${pump.id}`}
+          className="flex cursor-pointer flex-col items-center gap-1 rounded-md ring-1 ring-transparent transition-all hover:ring-sky-300/70"
+          onClick={openTemps}
+          onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && openTemps()}
+        >
+          <PumpTemps temps={pump.temps} running={pump.running} />
+          <PumpAvg temps={pump.temps} />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div
