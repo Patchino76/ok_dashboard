@@ -31,7 +31,6 @@ export function MetricCard({
         variant="ghost"
         className="absolute inset-0 z-10 size-full rounded-xl p-0 hover:bg-transparent"
         aria-label={`Покажи тренд: ${measurement.name}`}
-        title="Покажи тренд"
         onClick={() => onSelect(measurement)}
       />
       <span className="truncate text-[10px] leading-tight text-slate-400">

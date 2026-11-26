@@ -655,19 +655,19 @@ export function VhsDashboard() {
               <StatGrid
                 items={[
                   {
-                    name: "Напр. 1",
+                    name: "Напор 1",
                     value: fmt("VHS_PIT421"),
                     unit: "bar",
                     tag: "VHS_PIT421",
                   },
                   {
-                    name: "Напр. 2",
+                    name: "Напор 2",
                     value: fmt("VHS_PIT422"),
                     unit: "bar",
                     tag: "VHS_PIT422",
                   },
                   {
-                    name: "Напр. 3",
+                    name: "Напор 3",
                     value: fmt("VHS_PIT423"),
                     unit: "bar",
                     tag: "VHS_PIT423",
@@ -713,6 +713,17 @@ export function VhsDashboard() {
                 />
               }
             >
+              <SemiGauge
+                name="Мътност"
+                value={num("VHS_LORAWAN_NTU_66B0")}
+                max={15}
+                ticks={[0, 7.5, 15]}
+                unit="g/l"
+                decimals={3}
+                tone="recycle"
+                tag="VHS_LORAWAN_NTU_66B0"
+                onSelect={selectMeasurement}
+              />
               <GaugeAndStats
                 name="Ниво"
                 value={num("VHS_LIT120")}
@@ -734,6 +745,19 @@ export function VhsDashboard() {
                   },
                 ]}
               />
+              <StatGrid
+                items={[
+                  {
+                    name: "Напор",
+                    value: fmt("VHS_PIT126"),
+                    unit: "bar",
+                    tag: "VHS_PIT126",
+                  },
+                ]}
+                tone="recycle"
+                onSelect={selectMeasurement}
+                columns={1}
+              />
               <ValvePositions
                 onSelect={selectMeasurement}
                 tone="recycle"
@@ -750,6 +774,8 @@ export function VhsDashboard() {
                   pump("P2", "VHS_PM122_ON"),
                   pump("P3", "VHS_PM123_ON"),
                   pump("P4", "VHS_PM124_ON"),
+                  { ...pump("PD131", "VHS_PD131_ON"), small: true },
+                  { ...pump("PD561", "VHS_PD561_ON"), small: true },
                 ]}
                 station="ПС Мирково · оборотна"
                 onSelect={selectMeasurement}
@@ -924,31 +950,32 @@ export function VhsDashboard() {
                   tag="VHS_LIT541"
                   onSelect={selectMeasurement}
                 />
-                <StatGrid
-                  items={[
-                    {
-                      name: "Налягане 1",
-                      value: fmt("VHS_PIT563"),
-                      unit: "bar",
-                      tag: "VHS_PIT563",
-                    },
-                    {
-                      name: "Налягане 2",
-                      value: fmt("VHS_PIT554"),
-                      unit: "bar",
-                      tag: "VHS_PIT554",
-                    },
-                  ]}
-                  tone="drain"
-                  onSelect={selectMeasurement}
-                  columns={1}
-                />
               </div>
+              <StatGrid
+                items={[
+                  {
+                    name: "Напор 1",
+                    value: fmt("VHS_PIT563"),
+                    unit: "bar",
+                    tag: "VHS_PIT563",
+                  },
+                  {
+                    name: "Напор 2",
+                    value: fmt("VHS_PIT554"),
+                    unit: "bar",
+                    tag: "VHS_PIT554",
+                  },
+                ]}
+                tone="drain"
+                onSelect={selectMeasurement}
+                columns={2}
+              />
               <PumpStatus
                 pumps={[
                   pump("P1", "VHS_PM551_ON"),
                   pump("P2", "VHS_PM552_ON"),
                   pump("P3", "VHS_PM553_ON"),
+                  { ...pump("PD561", "VHS_PD561_ON"), small: true },
                 ]}
                 station="Нова дренажна ПС"
                 onSelect={selectMeasurement}
@@ -983,19 +1010,19 @@ export function VhsDashboard() {
                   items={[
                     {
                       name: "Дебит 1",
-                      value: fmt("VHS_FIT512", 1),
+                      value: fmt("VHS_FIT512", 2),
                       unit: "l/s",
                       tag: "VHS_FIT512",
                     },
                     {
                       name: "Дебит 2",
-                      value: fmt("VHS_FIT513", 1),
+                      value: fmt("VHS_FIT513", 2),
                       unit: "l/s",
                       tag: "VHS_FIT513",
                     },
                     {
                       name: "Дебит 3",
-                      value: fmt("VHS_FIT514", 1),
+                      value: fmt("VHS_FIT514", 2),
                       unit: "l/s",
                       tag: "VHS_FIT514",
                     },
@@ -1008,36 +1035,37 @@ export function VhsDashboard() {
               <StatGrid
                 items={[
                   {
-                    name: "Напр. 1",
+                    name: "Напор 1",
                     value: fmt("VHS_PIT521"),
                     unit: "bar",
                     tag: "VHS_PIT521",
                   },
                   {
-                    name: "Напр. 2",
+                    name: "Напор 2",
                     value: fmt("VHS_PIT522"),
                     unit: "bar",
                     tag: "VHS_PIT522",
                   },
                   {
-                    name: "Напр. 3",
+                    name: "Напор 3",
                     value: fmt("VHS_PIT523"),
                     unit: "bar",
                     tag: "VHS_PIT523",
                   },
-                  { name: "Напр. 4", value: "—", unit: "bar" },
                 ]}
                 tone="drain"
                 onSelect={selectMeasurement}
-                columns={4}
+                columns={3}
               />
               <PumpStatus
                 pumps={[
                   pump("P1", "VHS_PM521_ON"),
                   pump("P2", "VHS_PM522_ON"),
                   pump("P3", "VHS_PM523_ON"),
+                  { ...pump("PD531", "VHS_PD531_ON"), small: true },
                 ]}
                 station="Стара дренажна ПС"
+                aligned
                 onSelect={selectMeasurement}
               />
             </StationCard>

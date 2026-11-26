@@ -260,7 +260,6 @@ function PressureSensor({
           });
       }}
     >
-      <title>{point.name}</title>
       <rect
         x={left ? 4 : 326}
         y={rowY - 12}

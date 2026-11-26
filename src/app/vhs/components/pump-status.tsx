@@ -14,10 +14,12 @@ export type Pump = {
 export function PumpStatus({
   pumps,
   station,
+  aligned = false,
   onSelect,
 }: {
   pumps: Pump[];
   station: string;
+  aligned?: boolean;
   onSelect: (measurement: Measurement) => void;
 }) {
   const grouped = pumps.some((pump) => pump.small);
@@ -114,10 +116,17 @@ export function PumpStatus({
   return (
     <div
       className={cn(
-        grouped
+        aligned
+          ? "grid items-end justify-items-center gap-x-1.5"
+          : grouped
           ? "grid grid-cols-4 items-end justify-items-center gap-x-1.5"
           : "flex flex-nowrap items-end justify-center gap-x-1",
       )}
+      style={
+        aligned
+          ? { gridTemplateColumns: `repeat(${pumps.length}, minmax(0, 1fr))` }
+          : undefined
+      }
       role="group"
       aria-label="Помпи"
     >

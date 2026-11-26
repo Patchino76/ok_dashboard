@@ -1059,7 +1059,7 @@ export const vhsTags: TagDefinition[] = [
   {
     id: 233,
     name: "VHS_FIT512",
-    desc: "Моментен дебит 1 – Стара дренажна (FIT512)",
+    desc: "Дебит на вода от нова дренажна",
     unit: "l/s",
     precision: 1,
     group: "Дренажни води",
@@ -1069,7 +1069,7 @@ export const vhsTags: TagDefinition[] = [
   {
     id: 234,
     name: "VHS_FIT513",
-    desc: "Моментен дебит 2 – Стара дренажна (FIT513)",
+    desc: "Дебит на вода от Сулуджа дере",
     unit: "l/s",
     precision: 1,
     group: "Дренажни води",
@@ -1079,7 +1079,7 @@ export const vhsTags: TagDefinition[] = [
   {
     id: 235,
     name: "VHS_FIT514",
-    desc: "Моментен дебит 3 – Стара дренажна (FIT514)",
+    desc: "Дебит на вода от Ай дере",
     unit: "l/s",
     precision: 1,
     group: "Дренажни води",
@@ -1614,6 +1614,16 @@ export const vhsTags: TagDefinition[] = [
     precision: 0,
     group: "Хвостово стопанство",
     icon: "waterflow",
+    state: null,
+  },
+  {
+    id: 5716,
+    name: "VHS_LORAWAN_NTU_66B0",
+    desc: "Мътност LoRaWAN – ПС Мирково (оборотна)",
+    unit: "g/l",
+    precision: 3,
+    group: "Оборотна вода",
+    icon: "level",
     state: null,
   },
   {
