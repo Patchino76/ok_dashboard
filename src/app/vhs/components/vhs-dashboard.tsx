@@ -290,11 +290,11 @@ export function VhsDashboard() {
             subtitle="Захранване, подаване и налягане"
             tone="fresh"
           />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             <StationCard
               title="Електрозахранване · ВХС подстанция"
               tone="power"
-              className="sm:col-span-2"
+              className="col-span-full"
             >
               <StatGrid
                 tone="power"
@@ -505,84 +505,6 @@ export function VhsDashboard() {
                 />
               </div>
             </StationCard>
-            <StationCard
-              title="Баланс на водата"
-              tone="fresh"
-              className="sm:col-span-2"
-            >
-              <StatGrid
-                tone="fresh"
-                onSelect={selectMeasurement}
-                columns={4}
-                items={[
-                  {
-                    name: "Обем оборотна (общо)",
-                    value: fmt("VHS_OBOROTNA_VODA", 0),
-                    unit: "m³",
-                    tag: "VHS_OBOROTNA_VODA",
-                  },
-                  {
-                    name: "Оборотна 2",
-                    value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03", 1),
-                    unit: "l/s",
-                    tag: "VHS9_HVOSTOPROVOD_SONARTRAC03",
-                  },
-                  {
-                    name: "Обем",
-                    value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03_TOT", 0),
-                    unit: "m³",
-                    tag: "VHS9_HVOSTOPROVOD_SONARTRAC03_TOT",
-                  },
-                  { name: "Обем 2", value: "—", unit: "m³" },
-                  {
-                    name: "Температура",
-                    value: fmt("VHS_RECYCLEDWATER_TEMPERATURE", 1),
-                    unit: "°C",
-                    tag: "VHS_RECYCLEDWATER_TEMPERATURE",
-                  },
-                  {
-                    name: "pH",
-                    value: fmt("VHS_RECYCLEDWATER_PH702"),
-                    tag: "VHS_RECYCLEDWATER_PH702",
-                  },
-                  {
-                    name: "Руднична вода",
-                    value: fmt("VHS8_KISELA_VODA_FT801", 1),
-                    unit: "l/s",
-                    tag: "VHS8_KISELA_VODA_FT801",
-                  },
-                  {
-                    name: "pH руднична",
-                    value: fmt("VHS8_KISELA_VODA_PH800"),
-                    tag: "VHS8_KISELA_VODA_PH800",
-                  },
-                  {
-                    name: "Обем руднична",
-                    value: fmt("VHS8_KISELA_VODA_FTQ801", 0),
-                    unit: "m³",
-                    tag: "VHS8_KISELA_VODA_FTQ801",
-                  },
-                  {
-                    name: "Разход",
-                    value: fmt("VHS8_KISELA_VODA_FE"),
-                    unit: "l/min",
-                    tag: "VHS8_KISELA_VODA_FE",
-                  },
-                  {
-                    name: "Свежа вода",
-                    value: fmt("VHS_RADIN_IZVOR_FT601", 1),
-                    unit: "l/s",
-                    tag: "VHS_RADIN_IZVOR_FT601",
-                  },
-                  {
-                    name: "Обем свежа",
-                    value: fmt("VHS_RADIN_IZVOR_FTQ601", 0),
-                    unit: "m³",
-                    tag: "VHS_RADIN_IZVOR_FTQ601",
-                  },
-                ]}
-              />
-            </StationCard>
           </div>
         </section>
 
@@ -746,7 +668,11 @@ export function VhsDashboard() {
                 onSelect={selectMeasurement}
               />
             </StationCard>
-            <StationCard title="Резервоар оборотна вода" tone="recycle">
+            <StationCard
+              title="Резервоар оборотна вода"
+              tone="recycle"
+              className="sm:col-span-2"
+            >
               <ReservoirSchematic
                 onSelect={selectMeasurement}
                 top={[
@@ -1160,7 +1086,7 @@ export function VhsDashboard() {
                 onSelect={selectMeasurement}
               />
             </StationCard>
-            <div className="grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid content-start gap-3 sm:grid-cols-2">
               <StationCard title="Измерителен възел" tone="tail">
                 <StatGrid
                   items={[
@@ -1271,6 +1197,94 @@ export function VhsDashboard() {
                 />
               </StationCard>
             </div>
+          </div>
+        </section>
+
+        <section className="group/section space-y-3 rounded-2xl p-2 ring-1 ring-transparent transition-all duration-300 ease-out hover:bg-white/[0.08] hover:ring-white/30 hover:shadow-lg hover:shadow-black/30 active:bg-white/[0.09] active:ring-white/25">
+          <SectionHeading
+            title="Баланс на водата"
+            subtitle="Оборотна, руднична и свежа вода"
+            tone="fresh"
+          />
+          <div className="grid gap-3">
+              <StationCard
+                title="Баланс на водата"
+                tone="fresh"
+                className="col-span-full"
+              >
+                <StatGrid
+                  tone="fresh"
+                  onSelect={selectMeasurement}
+                  columns={4}
+                  items={[
+                    {
+                      name: "Обем оборотна (общо)",
+                      value: fmt("VHS_OBOROTNA_VODA", 0),
+                      unit: "m³",
+                      tag: "VHS_OBOROTNA_VODA",
+                    },
+                    {
+                      name: "Оборотна 2",
+                      value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03", 1),
+                      unit: "l/s",
+                      tag: "VHS9_HVOSTOPROVOD_SONARTRAC03",
+                    },
+                    {
+                      name: "Обем",
+                      value: fmt("VHS9_HVOSTOPROVOD_SONARTRAC03_TOT", 0),
+                      unit: "m³",
+                      tag: "VHS9_HVOSTOPROVOD_SONARTRAC03_TOT",
+                    },
+                    { name: "Обем 2", value: "—", unit: "m³" },
+                    {
+                      name: "Температура",
+                      value: fmt("VHS_RECYCLEDWATER_TEMPERATURE", 1),
+                      unit: "°C",
+                      tag: "VHS_RECYCLEDWATER_TEMPERATURE",
+                    },
+                    {
+                      name: "pH",
+                      value: fmt("VHS_RECYCLEDWATER_PH702"),
+                      tag: "VHS_RECYCLEDWATER_PH702",
+                    },
+                    {
+                      name: "Руднична вода",
+                      value: fmt("VHS8_KISELA_VODA_FT801", 1),
+                      unit: "l/s",
+                      tag: "VHS8_KISELA_VODA_FT801",
+                    },
+                    {
+                      name: "pH руднична",
+                      value: fmt("VHS8_KISELA_VODA_PH800"),
+                      tag: "VHS8_KISELA_VODA_PH800",
+                    },
+                    {
+                      name: "Обем руднична",
+                      value: fmt("VHS8_KISELA_VODA_FTQ801", 0),
+                      unit: "m³",
+                      tag: "VHS8_KISELA_VODA_FTQ801",
+                    },
+                    {
+                      name: "Разход",
+                      value: fmt("VHS8_KISELA_VODA_FE"),
+                      unit: "l/min",
+                      tag: "VHS8_KISELA_VODA_FE",
+                    },
+                    {
+                      name: "Свежа вода",
+                      value: fmt("VHS_RADIN_IZVOR_FT601", 1),
+                      unit: "l/s",
+                      tag: "VHS_RADIN_IZVOR_FT601",
+                    },
+                    {
+                      name: "Обем свежа",
+                      value: fmt("VHS_RADIN_IZVOR_FTQ601", 0),
+                      unit: "m³",
+                      tag: "VHS_RADIN_IZVOR_FTQ601",
+                    },
+                  ]}
+                />
+              </StationCard>
           </div>
         </section>
 

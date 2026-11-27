@@ -190,8 +190,8 @@ export function ReservoirSchematic({
         {bottom.slice(0, -1).map((t, i) => (
           <UConnector
             key={t.name}
-            left={`${((i + 0.62) / n) * 100}%`}
-            width={`${(0.76 / n) * 100}%`}
+            left={`calc((100% - ${(n - 1) * 8}px) / ${n} * ${i + 0.5} + ${i * 8}px + 12px - 1.5px)`}
+            width={`calc((100% - ${(n - 1) * 8}px) / ${n} + 8px + 3px)`}
           />
         ))}
       </div>
