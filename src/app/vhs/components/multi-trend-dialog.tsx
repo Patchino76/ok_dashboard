@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { X } from "lucide-react";
+import { Activity, List, X } from "lucide-react";
 import type { Measurement } from "./dashboard-types";
 import { vhsTagByName } from "@/lib/tags/vhs-tags";
 import type { TagTrendPoint } from "@/lib/tags/types";
@@ -223,7 +223,7 @@ export function MultiTrendDialog({
         onOpenChange(o);
       }}
     >
-      <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto border-white/10 bg-slate-900 text-slate-100">
+      <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-3xl gap-3 overflow-y-auto border-white/10 bg-slate-900 p-3 text-slate-100 sm:gap-4 sm:p-6">
         <DialogClose className="absolute right-3 top-3 rounded-sm text-slate-400 opacity-70 hover:opacity-100">
           <X className="size-4" />
           <span className="sr-only">Затвори</span>
@@ -231,12 +231,14 @@ export function MultiTrendDialog({
         <button
           type="button"
           onClick={() => setView((v) => (v === "detail" ? "overview" : "detail"))}
-          className="absolute right-10 top-2.5 rounded-full border border-sky-400/40 px-3 py-1 text-xs text-sky-300 transition-colors hover:bg-sky-400/10"
+          aria-label={view === "detail" ? "Всички тенденции" : "Детайлен изглед"}
+          title={view === "detail" ? "Всички тенденции" : "Детайлен изглед"}
+          className="absolute right-9 top-3 flex size-6 items-center justify-center rounded-full border border-sky-400/40 text-sky-300 transition-colors hover:bg-sky-400/10"
         >
-          {view === "detail" ? "Всички тенденции ›" : "‹ Детайлен изглед"}
+          {view === "detail" ? <List className="size-3.5" /> : <Activity className="size-3.5" />}
         </button>
-        <DialogHeader>
-          <DialogTitle>
+        <DialogHeader className="pr-14 text-left">
+          <DialogTitle className="text-base sm:text-lg leading-tight">
             {[measurement?.station, measurement?.name].filter(Boolean).join(" · ")}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
@@ -256,7 +258,7 @@ export function MultiTrendDialog({
             </TabsList>
           </Tabs>
           {view === "detail" && (
-            <span className="text-xs text-slate-400">
+            <span className="hidden text-xs text-slate-400 sm:inline">
               Натиснете ред, за да покажете/скриете сензор
             </span>
           )}
@@ -274,12 +276,12 @@ export function MultiTrendDialog({
                 return (
                   <div
                     key={s.tag}
-                    className="grid grid-cols-[minmax(0,12rem)_1fr] items-center gap-3 border-t border-white/5 py-2"
+                    className="grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-2 sm:grid-cols-[minmax(0,12rem)_1fr] sm:gap-3 border-t border-white/5 py-2"
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
                       <div className="min-w-0">
-                        <div className="truncate text-sm text-slate-300">{s.name}</div>
+                        <div className="text-sm leading-tight text-slate-300 sm:truncate">{s.name}</div>
                         <div className="text-[11px] tabular-nums text-slate-500">
                           avg <b className="font-semibold text-slate-300">{st ? `${Math.round(st.avg)}°` : "—"}</b>
                           <span className="ml-2">max</span>{" "}
@@ -301,7 +303,7 @@ export function MultiTrendDialog({
                         )}
                       </svg>
                       <span
-                        className="w-12 shrink-0 text-xl font-semibold tabular-nums"
+                        className="w-10 shrink-0 text-right text-lg font-semibold tabular-nums sm:w-12 sm:text-left sm:text-xl"
                         style={{ color: s.color }}
                       >
                         {latest[i] === null ? "—" : `${Math.round(latest[i] as number)}°`}
@@ -316,7 +318,7 @@ export function MultiTrendDialog({
         <>
         <div
           ref={plotRef}
-          className="relative h-[260px] w-full rounded-lg border border-white/10 bg-slate-950/60 p-2"
+          className="relative h-[220px] w-full sm:h-[260px] rounded-lg border border-white/10 bg-slate-950/60 p-2"
         >
           {loading ? (
             <div className="flex h-full items-center justify-center text-xs text-slate-400">
@@ -365,7 +367,7 @@ export function MultiTrendDialog({
             thumbClassName="h-4 w-4 border-sky-300 bg-slate-900"
           />
         )}
-        <table className="w-full text-sm tabular-nums">
+        <table className="w-full text-xs tabular-nums sm:text-sm">
           <thead>
             <tr className="text-xs text-slate-400">
               <th className="py-1 text-left font-normal">Сензор</th>
