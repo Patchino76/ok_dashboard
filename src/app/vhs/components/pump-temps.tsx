@@ -10,12 +10,12 @@ export type PumpTemp = {
 };
 
 const MIN = 0;
-const MAX = 60;
+const BASE_MAX = 60;
 const DANGER = 45;
-const GRID = [15, 30, DANGER];
+const PAD = 6;
 
-const pct = (v: number) =>
-  ((Math.min(MAX, Math.max(MIN, v)) - MIN) / (MAX - MIN)) * 100;
+const pctOf = (v: number, max: number) =>
+  ((Math.min(max, Math.max(MIN, v)) - MIN) / (max - MIN)) * 100;
 
 const tempTone = (v: number | null) =>
   v === null
@@ -41,6 +41,14 @@ export function PumpTemps({
     ? valid.reduce((s, t) => s + t.value, 0) / valid.length
     : null;
   const n = temps.length;
+  // Grow the scale (in steps of 20) so every point stays inside the gauge.
+  const scaleMax = Math.max(
+    BASE_MAX,
+    max === null ? 0 : Math.ceil((max + 2) / 20) * 20,
+  );
+  const pct = (v: number) => pctOf(v, scaleMax);
+  const pos = (v: number) => `calc(${PAD}px + (100% - ${2 * PAD}px) * ${pct(v) / 100})`;
+  const grid = [15, 30, DANGER, ...(scaleMax > 60 ? [60] : []), ...(scaleMax > 80 ? [80] : [])];
 
   return (
     <div className="flex flex-col items-center gap-1" role="group" aria-label="Температури">
@@ -61,19 +69,19 @@ export function PumpTemps({
       >
         <div
           className="absolute inset-x-0 top-0 bg-red-500/20"
-          style={{ height: `${100 - pct(DANGER)}%` }}
+          style={{ height: `calc(100% - ${pos(DANGER)})` }}
         />
-        {GRID.map((g) => (
+        {grid.map((g) => (
           <div
             key={g}
             className="absolute inset-x-0 border-t border-slate-600/50"
-            style={{ bottom: `${pct(g)}%` }}
+            style={{ bottom: pos(g) }}
           />
         ))}
         {avg !== null && (
           <div
             className="absolute inset-x-0 border-t border-dashed border-slate-200/80"
-            style={{ bottom: `${pct(avg)}%` }}
+            style={{ bottom: pos(avg) }}
           />
         )}
         {temps.map((t, i) =>
@@ -85,7 +93,7 @@ export function PumpTemps({
               className="absolute size-1.5 -translate-x-1/2 translate-y-1/2 rounded-full ring-1 ring-slate-950/60 transition-all duration-500"
               style={{
                 left: `${n > 1 ? 16 + (i / (n - 1)) * 68 : 50}%`,
-                bottom: `${pct(t.value)}%`,
+                bottom: pos(t.value),
                 backgroundColor: t.color,
                 boxShadow: `0 0 6px ${t.color}`,
               }}

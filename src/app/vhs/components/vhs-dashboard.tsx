@@ -206,6 +206,23 @@ export function VhsDashboard() {
   };
 
   const pump = (id: string, tag: string) => ({ id, running: bool(tag), tag });
+  const pumpTemps = (prefix: string) =>
+    (
+      [
+        ["Мотор, лагер 1", "TMB1", "#fb7185"],
+        ["Мотор, лагер 2", "TMB2", "#fb923c"],
+        ["Помпа, лагер 1", "TPB1", "#38bdf8"],
+        ["Помпа, лагер 2", "TPB2", "#a78bfa"],
+        ["Мотор, намотка 1", "TMF1", "#fbbf24"],
+        ["Мотор, намотка 2", "TMF2", "#a3e635"],
+        ["Мотор, намотка 3", "TMF3", "#2dd4bf"],
+      ] as const
+    ).map(([name, sfx, color]) => ({
+      name,
+      color,
+      tag: `${prefix}_${sfx}`,
+      value: num(`${prefix}_${sfx}`),
+    }));
   const pumpCount = (tags: string[]) => tags.filter((tag) => bool(tag)).length;
 
   const numericValues = useMemo(() => {
@@ -416,29 +433,11 @@ export function VhsDashboard() {
                   value: num(`VHS_MIRKOVO_VALVE_${n}`),
                 }))}
                 pumps={[
-                  {
-                    ...pump("P6", "VHS_PM111_ON"),
-                    temps: (
-                      [
-                        ["Мотор, лагер 1", "TMB1", "#fb7185"],
-                        ["Мотор, лагер 2", "TMB2", "#fb923c"],
-                        ["Помпа, лагер 1", "TPB1", "#38bdf8"],
-                        ["Помпа, лагер 2", "TPB2", "#a78bfa"],
-                        ["Мотор, намотка 1", "TMF1", "#fbbf24"],
-                        ["Мотор, намотка 2", "TMF2", "#a3e635"],
-                        ["Мотор, намотка 3", "TMF3", "#2dd4bf"],
-                      ] as const
-                    ).map(([name, sfx, color]) => ({
-                      name,
-                      color,
-                      tag: `VHS_PM111_${sfx}`,
-                      value: num(`VHS_PM111_${sfx}`),
-                    })),
-                  },
-                  pump("P7", "VHS_PM112_ON"),
-                  pump("P8", "VHS_PM113_ON"),
-                  pump("P9", "VHS_PM114_ON"),
-                  pump("P10", "VHS_PM115_ON"),
+                  { ...pump("P6", "VHS_PM111_ON"), temps: pumpTemps("VHS_PM111") },
+                  { ...pump("P7", "VHS_PM112_ON"), temps: pumpTemps("VHS_PM112") },
+                  { ...pump("P8", "VHS_PM113_ON"), temps: pumpTemps("VHS_PM113") },
+                  { ...pump("P9", "VHS_PM114_ON"), temps: pumpTemps("VHS_PM114") },
+                  { ...pump("P10", "VHS_PM115_ON"), temps: pumpTemps("VHS_PM115") },
                 ]}
                 station="ПС Мирково"
                 onSelect={selectMeasurement}
@@ -467,9 +466,9 @@ export function VhsDashboard() {
                   value: num(`VHS_RADINIZVOR_VALVE_${n}`),
                 }))}
                 pumps={[
-                  pump("P1", "VHS_PM611_ON"),
-                  pump("P2", "VHS_PM612_ON"),
-                  pump("P3", "VHS_PM613_ON"),
+                  { ...pump("P1", "VHS_PM611_ON"), temps: pumpTemps("VHS_PM611") },
+                  { ...pump("P2", "VHS_PM612_ON"), temps: pumpTemps("VHS_PM612") },
+                  { ...pump("P3", "VHS_PM613_ON"), temps: pumpTemps("VHS_PM613") },
                 ]}
                 station="ПС Радин извор"
                 onSelect={selectMeasurement}
@@ -667,9 +666,9 @@ export function VhsDashboard() {
                   pressureTag: pt,
                 }))}
                 pumps={[
-                  pump("P1", "VHS_PM421_ON"),
-                  pump("P2", "VHS_PM422_ON"),
-                  pump("P3", "VHS_PM423_ON"),
+                  { ...pump("P1", "VHS_PM421_ON"), temps: pumpTemps("VHS_PM421") },
+                  { ...pump("P2", "VHS_PM422_ON"), temps: pumpTemps("VHS_PM422") },
+                  { ...pump("P3", "VHS_PM423_ON"), temps: pumpTemps("VHS_PM423") },
                 ]}
                 extraPumps={[
                   { ...pump("PV424", "VHS_PV424_ON"), small: true },
@@ -734,10 +733,10 @@ export function VhsDashboard() {
                   value: num(`VHS_MIRKOVO_VALVE_${n}`),
                 }))}
                 pumps={[
-                  pump("P1", "VHS_PM121_ON"),
-                  pump("P2", "VHS_PM122_ON"),
-                  pump("P3", "VHS_PM123_ON"),
-                  pump("P4", "VHS_PM124_ON"),
+                  { ...pump("P1", "VHS_PM121_ON"), temps: pumpTemps("VHS_PM121") },
+                  { ...pump("P2", "VHS_PM122_ON"), temps: pumpTemps("VHS_PM122") },
+                  { ...pump("P3", "VHS_PM123_ON"), temps: pumpTemps("VHS_PM123") },
+                  { ...pump("P4", "VHS_PM124_ON"), temps: pumpTemps("VHS_PM124") },
                 ]}
                 extraPumps={[
                   { ...pump("PD131", "VHS_PD131_ON"), small: true },
@@ -1025,9 +1024,9 @@ export function VhsDashboard() {
               />
               <PumpStatus
                 pumps={[
-                  pump("P1", "VHS_PM521_ON"),
-                  pump("P2", "VHS_PM522_ON"),
-                  pump("P3", "VHS_PM523_ON"),
+                  { ...pump("P1", "VHS_PM521_ON"), temps: pumpTemps("VHS_PM521") },
+                  { ...pump("P2", "VHS_PM522_ON"), temps: pumpTemps("VHS_PM522") },
+                  { ...pump("P3", "VHS_PM523_ON"), temps: pumpTemps("VHS_PM523") },
                   { ...pump("PD531", "VHS_PD531_ON"), small: true },
                 ]}
                 station="Стара дренажна ПС"
