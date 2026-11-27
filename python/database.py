@@ -230,7 +230,7 @@ class DatabaseManager:
         
         return tables
     
-    def get_tag_trend(self, tag_id, hours=8):
+    def get_tag_trend(self, tag_id, hours=8, points=None):
         """Get historical trend data for a tag
         
         Args:
@@ -274,20 +274,32 @@ class DatabaseManager:
             with self.engine.connect() as conn:
                 for table_name in tables:
                     try:
-                        # Build query for this table
-                        query = text(f"""
-                            SELECT LoggerTagID, Value, IndexTime 
-                            FROM {table_name}
-                            WHERE LoggerTagID = :tag_id
-                            AND IndexTime BETWEEN :start_time AND :end_time
-                            ORDER BY IndexTime ASC
-                        """)
-                        
-                        result = conn.execute(query, {
+                        params = {
                             "tag_id": tag_id,
                             "start_time": start_time,
                             "end_time": end_time
-                        }).fetchall()
+                        }
+                        bucket_s = int(hours * 3600 / points) if points and points > 0 else 0
+                        if bucket_s > 1:
+                            params["bucket_s"] = bucket_s
+                            query = text(f"""
+                                SELECT AVG(CAST(Value AS float)) AS Value, MIN(IndexTime) AS IndexTime
+                                FROM {table_name}
+                                WHERE LoggerTagID = :tag_id
+                                AND IndexTime BETWEEN :start_time AND :end_time
+                                GROUP BY DATEDIFF(second, :start_time, IndexTime) / :bucket_s
+                                ORDER BY MIN(IndexTime) ASC
+                            """)
+                        else:
+                            query = text(f"""
+                                SELECT LoggerTagID, Value, IndexTime 
+                                FROM {table_name}
+                                WHERE LoggerTagID = :tag_id
+                                AND IndexTime BETWEEN :start_time AND :end_time
+                                ORDER BY IndexTime ASC
+                            """)
+                        
+                        result = conn.execute(query, params).fetchall()
                         
                         for row in result:
                             values.append(row.Value)
@@ -508,7 +520,7 @@ class MockDatabaseManager:
         logger.warning(f"Database unavailable - returning zero values for {len(tag_ids)} tags")
         return {tag_id: self.get_tag_value(tag_id) for tag_id in tag_ids}
     
-    def get_tag_trend(self, tag_id, hours=8):
+    def get_tag_trend(self, tag_id, hours=8, points=None):
         """Return empty trend data when database is unavailable"""
         logger.warning(f"Database unavailable - returning empty trend data for tag {tag_id}")
         return {

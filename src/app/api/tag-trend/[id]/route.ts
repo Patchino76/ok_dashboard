@@ -9,6 +9,7 @@ export async function GET(
   const tagId = String(params?.id || "");
   const searchParams = request.nextUrl.searchParams;
   const hours = searchParams.get("hours") || "8";
+  const points = searchParams.get("points");
 
   if (!tagId) {
     return NextResponse.json(
@@ -37,7 +38,7 @@ export async function GET(
       );
     }
     
-    const backendUrl = `${apiUrl}/api/tag-trend/${tagId}?hours=${hours}`;
+    const backendUrl = `${apiUrl}/api/tag-trend/${tagId}?hours=${hours}${points ? `&points=${encodeURIComponent(points)}` : ""}`;
     console.log(`Connecting to backend: ${backendUrl}`);
     
     const response = await fetch(backendUrl, {

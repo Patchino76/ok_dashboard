@@ -657,6 +657,7 @@ async def get_tag_values(tag_ids: List[int] = Query(...), db: DatabaseManager = 
 async def get_tag_trend(
     tag_id: int, 
     hours: int = 8,
+    points: Optional[int] = Query(None, ge=10, le=5000),
     db: DatabaseManager = Depends(get_db)
 ):
     """
@@ -666,7 +667,7 @@ async def get_tag_trend(
     - tag_id: The ID of the tag to fetch trend data for
     - hours: Number of hours of historical data to retrieve (default: 8)
     """
-    result = db.get_tag_trend(tag_id, hours)
+    result = db.get_tag_trend(tag_id, hours, points)
     
     # Never fabricate data: an empty series means the tag has no samples in the window.
     if not result or not result.get("timestamps"):

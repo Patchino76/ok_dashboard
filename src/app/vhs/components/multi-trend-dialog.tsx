@@ -6,7 +6,6 @@ import {
   CartesianGrid,
   Line,
   LineChart,
-  ReferenceLine,
   ResponsiveContainer,
   XAxis,
   YAxis,
@@ -38,7 +37,7 @@ async function fetchTrend(tagName: string, hours: number): Promise<TagTrendPoint
   const tag = vhsTagByName[tagName];
   if (!tag) return [];
   try {
-    const res = await fetch(`/api/tag-trend/${tag.id}?hours=${hours}`, {
+    const res = await fetch(`/api/tag-trend/${tag.id}?hours=${hours}&points=600`, {
       headers: { Accept: "application/json" },
       cache: "no-store",
     });
@@ -72,7 +71,7 @@ export function MultiTrendDialog({
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [cursor, setCursor] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement>(null);
-  const series = measurement?.series ?? [];
+  const series = useMemo(() => measurement?.series ?? [], [measurement]);
 
   const results = useQueries({
     queries: series.map((s) => ({
@@ -98,6 +97,47 @@ export function MultiTrendDialog({
     return [...map.values()].sort((a, b) => (a.t as number) - (b.t as number));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results.map((r) => r.dataUpdatedAt).join(","), series]);
+
+  const chart = useMemo(
+    () => (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+        <CartesianGrid stroke="rgba(255,255,255,.08)" />
+        <XAxis
+          dataKey="t"
+          type="number"
+          scale="time"
+          domain={["dataMin", "dataMax"]}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fill: "#94a3b8", fontSize: 10 }}
+          tickFormatter={fmtTime}
+        />
+        <YAxis
+          width={36}
+          tickLine={false}
+          axisLine={false}
+          tick={{ fill: "#94a3b8", fontSize: 10 }}
+          domain={["auto", "auto"]}
+        />
+        {series.map((s) =>
+          hidden.has(s.tag) ? null : (
+            <Line
+              key={s.tag}
+              dataKey={s.tag}
+              stroke={s.color}
+              strokeWidth={2}
+              dot={false}
+              connectNulls
+              isAnimationActive={false}
+            />
+          ),
+        )}
+      </LineChart>
+    </ResponsiveContainer>
+    ),
+    [rows, series, hidden],
+  );
 
   const idx = rows.length
     ? Math.min(cursor ?? rows.length - 1, rows.length - 1)
@@ -202,47 +242,18 @@ export function MultiTrendDialog({
               Няма данни за избрания период
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={rows} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-                <CartesianGrid stroke="rgba(255,255,255,.08)" />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  scale="time"
-                  domain={["dataMin", "dataMax"]}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  tickFormatter={fmtTime}
-                />
-                <YAxis
-                  width={36}
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  domain={["auto", "auto"]}
-                />
-                {current && (
-                  <ReferenceLine x={current.t as number} stroke="rgba(255,255,255,.5)" />
-                )}
-                {series.map((s) =>
-                  hidden.has(s.tag) ? null : (
-                    <Line
-                      key={s.tag}
-                      dataKey={s.tag}
-                      stroke={s.color}
-                      strokeWidth={2}
-                      dot={false}
-                      connectNulls
-                      isAnimationActive={false}
-                    />
-                  ),
-                )}
-              </LineChart>
-            </ResponsiveContainer>
+            chart
           )}
-          {rows.length > 1 && !loading && (
+          {rows.length > 1 && !loading && current && (
             <>
+              <div
+                className="pointer-events-none absolute w-px bg-white/50"
+                style={{
+                  top: 16,
+                  bottom: 30,
+                  left: `calc(${PLOT_L}px + (100% - ${PLOT_L + PLOT_R}px) * ${t1 > t0 ? ((current.t as number) - t0) / (t1 - t0) : 0})`,
+                }}
+              />
               <div
                 className="absolute inset-0 cursor-crosshair touch-none"
                 onPointerDown={(e) => {
@@ -297,7 +308,7 @@ export function MultiTrendDialog({
                       className="mr-2 inline-block size-3 rounded-sm align-middle"
                       style={{ backgroundColor: s.color }}
                     />
-                    {vhsTagByName[s.tag]?.desc ?? s.name}
+                    {s.name}
                   </td>
                   <td className="text-right font-semibold">{fmt(valueAt(s.tag))}°</td>
                   <td className="text-right text-slate-300">{fmt(st?.min)}</td>
