@@ -70,6 +70,7 @@ export function MultiTrendDialog({
   const [hours, setHours] = useState<number>(24);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [cursor, setCursor] = useState<number | null>(null);
+  const [view, setView] = useState<"detail" | "overview">("detail");
   const plotRef = useRef<HTMLDivElement>(null);
   const series = useMemo(() => measurement?.series ?? [], [measurement]);
 
@@ -181,6 +182,28 @@ export function MultiTrendDialog({
     }
     return null;
   };
+  const sparkline = (tag: string) => {
+    const pts = rows
+      .map((r) => [r.t as number, r[tag]] as const)
+      .filter((p): p is readonly [number, number] => typeof p[1] === "number");
+    if (pts.length < 2) return null;
+    const lo = Math.min(...pts.map((p) => p[1]));
+    const hi = Math.max(...pts.map((p) => p[1]));
+    const span = hi - lo || 1;
+    return pts
+      .map(
+        ([t, v]) =>
+          `${(((t - t0) / (t1 - t0 || 1)) * 300).toFixed(1)},${(36 - ((v - lo) / span) * 32).toFixed(1)}`,
+      )
+      .join(" ");
+  };
+  const latest = series.map((s) => {
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const v = rows[i][s.tag];
+      if (typeof v === "number") return v;
+    }
+    return null;
+  });
   const toggle = (tag: string) =>
     setHidden((prev) => {
       const next = new Set(prev);
@@ -205,6 +228,13 @@ export function MultiTrendDialog({
           <X className="size-4" />
           <span className="sr-only">Затвори</span>
         </DialogClose>
+        <button
+          type="button"
+          onClick={() => setView((v) => (v === "detail" ? "overview" : "detail"))}
+          className="absolute right-10 top-2.5 rounded-full border border-sky-400/40 px-3 py-1 text-xs text-sky-300 transition-colors hover:bg-sky-400/10"
+        >
+          {view === "detail" ? "Всички тенденции ›" : "‹ Детайлен изглед"}
+        </button>
         <DialogHeader>
           <DialogTitle>
             {[measurement?.station, measurement?.name].filter(Boolean).join(" · ")}
@@ -225,10 +255,65 @@ export function MultiTrendDialog({
               ))}
             </TabsList>
           </Tabs>
-          <span className="text-xs text-slate-400">
-            Натиснете ред, за да покажете/скриете сензор
-          </span>
+          {view === "detail" && (
+            <span className="text-xs text-slate-400">
+              Натиснете ред, за да покажете/скриете сензор
+            </span>
+          )}
         </div>
+        {view === "overview" ? (
+          <div>
+            {loading ? (
+              <div className="py-10 text-center text-xs text-slate-400">Зареждане...</div>
+            ) : rows.length === 0 ? (
+              <div className="py-10 text-center text-xs text-slate-400">Няма данни за избрания период</div>
+            ) : (
+              series.map((s, i) => {
+                const points = sparkline(s.tag);
+                const st = stats(s.tag);
+                return (
+                  <div
+                    key={s.tag}
+                    className="grid grid-cols-[minmax(0,12rem)_1fr] items-center gap-3 border-t border-white/5 py-2"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                      <div className="min-w-0">
+                        <div className="truncate text-sm text-slate-300">{s.name}</div>
+                        <div className="text-[11px] tabular-nums text-slate-500">
+                          avg <b className="font-semibold text-slate-300">{st ? `${Math.round(st.avg)}°` : "—"}</b>
+                          <span className="ml-2">max</span>{" "}
+                          <b className="font-semibold text-slate-300">{st ? `${Math.round(st.max)}°` : "—"}</b>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <svg viewBox="0 0 300 40" preserveAspectRatio="none" className="h-9 min-w-0 flex-1">
+                        {points && (
+                          <polyline
+                            points={points}
+                            fill="none"
+                            stroke={s.color}
+                            strokeWidth={2}
+                            strokeLinejoin="round"
+                            vectorEffect="non-scaling-stroke"
+                          />
+                        )}
+                      </svg>
+                      <span
+                        className="w-12 shrink-0 text-xl font-semibold tabular-nums"
+                        style={{ color: s.color }}
+                      >
+                        {latest[i] === null ? "—" : `${Math.round(latest[i] as number)}°`}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : (
+        <>
         <div
           ref={plotRef}
           className="relative h-[260px] w-full rounded-lg border border-white/10 bg-slate-950/60 p-2"
@@ -319,6 +404,8 @@ export function MultiTrendDialog({
             })}
           </tbody>
         </table>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );
